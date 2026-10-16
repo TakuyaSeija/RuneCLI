@@ -1,0 +1,12 @@
+# Tests keep their temporary folders under `target/`, never in the machine's
+# temp directory — on many systems a RAM-backed tmpfs, where every run's
+# leftovers stayed until reboot — and never in the scratch of a Rune session
+# that happens to run them (a session's TMPDIR, which they filled to 107 MB).
+# `force` because a Rune session sets TMPDIR for every command it runs.
+[env]
+TMPDIR = { value = "target/test-tmp", relative = true, force = true }
+
+# A Windows build carries its C runtime: a fresh Windows has no Visual C++
+# redistributable, and Rune starts without anything installed beside it.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

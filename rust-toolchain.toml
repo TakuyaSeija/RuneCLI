@@ -1,0 +1,5 @@
+# One shared baseline for local development and CI.
+[toolchain]
+channel = "1.97.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]

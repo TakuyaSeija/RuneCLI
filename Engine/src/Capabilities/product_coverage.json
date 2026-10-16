@@ -1,0 +1,899 @@
+{
+  "fields": {
+    "capabilities": {
+      "document": "capabilities/configuration.md",
+      "default": {},
+      "kind": "Capabilities"
+    },
+    "network.max_stream_size": {
+      "document": "runtime/network.md",
+      "default": "16MiB",
+      "kind": "Size"
+    },
+    "sanitizer.enabled": {
+      "document": "auxiliary/sanitizer.md",
+      "default": true,
+      "kind": "Bool"
+    },
+    "sanitizer.model": {
+      "document": "auxiliary/sanitizer.md",
+      "default": null,
+      "kind": "Model"
+    },
+    "sanitizer.timeout": {
+      "document": "auxiliary/sanitizer.md",
+      "default": "120s",
+      "kind": "Duration"
+    },
+    "sanitizer.max_output_tokens": {
+      "document": "auxiliary/sanitizer.md",
+      "default": 4096,
+      "kind": "Count(256,10000000)"
+    },
+    "generation": {
+      "document": "generation/sampling.md",
+      "default": null,
+      "kind": "Generation"
+    },
+    "checkpoint.max_file_size": {
+      "document": "data/checkpoints.md",
+      "default": "64MiB",
+      "kind": "Size"
+    },
+    "checkpoint.refresh_interval": {
+      "document": "data/checkpoints.md",
+      "default": "1s",
+      "kind": "Duration"
+    },
+    "checkpoint.diff.max_cells": {
+      "document": "data/checkpoints.md",
+      "default": 1000000,
+      "kind": "Count(100,10000000)"
+    },
+    "checkpoint.diff.context": {
+      "document": "data/checkpoints.md",
+      "default": 3,
+      "kind": "Count(0,100)"
+    },
+    "terminal.command_timeout": {
+      "document": "tools/terminal-use.md",
+      "default": "120s",
+      "kind": "Duration"
+    },
+    "terminal.shell": {
+      "document": "tools/terminal-use.md",
+      "default": "auto",
+      "kind": "Text"
+    },
+    "terminal.term": {
+      "document": "tools/terminal-use.md",
+      "default": "xterm-256color",
+      "kind": "Text"
+    },
+    "terminal.inherit_environment": {
+      "document": "tools/terminal-use.md",
+      "default": false,
+      "kind": "Bool"
+    },
+    "terminal.flush_interval": {
+      "document": "tools/terminal-use.md",
+      "default": "150ms",
+      "kind": "Duration"
+    },
+    "terminal.input_wait_delay": {
+      "document": "tools/terminal-use.md",
+      "default": "2s",
+      "kind": "Duration"
+    },
+    "terminal.drain_after_exit": {
+      "document": "tools/terminal-use.md",
+      "default": "200ms",
+      "kind": "Duration"
+    },
+    "terminal.cancel_grace": {
+      "document": "tools/terminal-use.md",
+      "default": "200ms",
+      "kind": "Duration"
+    },
+    "terminal.timeout_grace": {
+      "document": "tools/terminal-use.md",
+      "default": "2s",
+      "kind": "Duration"
+    },
+    "terminal.rows": {
+      "document": "tools/terminal-use.md",
+      "default": 40,
+      "kind": "Count(1,1000)"
+    },
+    "terminal.columns": {
+      "document": "tools/terminal-use.md",
+      "default": 200,
+      "kind": "Count(1,1000)"
+    },
+    "terminal.max_output_chars": {
+      "document": "tools/terminal-use.md",
+      "default": 30000,
+      "kind": "Count(100,10000000)"
+    },
+    "terminal.max_output_size": {
+      "document": "tools/terminal-use.md",
+      "default": "8MiB",
+      "kind": "Size"
+    },
+    "terminal.max_background_log_size": {
+      "document": "tools/terminal-use.md",
+      "default": "100MiB",
+      "kind": "Size"
+    },
+    "terminal.truncate_head_bytes": {
+      "document": "tools/terminal-use.md",
+      "default": 1536,
+      "kind": "Count(100,1000000)"
+    },
+    "terminal.truncate_tail_bytes": {
+      "document": "tools/terminal-use.md",
+      "default": 1536,
+      "kind": "Count(100,1000000)"
+    },
+    "inspect_file.max_file_size": {
+      "document": "tools/inspect-file.md",
+      "default": "16MiB",
+      "kind": "Size"
+    },
+    "inspect_file.max_output_chars": {
+      "document": "tools/inspect-file.md",
+      "default": 30000,
+      "kind": "Count(100,10000000)"
+    },
+    "find_files.matches": {
+      "document": "tools/find-files.md",
+      "default": 200,
+      "kind": "Count(1,100000)"
+    },
+    "find_files.max_output_chars": {
+      "document": "tools/find-files.md",
+      "default": 20000,
+      "kind": "Count(100,10000000)"
+    },
+    "search_text.matches": {
+      "document": "tools/search-text.md",
+      "default": 100,
+      "kind": "Count(1,100000)"
+    },
+    "search_text.max_line_chars": {
+      "document": "tools/search-text.md",
+      "default": 2000,
+      "kind": "Count(20,100000)"
+    },
+    "search_text.max_output_chars": {
+      "document": "tools/search-text.md",
+      "default": 30000,
+      "kind": "Count(100,10000000)"
+    },
+    "discover_capabilities.max_output_chars": {
+      "document": "tools/discover-capabilities.md",
+      "default": 30000,
+      "kind": "Count(100,10000000)"
+    },
+    "discover_capabilities.page_size": {
+      "document": "tools/discover-capabilities.md",
+      "default": 12,
+      "kind": "Count(1,100)"
+    },
+    "read_mcp_resource.max_output_chars": {
+      "document": "tools/read-mcp-resource.md",
+      "default": 50000,
+      "kind": "Count(100,10000000)"
+    },
+    "manage_process.max_output_chars": {
+      "document": "tools/manage-process.md",
+      "default": 30000,
+      "kind": "Count(100,10000000)"
+    },
+    "manage_process.truncate_head_bytes": {
+      "document": "tools/manage-process.md",
+      "default": 1536,
+      "kind": "Count(100,1000000)"
+    },
+    "manage_process.truncate_tail_bytes": {
+      "document": "tools/manage-process.md",
+      "default": 1536,
+      "kind": "Count(100,1000000)"
+    },
+    "tools.max_actions_per_response": {
+      "document": "tools/orchestration.md",
+      "default": 20,
+      "kind": "Count(1,100)"
+    },
+    "scan.max_entries": {
+      "document": "tools/file-scan.md",
+      "default": 200000,
+      "kind": "Count(1,10000000)"
+    },
+    "scan.max_depth": {
+      "document": "tools/file-scan.md",
+      "default": 32,
+      "kind": "Count(1,256)"
+    },
+    "scan.regex_steps": {
+      "document": "tools/file-scan.md",
+      "default": 200000,
+      "kind": "Count(100,10000000)"
+    },
+    "classifier.excluded_tools": {
+      "document": "auxiliary/classifier.md",
+      "default": [
+        "ask_user_questions",
+        "track_tasks",
+        "web_search",
+        "web_fetch",
+        "find_files",
+        "inspect_file",
+        "read_mcp_resource",
+        "discover_capabilities",
+        "search_text"
+      ],
+      "kind": "ToolNames"
+    },
+    "questions.timeout": {
+      "document": "tools/ask-user-questions.md",
+      "default": "unlimited",
+      "kind": "Duration"
+    },
+    "classifier.context_tools": {
+      "document": "auxiliary/classifier.md",
+      "default": [
+        "terminal_use",
+        "inspect_file",
+        "find_files",
+        "search_text",
+        "create_file",
+        "patch_file"
+      ],
+      "kind": "ToolNames"
+    },
+    "classifier.enabled": {
+      "document": "auxiliary/classifier.md",
+      "default": true,
+      "kind": "Bool"
+    },
+    "classifier.model": {
+      "document": "auxiliary/classifier.md",
+      "default": null,
+      "kind": "Model"
+    },
+    "classifier.timeout": {
+      "document": "auxiliary/classifier.md",
+      "default": "120s",
+      "kind": "Duration"
+    },
+    "classifier.max_output_tokens": {
+      "document": "auxiliary/classifier.md",
+      "default": 1024,
+      "kind": "Count(16,10000000)"
+    },
+    "classifier.max_evidence_size": {
+      "document": "auxiliary/classifier.md",
+      "default": "256KiB",
+      "kind": "Size"
+    },
+    "classifier.max_policy_size": {
+      "document": "auxiliary/classifier.md",
+      "default": "64KiB",
+      "kind": "Size"
+    },
+    "compact.model": {
+      "document": "auxiliary/compact.md",
+      "default": null,
+      "kind": "Model"
+    },
+    "compact.max_output_tokens": {
+      "document": "auxiliary/compact.md",
+      "default": 32768,
+      "kind": "Count(256,10000000)"
+    },
+    "compact.keep_recent_turns": {
+      "document": "auxiliary/compact.md",
+      "default": 5,
+      "kind": "Count(1,100)"
+    },
+    "compact.fallback_context_tokens": {
+      "document": "auxiliary/compact.md",
+      "default": 200000,
+      "kind": "Count(1000,10000000)"
+    },
+    "compact.message_chars": {
+      "document": "auxiliary/compact.md",
+      "default": 32000,
+      "kind": "Count(100,1000000)"
+    },
+    "compact.tool_chars": {
+      "document": "auxiliary/compact.md",
+      "default": 2000,
+      "kind": "Count(100,1000000)"
+    },
+    "title.model": {
+      "document": "auxiliary/title.md",
+      "default": null,
+      "kind": "Model"
+    },
+    "title.max_output_tokens": {
+      "document": "auxiliary/title.md",
+      "default": 256,
+      "kind": "Count(8,10000000)"
+    },
+    "title.max_chars": {
+      "document": "auxiliary/title.md",
+      "default": 60,
+      "kind": "Count(1,200)"
+    },
+    "permissions.timeout": {
+      "document": "permissions/modes.md",
+      "default": "10m",
+      "kind": "Duration"
+    },
+    "auxiliary.mandatory_reasoning_output_tokens": {
+      "document": "auxiliary/budgets.md",
+      "default": 4096,
+      "kind": "Count(1025,10000000)"
+    },
+    "network.connect_timeout": {
+      "document": "runtime/network.md",
+      "default": "10s",
+      "kind": "Duration"
+    },
+    "network.stream_idle_timeout": {
+      "document": "runtime/network.md",
+      "default": "5m",
+      "kind": "Duration"
+    },
+    "network.catalog_timeout": {
+      "document": "runtime/network.md",
+      "default": "10s",
+      "kind": "Duration"
+    },
+    "network.catalog_ttl": {
+      "document": "runtime/network.md",
+      "default": "1h",
+      "kind": "Duration"
+    },
+    "network.catalog_max_pages": {
+      "document": "runtime/network.md",
+      "default": 100,
+      "kind": "Count(1,1000)"
+    },
+    "network.probe_timeout": {
+      "document": "runtime/network.md",
+      "default": "45s",
+      "kind": "Duration"
+    },
+    "network.max_event_size": {
+      "document": "runtime/network.md",
+      "default": "8MiB",
+      "kind": "Size"
+    },
+    "network.max_response_size": {
+      "document": "runtime/network.md",
+      "default": "8MiB",
+      "kind": "Size"
+    },
+    "network.token_saver": {
+      "document": "runtime/network.md",
+      "default": "off",
+      "kind": "Text"
+    },
+    "retry.max_attempts": {
+      "document": "runtime/retry.md",
+      "default": 5,
+      "kind": "Count(0,4294967295)"
+    },
+    "retry.initial_delay": {
+      "document": "runtime/retry.md",
+      "default": "3s",
+      "kind": "Duration"
+    },
+    "retry.max_delay": {
+      "document": "runtime/retry.md",
+      "default": "1m",
+      "kind": "Duration"
+    },
+    "retry.credit_cooldown": {
+      "document": "runtime/retry.md",
+      "default": "15m",
+      "kind": "Duration"
+    },
+    "web_search.provider": {
+      "document": "tools/web-search.md",
+      "default": null,
+      "kind": "Connection"
+    },
+    "web_search.timeout": {
+      "document": "tools/web-search.md",
+      "default": "60s",
+      "kind": "Duration"
+    },
+    "web_search.results": {
+      "document": "tools/web-search.md",
+      "default": 8,
+      "kind": "Count(1,100)"
+    },
+    "web_search.max_output_chars": {
+      "document": "tools/web-search.md",
+      "default": 100000,
+      "kind": "Count(100,10000000)"
+    },
+    "web_fetch.provider": {
+      "document": "tools/web-fetch.md",
+      "default": null,
+      "kind": "Connection"
+    },
+    "web_fetch.timeout": {
+      "document": "tools/web-fetch.md",
+      "default": "60s",
+      "kind": "Duration"
+    },
+    "web_fetch.max_output_chars": {
+      "document": "tools/web-fetch.md",
+      "default": 100000,
+      "kind": "Count(100,10000000)"
+    },
+    "attachments.max_text_chars": {
+      "document": "data/attachments.md",
+      "default": 60000,
+      "kind": "Count(100,10000000)"
+    },
+    "attachments.max_history_files": {
+      "document": "data/attachments.md",
+      "default": 10,
+      "kind": "Count(0,100)"
+    },
+    "memory.recall_size": {
+      "document": "data/memory.md",
+      "default": "20KiB",
+      "kind": "Size"
+    },
+    "instructions.max_chars": {
+      "document": "data/instructions.md",
+      "default": 32768,
+      "kind": "Count(100,1000000)"
+    },
+    "tasks.max_chars_per_task": {
+      "document": "tools/track-tasks.md",
+      "default": 120,
+      "kind": "Count(1,10000)"
+    },
+    "tasks.max_tasks": {
+      "document": "tools/track-tasks.md",
+      "default": 20,
+      "kind": "Count(1,1000)"
+    },
+    "storage.busy_timeout": {
+      "document": "data/storage.md",
+      "default": "5s",
+      "kind": "Duration"
+    },
+    "storage.scratch_lifetime": {
+      "document": "data/storage.md",
+      "default": "24h",
+      "kind": "Duration"
+    },
+    "storage.session_limit": {
+      "document": "data/storage.md",
+      "default": 200,
+      "kind": "Count(1,10000)"
+    },
+    "usage.warn_spend_usd": {
+      "document": "data/usage.md",
+      "default": 0,
+      "kind": "Money"
+    },
+    "ui.theme": {
+      "document": "appearance/layout.md",
+      "default": "amber",
+      "kind": "Text"
+    },
+    "ui.color": {
+      "document": "appearance/layout.md",
+      "default": "auto",
+      "kind": "Text"
+    },
+    "ui.mouse": {
+      "document": "appearance/layout.md",
+      "default": true,
+      "kind": "Bool"
+    },
+    "ui.sidebar": {
+      "document": "appearance/layout.md",
+      "default": true,
+      "kind": "Bool"
+    },
+    "ui.scroll_lines": {
+      "document": "appearance/layout.md",
+      "default": 2,
+      "kind": "Count(1,30)"
+    },
+    "ui.scroll_smooth": {
+      "document": "appearance/layout.md",
+      "default": true,
+      "kind": "Bool"
+    },
+    "ui.frame_interval": {
+      "document": "appearance/rendering.md",
+      "default": "16ms",
+      "kind": "Duration"
+    },
+    "ui.status_lifetime": {
+      "document": "appearance/rendering.md",
+      "default": "8s",
+      "kind": "Duration"
+    },
+    "ui.quit_lifetime": {
+      "document": "appearance/rendering.md",
+      "default": "4s",
+      "kind": "Duration"
+    },
+    "ui.stop_lifetime": {
+      "document": "appearance/rendering.md",
+      "default": "3s",
+      "kind": "Duration"
+    },
+    "ui.escape_timeout": {
+      "document": "appearance/rendering.md",
+      "default": "50ms",
+      "kind": "Duration"
+    },
+    "host.idle_lifetime": {
+      "document": "runtime/host.md",
+      "default": "60s",
+      "kind": "Duration"
+    },
+    "ui.color_probe_timeout": {
+      "document": "appearance/rendering.md",
+      "default": "120ms",
+      "kind": "Duration"
+    },
+    "ui.split_min_columns": {
+      "document": "appearance/layout.md",
+      "default": 90,
+      "kind": "Count(20,1000)"
+    },
+    "ui.scroll_margin": {
+      "document": "appearance/layout.md",
+      "default": 3,
+      "kind": "Count(0,100)"
+    },
+    "ui.spinner_frames": {
+      "document": "appearance/rendering.md",
+      "default": 6,
+      "kind": "Count(1,100)"
+    },
+    "ui.counter_min_duration": {
+      "document": "appearance/rendering.md",
+      "default": "120ms",
+      "kind": "Duration"
+    },
+    "ui.counter_max_duration": {
+      "document": "appearance/rendering.md",
+      "default": "1400ms",
+      "kind": "Duration"
+    }
+  },
+  "nested": {
+    "Engine/src/settings/providers.rs#Providers": {
+      "document": "connections/model-providers.md",
+      "properties": [
+        "list",
+        "excluded_models",
+        "default"
+      ]
+    },
+    "Engine/src/settings/providers.rs#ProviderConfig": {
+      "document": "connections/model-providers.md",
+      "properties": [
+        "api",
+        "max_payload_size",
+        "force_tool_choice",
+        "name",
+        "base_url",
+        "auth",
+        "dialect",
+        "thinking",
+        "models",
+        "secret",
+        "timeout",
+        "headers"
+      ]
+    },
+    "Engine/src/settings/providers.rs#Auth": {
+      "document": "connections/model-providers.md",
+      "properties": [
+        "header",
+        "prefix"
+      ]
+    },
+    "Engine/src/settings/providers.rs#ModelInfo": {
+      "document": "models/advanced.md",
+      "properties": [
+        "id",
+        "known",
+        "manual_fields",
+        "fetched_at",
+        "source_url",
+        "listed",
+        "tools",
+        "chat",
+        "input_limit",
+        "default_effort",
+        "thinking_modes",
+        "metadata",
+        "max_output",
+        "context",
+        "thinking",
+        "reasoning_enabled",
+        "reasoning_options",
+        "thinking_required",
+        "efforts",
+        "supported_parameters",
+        "price",
+        "modalities"
+      ]
+    },
+    "Engine/src/settings/providers.rs#Price": {
+      "document": "models/pricing.md",
+      "properties": [
+        "input",
+        "cached",
+        "output",
+        "overrides",
+        "cache_write",
+        "cache_write_5m",
+        "cache_write_1h",
+        "tier_context_threshold",
+        "tier_input",
+        "tier_output",
+        "busy_input",
+        "busy_output",
+        "busy_start_utc_hour",
+        "busy_end_utc_hour"
+      ]
+    },
+    "Engine/src/settings/providers.rs#RateOverride": {
+      "document": "models/pricing.md",
+      "properties": [
+        "min_prompt_tokens",
+        "inclusive",
+        "rates"
+      ]
+    },
+    "Engine/src/settings/model.rs#ModelSettings": {
+      "document": "generation/sampling.md",
+      "properties": [
+        "provider",
+        "model",
+        "temperature",
+        "top_p",
+        "max_output",
+        "frequency_penalty",
+        "presence_penalty",
+        "thinking",
+        "effort",
+        "stop"
+      ]
+    },
+    "Engine/src/settings/services.rs#Services": {
+      "document": "connections/web-accounts.md",
+      "properties": [
+        "list"
+      ]
+    },
+    "Engine/src/settings/services.rs#Connection": {
+      "document": "connections/web-accounts.md",
+      "properties": [
+        "name",
+        "api",
+        "base_url",
+        "fetch_url",
+        "search",
+        "fetch",
+        "zone",
+        "routes"
+      ]
+    },
+    "Engine/src/settings/services.rs#Use": {
+      "document": "connections/web-accounts.md",
+      "properties": [
+        "added",
+        "route"
+      ]
+    },
+    "Engine/src/settings/services.rs#SavedRoutes": {
+      "document": "connections/web-accounts.md",
+      "properties": [
+        "search",
+        "fetch"
+      ]
+    },
+    "Engine/src/Capabilities/Config.rs#Settings": {
+      "document": "capabilities/configuration.md",
+      "properties": [
+        "enabled",
+        "portable_user_skills",
+        "external_skills_compatibility",
+        "skill_roots",
+        "product_skill_roots",
+        "servers",
+        "projects",
+        "page_size",
+        "catalog_tokens",
+        "max_entries",
+        "max_skill_bytes",
+        "max_package_bytes",
+        "max_message_bytes",
+        "timeout_seconds"
+      ]
+    },
+    "Engine/src/Capabilities/Config.rs#Project": {
+      "document": "capabilities/configuration.md",
+      "properties": [
+        "root",
+        "servers",
+        "approved_servers",
+        "approved_skills",
+        "disabled_skills",
+        "skill_roots"
+      ]
+    },
+    "Engine/src/Capabilities/Config.rs#Server": {
+      "document": "capabilities/mcp.md",
+      "properties": [
+        "enabled",
+        "transport",
+        "command",
+        "args",
+        "url",
+        "environment",
+        "auth",
+        "project_write",
+        "read_roots",
+        "write_roots",
+        "allow_host_sockets"
+      ]
+    }
+  },
+  "pages": {
+    "Overview": "menus/overview.md",
+    "Models": "menus/models.md",
+    "Generation": "menus/generation.md",
+    "Connections": "menus/connections.md",
+    "Provider": "menus/connections.md",
+    "AddProvider": "menus/connections.md",
+    "Setup": "menus/connections.md",
+    "Appearance": "menus/appearance.md",
+    "Runtime": "menus/runtime.md",
+    "Themes": "menus/appearance.md",
+    "Tools": "menus/tools.md",
+    "WebProviders": "menus/tools.md",
+    "AddWebProvider": "menus/tools.md",
+    "ModelConfig": "menus/models.md",
+    "ModelTierPricing": "menus/models.md",
+    "ModelBusyPricing": "menus/models.md"
+  },
+  "ui_variants": {
+    "Field": [
+      "Knob",
+      "Global",
+      "Model",
+      "Key",
+      "KeyValue",
+      "Timeout",
+      "SetupKeyName",
+      "SetupKey",
+      "RemoveKey",
+      "ModelContext",
+      "ModelMaxOutput",
+      "ModelInputPrice",
+      "ModelOutputPrice",
+      "ModelCachedPrice",
+      "ModelExtraRate",
+      "ModelTierThreshold",
+      "ModelTierInput",
+      "ModelTierOutput",
+      "ModelBusyInput",
+      "ModelBusyOutput",
+      "ModelReasoning",
+      "BaseUrl",
+      "ServiceUrl",
+      "ServiceRouteText",
+      "ServiceZone",
+      "RemoveService",
+      "SetupUrl",
+      "NewCredentialStore"
+    ],
+    "Kind": [
+      "Fact",
+      "Navigate",
+      "Model",
+      "Edit",
+      "Refresh",
+      "Default",
+      "AddPreset",
+      "AddService",
+      "RouteUse",
+      "WebSelect",
+      "RouteAdd",
+      "ServiceOn",
+      "Connect",
+      "Sidebar",
+      "ReloadClassifier",
+      "Theme"
+    ]
+  },
+  "knobs": [
+    "thinking",
+    "effort",
+    "temperature",
+    "top_p",
+    "max_output",
+    "frequency_penalty",
+    "presence_penalty",
+    "stop"
+  ],
+  "tools": {
+    "terminal_use": "tools/terminal-use.md",
+    "inspect_file": "tools/inspect-file.md",
+    "find_files": "tools/find-files.md",
+    "search_text": "tools/search-text.md",
+    "manage_process": "tools/manage-process.md",
+    "terminal_send_input": "tools/terminal-send-input.md",
+    "create_file": "tools/create-file.md",
+    "patch_file": "tools/patch-file.md",
+    "web_search": "tools/web-search.md",
+    "web_fetch": "tools/web-fetch.md",
+    "discover_capabilities": "tools/discover-capabilities.md",
+    "read_mcp_resource": "tools/read-mcp-resource.md",
+    "call_mcp_tool": "tools/call-mcp-tool.md",
+    "track_tasks": "tools/track-tasks.md",
+    "ask_user_questions": "tools/ask-user-questions.md"
+  },
+  "enums": {
+    "Engine/src/Capabilities/Config.rs#Transport": {
+      "document": "capabilities/mcp.md",
+      "variants": [
+        "Stdio",
+        "Http"
+      ],
+      "properties": []
+    },
+    "Engine/src/Capabilities/Config.rs#Auth": {
+      "document": "capabilities/authentication.md",
+      "variants": [
+        "None",
+        "Bearer",
+        "Oauth"
+      ],
+      "properties": [
+        "secret",
+        "client_id",
+        "scopes",
+        "allowed_origins"
+      ]
+    },
+    "Engine/src/settings/providers.rs#Dialect": {
+      "document": "connections/model-providers.md",
+      "variants": [
+        "OpenAi",
+        "Anthropic"
+      ],
+      "properties": []
+    },
+    "Engine/src/settings/providers.rs#Thinking": {
+      "document": "connections/model-providers.md",
+      "variants": [
+        "None",
+        "Object",
+        "Effort"
+      ],
+      "properties": []
+    }
+  }
+}

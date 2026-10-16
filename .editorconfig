@@ -1,0 +1,28 @@
+# Editor defaults mirror .gitattributes; binaries are outside these text groups.
+root = true
+
+[*.{rs,toml,lock,py,sql,json,md,yml,yaml,sh,txt}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{yml,yaml,json}]
+indent_size = 2
+
+[*.md]
+# Markdown's two-space hard line breaks are meaningful.
+trim_trailing_whitespace = false
+
+[*.{bat,cmd}]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+
+[{.gitignore,.gitattributes,.editorconfig}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true

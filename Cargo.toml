@@ -1,0 +1,81 @@
+# Rune — local agentic coding engine.
+# Workspace root. See AGENTS.md and docs/architecture.md for binding contracts.
+[workspace]
+resolver = "2"
+members  = ["Engine", "Cli"]
+
+[workspace.package]
+version = "0.6.9"
+edition = "2021"
+
+# Dependency policy: a crate earns its place only when we would use most of it and
+# writing it ourselves would be worse. Everything else is written in-tree (glob,
+# regex, directory walk, pty, landlock) — see Engine/src/ for those.
+[workspace.dependencies]
+serde      = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+rusqlite   = { version = "0.32", features = ["bundled"] }
+libc       = "0.2"
+# Windows reached through Microsoft's own generated bindings — the same crate
+# tokio and mio already build on Windows — rather than hand-written Win32
+# declarations: a struct laid out wrong compiles and corrupts memory on a
+# machine this workspace is not built on daily. Only the APIs named here.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_IO",
+    "Win32_System_JobObjects",
+    "Win32_System_LibraryLoader",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_System_Pipes",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
+    "Wdk_System_SystemInformation",
+] }
+sha2       = "0.10"
+toml_edit  = { version = "0.25", features = ["serde"] }
+jsonschema = { version = "=0.55.0", default-features = false }
+serde-saphyr = { version = "=1.2.0", default-features = false, features = ["deserialize"] }
+rmcp = { version = "=3.2.0", default-features = false, features = ["client", "transport-async-rw", "transport-streamable-http-client-reqwest", "reqwest", "auth", "elicitation"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "time", "sync", "net", "process", "io-util", "macros"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream"] }
+async-trait = "0.1"
+futures-util = "0.3"
+sse-stream = "0.2.6"
+base64 = "0.22"
+zip = { version = "=8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+# TLS is the one thing we must never write ourselves. ureq is blocking, which is
+# the provider threading model; MCP owns a separate Tokio service. rustls keeps the
+# whole chain in Rust with no system OpenSSL to link against. Everything above the
+# socket — SSE framing, partial-JSON scanning, the provider protocol — is still ours.
+ureq       = { version = "3", default-features = false, features = ["rustls", "json"] }  # no gzip: we never ask for it, so a stream is never framed by something we did not choose
+# Hot-reloadable shared configuration: lock-free reads, atomic swap on write. The
+# standard mechanism for live config; hand-rolling a correct atomic swap is worse.
+arc-swap   = { version = "1", default-features = false }
+# VT parsing and the terminal grid are one feature, not an ANSI stripper. AVT
+# also drains scrollback into text so a chatty build cannot retain huge grids.
+avt        = { version = "=0.18.0" }
+# Credential storage: a local master key (~/.rune/master.key, 0600) holds the
+# key; API keys are AES-256-GCM-encrypted at rest in secrets.vault, never plaintext
+# JSON. No home-grown crypto — these earn their place under the dependency policy.
+aes-gcm    = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
+rand       = { version = "0.8", default-features = false, features = ["std_rng"] }
+
+[profile.release]
+lto           = true
+codegen-units = 1
+strip         = "symbols"
+opt-level     = 3
+# NOTE: deliberately NOT `panic = "abort"` (clodecore uses it, we do not). A panic
+# inside one tool must be caught and returned as a failed tool result, not kill the
+# engine mid-session — Engine/src/panic.rs is what makes that true rather than
+# intended. strip+lto still carry the anti-RE weight.

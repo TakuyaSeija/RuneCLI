@@ -1,0 +1,19 @@
+[package]
+name    = "runecli"
+version.workspace = true
+edition.workspace = true
+description = "Rune protocol host — speaks line-delimited JSON over stdio."
+
+[[bin]]
+name = "rune"
+path = "src/main.rs"
+
+[dependencies]
+runeengine = { path = "../Engine" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# What the tests observe of the operating system comes through the engine's
+# platform fixtures; this crate never reaches the OS itself (no `libc`).
+runeengine = { path = "../Engine", features = ["test-support"] }

@@ -1,0 +1,23 @@
+# Canonical LF for source and documentation on every developer platform.
+* text=auto eol=lf
+
+# Native Windows command scripts may use CRLF in the working tree.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary inputs stay byte-for-byte intact and are not merged as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.rgba binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.7z binary

@@ -1,0 +1,25 @@
+{
+  "action": "Clarify workspace preferences",
+  "questions": [
+    {
+      "title": "Sync Strategy",
+      "question": "Which synchronization features should be enabled?",
+      "type": "multiple",
+      "options": [
+        {"label": "Automatic sync", "description": "Synchronize whenever files change."},
+        {"label": "Manual sync", "description": "Synchronize only when requested."},
+        {"label": "Scheduled sync", "description": "Synchronize at specified times."}
+      ]
+    },
+    {
+      "title": "Storage Type",
+      "question": "Where should the workspace files be stored?",
+      "type": "single",
+      "options": [
+        {"label": "Local files", "description": "Keep files on this device."},
+        {"label": "Cloud storage", "description": "Keep files in the cloud."},
+        {"label": "Hybrid storage", "description": "Keep a local copy and synchronize to the cloud."}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+# Studio / RuneCLI repository. Keep source, tests, assets,
+# Cargo.lock, .cargo/config.toml, and project instructions in Git.
+
+# Rust build output (includes target/test-tmp and audit artifacts).
+target/
+**/*.rs.bk
+*.profraw
+*.profdata
+
+# Python test caches and local environments.
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.coverage
+.coverage.*
+
+# Owner-designated local notes and scratch space; never a build input.
+/tmp/
+
+# Rune runtime data does not belong in the source tree.
+# Project skills ARE source: retain .rune/skills/ if added later.
+**/.rune/*
+!**/.rune/skills/
+/rune.toml
+rune.db
+rune.db-*
+master.key
+secrets.vault
+secrets.lock
+
+# Environment secrets and Cargo registry credentials.
+.env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+**/.cargo/credentials
+**/.cargo/credentials.toml
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+
+# Local AI/editor state (shared AGENTS.md and CLAUDE.md remain tracked).
+**/.claude/settings.local.json
+**/.claude/scheduled_tasks.lock
+**/.claude/projects/
+**/.claude/session-env/
+**/.claude/history.jsonl
+**/.claude/credentials.json
+**/.claude/.credentials.json
+**/.claude/cache/
+**/.claude/debug/
+**/.claude/backups/
+.idea/
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# OS-generated metadata.
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini

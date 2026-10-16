@@ -1,0 +1,50 @@
+[package]
+name    = "runeengine"
+version.workspace = true
+edition.workspace = true
+description = "Rune — local agentic coding engine (loop, tools, jail, permissions, checkpoints)."
+
+[lib]
+name = "runeengine"
+path = "src/lib.rs"
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+rusqlite   = { workspace = true }
+sha2       = { workspace = true }
+toml_edit  = { workspace = true }
+ureq       = { workspace = true }
+jsonschema = { workspace = true }
+serde-saphyr = { workspace = true }
+rmcp = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+sse-stream = { workspace = true }
+base64 = { workspace = true }
+zip = { workspace = true }
+arc-swap = { workspace = true }
+avt = { workspace = true }
+aes-gcm = { workspace = true }
+rand = { workspace = true }
+
+# The operating system is reached only through `src/platform/` (its scanner
+# test keeps every other file free of `libc`, `windows_sys` and `std::os`).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
+
+[features]
+# `platform::fixture`: the OS facts tests observe (a process's state, a link,
+# a descriptor kept across exec) — for this crate's integration tests and the
+# CLI's tests, never part of a build that ships.
+test-support = []
+
+[dev-dependencies]
+# The integration tests in `tests/` link this crate as any user would; they
+# reach the fixtures through the feature.
+runeengine = { path = ".", features = ["test-support"] }
