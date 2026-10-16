@@ -35,9 +35,9 @@ use windows_sys::Win32::Storage::FileSystem::{
     OPEN_EXISTING, PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT,
 };
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeServerProcessId,
-    ImpersonateNamedPipeClient, WaitNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS,
-    PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeServerProcessId, ImpersonateNamedPipeClient,
+    WaitNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
+    PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
 };
 use windows_sys::Win32::System::Threading::{
     CreateEventW, GetCurrentThread, OpenProcess, OpenProcessToken, OpenThreadToken, SetEvent,
@@ -47,6 +47,51 @@ use windows_sys::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED
 
 use super::security::{current_user, Token};
 use super::wide::{check, owned, wide};
+
+/// How long a host's end, letting a window go, waits for the window to read
+/// what it was already sent — a socket's linger. A window that reads nothing
+/// for this long is let go regardless.
+const LINGER: Duration = Duration::from_secs(5);
+
+/// Disconnect the window at the other end of `connection` once it has read
+/// everything written to it (`FlushFileBuffers` on a pipe's server end
+/// returns then), or after [`LINGER`], when a watch cancels the wait; off the
+/// caller's thread, as the wait may be long. The connection is kept open
+/// until then.
+fn let_go(connection: Arc<Connection>) {
+    use windows_sys::Win32::Storage::FileSystem::FlushFileBuffers;
+    use windows_sys::Win32::System::Pipes::DisconnectNamedPipe;
+    let done = Arc::new((Mutex::new(false), std::sync::Condvar::new()));
+    let flushing = Arc::clone(&connection);
+    let told = Arc::clone(&done);
+    let flusher = std::thread::Builder::new()
+        .name("rune-pipe-let-go".into())
+        .spawn(move || {
+            let handle = flushing.handle.as_raw_handle();
+            unsafe { FlushFileBuffers(handle) };
+            unsafe { DisconnectNamedPipe(handle) };
+            let (flushed, changed) = &*told;
+            *crate::panic::lock(flushed) = true;
+            changed.notify_all();
+        });
+    if flusher.is_err() {
+        unsafe { DisconnectNamedPipe(connection.handle.as_raw_handle()) };
+        return;
+    }
+    let _ = std::thread::Builder::new()
+        .name("rune-pipe-linger".into())
+        .spawn(move || {
+            let (flushed, changed) = &*done;
+            let waited =
+                changed
+                    .wait_timeout_while(crate::panic::lock(flushed), LINGER, |flushed| !*flushed);
+            let timed_out = waited.map(|(_, result)| result.timed_out()).unwrap_or(true);
+            if timed_out {
+                // The window reads nothing: its wait ends, and it is let go.
+                unsafe { CancelIoEx(connection.handle.as_raw_handle(), std::ptr::null()) };
+            }
+        });
+}
 
 /// What a meeting file starts with; the pipe's name follows.
 const MAGIC: &str = "rune-local-pipe 1\n";
@@ -362,13 +407,20 @@ impl LocalStream {
         Ok(())
     }
 
-    /// End the connection both ways: every handle on it reads its end, and
-    /// the host's side lets the window go at once.
+    /// End the connection both ways, as a socket's shutdown does: every
+    /// clone of this end reads its end and writes no more, its waits woken
+    /// now; the other end reads everything written before, then its end.
+    /// A host's end lets the window go only once the window has read what it
+    /// was sent ([`let_go`]): Windows throws away what the other end has not
+    /// read when a pipe is disconnected, and a host's last words to a window
+    /// (`HostUpgrading`) are written just before it lets the window go.
     pub fn shutdown(&self) -> io::Result<()> {
-        self.0.shut.store(true, Ordering::Release);
+        if self.0.shut.swap(true, Ordering::AcqRel) {
+            return Ok(());
+        }
         unsafe { CancelIoEx(self.0.handle.as_raw_handle(), std::ptr::null()) };
         if self.0.server {
-            unsafe { DisconnectNamedPipe(self.0.handle.as_raw_handle()) };
+            let_go(Arc::clone(&self.0));
         }
         Ok(())
     }
@@ -614,6 +666,25 @@ mod tests {
         waker.wake().unwrap();
         assert_eq!(accepting.join().unwrap(), (true, true));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// What a host wrote just before it let a window go reaches the window,
+    /// then its end — Windows would throw it away at a plain disconnect.
+    #[test]
+    fn a_hosts_last_words_reach_the_window_before_its_end() {
+        let (host, window) = LocalStream::pair().unwrap();
+        let mut writer = host.try_clone().unwrap();
+        for n in 0..200 {
+            writer
+                .write_all(format!("line {n} of what the host had to say\n").as_bytes())
+                .unwrap();
+        }
+        host.shutdown().unwrap();
+        drop((host, writer));
+        let mut got = String::new();
+        (&window).read_to_string(&mut got).unwrap();
+        assert_eq!(got.lines().count(), 200, "every line reached the window");
+        assert!(got.ends_with("line 199 of what the host had to say\n"));
     }
 
     #[test]
