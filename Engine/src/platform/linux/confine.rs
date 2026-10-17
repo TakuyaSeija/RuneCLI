@@ -74,8 +74,15 @@ impl Confinement {
             read_only | landlock::FS_WRITE_FILE | if abi >= 5 { landlock::FS_IOCTL_DEV } else { 0 };
         let _ = ruleset.allow(Path::new(DEVICES), dev);
 
+        // A rule anchored at a file may carry file rights only (the kernel
+        // refuses a directory right there, and the refusal is silent): every
+        // file among the reads (`~/.gitconfig`, the resolver's file) was
+        // never readable until it got its own rights (CI, 2026-10-17: no
+        // name could be resolved on Ubuntu).
+        let file_read = landlock::FS_EXECUTE | landlock::FS_READ_FILE;
         for r in grants.reads {
-            let _ = ruleset.allow(r, read_only);
+            let rights = if r.is_dir() { read_only } else { file_read };
+            let _ = ruleset.allow(r, rights);
         }
 
         match ruleset.allow(grants.project, all) {
@@ -87,7 +94,12 @@ impl Confinement {
             }
         }
         for w in grants.writes {
-            let _ = ruleset.allow(w, all);
+            let rights = if w.is_dir() {
+                all
+            } else {
+                landlock::file_rights(abi)
+            };
+            let _ = ruleset.allow(w, rights);
         }
         // Answered for by a person, by name, one prompt each. A rule anchored at
         // a file may only carry file rights — see `landlock::file_rights`.
@@ -147,6 +159,8 @@ mod tests {
         }
         std::fs::write(base.join("granted/read.txt"), "ok").unwrap();
         std::fs::write(base.join("hidden/secret.txt"), "no").unwrap();
+        // A file granted on its own, in a folder that is not: a dotfile.
+        std::fs::write(base.join("hidden/granted-file.txt"), "ok").unwrap();
         let project = base.join("project");
         let reads = vec![
             PathBuf::from("/usr"),
@@ -155,6 +169,7 @@ mod tests {
             PathBuf::from("/lib64"),
             PathBuf::from("/etc"),
             base.join("granted"),
+            base.join("hidden/granted-file.txt"),
         ];
         let confinement = Confinement::build(Grants {
             project: &project,
@@ -184,6 +199,10 @@ mod tests {
         };
         assert!(run(format!("echo hi > {}/out.txt", project.display())));
         assert!(run(format!("cat {}/granted/read.txt", base.display())));
+        assert!(
+            run(format!("cat {}/hidden/granted-file.txt", base.display())),
+            "a file granted to read is read"
+        );
         assert!(!run(format!("cat {}/hidden/secret.txt", base.display())));
         assert!(!run(format!(
             "echo no > {}/granted/new.txt",
