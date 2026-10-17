@@ -189,18 +189,34 @@ fn paths_in(text: &str) -> Option<Vec<std::path::PathBuf>> {
     if lines.is_empty() {
         return None;
     }
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
     let mut out = Vec::new();
     for line in lines {
-        // Reuse the Engine's one shell-style lexer: a generic terminal can hand
-        // us one path per line, a quoted path, or a single line containing many
-        // paths. No sender/application identity is involved.
-        for token in runeengine::perm::denylist::tokens(line) {
+        // A generic terminal can hand us one path per line, a quoted path, or
+        // a single line holding many paths. On Unix the Engine's one
+        // shell-style lexer reads it; a Windows path is never read as one —
+        // its backslashes are separators, not escapes (`windows_words`). No
+        // sender/application identity is involved.
+        let tokens = if windows {
+            windows_words(line)
+        } else {
+            runeengine::perm::denylist::tokens(line)
+        };
+        for token in tokens {
             let bare = token
                 .strip_prefix("file://")
                 .map(|uri| {
-                    uri.strip_prefix("localhost/")
+                    let path = uri
+                        .strip_prefix("localhost/")
                         .map(|path| format!("/{path}"))
-                        .unwrap_or_else(|| uri.to_string())
+                        .unwrap_or_else(|| uri.to_string());
+                    // `file:///C:/x` names `C:/x`.
+                    match path.as_bytes() {
+                        [b'/', drive, b':', ..] if windows && drive.is_ascii_alphabetic() => {
+                            path[1..].to_string()
+                        }
+                        _ => path,
+                    }
                 })
                 .unwrap_or(token)
                 .replace("%20", " ");
@@ -214,9 +230,59 @@ fn paths_in(text: &str) -> Option<Vec<std::path::PathBuf>> {
     (!out.is_empty()).then_some(out)
 }
 
+/// The words of a line pasted on Windows: split at blanks outside quotes,
+/// the quotes dropped — how Explorer and Windows Terminal hand over a
+/// dropped path (`"C:\\My Files\\shot.png"`) — and single quotes taken as
+/// quotes only where a word begins, so `O'Brien` stays a name. No escape
+/// character: a backslash is a path's.
+fn windows_words(line: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut word = String::new();
+    let mut quote: Option<char> = None;
+    let mut started = false;
+    for c in line.chars() {
+        match (quote, c) {
+            (Some(q), c) if c == q => quote = None,
+            (Some(_), c) => word.push(c),
+            (None, '"') => {
+                quote = Some('"');
+                started = true;
+            }
+            (None, '\'') if !started => {
+                quote = Some('\'');
+                started = true;
+            }
+            (None, c) if c.is_whitespace() => {
+                if started {
+                    words.push(std::mem::take(&mut word));
+                    started = false;
+                }
+            }
+            (None, c) => {
+                word.push(c);
+                started = true;
+            }
+        }
+    }
+    if started {
+        words.push(word);
+    }
+    words.retain(|word| !word.is_empty());
+    words
+}
+
 /// `~/x` → `/home/you/x`. Only the leading tilde: everything else a shell would
 /// expand is a shell's business, and this is not one.
 fn shellexpand(path: &str) -> String {
+    let path_owned;
+    let path = match path.strip_prefix("~\\") {
+        // Windows spells the same `~\x`.
+        Some(rest) if runeengine::platform::OS == runeengine::platform::Os::Windows => {
+            path_owned = format!("~/{rest}");
+            path_owned.as_str()
+        }
+        _ => path,
+    };
     match path.strip_prefix("~/") {
         Some(rest) => match runeengine::platform::home_dir()
             .as_deref()
@@ -3665,19 +3731,34 @@ mod tests {
             paths_in(&format!("'{}'", one.display())),
             Some(vec![one.clone()])
         );
-        assert_eq!(
-            paths_in(&format!("file://{}", one.display())),
-            Some(vec![one.clone()])
-        );
+        // A file URI as each OS writes one: `file:///home/x`, `file:///C:/x`.
+        let uri = |host: &str, path: &std::path::Path| {
+            let text = path.display().to_string().replace(' ', "%20");
+            match runeengine::platform::OS {
+                runeengine::platform::Os::Windows => {
+                    format!("file://{host}/{}", text.replace('\\', "/"))
+                }
+                _ => format!("file://{host}{text}"),
+            }
+        };
+        assert_eq!(paths_in(&uri("", &one)), Some(vec![one.clone()]));
         let two = dir.join("two shots.png");
         std::fs::write(&two, b"second").unwrap();
+        let canonical = |found: Option<Vec<std::path::PathBuf>>| {
+            found.map(|paths| {
+                paths
+                    .iter()
+                    .map(|p| runeengine::platform::canonical(p).unwrap())
+                    .collect::<Vec<_>>()
+            })
+        };
         assert_eq!(
-            paths_in(&format!(
-                "# copied from file manager\nfile://{}\nfile://localhost{}",
-                one.display(),
-                two.display().to_string().replace(' ', "%20")
-            )),
-            Some(vec![one.clone(), two.clone()]),
+            canonical(paths_in(&format!(
+                "# copied from file manager\n{}\n{}",
+                uri("", &one),
+                uri("localhost", &two)
+            ))),
+            canonical(Some(vec![one.clone(), two.clone()])),
             "a URI-list drop must attach every file atomically"
         );
         let three = dir.join("third.png");
@@ -3706,6 +3787,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A Windows drop is read with its backslashes whole: quoted or not, one
+    /// path or several, and a file URI naming a drive.
+    #[test]
+    fn a_pasted_windows_path_keeps_its_backslashes() {
+        assert_eq!(
+            windows_words(r#""C:\My Files\shot.png" D:\a\b.png 'E:\x y.txt'"#),
+            [r"C:\My Files\shot.png", r"D:\a\b.png", r"E:\x y.txt"]
+        );
+        assert_eq!(
+            windows_words(r"C:\Users\O'Brien\x.png"),
+            [r"C:\Users\O'Brien\x.png"],
+            "an apostrophe inside a name is no quote"
+        );
+        assert_eq!(windows_words("  "), Vec::<String>::new());
+    }
+
     #[test]
     fn an_unbracketed_file_manager_path_is_attached_when_sent() {
         let mut d = crate::ui::test_driver("unbracketed-drop");
@@ -3714,10 +3811,13 @@ mod tests {
         let file = dir.join("copied screenshot.png");
         std::fs::write(&file, b"\x89PNG\r\n\x1a\n\0").unwrap();
         let mut app = App::for_test();
-        app.input = format!(
-            "file://localhost{}",
-            file.display().to_string().replace(' ', "%20")
-        );
+        let text = file.display().to_string().replace(' ', "%20");
+        app.input = match runeengine::platform::OS {
+            runeengine::platform::Os::Windows => {
+                format!("file://localhost/{}", text.replace('\\', "/"))
+            }
+            _ => format!("file://localhost{text}"),
+        };
         app.cursor = app.input.len();
         app.submit(&mut d);
         assert!(app.input.is_empty(), "path must not remain as chat text");

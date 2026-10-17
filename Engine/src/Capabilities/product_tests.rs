@@ -141,6 +141,15 @@ fn product_help_any_difference_is_replaced_whole_and_leaves_no_trace() {
             }),
         ),
         (
+            "a folder that lost its write bit, beside a read-only file",
+            Box::new(|| {
+                let menus = package().join("menus");
+                crate::platform::set_file_mode(&menus.join("tools.md"), 0o444).unwrap();
+                std::fs::write(menus.join("extra.md"), "x").unwrap();
+                crate::platform::set_file_mode(&menus, 0o500).unwrap();
+            }),
+        ),
+        (
             "file turned into a link",
             Box::new(|| {
                 let file = package().join("SKILL.md");

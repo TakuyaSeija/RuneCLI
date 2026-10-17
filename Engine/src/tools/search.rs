@@ -133,8 +133,11 @@ impl Tool for SearchText {
                         return true;
                     }
                 }
+                // Named as every tool names a workspace path: with `/` on
+                // every OS (`Jail::display`), never `build\Out.txt` beside
+                // `find_files`' `build/Out.txt`.
                 let rel = match e.path.strip_prefix(ctx.jail.root()) {
-                    Ok(r) => r.to_string_lossy().to_string(),
+                    Ok(_) => ctx.jail.display(&e.path),
                     Err(_) => e.rel.clone(),
                 };
                 let mut here: Vec<(usize, String)> = Vec::new();

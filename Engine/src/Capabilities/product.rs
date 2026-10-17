@@ -49,11 +49,38 @@ fn plain_directory(path: &Path) -> bool {
 /// Remove whatever is at `path` without following a link: a link goes, never
 /// what it points at.
 fn discard(path: &Path) -> std::io::Result<()> {
-    match std::fs::symlink_metadata(path) {
+    let remove = || match std::fs::symlink_metadata(path) {
         Ok(m) if m.is_dir() => std::fs::remove_dir_all(path),
         Ok(_) => std::fs::remove_file(path),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
+    };
+    match remove() {
+        // A read-only file (Windows refuses to delete one) or a folder that
+        // lost its write bit: given back to its owner, then removed.
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            writable_again(path);
+            remove()
+        }
+        done => done,
+    }
+}
+
+/// Everything under `path` this user's to change again — `0700` folders,
+/// `0600` files (on Windows: not read-only) — links never followed.
+fn writable_again(path: &Path) {
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if meta.file_type().is_symlink() {
+        return;
+    }
+    let mode = if meta.is_dir() { 0o700 } else { 0o600 };
+    let _ = crate::platform::set_file_mode(path, mode);
+    if meta.is_dir() {
+        for entry in std::fs::read_dir(path).into_iter().flatten().flatten() {
+            writable_again(&entry.path());
+        }
     }
 }
 
