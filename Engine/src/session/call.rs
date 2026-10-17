@@ -498,7 +498,7 @@ fn question<'a>(
             (tool.mutates() && !tool.runs_commands()) || st.capabilities.package_root(p).is_none()
         })
         .collect();
-    let (wanted, blocked) = outside_paths(st, reaches);
+    let (wanted, blocked) = outside_paths(st, reaches, tool.runs_commands());
 
     // What is left in `blocked` is not a policy verdict — it is a token that
     // could not be resolved to a path at all (a `~` on a process with no
@@ -586,7 +586,18 @@ pub fn report(rt: &Runtime, st: &SessionState, id: &str, f: &Finished) -> Result
 /// verdict. A path the machine runs on its own is *not* here as a rejection:
 /// the owner's rule, 2026-09-28, is that the system never refuses on its own,
 /// so it rides in `wanted` flagged and the wizard decides.
-fn outside_paths(st: &SessionState, tokens: Vec<String>) -> (Vec<reach::Candidate>, Vec<Error>) {
+///
+/// What already reaches a path depends on who opens it: a command is held by
+/// the kernel sandbox, so what the sandbox grants needs no question; a file
+/// tool is held by the jail alone, so a path outside it is asked about even
+/// where every command could open it (a system file), and even where no
+/// sandbox holds anything — refusing it unasked broke the owner's rule that
+/// the system never refuses on its own (CI, 2026-10-17).
+fn outside_paths(
+    st: &SessionState,
+    tokens: Vec<String>,
+    commands: bool,
+) -> (Vec<reach::Candidate>, Vec<Error>) {
     // Full-access mode confines nothing, so there is nothing to widen and no
     // token that could be refused for naming somewhere unreachable.
     if tokens.is_empty() || !st.mode().confines() {
@@ -609,7 +620,7 @@ fn outside_paths(st: &SessionState, tokens: Vec<String>) -> (Vec<reach::Candidat
                 continue;
             }
         };
-        if jail.contains(&named) || sandbox.reachable(&named) {
+        if jail.contains(&named) || (commands && sandbox.reachable(&named)) {
             continue;
         }
         // Never an error: a path the machine runs on its own comes back
