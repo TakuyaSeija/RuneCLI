@@ -287,9 +287,27 @@ pub fn candidate(named: PathBuf, home: Option<&Path>) -> Candidate {
     let same = |a: &Path, b: &Path| {
         crate::jail::starts_with_folded(a, b, os) && crate::jail::starts_with_folded(b, a, os)
     };
+    // The anchor is canonical, so the home and the shared folders are read in
+    // both spellings: `/home` is a link on macOS (`/System/Volumes/Data/home`)
+    // and on image-based Linux (`/var/home`), and a broad folder reached
+    // through a link is as broad.
+    let spellings = |path: &Path| {
+        let mut both = vec![path.to_path_buf()];
+        if let Ok(real) = crate::platform::canonical(path) {
+            if real != path {
+                both.push(real);
+            }
+        }
+        both
+    };
     if anchor.parent().is_none()
-        || home.is_some_and(|h| crate::jail::starts_with_folded(h, &anchor, os))
-        || shared_anchors(os).iter().any(|s| same(&anchor, s))
+        || home.is_some_and(|h| {
+            h.ancestors()
+                .any(|above| spellings(above).iter().any(|s| same(&anchor, s)))
+        })
+        || shared_anchors(os)
+            .iter()
+            .any(|s| spellings(s).iter().any(|s| same(&anchor, s)))
     {
         return broad(named, anchor);
     }
@@ -567,6 +585,27 @@ mod tests {
         // existing ancestor of `~/Downloads` is `/home` — answerable via authorization card.
         let c = judge("~/Downloads", Some(&home())).unwrap();
         assert!(c.full_access);
+    }
+
+    /// The folder of every home, reached through a link (`/home` on macOS
+    /// and on image-based Linux): its real path is as broad (CI macOS,
+    /// 2026-10-18: the canonical anchor was compared with the link's name).
+    #[test]
+    fn a_home_folder_behind_a_link_is_as_broad_as_its_name() {
+        if !posix_paths() {
+            return;
+        }
+        let base = std::env::temp_dir().join(format!("rune-reach-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("real")).unwrap();
+        if crate::platform::fixture::symlink(base.join("real"), base.join("homes")).is_err() {
+            eprintln!("note: no links here");
+            return;
+        }
+        let home = base.join("homes").join("dev");
+        let c = judge("~/Downloads", Some(&home)).unwrap();
+        assert!(c.full_access, "{c:?}");
+        let _ = std::fs::remove_dir_all(base);
     }
 
     #[test]

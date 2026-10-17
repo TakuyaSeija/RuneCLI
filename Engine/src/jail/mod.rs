@@ -190,18 +190,23 @@ impl Jail {
             }
         }
 
-        if !self.permits(&lexical, Spelt::Written) {
-            return Err(Error::Jail(input.to_string()));
-        }
+        // As written, then as the filesystem spells it; the second decides.
+        // A name written through a link to a granted folder (`/etc/hosts` on
+        // macOS, where `/etc` is `/private/etc` and the grant names the real
+        // folder) is the granted file; a name inside whose link leads out is
+        // not.
+        let written = self.permits(&lexical, Spelt::Written);
 
         // Symlink pass: canonicalise the longest existing prefix, then re-check.
         let (existing, rest) = split_existing(&lexical);
         let canon = crate::platform::canonical(&existing)
             .map_err(|e| Error::Jail(format!("{input}: {e}")))?;
         if !self.permits(&canon, Spelt::Canonical) {
-            return Err(Error::Jail(format!(
-                "{input} (symlink leaves the workspace)"
-            )));
+            return Err(Error::Jail(if written {
+                format!("{input} (symlink leaves the workspace)")
+            } else {
+                input.to_string()
+            }));
         }
 
         let resolved = if rest.as_os_str().is_empty() {
@@ -404,6 +409,33 @@ mod tests {
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         std::fs::write(dir.join("sub/file.txt"), b"hello").unwrap();
         dir
+    }
+
+    /// A grant names the real folder; the file written through a link to it
+    /// is the granted file (CI macOS, 2026-10-18: `/etc/hosts` was refused
+    /// after the person allowed it, `/etc` being `/private/etc`) — while a
+    /// link that leads out of every granted folder is refused as before.
+    #[test]
+    fn a_granted_folder_reached_through_a_link_is_granted() {
+        let dir = scratch("granted-link");
+        let project = dir.join("project");
+        let real = dir.join("real");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::create_dir_all(&real).unwrap();
+        std::fs::write(real.join("hosts"), "x").unwrap();
+        if crate::platform::fixture::symlink(&real, dir.join("etc")).is_err() {
+            eprintln!("note: no links here");
+            return;
+        }
+        let real = crate::platform::canonical(&real).unwrap();
+        let j = Jail::new(&project).unwrap().with_reach(vec![real.clone()]);
+        let written = dir.join("etc").join("hosts");
+        assert_eq!(
+            j.resolve(written.to_str().unwrap()).unwrap(),
+            real.join("hosts")
+        );
+        let narrow = Jail::new(&project).unwrap();
+        assert!(narrow.resolve(written.to_str().unwrap()).is_err());
     }
 
     #[test]

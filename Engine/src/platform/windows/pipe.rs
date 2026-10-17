@@ -272,6 +272,10 @@ impl LocalListener {
             let error = io::Error::last_os_error();
             match error.raw_os_error().map(|e| e as u32) {
                 Some(ERROR_PIPE_CONNECTED) => {}
+                // A client that connected, wrote and closed before this
+                // accept: what it wrote is still to be read, then the end
+                // (CI Windows, 2026-10-18: its message was an error instead).
+                Some(ERROR_NO_DATA) => {}
                 Some(ERROR_IO_PENDING) => {
                     finish(
                         pipe.as_raw_handle(),
@@ -629,15 +633,19 @@ mod tests {
             LocalListener::bind(&path).err().map(|e| e.kind()),
             Some(io::ErrorKind::AddrInUse)
         );
+        let (checked, may_write) = std::sync::mpsc::channel();
         let accepting = std::thread::spawn(move || {
             let mut accepted = listener.accept().unwrap();
             assert!(accepted.peer_is_same_user(), "the window is this user's");
+            checked.send(()).unwrap();
             let mut got = String::new();
             accepted.read_to_string(&mut got).unwrap();
             got
         });
         let mut client = LocalStream::connect(&path).unwrap();
         assert!(client.peer_is_same_user(), "the host is this user's");
+        // Its peer is read while it is still there.
+        may_write.recv().unwrap();
         client.write_all(b"ping").unwrap();
         client.shutdown().unwrap();
         drop(client);
@@ -648,6 +656,23 @@ mod tests {
             Some(io::ErrorKind::ConnectionRefused),
             "nobody is met where the file was"
         );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A client that connects, writes and leaves before the host accepts is
+    /// still heard: what it wrote, then the end of the stream.
+    #[test]
+    fn what_a_client_wrote_before_leaving_is_read() {
+        let dir = scratch("left");
+        let path = dir.join("Session3Host.sock");
+        let listener = LocalListener::bind(&path).unwrap();
+        let mut client = LocalStream::connect(&path).unwrap();
+        client.write_all(b"ping").unwrap();
+        drop(client);
+        let mut accepted = listener.accept().unwrap();
+        let mut got = String::new();
+        accepted.read_to_string(&mut got).unwrap();
+        assert_eq!(got, "ping");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

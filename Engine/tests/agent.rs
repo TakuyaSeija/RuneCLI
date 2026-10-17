@@ -7472,18 +7472,20 @@ fn an_mcp_error_answer_keeps_the_server_and_tells_its_words() {
 fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
     let h = harness_with_config(
         "mcp-slow-answer",
-        "[capabilities]\ntimeout_seconds = 1\n",
+        "[capabilities]\ntimeout_seconds = 3\n",
         json!({"responses":[]}),
     );
     let mut engine = h.engine;
     let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
     connect_fixture(&h.project, &state, "slow");
-    // Adding the server kept the owner's limit: the call below runs against 1 s.
+    // Adding the server kept the owner's limit: the call below runs against
+    // 3 s (room for a cold interpreter to connect on a slow machine; CI macOS
+    // took more than 1 s), and the answer comes after it.
     assert_eq!(
         runeengine::settings::configuration::Configuration::load(&state.capabilities.home)
             .unwrap()
             .get("capabilities")["timeout_seconds"],
-        1,
+        3,
         "{}",
         std::fs::read_to_string(state.capabilities.home.join("rune.toml")).unwrap()
     );
@@ -7508,7 +7510,7 @@ fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
                 });
             }
             Event::McpInputRequest { req, .. } => {
-                std::thread::sleep(std::time::Duration::from_millis(2500));
+                std::thread::sleep(std::time::Duration::from_millis(4500));
                 engine.handle(Command::McpInputReply {
                     id: 972,
                     session: h.session,
