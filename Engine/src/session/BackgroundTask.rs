@@ -1661,7 +1661,20 @@ mod tests {
         let before = Arc::new(BackgroundTaskManager::new());
         let (pid, log) = launch(&before, &dir, "bg_end", "sleep 0.2; echo bye; exit 7");
         let handed = before.release().unwrap();
-        until("it to end unwatched", || state_of(pid) == Some(Zombie));
+        let ended = Instant::now() + Duration::from_secs(5);
+        while state_of(pid) != Some(Zombie) {
+            assert!(
+                Instant::now() < ended,
+                "timed out waiting for it to end unwatched: {:?}\n{}",
+                state_of(pid),
+                std::process::Command::new("ps")
+                    .args(["-o", "pid,stat,wchan,command", "-p", &pid.to_string()])
+                    .output()
+                    .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+                    .unwrap_or_default()
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
 
         let after = Arc::new(BackgroundTaskManager::new());
         let notifier = Arc::new(RecordingNotifier::default());

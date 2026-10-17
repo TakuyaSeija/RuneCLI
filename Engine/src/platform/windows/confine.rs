@@ -51,7 +51,7 @@ use windows_sys::Win32::Security::{
     WinLocalSystemSid, WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL,
     DISABLE_MAX_PRIVILEGE, NO_INHERITANCE, SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES,
     TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
-    TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, WRITE_RESTRICTED,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ALL_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_GENERIC_EXECUTE,
@@ -109,6 +109,9 @@ pub(super) enum Mechanism {
     /// few every program needs (Everyone, Users, RESTRICTED, the logon
     /// session). Named objects and pipes are the user's own namespace.
     RestrictedToken,
+    /// The same token, its restricting SIDs checked only when writing:
+    /// reads are the user's.
+    WriteRestrictedToken,
     /// An AppContainer: a package SID and the grants as capabilities. Named
     /// objects live in the container's own namespace; the user's pipes and
     /// local servers are out of reach unless granted. `profile`: whether its
@@ -197,7 +200,7 @@ fn sid_for(mechanism: Mechanism, write: bool, path: &Path) -> Sid {
         path.as_os_str().to_string_lossy().to_uppercase()
     );
     match mechanism {
-        Mechanism::RestrictedToken => Sid::derived(&name),
+        Mechanism::RestrictedToken | Mechanism::WriteRestrictedToken => Sid::derived(&name),
         Mechanism::AppContainer { .. } => Sid::capability(&name),
     }
 }
@@ -328,8 +331,8 @@ impl Confinement {
         }
         let sids: Vec<Sid> = planned.iter().map(|grant| grant.sid.clone()).collect();
         let (token, container) = match mechanism {
-            Mechanism::RestrictedToken => (
-                restricted_token(&sids, None)
+            Mechanism::RestrictedToken | Mechanism::WriteRestrictedToken => (
+                restricted_token(&sids, None, mechanism == Mechanism::WriteRestrictedToken)
                     .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?,
                 None,
             ),
@@ -337,7 +340,7 @@ impl Confinement {
                 let container = container(&planned[0].path, sids, profile)
                     .map_err(|e| unconfined(format!("Windows refused an AppContainer: {e}")))?;
                 let token = if filtered {
-                    restricted_token(&[], Some(&container.package))
+                    restricted_token(&[], Some(&container.package), false)
                 } else {
                     own_token()
                 }
@@ -362,6 +365,7 @@ impl Confinement {
     pub fn kind(&self) -> &'static str {
         match self.inner.mechanism {
             Mechanism::RestrictedToken => "restricted-token",
+            Mechanism::WriteRestrictedToken => "write-restricted-token",
             Mechanism::AppContainer { .. } => "appcontainer",
         }
     }
@@ -620,7 +624,11 @@ fn own_token() -> io::Result<OwnedHandle> {
 /// token an AppContainer is made from: no restricting SID — the container's
 /// capabilities are its second check — and a default ACL the container's
 /// processes can open again.
-fn restricted_token(grants: &[Sid], package: Option<&Sid>) -> io::Result<OwnedHandle> {
+fn restricted_token(
+    grants: &[Sid],
+    package: Option<&Sid>,
+    write_only: bool,
+) -> io::Result<OwnedHandle> {
     let own = Token::of_this_process(
         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT,
     )?;
@@ -656,7 +664,7 @@ fn restricted_token(grants: &[Sid], package: Option<&Sid>) -> io::Result<OwnedHa
     check(unsafe {
         CreateRestrictedToken(
             own.raw(),
-            DISABLE_MAX_PRIVILEGE,
+            DISABLE_MAX_PRIVILEGE | if write_only { WRITE_RESTRICTED } else { 0 },
             disable.len() as u32,
             disable.as_ptr(),
             0,

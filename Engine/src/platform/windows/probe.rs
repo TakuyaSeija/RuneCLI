@@ -35,7 +35,20 @@ struct Check {
     name: &'static str,
     program: PathBuf,
     args: Vec<String>,
+    /// The end of its command line as written: what cmd reads after `/C`.
+    tail: Option<String>,
     expect: Expect,
+}
+
+/// `line` run by cmd as Rune's terminal runs it: `/D /S /C "line"`.
+fn cmd(name: &'static str, line: String, expect: Expect) -> Check {
+    Check {
+        name,
+        program: PathBuf::from(r"C:\Windows\System32\cmd.exe"),
+        args: vec!["/D".into(), "/S".into(), "/C".into()],
+        tail: Some(format!("\"{line}\"")),
+        expect,
+    }
 }
 
 /// The folders and servers one battery runs against.
@@ -64,66 +77,52 @@ fn git_bash() -> Option<PathBuf> {
 }
 
 fn checks(probe: &Probe) -> Vec<Check> {
-    let cmd = PathBuf::from(r"C:\Windows\System32\cmd.exe");
+    let outside = probe.outside.display();
     let mut checks = vec![
-        Check {
-            name: "cmd echo",
-            program: cmd.clone(),
-            args: vec!["/D".into(), "/C".into(), "echo probe-ok".into()],
-            expect: Expect::Runs("probe-ok"),
-        },
-        Check {
-            name: "cmd nested child",
-            program: cmd.clone(),
-            args: vec!["/D".into(), "/C".into(), "cmd /D /C echo probe-ok".into()],
-            expect: Expect::Runs("probe-ok"),
-        },
-        Check {
-            name: "cmd write in project",
-            program: cmd.clone(),
-            args: vec![
-                "/D".into(),
-                "/C".into(),
-                "echo x> written.txt && type written.txt && echo probe-ok".into(),
-            ],
-            expect: Expect::Runs("probe-ok"),
-        },
-        Check {
-            name: "cmd read outside (must fail)",
-            program: cmd.clone(),
-            args: vec![
-                "/D".into(),
-                "/C".into(),
-                format!("type \"{}\"", probe.outside.join("secret.txt").display()),
-            ],
-            expect: Expect::Holds(|_, out| !out.contains("probe-secret")),
-        },
-        Check {
-            name: "cmd write outside (must fail)",
-            program: cmd.clone(),
-            args: vec![
-                "/D".into(),
-                "/C".into(),
-                format!(
-                    "echo x> \"{}\"",
-                    probe.outside.join("written.txt").display()
-                ),
-            ],
-            expect: Expect::Holds(|p, _| !p.outside.join("written.txt").exists()),
-        },
-        Check {
-            name: "cmd user pipe (must fail)",
-            program: cmd.clone(),
-            args: vec![
-                "/D".into(),
-                "/C".into(),
-                format!("echo x> {}", probe.pipe_name),
-            ],
-            expect: Expect::Holds(|p, _| {
+        cmd("cmd echo", "echo probe-ok".into(), Expect::Runs("probe-ok")),
+        cmd(
+            "cmd nested child",
+            "cmd /D /C echo probe-ok".into(),
+            Expect::Runs("probe-ok"),
+        ),
+        cmd(
+            "cmd write in project",
+            "echo x> written.txt && type written.txt && echo probe-ok".into(),
+            Expect::Runs("probe-ok"),
+        ),
+        cmd(
+            "cmd read outside control (must show)",
+            format!("type \"{outside}\\secret.txt\" 2>&1 & dir /b \"{outside}\""),
+            Expect::Holds(|_, _| true),
+        ),
+        cmd(
+            "cmd read outside (must fail)",
+            format!("type \"{outside}\\secret.txt\""),
+            Expect::Holds(|_, out| !out.contains("probe-secret")),
+        ),
+        cmd(
+            "cmd list profile (must fail)",
+            "dir /b \"%USERPROFILE%\\Documents\" && echo probe-listed".into(),
+            Expect::Holds(|_, out| !out.contains("probe-listed")),
+        ),
+        cmd(
+            "cmd write outside (must fail)",
+            format!("echo x> \"{outside}\\written.txt\""),
+            Expect::Holds(|p, _| !p.outside.join("written.txt").exists()),
+        ),
+        cmd(
+            "cmd user pipe (must fail)",
+            format!("echo x> {}", probe.pipe_name),
+            Expect::Holds(|p, _| {
                 std::thread::sleep(Duration::from_millis(300));
                 !p.pipe_reached.load(std::sync::atomic::Ordering::SeqCst)
             }),
-        },
+        ),
+        cmd(
+            "powershell web request",
+            "powershell -NoLogo -NoProfile -Command \"(Invoke-WebRequest -UseBasicParsing https://example.com/).StatusCode\"".into(),
+            Expect::Runs("200"),
+        ),
         Check {
             name: "powershell 5.1",
             program: PathBuf::from(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"),
@@ -133,6 +132,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
                 "-Command".into(),
                 "Write-Output ('probe-' + 'ok')".into(),
             ],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         },
         Check {
@@ -141,17 +141,19 @@ fn checks(probe: &Probe) -> Vec<Check> {
             args: vec![
                 "-sS".into(),
                 "-o".into(),
-                "NUL".into(),
+                "probe-body.txt".into(),
                 "-w".into(),
                 "probe-%{http_code}".into(),
                 "https://example.com/".into(),
             ],
+            tail: None,
             expect: Expect::Runs("probe-200"),
         },
         Check {
             name: "curl localhost server of the user",
             program: PathBuf::from(r"C:\Windows\System32\curl.exe"),
             args: vec!["-sS".into(), format!("http://127.0.0.1:{}/", probe.port)],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         },
     ];
@@ -165,6 +167,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
                 "-Command".into(),
                 "Write-Output ('probe-' + 'ok')".into(),
             ],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
     }
@@ -173,6 +176,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
             name: "git bash echo",
             program: bash.clone(),
             args: vec!["-c".into(), "echo probe-ok".into()],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
         checks.push(Check {
@@ -182,6 +186,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
                 "-c".into(),
                 "x=$(echo probe); echo \"$x-ok\" | cat; ls / >/dev/null".into(),
             ],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
     }
@@ -196,14 +201,49 @@ fn checks(probe: &Probe) -> Vec<Check> {
                 "--short".into(),
                 "--branch".into(),
             ],
+            tail: None,
             expect: Expect::Runs("##"),
         });
+    }
+    if let Some(git) = on_path("git.exe") {
+        checks.push(Check {
+            name: "git https ls-remote",
+            program: git.clone(),
+            args: vec![
+                "ls-remote".into(),
+                "--heads".into(),
+                "https://github.com/octocat/Hello-World".into(),
+            ],
+            tail: None,
+            expect: Expect::Runs("refs/heads"),
+        });
+        if let Some(curl) = git
+            .ancestors()
+            .map(|dir| dir.join("mingw64").join("bin").join("curl.exe"))
+            .find(|curl| curl.is_file())
+        {
+            checks.push(Check {
+                name: "git's curl (openssl) https",
+                program: curl,
+                args: vec![
+                    "-sS".into(),
+                    "-o".into(),
+                    "probe-body.txt".into(),
+                    "-w".into(),
+                    "probe-%{http_code}".into(),
+                    "https://example.com/".into(),
+                ],
+                tail: None,
+                expect: Expect::Runs("probe-200"),
+            });
+        }
     }
     if let Some(python) = on_path("python.exe") {
         checks.push(Check {
             name: "python",
             program: python.clone(),
             args: vec!["-c".into(), "print('probe-' + 'ok')".into()],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
         checks.push(Check {
@@ -216,6 +256,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
                  c.send(b'probe-ok');print(a.recv(8).decode())"
                     .into(),
             ],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
     }
@@ -224,20 +265,16 @@ fn checks(probe: &Probe) -> Vec<Check> {
             name: "node",
             program: node,
             args: vec!["-e".into(), "console.log('probe-' + 'ok')".into()],
+            tail: None,
             expect: Expect::Runs("probe-ok"),
         });
     }
     if on_path("npm.cmd").is_some() {
-        checks.push(Check {
-            name: "npm --version (batch)",
-            program: cmd.clone(),
-            args: vec![
-                "/D".into(),
-                "/C".into(),
-                "npm --version && echo probe-ok".into(),
-            ],
-            expect: Expect::Runs("probe-ok"),
-        });
+        checks.push(cmd(
+            "npm --version (batch)",
+            "npm --version && echo probe-ok".into(),
+            Expect::Runs("probe-ok"),
+        ));
     }
     if let Some(cargo) = on_path("cargo.exe") {
         checks.push(Check {
@@ -255,6 +292,7 @@ fn checks(probe: &Probe) -> Vec<Check> {
                     .display()
                     .to_string(),
             ],
+            tail: None,
             expect: Expect::Holds(|p, _| {
                 // Built: the program is there (a "kept out" that is a success).
                 p.project
@@ -277,8 +315,11 @@ fn run(check: &Check, probe: &Probe, confinement: &Confinement) -> (String, Opti
         Ok(pair) => pair,
         Err(e) => return (format!("open_pty: {e}"), None, started.elapsed()),
     };
-    let launch = Launch::new(&check.program)
-        .args(&check.args)
+    let mut launch = Launch::new(&check.program).args(&check.args);
+    if let Some(tail) = &check.tail {
+        launch = launch.verbatim_tail(tail);
+    }
+    let launch = launch
         .dir(probe.project.clone())
         .env("TEMP", &probe.scratch)
         .env("TMP", &probe.scratch);
@@ -479,36 +520,39 @@ fn sandbox_mechanisms_measured() {
     let elevated = Token::of_this_process(TOKEN_QUERY).is_ok_and(|t| t.elevated());
     println!("PROBE elevated={elevated} reads={reads:?}");
 
+    // The user's own Microsoft folders (certificates, crypto keys): read
+    // too in one candidate, to tell whether schannel's TLS needs them.
+    let mut microsoft_reads = reads.clone();
+    for name in [r"AppData\Roaming\Microsoft", r"AppData\Local\Microsoft"] {
+        microsoft_reads.push(profile.join(name));
+    }
     let mechanisms = [
-        ("restricted-token", Mechanism::RestrictedToken),
+        ("restricted-token", Mechanism::RestrictedToken, &reads),
+        (
+            "restricted-token+microsoft-reads",
+            Mechanism::RestrictedToken,
+            &microsoft_reads,
+        ),
+        (
+            "write-restricted-token",
+            Mechanism::WriteRestrictedToken,
+            &reads,
+        ),
         (
             "appcontainer+profile+filtered",
             Mechanism::AppContainer {
                 profile: true,
                 filtered: true,
             },
-        ),
-        (
-            "appcontainer+filtered",
-            Mechanism::AppContainer {
-                profile: false,
-                filtered: true,
-            },
-        ),
-        (
-            "appcontainer+profile",
-            Mechanism::AppContainer {
-                profile: true,
-                filtered: false,
-            },
+            &reads,
         ),
     ];
     let mut summary = Vec::new();
-    for (label, mechanism) in mechanisms {
+    for (label, mechanism, reads) in mechanisms {
         let confinement = match Confinement::build_as(
             Grants {
                 project: &project,
-                reads: &reads,
+                reads,
                 writes: &writes,
                 ledger: Some(&ledger),
                 reach: &[],
@@ -525,6 +569,14 @@ fn sandbox_mechanisms_measured() {
                 continue;
             }
         };
+        // The entries written at the first start: how long a person waits.
+        let granting = Instant::now();
+        let granted = confinement.token_for_start().map(drop);
+        println!(
+            "PROBE {label} | grants written | {} | {} ms",
+            granted.map_or_else(|e| format!("FAIL {e}"), |()| "ok".into()),
+            granting.elapsed().as_millis()
+        );
         let mut passed = 0;
         let all = checks(&probe);
         for check in &all {

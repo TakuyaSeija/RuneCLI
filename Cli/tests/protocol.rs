@@ -1330,6 +1330,23 @@ fn process(pid: i64) -> Option<(runeengine::platform::fixture::ProcessState, i64
     Some((state, i64::from(parent)))
 }
 
+/// What `ps` says of `pid` — its state, group, terminal, what it waits on —
+/// for a failure's message.
+fn seen_by_ps(pid: i64) -> String {
+    let state = process(pid);
+    let ps = Command::new("ps")
+        .args([
+            "-o",
+            "pid,ppid,pgid,tpgid,stat,wchan,tty,command",
+            "-p",
+            &pid.to_string(),
+        ])
+        .output()
+        .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+        .unwrap_or_else(|e| format!("ps: {e}"));
+    format!("{state:?}\n{ps}")
+}
+
 /// The owner's case (2026-10-06): a dev server running in the background
 /// keeps running through a live upgrade — the same process, never stopped,
 /// still the host's child — its log goes on, a task that ends after the
@@ -1409,6 +1426,17 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     assert!(log.starts_with(home.join("projects")), "{}", log.display());
     let host = child.id() as i64;
     assert_eq!(process(serve_pid).map(|p| p.1), Some(host));
+    // Its log has begun under the old build: what goes on after the upgrade
+    // is measured against output that was already there.
+    let begun = Instant::now();
+    while std::fs::metadata(&log).map_or(0, |m| m.len()) == 0 {
+        assert!(
+            begun.elapsed() < Duration::from_secs(10),
+            "the log never began before the upgrade: {}",
+            seen_by_ps(serve_pid)
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
     // The scripted model is read afresh by the build that takes over, the
     // way a real model holds no state of its own: what it answers next.
     std::fs::write(
@@ -1454,7 +1482,11 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     let size = std::fs::metadata(&log).unwrap().len();
     let deadline = Instant::now() + Duration::from_secs(5);
     while std::fs::metadata(&log).unwrap().len() <= size {
-        assert!(Instant::now() < deadline, "the log stopped at {size} bytes");
+        assert!(
+            Instant::now() < deadline,
+            "the log stopped at {size} bytes: {}",
+            seen_by_ps(serve_pid)
+        );
         std::thread::sleep(Duration::from_millis(50));
     }
 
