@@ -336,10 +336,16 @@ pub(in crate::platform) mod tests {
     fn a_terminal_never_leaks_into_another_program() {
         let (pty, slave) = open_pty(24, 80).unwrap();
         let open = [pty.master.as_raw_fd(), slave.0.as_raw_fd()];
-        // `/dev/fd` lists the descriptors of the program reading it, which
-        // inherited the shell's — every Unix has it.
+        // The shell asks about its own descriptors with its built-in `test`,
+        // which opens nothing: a listing by another program (`ls /dev/fd/`)
+        // shows that program's own directory descriptor too, and fails
+        // whenever the terminal happens to be that number (CI, 2026-10-17).
+        let probe = format!(
+            "for fd in 0 {} {}; do [ -e /dev/fd/$fd ] && echo $fd; done",
+            open[0], open[1]
+        );
         let seen = std::process::Command::new("/bin/sh")
-            .args(["-c", "ls /dev/fd/"])
+            .args(["-c", &probe])
             .output()
             .unwrap();
         let fds: Vec<i32> = String::from_utf8_lossy(&seen.stdout)
