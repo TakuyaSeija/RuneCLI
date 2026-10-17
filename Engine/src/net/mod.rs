@@ -690,10 +690,17 @@ mod tests {
             Some(Duration::from_secs(5)),
             Default::default(),
         );
+        // The decimal spelling of 127.0.0.1 only where this system's resolver
+        // reads it (Windows's does not: there it names nothing at all).
+        use std::net::ToSocketAddrs;
+        let decimal = ("2130706433", port).to_socket_addrs().is_ok();
         for url in [
-            format!("http://localhost:{port}/"),
-            format!("http://2130706433:{port}/"),
-        ] {
+            Some(format!("http://localhost:{port}/")),
+            decimal.then(|| format!("http://2130706433:{port}/")),
+        ]
+        .into_iter()
+        .flatten()
+        {
             let Err(error) = http.get(&url, &[]) else {
                 panic!("{url} was fetched");
             };

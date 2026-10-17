@@ -21,6 +21,8 @@ struct Window {
     answered: usize,
     base: PathBuf,
     live_box_height: Option<usize>,
+    /// Bytes have arrived since a frame was last taken as complete.
+    fresh: bool,
 }
 
 impl Window {
@@ -70,6 +72,8 @@ context = 32768
 "#,
         )
         .unwrap();
+        // Its commands are POSIX: Git Bash runs them on Windows.
+        runeengine::testing::posix_shell_for_tests(&home);
         let body: String = (0..380)
             .map(|i| format!("// source-row-{i:03}\n"))
             .collect();
@@ -158,14 +162,19 @@ context = 32768
             answered: 0,
             base,
             live_box_height: None,
+            fresh: false,
         }
     }
 
     fn read(&mut self) -> bool {
         let mut buf = [0; 65536];
+        let mut quiet = false;
         match self.pty.read_timeout(&mut buf, 30) {
-            Ok(Some(n)) if n > 0 => self.raw.extend_from_slice(&buf[..n]),
-            Ok(_) => {}
+            Ok(Some(n)) if n > 0 => {
+                self.raw.extend_from_slice(&buf[..n]);
+                self.fresh = true;
+            }
+            Ok(_) => quiet = true,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
             Err(error) => panic!("UI PTY closed: {error}"),
         }
@@ -197,7 +206,15 @@ context = 32768
             self.send(b"\x1b[?2026;2$y");
         }
         self.answered = self.raw.len();
-        reports > 0
+        // Windows's ConPTY is the UI's terminal: it answers the UI's status
+        // query (`ESC [ 5 n`) itself, so the query never reaches this end. A
+        // frame is complete there once its output went quiet.
+        let settled =
+            quiet && self.fresh && runeengine::platform::OS == runeengine::platform::Os::Windows;
+        if reports > 0 || settled {
+            self.fresh = false;
+        }
+        reports > 0 || settled
     }
 
     fn send(&self, bytes: &[u8]) {

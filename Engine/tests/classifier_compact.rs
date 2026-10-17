@@ -96,6 +96,7 @@ impl Harness {
             None,
         )
         .unwrap();
+        runeengine::testing::posix_shell_for_tests(&home);
         runeengine::settings::configuration::Configuration::edit(
             &home,
             Some("compact.max_output_tokens"),

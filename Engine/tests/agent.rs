@@ -12,8 +12,6 @@ use runeengine::provider::scripted::Scripted;
 use runeengine::provider::{Chunk, Flow, Provider, Request};
 use serde_json::{json, Value};
 
-mod support;
-
 struct Harness {
     engine: Engine,
     events: std::sync::mpsc::Receiver<Event>,
@@ -72,7 +70,7 @@ fn harness_with(name: &str, provider: Arc<dyn Provider>) -> Harness {
         None,
     )
     .unwrap();
-    support::posix_shell_for_tests(&base.join("data"));
+    runeengine::testing::posix_shell_for_tests(&base.join("data"));
     let cfg = Config::at(db_path.clone(), base.join("data"), provider).unwrap();
     let (mut engine, events) = Engine::start(cfg).unwrap();
     let session = engine.open(project.to_str().unwrap()).unwrap().id();
@@ -2456,7 +2454,7 @@ fn manage_process_has_no_way_to_wait() {
 
 #[test]
 fn a_command_with_a_detached_pty_descendant_moves_to_the_background_on_time() {
-    let Some(detached) = support::leaving_its_group("sleep 8") else {
+    let Some(detached) = runeengine::testing::leaving_its_group("sleep 8") else {
         return;
     };
     let mut h = harness_with_config(
@@ -3823,7 +3821,7 @@ fn harness_with_config_and(name: &str, config: &str, provider: Arc<dyn Provider>
     std::fs::create_dir_all(&data_dir).unwrap();
     std::fs::write(data_dir.join("rune.toml"), config).unwrap();
     if !config.contains("shell") {
-        support::posix_shell_for_tests(&data_dir);
+        runeengine::testing::posix_shell_for_tests(&data_dir);
     }
 
     let db_path = base.join("rune.db");
@@ -6787,7 +6785,7 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
             operation: "add".into(),
             arguments: vec![
                 "fixture".into(),
-                "/usr/bin/python3".into(),
+                runeengine::testing::python().to_string_lossy().into_owned(),
                 fixture.to_string_lossy().into_owned(),
                 if legacy {
                     "legacy".into()
@@ -6881,7 +6879,7 @@ impl McpHttpFixture {
         use std::io::BufRead;
         let path = project.join("McpFixture.py");
         std::fs::write(&path, include_str!("McpFixture.py")).unwrap();
-        let mut child = std::process::Command::new("/usr/bin/python3")
+        let mut child = std::process::Command::new(runeengine::testing::python())
             .arg(path)
             .arg(if sse { "http-sse" } else { "http" })
             .stdout(std::process::Stdio::piped())
@@ -7147,7 +7145,7 @@ fn mcp_elicitation_uses_real_validated_user_input_and_cancel_stops_the_server() 
         operation: "add".into(),
         arguments: vec![
             "inputfixture".into(),
-            "/usr/bin/python3".into(),
+            runeengine::testing::python().to_string_lossy().into_owned(),
             fixture.to_string_lossy().into_owned(),
         ],
     };
@@ -7283,7 +7281,7 @@ fn connect_fixture(project: &std::path::Path, state: &runeengine::session::Sessi
         operation: "add".into(),
         arguments: vec![
             id.into(),
-            "/usr/bin/python3".into(),
+            runeengine::testing::python().to_string_lossy().into_owned(),
             fixture.to_string_lossy().into_owned(),
         ],
     };
@@ -7553,7 +7551,7 @@ fn discovery_shows_mcp_tools_with_their_schema_within_the_output_limit() {
         operation: "add".into(),
         arguments: vec![
             "budget".into(),
-            "/usr/bin/python3".into(),
+            runeengine::testing::python().to_string_lossy().into_owned(),
             fixture.to_string_lossy().into_owned(),
         ],
     };
@@ -9037,7 +9035,11 @@ fn real_http_tool_rounds_preserve_content_and_use_only_legal_cache_carriers() {
                 }
                 bodies
             });
-            let base = temp(&format!("http-cache-rounds-{dialect:?}-{carrier:?}"));
+            // A folder name every OS takes (no quotes from `Some("…")`).
+            let base = temp(&format!(
+                "http-cache-rounds-{dialect:?}-{}",
+                carrier.unwrap_or("none")
+            ));
             let project = base.join("project");
             std::fs::create_dir_all(&project).unwrap();
             std::fs::write(project.join("image.png"), b"\x89PNG\r\n\x1a\n\0synthetic").unwrap();
@@ -10531,6 +10533,43 @@ fn a_read_that_needs_a_question_runs_on_its_own() {
     let results = tool_results(&events);
     assert!(results.iter().all(|(_, ok, _)| *ok), "{results:?}");
     assert_eq!(recorded_results(&h), ["r1", "r2", "r3"]);
+}
+
+/// A file tool is held by the jail alone: a file every command may read (the
+/// system's hosts file) is still asked about before a file tool opens it,
+/// and read once allowed — never refused unasked because the sandbox would
+/// let a command reach it.
+#[test]
+fn a_system_file_a_command_could_read_is_asked_before_a_file_tool_reads_it() {
+    let hosts = match runeengine::platform::OS {
+        runeengine::platform::Os::Windows => std::env::var_os("SystemRoot")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+            .join(r"System32\drivers\etc\hosts"),
+        _ => PathBuf::from("/etc/hosts"),
+    };
+    let fixture = json!({
+        "responses": [
+            { "chunks": [
+                { "tool_call": { "id": "h1", "name": "inspect_file",
+                                 "args": { "action": "read the hosts file",
+                                           "path": hosts.to_str().unwrap() } } }
+            ]},
+            { "chunks": [ { "text": "Read it." } ]}
+        ]
+    });
+    let mut h = harness("system-file-asked", fixture);
+    let events = prompt(&mut h, "read the hosts file", Decision::AllowOnce);
+    let asked = events
+        .iter()
+        .filter(|e| matches!(e, Event::PermissionRequest { .. }))
+        .count();
+    assert_eq!(
+        asked, 1,
+        "the file tool asked before it read outside the workspace"
+    );
+    let results = tool_results(&events);
+    assert!(results.iter().all(|(_, ok, _)| *ok), "{results:?}");
 }
 
 /// Owner, 2026-10-11: reads have no width of their own — every read of one
@@ -12500,7 +12539,7 @@ fn a_9router_entry_speaking_anthropic_reports_the_cache_exactly() {
 /// where a signal to the group does not.
 #[test]
 fn stopping_a_background_task_stops_what_left_its_group() {
-    let Some(daemon) = support::leaving_its_group("sleep 300") else {
+    let Some(daemon) = runeengine::testing::leaving_its_group("sleep 300") else {
         return;
     };
     let mut h = harness_with_config(

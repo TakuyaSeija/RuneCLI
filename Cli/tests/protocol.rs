@@ -268,6 +268,7 @@ fn served_with(name: &str, fixture: Value, config: Option<&str>) -> Served {
     if let Some(config) = config {
         std::fs::write(short_home.join("rune.toml"), config).unwrap();
     }
+    runeengine::testing::posix_shell_for_tests(&short_home);
     let test_executable = short_home.join("Rune");
     std::fs::copy(env!("CARGO_BIN_EXE_rune"), &test_executable).unwrap();
     let child = fixture_spawn(
@@ -315,6 +316,12 @@ fn served_with(name: &str, fixture: Value, config: Option<&str>) -> Served {
 
 #[test]
 fn detached_host_cancels_unwatched_tool_without_waiting_idle_lifetime() {
+    // A release is taken over in place by an exec, which Windows has not:
+    // there a newer build is used at the next start, and a running program's
+    // file cannot be replaced under it.
+    if !runeengine::platform::REPLACES_IN_PLACE {
+        return;
+    }
     use std::time::{Duration, Instant};
     let Served {
         cleanup: _cleanup,
@@ -1329,6 +1336,12 @@ fn process(pid: i64) -> Option<(runeengine::platform::fixture::ProcessState, i64
 /// upgrade is reported by the new build, and the new build can stop it.
 #[test]
 fn a_background_task_runs_on_through_a_live_upgrade() {
+    // A release is taken over in place by an exec, which Windows has not:
+    // there a newer build is used at the next start, and a running program's
+    // file cannot be replaced under it.
+    if !runeengine::platform::REPLACES_IN_PLACE {
+        return;
+    }
     use std::time::{Duration, Instant};
     let marker = format!("rune-upgrade-tick-{}", std::process::id());
     // The second task ends when the test says so — after the new build has
@@ -1579,6 +1592,12 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
 /// writing; a background task runs on through it.
 #[test]
 fn the_stdio_host_becomes_the_installed_release_in_place() {
+    // A release is taken over in place by an exec, which Windows has not:
+    // there a newer build is used at the next start, and a running program's
+    // file cannot be replaced under it.
+    if !runeengine::platform::REPLACES_IN_PLACE {
+        return;
+    }
     use std::time::{Duration, Instant};
     let base = std::env::temp_dir()
         .join("rune-test")

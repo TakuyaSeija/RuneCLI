@@ -448,7 +448,11 @@ mod tests {
     #[test]
     fn rejects_symlink_escape() {
         let dir = scratch("symlink");
-        crate::platform::fixture::symlink("/etc", dir.join("escape")).unwrap();
+        // A real folder outside the root, on every OS (`/etc` names none on
+        // Windows, where a link to it would lead nowhere).
+        let outside = scratch("symlink-outside");
+        std::fs::write(outside.join("passwd"), "root\n").unwrap();
+        crate::platform::fixture::symlink(&outside, dir.join("escape")).unwrap();
         let j = Jail::new(&dir).unwrap();
         assert!(j.resolve("escape/passwd").is_err());
         assert!(j.resolve("escape").is_err());

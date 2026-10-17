@@ -372,9 +372,11 @@ pub(in crate::platform) mod tests {
 
     #[test]
     fn keys_typed_reach_the_program() {
+        // `!ANSWER!` with delayed expansion: `%ANSWER%` is expanded when
+        // the line is read, before `set /p` has run.
         let (pty, mut child) = on_terminal(
             "cmd.exe",
-            &["/D", "/C", "set /p ANSWER=? & echo got-%ANSWER%"],
+            &["/D", "/V:ON", "/C", "set /p ANSWER=? & echo got-!ANSWER!"],
         );
         shows(&pty, "?");
         pty.write_all(b"yes\r").unwrap();

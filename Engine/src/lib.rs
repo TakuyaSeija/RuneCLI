@@ -60,6 +60,8 @@ pub mod shell;
 pub mod store;
 pub mod tasks;
 pub mod terminal_screen;
+#[cfg(any(test, feature = "test-support"))]
+pub mod testing;
 pub mod tools;
 pub mod upgrade;
 pub mod web;

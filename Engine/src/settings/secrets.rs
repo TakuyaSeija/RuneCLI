@@ -1049,32 +1049,51 @@ mod tests {
                 .unwrap();
             h
         };
-        type Damage = (&'static str, Box<dyn Fn(&Path)>, Unavailable);
+        // A damage may hold the file's access away until it is dropped.
+        type Guard = Option<crate::platform::fixture::Restricted>;
+        type Damage = (&'static str, Box<dyn Fn(&Path) -> Guard>, Unavailable);
         let cases: Vec<Damage> = vec![
             (
                 "key missing",
-                Box::new(|h: &Path| std::fs::remove_file(h.join("master.key")).unwrap()),
+                Box::new(|h: &Path| {
+                    std::fs::remove_file(h.join("master.key")).unwrap();
+                    None
+                }),
                 Unavailable::KeyMissing,
             ),
             (
                 "key damaged",
-                Box::new(|h: &Path| std::fs::write(h.join("master.key"), b"short").unwrap()),
+                Box::new(|h: &Path| {
+                    std::fs::write(h.join("master.key"), b"short").unwrap();
+                    None
+                }),
                 Unavailable::KeyDamaged,
             ),
             (
                 "another key",
-                Box::new(|h: &Path| std::fs::write(h.join("master.key"), [9u8; 32]).unwrap()),
+                Box::new(|h: &Path| {
+                    std::fs::write(h.join("master.key"), [9u8; 32]).unwrap();
+                    None
+                }),
                 Unavailable::Mismatch,
             ),
             (
                 "cut off",
-                Box::new(|h: &Path| std::fs::write(h.join(VAULT_FILE), b"tiny").unwrap()),
+                Box::new(|h: &Path| {
+                    std::fs::write(h.join(VAULT_FILE), b"tiny").unwrap();
+                    None
+                }),
                 Unavailable::Truncated,
             ),
             (
                 "unreadable",
+                // Unreadable as each OS makes a file so: no mode bit, or an
+                // entry denying this user (a read-only file is still read).
                 Box::new(|h: &Path| {
-                    crate::platform::set_file_mode(&h.join(VAULT_FILE), 0o000).unwrap()
+                    Some(
+                        crate::platform::fixture::Restricted::new(&h.join(VAULT_FILE), 0o000)
+                            .unwrap(),
+                    )
                 }),
                 Unavailable::Unreadable(std::io::ErrorKind::PermissionDenied),
             ),
@@ -1083,7 +1102,7 @@ mod tests {
             let h = ready();
             let read = |path: &Path| std::fs::read(path).ok();
             let undamaged = read(&h.join(VAULT_FILE));
-            damage(&h);
+            let guard = damage(&h);
             // An unreadable store reads as nothing here: what it holds is the
             // store as it was before its permissions changed.
             let before = (
@@ -1102,7 +1121,7 @@ mod tests {
             assert!(s.remove("p").is_err(), "{what}");
             assert!(s.remove_at("p", 1).is_err(), "{what}");
             assert!(s.remove_prefixed("p").is_err(), "{what}");
-            let _ = crate::platform::set_file_mode(&h.join(VAULT_FILE), 0o600);
+            drop(guard);
             assert_eq!(
                 (read(&h.join(VAULT_FILE)), read(&h.join("master.key"))),
                 before,

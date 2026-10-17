@@ -2130,6 +2130,17 @@ mod tests {
         let port = listener.local_addr().unwrap().port();
         std::thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
+                // The request read before the answer: a socket closed with
+                // its request unread is reset on Windows, and the client
+                // loses the answer it was sent.
+                let mut seen = Vec::new();
+                let mut byte = [0u8; 1];
+                while !seen.ends_with(b"\r\n\r\n") {
+                    match std::io::Read::read(&mut stream, &mut byte) {
+                        Ok(1) => seen.push(byte[0]),
+                        _ => break,
+                    }
+                }
                 let payload = json!({
                     "data": [
                         { "id": "custom-model-alpha", "context_length": 65536 }

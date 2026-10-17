@@ -1526,7 +1526,9 @@ mod tests {
     /// build's), and runs on untouched — its log continuing where it was.
     #[test]
     fn a_task_handed_over_runs_on_and_its_log_continues() {
-        if sh().is_none() {
+        // A task is handed to a newer build only across an exec, which
+        // Windows has not (a newer build is taken at the next start).
+        if sh().is_none() || !crate::platform::REPLACES_IN_PLACE {
             return;
         }
         let dir = scratch("handover");
@@ -1591,7 +1593,9 @@ mod tests {
     /// takes over, with its real exit code, once, and leaves no zombie.
     #[test]
     fn a_task_that_ends_while_handed_over_is_reported_by_the_successor() {
-        if sh().is_none() {
+        // A task is handed to a newer build only across an exec, which
+        // Windows has not (a newer build is taken at the next start).
+        if sh().is_none() || !crate::platform::REPLACES_IN_PLACE {
             return;
         }
         let dir = scratch("ended");

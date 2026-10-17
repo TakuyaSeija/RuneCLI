@@ -1097,7 +1097,13 @@ fn a_step_7_that_cannot_finish_leaves_the_0_3_7_home_as_it_was() {
         .unwrap_err()
         .to_string();
     let _ = crate::platform::set_file_mode(&db, 0o644);
-    assert!(error.contains("undone"), "{error}");
+    // Undone part way — or, where a read-only file cannot even be opened to
+    // write (Windows), refused before anything changed; either way the home
+    // is 0.3.7's, as the rest says.
+    assert!(
+        error.contains("undone") || error.contains("denied"),
+        "{error}"
+    );
     assert_eq!(state(&store, &store).unwrap(), State::Older(6));
     assert_eq!(schema(&store), 21);
     let conn = rusqlite::Connection::open(&db).unwrap();
@@ -1640,7 +1646,12 @@ fn one_damaged_session_never_stops_the_upgrade_of_the_rest() {
     );
     let named = |path: &Path| left.iter().any(|(p, _)| p == path);
     assert!(named(&locked), "{left:?}");
-    assert!(named(&other), "{left:?}");
+    // The folder nobody may read, or what is in it: Windows still lets the
+    // folder be passed through and names each file it refuses.
+    assert!(
+        named(&other) || left.iter().any(|(p, _)| p.starts_with(&other)),
+        "{left:?}"
+    );
     assert!(named(&store.join("rune.db")), "{left:?}");
     let db = rusqlite::Connection::open(store.join("rune.db")).unwrap();
     let good_journal: String = db

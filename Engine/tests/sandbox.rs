@@ -13,8 +13,6 @@ use runeengine::proto::{Command, Decision, Event};
 use runeengine::provider::scripted::Scripted;
 use serde_json::json;
 
-mod support;
-
 struct Probe {
     engine: Engine,
     events: std::sync::mpsc::Receiver<Event>,
@@ -39,7 +37,7 @@ fn probe(name: &str) -> Probe {
     let project = base.join("project");
     std::fs::create_dir_all(&project).unwrap();
     std::fs::create_dir_all(&store).unwrap();
-    support::posix_shell_for_tests(&store.join("data"));
+    runeengine::testing::posix_shell_for_tests(&store.join("data"));
 
     let cfg = Config::at(
         store.join("rune.db"),

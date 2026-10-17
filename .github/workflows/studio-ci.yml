@@ -89,8 +89,8 @@ jobs:
           rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target aarch64-pc-windows-msvc
 
       - name: Restore build cache
-        # actions/cache v6.1.0
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        # actions/cache v6.1.0 (restore only: saved below even when a test fails)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             ~/.cargo/registry/index
@@ -113,6 +113,9 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Test workspace
+        # Shorter than the job's limit: a hung test fails this step and its
+        # log is kept (libtest names a test running for over 60 seconds).
+        timeout-minutes: 40
         run: cargo test --workspace --locked --no-fail-fast
 
       - name: Build release (x64)
@@ -123,6 +126,18 @@ jobs:
         if: always()
         continue-on-error: true
         run: cargo build --release --locked -p runecli --target aarch64-pc-windows-msvc
+
+      - name: Save build cache
+        if: always()
+        # actions/cache v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: windows-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
 
       - name: Keep the binaries
         if: always()
@@ -143,8 +158,9 @@ jobs:
     name: macOS (arm64 gate, x64 build)
     if: github.ref != 'refs/heads/crossplatform' || contains(github.event.head_commit.message, '[ci macos]')
     runs-on: macos-14
-    # Billed ten times over: a hung test must not run long.
-    timeout-minutes: 60
+    # Billed ten times over: a hung test must not run long (its step stops
+    # at 30 minutes; the rest is building).
+    timeout-minutes: 75
     defaults:
       run:
         shell: bash
@@ -166,8 +182,8 @@ jobs:
           rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy --target x86_64-apple-darwin
 
       - name: Restore build cache
-        # actions/cache v6.1.0
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        # actions/cache v6.1.0 (restore only: saved below even when a test fails)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
             ~/.cargo/registry/index
@@ -187,6 +203,9 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Test workspace
+        # Shorter than the job's limit: a hung test fails this step and its
+        # log is kept (libtest names a test running for over 60 seconds).
+        timeout-minutes: 30
         run: cargo test --workspace --locked --no-fail-fast
 
       - name: Build release (arm64, x64)
@@ -194,6 +213,18 @@ jobs:
         run: |
           cargo build --release --locked -p runecli
           cargo build --release --locked -p runecli --target x86_64-apple-darwin
+
+      - name: Save build cache
+        if: always()
+        # actions/cache v6.1.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: macos-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
 
       - name: Keep the binaries
         if: always()
