@@ -10,6 +10,8 @@ mod console;
 mod files;
 mod home;
 mod pipe;
+#[cfg(test)]
+mod probe;
 mod process;
 pub(in crate::platform) mod pty;
 mod security;

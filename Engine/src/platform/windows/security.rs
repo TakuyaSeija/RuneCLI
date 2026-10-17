@@ -87,6 +87,39 @@ impl Sid {
         Sid(sid)
     }
 
+    /// A capability SID of Rune's own for `name`: `S-1-15-3-1024-` and eight
+    /// numbers from a SHA-256 of the name — the shape Windows gives a named
+    /// capability (`DeriveCapabilitySidsFromName`). What an AppContainer
+    /// token carries beside its package SID, and what an entry grants to let
+    /// one in: only a container Rune starts with it has it.
+    pub(super) fn capability(name: &str) -> Sid {
+        use sha2::Digest;
+        let hash = sha2::Sha256::digest(format!("rune:{name}").as_bytes());
+        // Revision 1, ten sub-authorities, app-package authority (15): 3
+        // (capability), 1024 (named), then the hash.
+        let mut sid = vec![1u8, 10, 0, 0, 0, 0, 0, 15];
+        sid.extend_from_slice(&3u32.to_le_bytes());
+        sid.extend_from_slice(&1024u32.to_le_bytes());
+        sid.extend_from_slice(&hash[..32]);
+        Sid(sid)
+    }
+
+    /// The package SID of the AppContainer named `name`, as Windows derives
+    /// it — whether or not a profile of that name exists.
+    pub(super) fn container(name: &str) -> io::Result<Sid> {
+        use windows_sys::Win32::Security::FreeSid;
+        use windows_sys::Win32::Security::Isolation::DeriveAppContainerSidFromAppContainerName;
+        let name = wide(std::ffi::OsStr::new(name))?;
+        let mut psid: PSID = std::ptr::null_mut();
+        let result = unsafe { DeriveAppContainerSidFromAppContainerName(name.as_ptr(), &mut psid) };
+        if result < 0 {
+            return Err(io::Error::from_raw_os_error(result));
+        }
+        let sid = Sid::copy(psid);
+        unsafe { FreeSid(psid) };
+        sid
+    }
+
     /// Its `S-1-…` spelling.
     pub(super) fn string(&self) -> io::Result<String> {
         let mut text: windows_sys::core::PWSTR = std::ptr::null_mut();

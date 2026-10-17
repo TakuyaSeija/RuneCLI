@@ -25,7 +25,7 @@ use windows_sys::Win32::Foundation::{
     ERROR_ACCESS_DENIED, GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE, STILL_ACTIVE,
     WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
-use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+use windows_sys::Win32::Security::{SECURITY_ATTRIBUTES, SECURITY_CAPABILITIES};
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_FLAG_OVERLAPPED, OPEN_EXISTING,
     PIPE_ACCESS_INBOUND, PIPE_ACCESS_OUTBOUND,
@@ -54,7 +54,8 @@ use windows_sys::Win32::System::Threading::{
     CREATE_UNICODE_ENVIRONMENT, DETACHED_PROCESS, EXTENDED_STARTUPINFO_PRESENT, INFINITE,
     LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
     PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-    PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTF_USESTDHANDLES, STARTUPINFOEXW,
+    PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+    STARTF_USESTDHANDLES, STARTUPINFOEXW,
 };
 
 use super::files::{FileIdentity, Handed};
@@ -465,7 +466,20 @@ fn start(
         .map(|dir| wide(dir.as_os_str()))
         .transpose()?;
 
-    let mut attributes = Attributes::new(1)?;
+    // A confinement's token and container, its grants written first.
+    let confined = placement
+        .confinement
+        .map(|confinement| confinement.for_start())
+        .transpose()?;
+    let container = confined.as_ref().and_then(|start| start.container.as_ref());
+    let mut attributes = Attributes::new(1 + u32::from(container.is_some()))?;
+    if let Some((security, _)) = container {
+        attributes.set(
+            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES,
+            (security as *const SECURITY_CAPABILITIES).cast(),
+            std::mem::size_of::<SECURITY_CAPABILITIES>(),
+        )?;
+    }
     let mut info: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
     info.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as u32;
     info.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
@@ -504,10 +518,10 @@ fn start(
         flags | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED;
     let mut process: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
     let folder_ptr = folder.as_ref().map_or(std::ptr::null(), |f| f.as_ptr());
-    let started = match placement.confinement {
-        Some(confinement) => unsafe {
+    let started = match confined.as_ref().and_then(|start| start.token) {
+        Some(token) => unsafe {
             CreateProcessAsUserW(
-                confinement.token_for_start()?,
+                token,
                 application.as_ptr(),
                 line.as_mut_ptr(),
                 std::ptr::null(),

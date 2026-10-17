@@ -66,6 +66,8 @@ jobs:
   # artifacts of the run, never published.
   windows:
     name: Windows (x64 gate, arm64 build)
+    # A commit naming `[ci probe]` runs only the measurement below.
+    if: ${{ !contains(github.event.head_commit.message, '[ci probe]') }}
     runs-on: windows-2025
     # A hung test costs the whole limit, twice over in billed minutes.
     timeout-minutes: 80
@@ -150,6 +152,55 @@ jobs:
             target/aarch64-pc-windows-msvc/release/rune.exe
           if-no-files-found: warn
           retention-days: 14
+
+  # A measurement on a real Windows, asked for by `[ci probe]` in a commit:
+  # how real programs (shells, git, Python, Node, cargo) live under each way
+  # of confining a command (`platform/windows/probe.rs`). Prints a table;
+  # nothing else of the gate runs on Windows for that commit.
+  windows-probe:
+    name: Windows sandbox probe
+    if: ${{ contains(github.event.head_commit.message, '[ci probe]') }}
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+      RUST_BACKTRACE: '1'
+    steps:
+      - name: Check out source
+        # actions/checkout v6.1.0; immutable revision, no saved Git credential.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Install Rust tooling
+        run: |
+          toolchain="$(python -c 'import tomllib; print(tomllib.load(open("rust-toolchain.toml", "rb"))["toolchain"]["channel"])')"
+          rustup toolchain install "$toolchain" --profile minimal
+
+      - name: Restore build cache
+        # actions/cache v6.1.0 (restore only: the gate's cache is reused, never saved here)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: windows-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: windows-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+
+      - name: Prepare isolated test directories
+        run: |
+          echo "RUNE_HOME=$RUNNER_TEMP\\rune-ci-home" >> "$GITHUB_ENV"
+          mkdir -p target/test-tmp "$(cygpath -u "$RUNNER_TEMP")/rune-ci-home"
+
+      - name: Probe
+        timeout-minutes: 30
+        run: cargo test -p runeengine --lib --locked platform::windows::probe -- --ignored --nocapture
 
   # The same gate on a real macOS: macOS 14 on Apple silicon; the Intel
   # build made beside it. A run on the port branch asks for it by naming

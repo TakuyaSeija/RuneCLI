@@ -47,16 +47,17 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     CreateRestrictedToken, GetLengthSid, SetTokenInformation, TokenDefaultDacl,
-    TokenIntegrityLevel, WinBuiltinAdministratorsSid, WinBuiltinUsersSid, WinLocalSystemSid,
-    WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL, DISABLE_MAX_PRIVILEGE,
-    NO_INHERITANCE, SID_AND_ATTRIBUTES, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY,
-    TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    TokenIntegrityLevel, WinBuiltinAdministratorsSid, WinBuiltinAnyPackageSid, WinBuiltinUsersSid,
+    WinLocalSystemSid, WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL,
+    DISABLE_MAX_PRIVILEGE, NO_INHERITANCE, SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES,
+    TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ALL_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_GENERIC_EXECUTE,
     FILE_GENERIC_READ, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
-use windows_sys::Win32::System::SystemServices::SE_GROUP_INTEGRITY;
+use windows_sys::Win32::System::SystemServices::{SE_GROUP_ENABLED, SE_GROUP_INTEGRITY};
 
 use super::security::{grant, revoke, Dacl, Sid, Token};
 use super::wide::{check, owned, wide_path, win32, Local};
@@ -70,7 +71,13 @@ pub struct Confinement {
 }
 
 struct Inner {
+    /// What its commands start as: the restricted token; or, in an
+    /// AppContainer, the token the container is made from (privileges
+    /// dropped, Administrators deny-only, no restricting SID).
     token: OwnedHandle,
+    mechanism: Mechanism,
+    /// The AppContainer its commands run in, for [`Mechanism::AppContainer`].
+    container: Option<Container>,
     /// Each granted path, its SID, its access, and whether it is a folder;
     /// written on disk at the first start (`Grants written`).
     grants: Vec<Grant>,
@@ -90,6 +97,43 @@ struct Grant {
     folder: bool,
     /// The project: a confinement whose project cannot be granted is none.
     required: bool,
+}
+
+/// How a confined command is kept to its grants. Both check every object
+/// twice — as the user, then against the token's other identities — and
+/// differ in what those are and what a command shares with the user's other
+/// programs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Mechanism {
+    /// A restricted token whose restricting SIDs are the grants' and the
+    /// few every program needs (Everyone, Users, RESTRICTED, the logon
+    /// session). Named objects and pipes are the user's own namespace.
+    RestrictedToken,
+    /// An AppContainer: a package SID and the grants as capabilities. Named
+    /// objects live in the container's own namespace; the user's pipes and
+    /// local servers are out of reach unless granted. `profile`: whether its
+    /// profile (a folder and a registry key of the user's) is made first;
+    /// `filtered`: whether it is made from a token whose privileges and
+    /// Administrators are dropped first.
+    AppContainer { profile: bool, filtered: bool },
+}
+
+/// An AppContainer a confinement starts its commands in.
+struct Container {
+    name: String,
+    package: Sid,
+    /// The grants' SIDs and the network's, each enabled.
+    capabilities: Vec<Sid>,
+    profile: bool,
+}
+
+/// What `CreateProcess` is given to start a confined command; what it points
+/// at is the confinement's own and outlives the call.
+pub(super) struct Start {
+    /// The token to start as; `None`: this process's own.
+    pub(super) token: Option<HANDLE>,
+    /// The container to start in, for `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`.
+    pub(super) container: Option<(SECURITY_CAPABILITIES, Vec<SID_AND_ATTRIBUTES>)>,
 }
 
 /// What one confinement grants. Read and write are different questions: a
@@ -146,12 +190,16 @@ fn canonical(path: &Path) -> Option<PathBuf> {
 /// The SID Rune grants `path` under, for writing or only reading: the same
 /// SID for the same path however it is spelt — Windows names compare
 /// without case.
-fn sid_for(write: bool, path: &Path) -> Sid {
+fn sid_for(mechanism: Mechanism, write: bool, path: &Path) -> Sid {
     let access = if write { "write" } else { "read" };
-    Sid::derived(&format!(
+    let name = format!(
         "{access}:{}",
         path.as_os_str().to_string_lossy().to_uppercase()
-    ))
+    );
+    match mechanism {
+        Mechanism::RestrictedToken => Sid::derived(&name),
+        Mechanism::AppContainer { .. } => Sid::capability(&name),
+    }
 }
 
 /// Why `path` is Windows's own and gets no entry from Rune: the root of a
@@ -216,6 +264,14 @@ impl Confinement {
     /// simply not be there yet — except the project, which every confined
     /// command needs and whose ACL Rune must be able to change.
     pub fn build(grants: Grants<'_>) -> Result<Confinement, Unconfined> {
+        Confinement::build_as(grants, Mechanism::RestrictedToken)
+    }
+
+    /// [`Confinement::build`] by `mechanism`.
+    pub(super) fn build_as(
+        grants: Grants<'_>,
+        mechanism: Mechanism,
+    ) -> Result<Confinement, Unconfined> {
         let unconfined = |reason: String| Unconfined { abi: 0, reason };
         let project = canonical(grants.project)
             .ok_or_else(|| unconfined("the project directory could not be granted".into()))?;
@@ -230,7 +286,7 @@ impl Confinement {
             ))
         })?;
         let mut planned = vec![Grant {
-            sid: sid_for(true, &project),
+            sid: sid_for(mechanism, true, &project),
             path: project,
             access: FILE_ALL_ACCESS,
             write: true,
@@ -247,7 +303,7 @@ impl Confinement {
             if windows_own(&path).is_some() {
                 return;
             }
-            let sid = sid_for(write, &path);
+            let sid = sid_for(mechanism, write, &path);
             if planned.iter().any(|grant: &Grant| grant.sid == sid) {
                 return;
             }
@@ -271,11 +327,29 @@ impl Confinement {
             add(&mut planned, path, false);
         }
         let sids: Vec<Sid> = planned.iter().map(|grant| grant.sid.clone()).collect();
-        let token = restricted_token(&sids)
-            .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?;
+        let (token, container) = match mechanism {
+            Mechanism::RestrictedToken => (
+                restricted_token(&sids, None)
+                    .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?,
+                None,
+            ),
+            Mechanism::AppContainer { profile, filtered } => {
+                let container = container(&planned[0].path, sids, profile)
+                    .map_err(|e| unconfined(format!("Windows refused an AppContainer: {e}")))?;
+                let token = if filtered {
+                    restricted_token(&[], Some(&container.package))
+                } else {
+                    own_token()
+                }
+                .map_err(|e| unconfined(format!("Windows refused a token: {e}")))?;
+                (token, Some(container))
+            }
+        };
         Ok(Confinement {
             inner: Arc::new(Inner {
                 token,
+                mechanism,
+                container,
                 grants: planned,
                 ledger: grants.ledger.map(Path::to_path_buf),
                 local_services: grants.local_services,
@@ -286,7 +360,10 @@ impl Confinement {
 
     /// The mechanism's name in the sandbox report.
     pub fn kind(&self) -> &'static str {
-        "restricted-token"
+        match self.inner.mechanism {
+            Mechanism::RestrictedToken => "restricted-token",
+            Mechanism::AppContainer { .. } => "appcontainer",
+        }
     }
 
     /// Landlock's ABI on Linux; Windows has none.
@@ -305,10 +382,59 @@ impl Confinement {
     pub(super) fn token_for_start(&self) -> io::Result<HANDLE> {
         let mut written = crate::panic::lock(&self.inner.written);
         if !*written {
+            if let Some(container) = self.inner.container.as_ref().filter(|c| c.profile) {
+                make_profile(container)?;
+            }
             self.write_grants()?;
             *written = true;
         }
         Ok(self.inner.token.as_raw_handle())
+    }
+
+    /// Take back the AppContainer profile [`Mechanism::AppContainer`] made,
+    /// if it made one.
+    #[cfg(test)]
+    pub(super) fn forget_profile(&self) {
+        use windows_sys::Win32::Security::Isolation::DeleteAppContainerProfile;
+        if let Some(container) = self.inner.container.as_ref().filter(|c| c.profile) {
+            if let Ok(name) = super::wide::wide(std::ffi::OsStr::new(&container.name)) {
+                unsafe { DeleteAppContainerProfile(name.as_ptr()) };
+            }
+        }
+    }
+
+    /// What a confined command is started with ([`Start`]), its grants
+    /// written on disk first ([`Confinement::token_for_start`]).
+    pub(super) fn for_start(&self) -> io::Result<Start> {
+        let token = self.token_for_start()?;
+        let Some(container) = &self.inner.container else {
+            return Ok(Start {
+                token: Some(token),
+                container: None,
+            });
+        };
+        let mut capabilities: Vec<SID_AND_ATTRIBUTES> = container
+            .capabilities
+            .iter()
+            .map(|sid| SID_AND_ATTRIBUTES {
+                Sid: sid.as_psid(),
+                Attributes: SE_GROUP_ENABLED as u32,
+            })
+            .collect();
+        let security = SECURITY_CAPABILITIES {
+            AppContainerSid: container.package.as_psid(),
+            Capabilities: capabilities.as_mut_ptr(),
+            CapabilityCount: capabilities.len() as u32,
+            Reserved: 0,
+        };
+        let filtered = matches!(
+            self.inner.mechanism,
+            Mechanism::AppContainer { filtered: true, .. }
+        );
+        Ok(Start {
+            token: filtered.then_some(token),
+            container: Some((security, capabilities)),
+        })
     }
 
     /// Every planned entry on disk, each recorded in the ledger first — and
@@ -375,12 +501,22 @@ pub fn forget_grants(ledger: &Path) -> io::Result<Forgotten> {
         return Ok(Forgotten::default());
     }
     Ledger::hold(ledger)?.forget(|entry| {
-        let sid = sid_for(entry.write, &entry.path);
-        if !Dacl::of(&entry.path)?.names(&sid) {
-            return Ok(Taken::Absent);
+        let dacl = Dacl::of(&entry.path)?;
+        let mut taken = Taken::Absent;
+        for mechanism in [
+            Mechanism::RestrictedToken,
+            Mechanism::AppContainer {
+                profile: false,
+                filtered: false,
+            },
+        ] {
+            let sid = sid_for(mechanism, entry.write, &entry.path);
+            if dacl.names(&sid) {
+                revoke(&entry.path, &sid)?;
+                taken = Taken::Removed;
+            }
         }
-        revoke(&entry.path, &sid)?;
-        Ok(Taken::Removed)
+        Ok(taken)
     })
 }
 
@@ -404,23 +540,102 @@ fn may_change_access(path: &Path) -> io::Result<()> {
     .map(drop)
 }
 
+/// The AppContainer for `project`'s commands: named after the project, so
+/// two projects' commands share no named object; `grants` its capabilities,
+/// with the network's (out, served, and the private network's).
+fn container(project: &Path, grants: Vec<Sid>, profile: bool) -> io::Result<Container> {
+    use sha2::Digest;
+    use windows_sys::Win32::Security::{
+        WinCapabilityInternetClientServerSid, WinCapabilityInternetClientSid,
+        WinCapabilityPrivateNetworkClientServerSid,
+    };
+    let hash = sha2::Sha256::digest(
+        project
+            .as_os_str()
+            .to_string_lossy()
+            .to_uppercase()
+            .as_bytes(),
+    );
+    let name = format!(
+        "Rune.Confined.{}",
+        hash[..8]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>()
+    );
+    let mut capabilities = grants;
+    for network in [
+        WinCapabilityInternetClientSid,
+        WinCapabilityInternetClientServerSid,
+        WinCapabilityPrivateNetworkClientServerSid,
+    ] {
+        capabilities.push(Sid::well_known(network)?);
+    }
+    Ok(Container {
+        package: Sid::container(&name)?,
+        name,
+        capabilities,
+        profile,
+    })
+}
+
+/// The container's profile, made unless it is there already.
+fn make_profile(container: &Container) -> io::Result<()> {
+    use windows_sys::Win32::Security::FreeSid;
+    use windows_sys::Win32::Security::Isolation::CreateAppContainerProfile;
+    const ALREADY_EXISTS: i32 = 0x8007_00B7_u32 as i32;
+    let name = super::wide::wide(std::ffi::OsStr::new(&container.name))?;
+    let mut psid = std::ptr::null_mut();
+    let result = unsafe {
+        CreateAppContainerProfile(
+            name.as_ptr(),
+            name.as_ptr(),
+            name.as_ptr(),
+            std::ptr::null(),
+            0,
+            &mut psid,
+        )
+    };
+    if result == ALREADY_EXISTS {
+        return Ok(());
+    }
+    if result < 0 {
+        return Err(io::Error::other(format!(
+            "CreateAppContainerProfile: HRESULT {result:#010x}"
+        )));
+    }
+    unsafe { FreeSid(psid) };
+    Ok(())
+}
+
+/// This process's own token.
+fn own_token() -> io::Result<OwnedHandle> {
+    Ok(Token::of_this_process(TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY)?.0)
+}
+
 /// This process's token, restricted: no privilege but bypassing traverse
 /// checks, Administrators deny-only, checked against `grants` and the SIDs
 /// every program of the user needs; medium integrity at most; and a default
-/// ACL its own processes and threads can be opened under.
-fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
+/// ACL its own processes and threads can be opened under. For `package`, the
+/// token an AppContainer is made from: no restricting SID — the container's
+/// capabilities are its second check — and a default ACL the container's
+/// processes can open again.
+fn restricted_token(grants: &[Sid], package: Option<&Sid>) -> io::Result<OwnedHandle> {
     let own = Token::of_this_process(
         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT,
     )?;
     let user = own.user()?;
     let logon = own.logon_sid();
     let administrators = Sid::well_known(WinBuiltinAdministratorsSid)?;
-    let mut restricting = vec![
-        Sid::well_known(WinWorldSid)?,
-        Sid::well_known(WinBuiltinUsersSid)?,
-        Sid::well_known(WinRestrictedCodeSid)?,
-    ];
-    restricting.extend(logon.iter().cloned());
+    let mut restricting = Vec::new();
+    if package.is_none() {
+        restricting.extend([
+            Sid::well_known(WinWorldSid)?,
+            Sid::well_known(WinBuiltinUsersSid)?,
+            Sid::well_known(WinRestrictedCodeSid)?,
+        ]);
+        restricting.extend(logon.iter().cloned());
+    }
     for grant in grants {
         if !restricting.contains(grant) {
             restricting.push(grant.clone());
@@ -486,6 +701,10 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
         Sid::well_known(WinRestrictedCodeSid)?,
     ];
     owners.extend(logon);
+    if let Some(package) = package {
+        owners.push(package.clone());
+        owners.push(Sid::well_known(WinBuiltinAnyPackageSid)?);
+    }
     let entries: Vec<EXPLICIT_ACCESS_W> = owners
         .iter()
         .map(|sid| EXPLICIT_ACCESS_W {
@@ -538,10 +757,19 @@ mod tests {
     /// One SID per path and access, whatever the spelling's case.
     #[test]
     fn a_grant_has_one_sid_per_path_and_access() {
-        let a = sid_for(true, Path::new(r"C:\Work\One"));
-        assert_eq!(a, sid_for(true, Path::new(r"c:\work\one")));
-        assert_ne!(a, sid_for(false, Path::new(r"C:\Work\One")));
-        assert_ne!(a, sid_for(true, Path::new(r"C:\Work\Two")));
+        let a = sid_for(Mechanism::RestrictedToken, true, Path::new(r"C:\Work\One"));
+        assert_eq!(
+            a,
+            sid_for(Mechanism::RestrictedToken, true, Path::new(r"c:\work\one"))
+        );
+        assert_ne!(
+            a,
+            sid_for(Mechanism::RestrictedToken, false, Path::new(r"C:\Work\One"))
+        );
+        assert_ne!(
+            a,
+            sid_for(Mechanism::RestrictedToken, true, Path::new(r"C:\Work\Two"))
+        );
     }
 
     /// Building a confinement writes nothing on disk; its first start records
@@ -566,7 +794,7 @@ mod tests {
             ask_service: None,
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
-        let sid = sid_for(true, &project);
+        let sid = sid_for(Mechanism::RestrictedToken, true, &project);
         assert!(!Dacl::of(&project).unwrap().grants(&sid, FILE_ALL_ACCESS));
         assert!(!ledger.exists(), "building records nothing");
         confinement.token_for_start().unwrap();
@@ -612,7 +840,11 @@ mod tests {
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
         assert!(confinement.token_for_start().is_err());
-        assert!(!Dacl::of(&project).unwrap().names(&sid_for(true, &project)));
+        assert!(!Dacl::of(&project).unwrap().names(&sid_for(
+            Mechanism::RestrictedToken,
+            true,
+            &project
+        )));
         let _ = std::fs::remove_dir_all(&base);
     }
 
