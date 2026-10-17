@@ -28,7 +28,6 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       RUST_BACKTRACE: '1'
-      RUNE_HOME: ${{ runner.temp }}/rune-ci-home
     steps:
       - name: Check out source
         # actions/checkout v6.1.0; immutable revision, no saved Git credential.
@@ -48,7 +47,10 @@ jobs:
           rustup toolchain install "$toolchain" --profile minimal --component rustfmt --component clippy
 
       - name: Prepare isolated test directories
-        run: mkdir -p target/test-tmp "$RUNE_HOME"
+        # A Rune home of the run's own; `runner` is no context of a job's env.
+        run: |
+          echo "RUNE_HOME=$RUNNER_TEMP/rune-ci-home" >> "$GITHUB_ENV"
+          mkdir -p target/test-tmp "$RUNNER_TEMP/rune-ci-home"
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -74,7 +76,6 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       RUST_BACKTRACE: '1'
-      RUNE_HOME: ${{ runner.temp }}/rune-ci-home
     steps:
       - name: Check out source
         # actions/checkout v6.1.0; immutable revision, no saved Git credential.
@@ -103,7 +104,8 @@ jobs:
         # Windows reads TMP/TEMP, not TMPDIR: tests keep their folders in
         # target/test-tmp here too.
         run: |
-          mkdir -p target/test-tmp "$RUNE_HOME"
+          echo "RUNE_HOME=$RUNNER_TEMP\\rune-ci-home" >> "$GITHUB_ENV"
+          mkdir -p target/test-tmp "$(cygpath -u "$RUNNER_TEMP")/rune-ci-home"
           echo "TMP=$(cygpath -w "$PWD/target/test-tmp")" >> "$GITHUB_ENV"
           echo "TEMP=$(cygpath -w "$PWD/target/test-tmp")" >> "$GITHUB_ENV"
 
@@ -150,7 +152,6 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       RUST_BACKTRACE: '1'
-      RUNE_HOME: ${{ runner.temp }}/rune-ci-home
       MACOSX_DEPLOYMENT_TARGET: '11.0'
     steps:
       - name: Check out source
@@ -177,7 +178,10 @@ jobs:
           restore-keys: macos-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
 
       - name: Prepare isolated test directories
-        run: mkdir -p target/test-tmp "$RUNE_HOME"
+        # A Rune home of the run's own; `runner` is no context of a job's env.
+        run: |
+          echo "RUNE_HOME=$RUNNER_TEMP/rune-ci-home" >> "$GITHUB_ENV"
+          mkdir -p target/test-tmp "$RUNNER_TEMP/rune-ci-home"
 
       - name: Check lints
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
