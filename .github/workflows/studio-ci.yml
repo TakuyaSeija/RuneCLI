@@ -198,6 +198,21 @@ jobs:
           echo "RUNE_HOME=$RUNNER_TEMP\\rune-ci-home" >> "$GITHUB_ENV"
           mkdir -p target/test-tmp "$(cygpath -u "$RUNNER_TEMP")/rune-ci-home"
 
+      - name: Make a local account for the probe
+        # A second account of this disposable machine, for the candidates
+        # that run commands as an account of Rune's own; its password lives
+        # in this job only and is masked in the log.
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $bytes = New-Object byte[] 18
+          [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+          $pw = [Convert]::ToBase64String($bytes) + 'Aa1!'
+          Write-Output "::add-mask::$pw"
+          New-LocalUser -Name runeprobe -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
+          Add-Content $env:GITHUB_ENV "RUNE_PROBE_USER=runeprobe"
+          Add-Content $env:GITHUB_ENV "RUNE_PROBE_PASSWORD=$pw"
+
       - name: Probe
         timeout-minutes: 30
         run: cargo test -p runeengine --lib --locked platform::windows::probe -- --ignored --nocapture

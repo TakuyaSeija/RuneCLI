@@ -53,8 +53,12 @@ fn cmd(name: &'static str, line: String, expect: Expect) -> Check {
 
 /// The folders and servers one battery runs against.
 struct Probe {
+    /// The person's own profile.
+    person: PathBuf,
+    /// A folder at the root of the system drive: what every signed-in user
+    /// may read and change unless told otherwise.
+    open: PathBuf,
     project: PathBuf,
-    scratch: PathBuf,
     outside: PathBuf,
     pipe_name: String,
     pipe_reached: std::sync::Arc<std::sync::atomic::AtomicBool>,
@@ -102,8 +106,21 @@ fn checks(probe: &Probe) -> Vec<Check> {
         ),
         cmd(
             "cmd list profile (must fail)",
-            "dir /b \"%USERPROFILE%\\Documents\" && echo probe-listed".into(),
+            format!(
+                "dir /b \"{}\\Documents\" && echo probe-listed",
+                probe.person.display()
+            ),
             Expect::Holds(|_, out| !out.contains("probe-listed")),
+        ),
+        cmd(
+            "cmd read open folder (must fail)",
+            format!("type \"{}\\secret.txt\"", probe.open.display()),
+            Expect::Holds(|_, out| !out.contains("probe-secret")),
+        ),
+        cmd(
+            "cmd write open folder (must fail)",
+            format!("echo x> \"{}\\written.txt\"", probe.open.display()),
+            Expect::Holds(|p, _| !p.open.join("written.txt").exists()),
         ),
         cmd(
             "cmd write outside (must fail)",
@@ -307,9 +324,21 @@ fn checks(probe: &Probe) -> Vec<Check> {
     checks
 }
 
-/// Run one check under `confinement`: what it printed, its exit code (none:
-/// hung and stopped), how long it took.
-fn run(check: &Check, probe: &Probe, confinement: &Confinement) -> (String, Option<i32>, Duration) {
+/// Where a check runs and what it is given beside this process's
+/// environment.
+struct Place<'a> {
+    project: &'a std::path::Path,
+    scratch: &'a std::path::Path,
+    env: &'a [(String, String)],
+}
+
+/// Run one check under `confinement` (none: as this process runs): what it
+/// printed, its exit code (none: hung and stopped), how long it took.
+fn run(
+    check: &Check,
+    place: &Place<'_>,
+    confinement: Option<&Confinement>,
+) -> (String, Option<i32>, Duration) {
     let started = Instant::now();
     let (pty, slave) = match open_pty(30, 200) {
         Ok(pair) => pair,
@@ -319,15 +348,18 @@ fn run(check: &Check, probe: &Probe, confinement: &Confinement) -> (String, Opti
     if let Some(tail) = &check.tail {
         launch = launch.verbatim_tail(tail);
     }
-    let launch = launch
-        .dir(probe.project.clone())
-        .env("TEMP", &probe.scratch)
-        .env("TMP", &probe.scratch);
+    let mut launch = launch
+        .dir(place.project.to_path_buf())
+        .env("TEMP", place.scratch)
+        .env("TMP", place.scratch);
+    for (key, value) in place.env {
+        launch = launch.env(key, value);
+    }
     let mut child = match spawn_on_terminal(
         &launch,
         &slave,
         Placement {
-            confinement: Some(confinement),
+            confinement,
             tree: None,
         },
     ) {
@@ -469,21 +501,250 @@ fn tool_folders() -> Vec<PathBuf> {
         .collect()
 }
 
+/// One check as a runner started as another account reads it.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Job {
+    /// `plain`: as that account; `restricted`: under a restricted token of
+    /// its own, granted what the battery grants.
+    mode: String,
+    program: PathBuf,
+    args: Vec<String>,
+    tail: Option<String>,
+    project: PathBuf,
+    scratch: PathBuf,
+    env: Vec<(String, String)>,
+    reads: Vec<PathBuf>,
+    writes: Vec<PathBuf>,
+}
+
+/// The local account a CI step made for the probe (`RUNE_PROBE_USER`,
+/// `RUNE_PROBE_PASSWORD`), and its SID.
+struct Account {
+    name: String,
+    password: String,
+    sid: super::security::Sid,
+}
+
+impl Account {
+    fn from_env() -> Option<Account> {
+        let name = std::env::var("RUNE_PROBE_USER").ok()?;
+        let password = std::env::var("RUNE_PROBE_PASSWORD").ok()?;
+        let sid = match account_sid(&name) {
+            Ok(sid) => sid,
+            Err(e) => {
+                println!("PROBE account {name}: no SID: {e}");
+                return None;
+            }
+        };
+        Some(Account {
+            name,
+            password,
+            sid,
+        })
+    }
+}
+
+fn account_sid(name: &str) -> std::io::Result<super::security::Sid> {
+    use windows_sys::Win32::Security::{LookupAccountNameW, SID_NAME_USE};
+    let wide = super::wide::wide(std::ffi::OsStr::new(name))?;
+    let mut sid = vec![0u8; 256];
+    let mut sid_len = sid.len() as u32;
+    let mut domain = vec![0u16; 256];
+    let mut domain_len = domain.len() as u32;
+    let mut kind: SID_NAME_USE = 0;
+    super::wide::check(unsafe {
+        LookupAccountNameW(
+            std::ptr::null(),
+            wide.as_ptr(),
+            sid.as_mut_ptr().cast(),
+            &mut sid_len,
+            domain.as_mut_ptr(),
+            &mut domain_len,
+            &mut kind,
+        )
+    })?;
+    super::security::Sid::copy(sid.as_mut_ptr().cast())
+}
+
+/// Start `exe` (this test binary) as `account`, its profile loaded, running
+/// only the runner test; what it printed, and its exit code.
+fn as_account(
+    account: &Account,
+    exe: &std::path::Path,
+    dir: &std::path::Path,
+) -> (String, Option<u32>) {
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
+    use windows_sys::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
+    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+    use windows_sys::Win32::System::Pipes::CreatePipe;
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessWithLogonW, GetExitCodeProcess, TerminateProcess, WaitForSingleObject,
+        CREATE_NO_WINDOW, LOGON_WITH_PROFILE, PROCESS_INFORMATION, STARTF_USESTDHANDLES,
+        STARTUPINFOW,
+    };
+    let wide = |text: &str| super::wide::wide(std::ffi::OsStr::new(text)).unwrap();
+    let inherit = SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: std::ptr::null_mut(),
+        bInheritHandle: 1,
+    };
+    let (mut read, mut write): (HANDLE, HANDLE) = (std::ptr::null_mut(), std::ptr::null_mut());
+    if unsafe { CreatePipe(&mut read, &mut write, &inherit, 0) } == 0 {
+        return (
+            format!("CreatePipe: {}", std::io::Error::last_os_error()),
+            None,
+        );
+    }
+    let read = unsafe { OwnedHandle::from_raw_handle(read) };
+    let write = unsafe { OwnedHandle::from_raw_handle(write) };
+    let mut info: STARTUPINFOW = unsafe { std::mem::zeroed() };
+    info.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+    info.dwFlags = STARTF_USESTDHANDLES;
+    info.hStdOutput = write.as_raw_handle();
+    info.hStdError = write.as_raw_handle();
+    let application = wide(&exe.display().to_string());
+    let mut line = wide(&format!(
+        "\"{}\" platform::windows::probe::probe_runner --exact --ignored --nocapture --test-threads=1",
+        exe.display()
+    ));
+    let (user, domain, password) = (wide(&account.name), wide("."), wide(&account.password));
+    let folder = wide(&dir.display().to_string());
+    let mut process: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    let started = unsafe {
+        CreateProcessWithLogonW(
+            user.as_ptr(),
+            domain.as_ptr(),
+            password.as_ptr(),
+            LOGON_WITH_PROFILE,
+            application.as_ptr(),
+            line.as_mut_ptr(),
+            CREATE_NO_WINDOW,
+            std::ptr::null(),
+            folder.as_ptr(),
+            &info,
+            &mut process,
+        )
+    };
+    if started == 0 {
+        return (
+            format!(
+                "CreateProcessWithLogonW: {}",
+                std::io::Error::last_os_error()
+            ),
+            None,
+        );
+    }
+    drop(write);
+    let handle = unsafe { OwnedHandle::from_raw_handle(process.hProcess) };
+    drop(unsafe { OwnedHandle::from_raw_handle(process.hThread) });
+    let reader = std::thread::spawn(move || {
+        let mut file = std::fs::File::from(read);
+        let mut out = Vec::new();
+        let _ = file.read_to_end(&mut out);
+        String::from_utf8_lossy(&out).into_owned()
+    });
+    let waited =
+        unsafe { WaitForSingleObject(handle.as_raw_handle(), (LIMIT.as_millis() + 60_000) as u32) };
+    let code = if waited == WAIT_OBJECT_0 {
+        let mut code = 0u32;
+        unsafe { GetExitCodeProcess(handle.as_raw_handle(), &mut code) };
+        Some(code)
+    } else {
+        unsafe { TerminateProcess(handle.as_raw_handle(), 1) };
+        None
+    };
+    (reader.join().unwrap_or_default(), code)
+}
+
+/// The runner: run as another account by [`as_account`], one check from the
+/// `job.json` beside this binary, said on one `RESULT` line. Without a job,
+/// nothing.
+#[test]
+#[ignore = "started by the probe as another account"]
+fn probe_runner() {
+    let Some(job) = std::env::current_exe()
+        .ok()
+        .map(|exe| exe.with_file_name("job.json"))
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<Job>(&bytes).ok())
+    else {
+        return;
+    };
+    let check = Check {
+        name: "job",
+        program: job.program.clone(),
+        args: job.args.clone(),
+        tail: job.tail.clone(),
+        expect: Expect::Runs(""),
+    };
+    let place = Place {
+        project: &job.project,
+        scratch: &job.scratch,
+        env: &job.env,
+    };
+    let confinement = match job.mode.as_str() {
+        "restricted" => match Confinement::build_as(
+            Grants {
+                project: &job.project,
+                reads: &job.reads,
+                writes: &job.writes,
+                ledger: None,
+                reach: &[],
+                local_services: false,
+                sockets: &[],
+                ask_service: None,
+            },
+            Mechanism::RestrictedToken,
+        ) {
+            Ok(confinement) => Some(confinement),
+            Err(why) => {
+                println!("RESULT\tbuild\t{}", why.reason);
+                return;
+            }
+        },
+        _ => None,
+    };
+    let (out, code, _) = run(&check, &place, confinement.as_ref());
+    println!(
+        "RESULT\t{}\t{out}",
+        code.map_or("hung".to_string(), |c| c.to_string())
+    );
+}
+
+/// What the runner said: its output and exit code, or why it said nothing.
+fn runner_result(said: &str) -> (String, Option<i32>) {
+    match said.lines().find_map(|line| line.strip_prefix("RESULT\t")) {
+        Some(rest) => {
+            let (code, out) = rest.split_once('\t').unwrap_or((rest, ""));
+            (out.to_string(), code.parse().ok())
+        }
+        None => (format!("no runner result: {}", plain(said)), None),
+    }
+}
+
 #[test]
 #[ignore = "a measurement for CI on a real Windows: [ci probe]"]
 fn sandbox_mechanisms_measured() {
-    use super::security::Token;
+    use super::security::{grant, revoke, Token};
     use windows_sys::Win32::Security::TOKEN_QUERY;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_ALL_ACCESS, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ,
+    };
     let profile = super::home::home_dir().expect("a profile");
     let base = profile.join(format!("rune-probe-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let project = base.join("project");
     let scratch = base.join("scratch");
     let outside = base.join("outside");
-    for dir in [&project, &scratch, &outside] {
+    let runner = base.join("runner");
+    for dir in [&project, &scratch, &outside, &runner] {
         std::fs::create_dir_all(dir).unwrap();
     }
     std::fs::write(outside.join("secret.txt"), "probe-secret").unwrap();
+    let open = PathBuf::from(format!(r"C:\rune-probe-open-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&open);
+    std::fs::create_dir_all(&open).unwrap();
+    std::fs::write(open.join("secret.txt"), "probe-secret").unwrap();
     let hello = project.join("hello");
     std::fs::create_dir_all(hello.join("src")).unwrap();
     std::fs::write(
@@ -504,8 +765,9 @@ fn sandbox_mechanisms_measured() {
     let pipe_reached = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     user_pipe(&pipe_name, pipe_reached.clone());
     let probe = Probe {
+        person: profile.clone(),
+        open: open.clone(),
         project: project.clone(),
-        scratch: scratch.clone(),
         outside: outside.clone(),
         pipe_name,
         pipe_reached,
@@ -517,42 +779,85 @@ fn sandbox_mechanisms_measured() {
         reads.push(profile.join(name));
     }
     let writes = vec![scratch.clone()];
+    // What a command of another account needs to find this one's tools.
+    let env: Vec<(String, String)> = ["PATH", "PATHEXT"]
+        .into_iter()
+        .filter_map(|key| Some((key.to_string(), std::env::var(key).ok()?)))
+        .chain([
+            (
+                "RUSTUP_HOME".to_string(),
+                profile.join(".rustup").display().to_string(),
+            ),
+            (
+                "CARGO_HOME".to_string(),
+                profile.join(".cargo").display().to_string(),
+            ),
+        ])
+        .collect();
+    let place = Place {
+        project: &project,
+        scratch: &scratch,
+        env: &env,
+    };
     let elevated = Token::of_this_process(TOKEN_QUERY).is_ok_and(|t| t.elevated());
     println!("PROBE elevated={elevated} reads={reads:?}");
 
-    // The user's own Microsoft folders (certificates, crypto keys): read
-    // too in one candidate, to tell whether schannel's TLS needs them.
-    let mut microsoft_reads = reads.clone();
-    for name in [r"AppData\Roaming\Microsoft", r"AppData\Local\Microsoft"] {
-        microsoft_reads.push(profile.join(name));
+    // The account's own entries: the project and scratch written, the
+    // tools read, this binary's copy run — each taken back at the end.
+    let account = Account::from_env();
+    let mut account_grants: Vec<PathBuf> = Vec::new();
+    let runner_exe = runner.join("probe.exe");
+    if let Some(account) = &account {
+        std::fs::copy(std::env::current_exe().unwrap(), &runner_exe).unwrap();
+        for (path, write) in [(&project, true), (&scratch, true), (&runner, false)]
+            .into_iter()
+            .chain(reads.iter().map(|path| (path, false)))
+        {
+            if !path.exists() {
+                continue;
+            }
+            let mask = if write {
+                FILE_ALL_ACCESS
+            } else {
+                FILE_GENERIC_READ | FILE_GENERIC_EXECUTE
+            };
+            match grant(path, &account.sid, mask, path.is_dir()) {
+                Ok(_) => account_grants.push(path.clone()),
+                Err(e) => println!("PROBE account grant {}: {e}", path.display()),
+            }
+        }
+        println!("PROBE account {} = {:?}", account.name, account.sid);
+    } else {
+        println!("PROBE no account (RUNE_PROBE_USER unset): its candidates are skipped");
     }
-    let mechanisms = [
-        ("restricted-token", Mechanism::RestrictedToken, &reads),
+
+    // (label, mechanism here, mode of the runner as the account)
+    let candidates: [(&str, Mechanism, Option<&str>); 4] = [
+        ("restricted-token", Mechanism::RestrictedToken, None),
+        ("account", Mechanism::RestrictedToken, Some("plain")),
         (
-            "restricted-token+microsoft-reads",
+            "account+restricted-token",
             Mechanism::RestrictedToken,
-            &microsoft_reads,
+            Some("restricted"),
         ),
         (
-            "write-restricted-token",
-            Mechanism::WriteRestrictedToken,
-            &reads,
-        ),
-        (
-            "appcontainer+profile+filtered",
+            "appcontainer",
             Mechanism::AppContainer {
                 profile: true,
                 filtered: true,
             },
-            &reads,
+            None,
         ),
     ];
     let mut summary = Vec::new();
-    for (label, mechanism, reads) in mechanisms {
+    for (label, mechanism, as_account_mode) in candidates {
+        if as_account_mode.is_some() && account.is_none() {
+            continue;
+        }
         let confinement = match Confinement::build_as(
             Grants {
                 project: &project,
-                reads,
+                reads: &reads,
                 writes: &writes,
                 ledger: Some(&ledger),
                 reach: &[],
@@ -570,6 +875,7 @@ fn sandbox_mechanisms_measured() {
             }
         };
         // The entries written at the first start: how long a person waits.
+        // A runner of the account finds those of its restricted token here.
         let granting = Instant::now();
         let granted = confinement.token_for_start().map(drop);
         println!(
@@ -583,9 +889,35 @@ fn sandbox_mechanisms_measured() {
             probe
                 .pipe_reached
                 .store(false, std::sync::atomic::Ordering::SeqCst);
-            let _ = std::fs::remove_file(outside.join("written.txt"));
+            for leftover in [outside.join("written.txt"), open.join("written.txt")] {
+                let _ = std::fs::remove_file(leftover);
+            }
             let _ = std::fs::remove_dir_all(hello.join("target"));
-            let (out, code, took) = run(check, &probe, &confinement);
+            let started = Instant::now();
+            let (out, code) = match (as_account_mode, &account) {
+                (Some(mode), Some(account)) => {
+                    let job = Job {
+                        mode: mode.to_string(),
+                        program: check.program.clone(),
+                        args: check.args.clone(),
+                        tail: check.tail.clone(),
+                        project: project.clone(),
+                        scratch: scratch.clone(),
+                        env: env.clone(),
+                        reads: reads.clone(),
+                        writes: writes.clone(),
+                    };
+                    std::fs::write(runner.join("job.json"), serde_json::to_vec(&job).unwrap())
+                        .unwrap();
+                    let (said, _) = as_account(account, &runner_exe, &runner);
+                    runner_result(&said)
+                }
+                _ => {
+                    let (out, code, _) = run(check, &place, Some(&confinement));
+                    (out, code)
+                }
+            };
+            let took = started.elapsed();
             let pass = match check.expect {
                 Expect::Runs(marker) => code == Some(0) && out.contains(marker),
                 Expect::Holds(kept) => kept(&probe, &out),
@@ -604,6 +936,12 @@ fn sandbox_mechanisms_measured() {
         confinement.forget_profile();
     }
     println!("PROBE summary: {}", summary.join("; "));
+    if let Some(account) = &account {
+        for path in &account_grants {
+            let _ = revoke(path, &account.sid);
+        }
+    }
     let _ = super::confine::forget_grants(&ledger);
     let _ = std::fs::remove_dir_all(&base);
+    let _ = std::fs::remove_dir_all(&open);
 }
