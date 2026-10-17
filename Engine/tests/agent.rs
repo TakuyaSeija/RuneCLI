@@ -2837,6 +2837,9 @@ fn a_session_leaves_nothing_outside_its_project_folder_but_the_shared_files() {
         "rune.db-shm",
         "rune.db-wal",
         "run",
+        // Windows: the access entries its confinements wrote, one record
+        // for every session (`sandbox::grants_ledger`).
+        "sandbox-grants.txt",
     ];
     for name in &top {
         assert!(

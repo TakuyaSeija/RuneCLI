@@ -390,9 +390,30 @@ mod tests {
             )
             .unwrap();
             drop(slave);
-            let ok = child.wait().unwrap() == 0;
+            // What it prints is read while it runs — a terminal nobody reads
+            // fills, and its writer waits — and a command that does not end
+            // in time is stopped and named, never waited on for ever.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+            let mut shown = Vec::new();
+            let code = loop {
+                let mut buf = [0u8; 4096];
+                if let Ok(Some(n)) = pty.read_timeout(&mut buf, 50) {
+                    shown.extend_from_slice(&buf[..n]);
+                }
+                if let Some(code) = child.try_wait().unwrap() {
+                    break code;
+                }
+                if std::time::Instant::now() > deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!(
+                        "{script:?} did not end under the sandbox; it showed {:?}",
+                        String::from_utf8_lossy(&shown)
+                    );
+                }
+            };
             drop(pty);
-            ok
+            code == 0
         };
         assert!(run(format!("echo hi > '{}/out.txt'", project.display())));
         assert!(run(format!("cat '{}/granted/read.txt'", base.display())));

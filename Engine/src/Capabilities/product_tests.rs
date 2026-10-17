@@ -191,7 +191,11 @@ fn product_help_any_difference_is_replaced_whole_and_leaves_no_trace() {
     for (what, damage) in damages {
         ensure(&home).unwrap();
         damage();
-        assert_eq!(ensure(&home).unwrap(), root(&home), "{what}");
+        assert_eq!(
+            ensure(&home).unwrap_or_else(|error| panic!("{what}: {error}")),
+            root(&home),
+            "{what}"
+        );
         assert!(intact(&root(&home)), "{what}");
         assert_eq!(
             visible(&home.join(DIRECTORY)),

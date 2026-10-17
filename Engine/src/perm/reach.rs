@@ -806,9 +806,10 @@ mod tests {
             c.full_access,
             "a new file directly under /tmp must anchor at the shared /tmp and require full access"
         );
+        // `/tmp` as the filesystem names it (`/private/tmp` on macOS).
         assert_eq!(
             c.anchor,
-            Path::new("/tmp"),
+            crate::platform::canonical(Path::new("/tmp")).unwrap(),
             "the anchor is the shared /tmp itself"
         );
     }
@@ -821,6 +822,22 @@ mod tests {
             return;
         }
         let f = forbidden();
+        // What this OS keeps in a home and in its system, each flagged.
+        let os = crate::platform::OS;
+        for entry in forbidden_in_home(os) {
+            let path = home().join(entry);
+            assert!(
+                f.blocks(&path).is_some(),
+                "{path:?} must never be granted quietly"
+            );
+        }
+        for prefix in crate::perm::denylist::protected_prefixes(os) {
+            assert!(f.blocks(&prefix.join("x")).is_some(), "{prefix:?}");
+        }
+        // Linux's own names for them, as a person types them.
+        if os != crate::platform::Os::Linux {
+            return;
+        }
         for path in [
             "/home/dev/.ssh",
             "/home/dev/.ssh/id_ed25519",

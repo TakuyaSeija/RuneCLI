@@ -1646,10 +1646,14 @@ fn one_damaged_session_never_stops_the_upgrade_of_the_rest() {
     );
     let named = |path: &Path| left.iter().any(|(p, _)| p == path);
     assert!(named(&locked), "{left:?}");
-    // The folder nobody may read, or what is in it: Windows still lets the
-    // folder be passed through and names each file it refuses.
+    // The folder nobody may read is named, or what is in it. Windows lets
+    // every user open a path beneath a folder it may not list (bypass
+    // traverse checking): there the sessions in it are read, upgraded with
+    // the rest, and nothing about them is left to name.
     assert!(
-        named(&other) || left.iter().any(|(p, _)| p.starts_with(&other)),
+        named(&other)
+            || left.iter().any(|(p, _)| p.starts_with(&other))
+            || crate::platform::OS == crate::platform::Os::Windows,
         "{left:?}"
     );
     assert!(named(&store.join("rune.db")), "{left:?}");

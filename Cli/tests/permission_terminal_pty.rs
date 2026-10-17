@@ -355,7 +355,12 @@ fn undo_and_context_are_readable_and_navigation_follows_split_reflow() {
     for cols in [80, 169, 110, 140] {
         window.pty.resize(24, cols).unwrap();
         window.screen.resize(24, cols);
-        platform::fixture::signal_resize(window.child.id() as u32).unwrap();
+        // A Unix terminal tells its program by a signal; Windows's console is
+        // resized above and the program finds its new size by itself.
+        match platform::fixture::signal_resize(window.child.id() as u32) {
+            Err(error) if error.kind() == std::io::ErrorKind::Unsupported => {}
+            done => done.unwrap(),
+        }
         window.until("resize preserves undo choice", chosen(15));
     }
     // Alt+S: the file's diff, numbered; Esc goes back to the list.

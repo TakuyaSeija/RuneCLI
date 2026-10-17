@@ -91,17 +91,35 @@ impl LocalStream {
 
     /// How long a read waits; `None` for as long as it takes.
     pub fn set_read_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.0.set_read_timeout(timeout)
+        self.settled(self.0.set_read_timeout(timeout))
     }
 
     /// How long a write waits; `None` for as long as it takes.
     pub fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
-        self.0.set_write_timeout(timeout)
+        self.settled(self.0.set_write_timeout(timeout))
     }
 
-    /// End the connection both ways: every handle on it reads its end.
+    /// End the connection both ways: every handle on it reads its end. One
+    /// the other end already ended is ended: nothing to do.
     pub fn shutdown(&self) -> io::Result<()> {
-        self.0.shutdown(std::net::Shutdown::Both)
+        match self.0.shutdown(std::net::Shutdown::Both) {
+            Err(error) if error.kind() == io::ErrorKind::NotConnected => Ok(()),
+            done => done,
+        }
+    }
+
+    /// A timeout set on a connection the other end has ended is no error:
+    /// macOS refuses the option there (`EINVAL`), Linux takes it, and either
+    /// way what is read next is the end.
+    fn settled(&self, set: io::Result<()>) -> io::Result<()> {
+        match set {
+            Err(error)
+                if error.raw_os_error() == Some(libc::EINVAL) && self.0.peer_addr().is_err() =>
+            {
+                Ok(())
+            }
+            done => done,
+        }
     }
 
     /// Whether the process at the other end runs as this process's user, as
@@ -152,6 +170,23 @@ pub fn is_socket(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A connection the other end ended still takes a timeout and a
+    /// shutdown without an error, on every Unix (macOS refuses both there),
+    /// and reads its end.
+    #[test]
+    fn an_ended_connection_takes_a_timeout_and_a_shutdown() {
+        use std::io::Read;
+        let (mine, theirs) = LocalStream::pair().unwrap();
+        drop(theirs);
+        mine.set_read_timeout(Some(Duration::from_millis(200)))
+            .unwrap();
+        mine.set_write_timeout(Some(Duration::from_millis(200)))
+            .unwrap();
+        mine.shutdown().unwrap();
+        let mut buf = [0u8; 4];
+        assert_eq!((&mine.0).read(&mut buf).unwrap(), 0);
+    }
 
     /// A socket whose path is longer than a socket address holds is bound and
     /// reached at that path, and lands where the long spelling names.
