@@ -63,6 +63,22 @@ fn posix_shell_for_tests(data: &std::path::Path) {
     }
 }
 
+/// A POSIX command starting `command` outside its own process group, as a
+/// daemon does: `setsid` on Linux, Perl's `POSIX::setsid` on macOS (no
+/// `setsid` command there; every macOS has `/usr/bin/perl`). `None` on
+/// Windows, which has no groups to leave — a job holds the whole tree, and
+/// the Windows platform's own tests stop it.
+fn leaving_its_group(command: &str) -> Option<String> {
+    use runeengine::platform::Os;
+    match runeengine::platform::OS {
+        Os::Linux => Some(format!("setsid {command}")),
+        Os::MacOs => Some(format!(
+            "perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' {command}"
+        )),
+        Os::Windows => None,
+    }
+}
+
 fn harness(name: &str, fixture: Value) -> Harness {
     let provider = Arc::new(Scripted::from_value(&fixture, "test".into()).unwrap());
     harness_with(name, provider)
@@ -2474,6 +2490,9 @@ fn manage_process_has_no_way_to_wait() {
 
 #[test]
 fn a_command_with_a_detached_pty_descendant_moves_to_the_background_on_time() {
+    let Some(detached) = leaving_its_group("sleep 8") else {
+        return;
+    };
     let mut h = harness_with_config(
         "terminal_detached_timeout",
         "[terminal]\ncommand_timeout = \"1s\"\n",
@@ -2484,7 +2503,7 @@ fn a_command_with_a_detached_pty_descendant_moves_to_the_background_on_time() {
         &mut h,
         1,
         "terminal_use",
-        json!({"action": "test timeout", "command": "setsid sleep 8 & wait"}),
+        json!({"action": "test timeout", "command": format!("{detached} & wait")}),
         Decision::AllowOnce,
     );
     assert_eq!(
@@ -12515,6 +12534,9 @@ fn a_9router_entry_speaking_anthropic_reports_the_cache_exactly() {
 /// where a signal to the group does not.
 #[test]
 fn stopping_a_background_task_stops_what_left_its_group() {
+    let Some(daemon) = leaving_its_group("sleep 300") else {
+        return;
+    };
     let mut h = harness_with_config(
         "tree_stop",
         "[terminal]\ncommand_timeout = \"30s\"\n",
@@ -12526,7 +12548,7 @@ fn stopping_a_background_task_stops_what_left_its_group() {
         1,
         "terminal_use",
         json!({"action": "serve", "run_in_background": true,
-               "command": format!("setsid sleep 300 & echo $! > {}; sleep 300", marker.display())}),
+               "command": format!("{daemon} & echo $! > {}; sleep 300", marker.display())}),
         Decision::AllowOnce,
     );
     let task = task_id_in(&launched);
