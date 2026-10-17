@@ -457,7 +457,13 @@ fn start(
         command_line(&program, &launch.args, launch.verbatim_tail.as_deref())?;
     let application = wide_path(&application)?;
     let environment = environment(launch, placement.tree)?;
-    let folder = launch.dir.as_deref().map(wide_path).transpose()?;
+    // The folder a process starts in as written: Windows keeps no verbatim
+    // (`\\?\`) current folder, and cmd refuses to run in one.
+    let folder = launch
+        .dir
+        .as_deref()
+        .map(|dir| wide(dir.as_os_str()))
+        .transpose()?;
 
     let mut attributes = Attributes::new(1)?;
     let mut info: STARTUPINFOEXW = unsafe { std::mem::zeroed() };

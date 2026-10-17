@@ -497,6 +497,25 @@ pub fn take_handed_file(handed: Handed, expected: &Path) -> Option<File> {
 mod tests {
     use super::*;
 
+    /// A path past `MAX_PATH` — a project deep in folders — is opened by
+    /// Rune's own calls as by the standard library's: made private, its ACL
+    /// read, told private.
+    #[test]
+    fn a_path_past_max_path_is_reached_by_rune_s_own_calls() {
+        let mut deep = std::env::temp_dir().join(format!("rune-long-{}", std::process::id()));
+        let base = deep.clone();
+        while deep.as_os_str().len() < 300 {
+            deep = deep.join("a-folder-name-that-is-forty-characters-long");
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        let file = deep.join("key");
+        drop(open_private(&file, crate::platform::Private::New).unwrap());
+        assert!(file.as_os_str().len() > 260);
+        assert!(is_private(&file).unwrap());
+        assert!(FileIdentity::of_path(&file).is_ok());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
     fn scratch(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("rune-files-{tag}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);

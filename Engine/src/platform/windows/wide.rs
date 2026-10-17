@@ -24,9 +24,63 @@ pub(super) fn wide(text: &OsStr) -> io::Result<Vec<u16>> {
     Ok(out)
 }
 
-/// `path` as a NUL-terminated UTF-16 string.
+/// How long a path Windows takes as written: past it (`MAX_PATH`, less the
+/// room `CreateDirectoryW` keeps), only a verbatim path (`\\?\`) is
+/// accepted. The standard library draws the same line.
+const LONGEST_PLAIN: usize = 248;
+
+/// `path` as a NUL-terminated UTF-16 string a `W` function opens whatever its
+/// length: a path of `LONGEST_PLAIN` units or more is made whole
+/// (`GetFullPathNameW` — `.`, `..` and `/` resolved) and written verbatim,
+/// `\\?\C:\…` or `\\?\UNC\server\share\…`, as the standard library
+/// writes it — a project deep in folders was refused with "path not found"
+/// by Rune's own calls while every `std::fs` call reached it (CI,
+/// 2026-10-17: no checkpoint could be taken).
 pub(super) fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
-    wide(path.as_os_str())
+    let plain = wide(path.as_os_str())?;
+    let verbatim: Vec<u16> = r"\\?\".encode_utf16().collect();
+    let device: Vec<u16> = r"\\.\".encode_utf16().collect();
+    if plain.len() - 1 < LONGEST_PLAIN || plain.starts_with(&verbatim) || plain.starts_with(&device)
+    {
+        return Ok(plain);
+    }
+    let full = full_path(&plain)?;
+    let unc: Vec<u16> = r"\\".encode_utf16().collect();
+    let mut out: Vec<u16> = if full.starts_with(&unc) {
+        r"\\?\UNC\"
+            .encode_utf16()
+            .chain(full[2..].iter().copied())
+            .collect()
+    } else {
+        verbatim.into_iter().chain(full).collect()
+    };
+    out.push(0);
+    Ok(out)
+}
+
+/// `name` (NUL-terminated) as Windows makes it whole: absolute, `.` and `..`
+/// gone, every separator a backslash. Without the NUL.
+fn full_path(name: &[u16]) -> io::Result<Vec<u16>> {
+    use windows_sys::Win32::Storage::FileSystem::GetFullPathNameW;
+    let mut buffer = vec![0u16; 512];
+    loop {
+        let n = unsafe {
+            GetFullPathNameW(
+                name.as_ptr(),
+                buffer.len() as u32,
+                buffer.as_mut_ptr(),
+                std::ptr::null_mut(),
+            )
+        } as usize;
+        if n == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if n < buffer.len() {
+            buffer.truncate(n);
+            return Ok(buffer);
+        }
+        buffer.resize(n + 1, 0);
+    }
 }
 
 /// The text of a UTF-16 buffer up to its first NUL.
