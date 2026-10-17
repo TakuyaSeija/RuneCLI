@@ -32,6 +32,7 @@ pub fn execute(
     registry: &crate::tools::Registry,
     request: &Request,
     cancel: &AtomicBool,
+    roots: super::RootGate<'_>,
 ) -> Result<Value> {
     if request.arguments.len() > 128
         || request
@@ -109,7 +110,7 @@ pub fn execute(
         cap.input
             .changed
             .store(true, std::sync::atomic::Ordering::Relaxed);
-        let errors = cap.connect_enabled(registry, cancel)?;
+        let errors = cap.connect_enabled(registry, cancel, roots)?;
         return Ok(json!({"servers":cap.server_status(),"errors":errors}));
     }
 
@@ -145,7 +146,7 @@ pub fn execute(
                 Settings::from_config(&cfg)?.resolve_servers(&cap.project)?;
                 return Ok(json!({"valid":true,"connected":false}));
             }
-            "connect" | "test" => return cap.connect(id, registry, cancel),
+            "connect" | "test" => return cap.connect(id, registry, cancel, roots),
             "login" => return cap.login(id, cancel),
             "login-status" => return Ok(cap.login_status(id)),
             "disconnect" => {

@@ -199,7 +199,7 @@ fn stream() -> Vec<Event> {
         preview: "$ echo hi".into(),
         remember_as: None,
         reach: Vec::new(),
-        sensitive: Vec::new(),
+        local_services: false,
         full_access: false,
         reason: None,
     };

@@ -113,6 +113,39 @@ fn awk_program_operand(tokens: &[String]) -> Option<usize> {
     None
 }
 
+/// Where a POSIX shell running on Windows (Git Bash, MSYS2, Cygwin) has its
+/// `/`: the folder holding the `bin` (or `usr\bin`) its program is in —
+/// `C:\Program Files\Git` for Git Bash. `None` for a shell laid out
+/// otherwise.
+pub fn posix_root_of(shell: &Path) -> Option<PathBuf> {
+    let named = |path: &Path, name: &str| {
+        path.file_name()
+            .is_some_and(|file| file.eq_ignore_ascii_case(name))
+    };
+    let bin = shell.parent().filter(|bin| named(bin, "bin"))?;
+    let above = bin.parent()?;
+    if named(above, "usr") {
+        above.parent().map(Path::to_path_buf)
+    } else {
+        Some(above.to_path_buf())
+    }
+}
+
+/// A path-shaped token as such a shell reads it: rooted at `/`, it lies
+/// under the shell's own root (`/usr/bin/env` is Git's), unless it names a
+/// drive (`/c/…`, left for [`resolve`]) or a share (`//server`). Anything else
+/// is returned as it was.
+pub fn under_posix_root(token: &str, root: &Path) -> String {
+    let b = token.as_bytes();
+    let drive = b.len() >= 2 && b[1].is_ascii_alphabetic() && (b.len() == 2 || b[2] == b'/');
+    if !token.starts_with('/') || token.starts_with("//") || drive {
+        return token.to_string();
+    }
+    root.join(token.trim_start_matches('/').replace('/', "\\"))
+        .display()
+        .to_string()
+}
+
 /// One path-shaped argument, e.g. a tool's `path` field. Relative paths are the
 /// workspace's own and are never candidates.
 pub fn in_argument(value: &str) -> Option<String> {
@@ -134,105 +167,16 @@ fn is_path_shaped(token: &str) -> bool {
             && super::windows_shells::path_shaped(token))
 }
 
-// ─── What no answer can open ──────────────────────────────────────────────────
-
-/// Paths under `$HOME` that a permission prompt must never be able to open.
-///
-/// The distinction this list draws is the whole reason it exists. "Allow this
-/// command" and "allow this command to read `~/.ssh`" are different questions,
-/// and a user answering the first at speed — which is what a user does, on the
-/// twentieth prompt of an afternoon — must not find they have answered the
-/// second. So these are refusals in confined Ask/Auto sessions: no prompt or
-/// stored grant reaches them. Full deliberately bypasses confinement entirely.
-///
-/// Two kinds, and both are about what happens *after* the session ends:
-///
-///   * **credentials** — reading one is exfiltration, and the agent has network
-///     access. A key read today is a key used against the user tomorrow.
-///   * **startup files** — writing one makes the user run the agent's code later,
-///     outside any sandbox, without knowing they are doing it.
-const FORBIDDEN_IN_HOME: &[&str] = &[
-    ".ssh",
-    ".gnupg",
-    ".aws",
-    ".azure",
-    ".kube",
-    ".docker",
-    ".netrc",
-    ".pgpass",
-    ".config/gh",
-    ".config/gcloud",
-    ".config/op",
-    ".password-store",
-    // Browser profiles: session cookies are credentials with a friendlier name.
-    ".mozilla",
-    ".config/google-chrome",
-    ".config/chromium",
-    ".config/BraveSoftware",
-    // Anything that runs on next login, or on the next build.
-    ".bashrc",
-    ".bash_profile",
-    ".bash_login",
-    ".bash_aliases",
-    ".profile",
-    ".zshrc",
-    ".zshenv",
-    ".zprofile",
-    ".zlogin",
-    ".inputrc",
-    ".config/fish",
-    ".config/systemd/user",
-    ".config/autostart",
-    ".local/share/systemd/user",
-    ".local/bin",
-    ".cargo/config.toml",
-];
-
-/// The paths no reach grant may cover, on this machine.
-#[derive(Debug, Clone, Default)]
-pub struct Forbidden {
-    roots: Vec<PathBuf>,
-}
-
-impl Forbidden {
-    pub fn standard(home: Option<&Path>, _engine_dirs: &[PathBuf]) -> Forbidden {
-        let mut roots: Vec<PathBuf> = super::denylist::protected_prefixes(crate::platform::OS);
-        if let Some(home) = home {
-            roots.extend(
-                forbidden_in_home(crate::platform::OS)
-                    .iter()
-                    .map(|p| home.join(p)),
-            );
-        }
-        Forbidden { roots }
-    }
-
-    /// The forbidden root this path collides with, if any.
-    ///
-    /// Collision runs **both ways** on purpose. `~/.ssh/id_ed25519` is inside a
-    /// forbidden root; `~/.config` merely contains several — and granting it
-    /// would hand over every one of them. A one-directional check would let the
-    /// second through.
-    pub fn blocks(&self, path: &Path) -> Option<&Path> {
-        let os = crate::platform::OS;
-        self.roots
-            .iter()
-            .find(|root| {
-                crate::jail::starts_with_folded(path, root, os)
-                    || crate::jail::starts_with_folded(root, path, os)
-            })
-            .map(|p| p.as_path())
-    }
-}
+// ─── What an answer can open ───────────────────────────────────────────────
 
 /// A path the engine is willing to put to the user.
 ///
-/// Nothing here refuses. What used to be two rejections — `$HOME` itself, and
-/// anything colliding with a root the machine runs on (`~/.ssh`, `.bashrc`,
-/// `/boot`) — is now an annotation: the gate still asks, the card carries the
-/// reason, and no answer may be remembered against it. The owner's rule,
-/// 2026-09-28: the system never says no on its own; the one autonomous denier
-/// is the thinking classifier, and only where a CLASSIFIER.md policy says so.
+/// Nothing here refuses, and no folder is special (owner, 2026-10-17: the
+/// modes are the only restriction, the same on every OS — `~/.ssh` or
+/// `.bashrc` is a path outside the workspace like any other, asked in Ask
+/// and Auto with "always" on offer, so the agent can debug what the person
+/// asks it to; the classifier still reviews what its policy covers). The
+/// owner's rule, 2026-09-28: the system never says no on its own.
 ///
 /// What remains is a mechanical fact rather than a judgement: a path whose
 /// nearest existing ancestor is the filesystem root, `$HOME` itself, or a
@@ -251,10 +195,6 @@ pub struct Candidate {
     /// means dropping confinement for this call only. Kept explicit all the
     /// way to the permission card.
     pub full_access: bool,
-    /// Why the path needs the owner's eyes — credentials, startup files,
-    /// system prefixes. The gate asks rather than refusing, and consent is
-    /// never stored for a sensitive candidate.
-    pub sensitive: Option<String>,
 }
 
 /// Directories that are shared with everything else the user runs, or that hold
@@ -312,91 +252,11 @@ fn shared_anchors(os: crate::platform::Os) -> Vec<PathBuf> {
     }
 }
 
-/// What under the home no reach may open on `os` ([`FORBIDDEN_IN_HOME`]
-/// on Linux): credentials, browser profiles, and what runs at the next
-/// login or build — macOS's keychains and launch agents, Windows's saved
-/// credentials and data-protection keys, its Startup folder and the
-/// profiles PowerShell runs at every start.
-fn forbidden_in_home(os: crate::platform::Os) -> &'static [&'static str] {
-    use crate::platform::Os;
-    const MACOS: &[&str] = &[
-        ".ssh",
-        ".gnupg",
-        ".aws",
-        ".azure",
-        ".kube",
-        ".docker",
-        ".netrc",
-        ".pgpass",
-        ".config/gh",
-        ".config/gcloud",
-        ".config/op",
-        ".password-store",
-        "Library/Keychains",
-        "Library/Cookies",
-        "Library/Safari",
-        "Library/Application Support/Google/Chrome",
-        "Library/Application Support/Firefox",
-        "Library/Application Support/BraveSoftware",
-        "Library/Application Support/Microsoft Edge",
-        "Library/Application Support/com.apple.TCC",
-        "Library/LaunchAgents",
-        ".bashrc",
-        ".bash_profile",
-        ".bash_login",
-        ".profile",
-        ".zshrc",
-        ".zshenv",
-        ".zprofile",
-        ".zlogin",
-        ".config/fish",
-        ".local/bin",
-        ".cargo/config.toml",
-    ];
-    const WINDOWS: &[&str] = &[
-        ".ssh",
-        ".gnupg",
-        ".aws",
-        ".azure",
-        ".kube",
-        ".docker",
-        ".netrc",
-        ".git-credentials",
-        ".config/gh",
-        ".config/gcloud",
-        "AppData/Roaming/GitHub CLI",
-        "AppData/Roaming/gcloud",
-        "AppData/Roaming/gnupg",
-        "AppData/Roaming/Microsoft/Credentials",
-        "AppData/Local/Microsoft/Credentials",
-        "AppData/Roaming/Microsoft/Protect",
-        "AppData/Roaming/Microsoft/Crypto",
-        "AppData/Roaming/Microsoft/SystemCertificates",
-        "AppData/Local/Google/Chrome/User Data",
-        "AppData/Local/Microsoft/Edge/User Data",
-        "AppData/Local/BraveSoftware",
-        "AppData/Roaming/Mozilla",
-        "AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup",
-        "Documents/PowerShell",
-        "Documents/WindowsPowerShell",
-        ".cargo/config.toml",
-        ".bashrc",
-        ".bash_profile",
-        ".profile",
-    ];
-    match os {
-        Os::Linux => FORBIDDEN_IN_HOME,
-        Os::MacOs => MACOS,
-        Os::Windows => WINDOWS,
-    }
-}
-
 /// Expand `~` and resolve `.`/`..`, without judging anything.
 ///
 /// Split from [`candidate`] so a caller can ask "is this already reachable?"
-/// before asking "may this be granted?". Getting that order wrong means
-/// refusing `/usr/bin/python3` for being in a protected prefix when every
-/// command on the machine already reads it.
+/// before putting it to the person: `/usr/bin/python3` names a path outside
+/// the workspace that every command on the machine already reads.
 ///
 /// `home` is passed in rather than read here so the tests do not depend on the
 /// machine they run on.
@@ -404,55 +264,24 @@ pub fn resolve(token: &str, home: Option<&Path>) -> Result<PathBuf> {
     Ok(normalize(&expand(token, home, crate::platform::OS)?))
 }
 
-/// Judge an already-resolved path, and work out where a rule for it can be
-/// anchored. Never an error and never a refusal — a path the machine runs on
-/// its own comes back flagged, and the wizard takes it from there.
-pub fn candidate(named: PathBuf, home: Option<&Path>, forbidden: &Forbidden) -> Candidate {
-    if let Some(home) = home {
-        if named == *home {
-            return Candidate {
-                named: named.clone(),
-                anchor: named,
-                full_access: true,
-                sensitive: Some(
-                    "the whole home directory — allowing it is full access under another name; \
-                     name the directory you actually need, or switch the session to Full"
-                        .into(),
-                ),
-            };
-        }
+/// Work out where a rule for an already-resolved path can be anchored. Never
+/// an error and never a refusal.
+pub fn candidate(named: PathBuf, home: Option<&Path>) -> Candidate {
+    let broad = |named: PathBuf, anchor: PathBuf| Candidate {
+        named,
+        anchor,
+        full_access: true,
+    };
+    // The whole home, or the filesystem's root: allowing it is full access
+    // under another name, said so on the card.
+    if home.is_some_and(|home| named == *home) || named.parent().is_none() {
+        return broad(named.clone(), named);
     }
-    if named.parent().is_none() {
-        return Candidate {
-            named: named.clone(),
-            anchor: named,
-            full_access: true,
-            sensitive: None,
-        };
-    }
-
-    // Flagged, not refused: the wizard still puts it to the user, the card
-    // says why, and no answer may be remembered.
-    let mut sensitive = forbidden.blocks(&named).map(|root| {
-        format!(
-            "{} holds credentials or files the user's machine runs on its own — an answer \
-             given in the middle of other work must not open it",
-            root.display()
-        )
-    });
-
     let anchor = match nearest_existing(&named) {
         Some(anchor) => anchor,
         // Not even `/` exists above it, so no rule can be anchored anywhere.
         // The only honest shape left is a one-call full access.
-        None => {
-            return Candidate {
-                named: named.clone(),
-                anchor: named,
-                full_access: true,
-                sensitive,
-            }
-        }
+        None => return broad(named.clone(), named),
     };
     let os = crate::platform::OS;
     let same = |a: &Path, b: &Path| {
@@ -462,30 +291,12 @@ pub fn candidate(named: PathBuf, home: Option<&Path>, forbidden: &Forbidden) -> 
         || home.is_some_and(|h| crate::jail::starts_with_folded(h, &anchor, os))
         || shared_anchors(os).iter().any(|s| same(&anchor, s))
     {
-        return Candidate {
-            named,
-            anchor,
-            full_access: true,
-            sensitive,
-        };
-    }
-    // A canonical ancestor can cross into forbidden ground that the named path
-    // hides behind a symlink, so the anchor is judged too — first reason wins.
-    if sensitive.is_none() {
-        if let Some(root) = forbidden.blocks(&anchor) {
-            sensitive = Some(format!(
-                "the closest existing directory to {} is {}, which holds credentials or \
-                 protected files — create the directory first, or name a path that exists",
-                named.display(),
-                root.display()
-            ));
-        }
+        return broad(named, anchor);
     }
     Candidate {
         named,
         anchor,
-        full_access: sensitive.is_some(),
-        sensitive,
+        full_access: false,
     }
 }
 
@@ -575,30 +386,43 @@ mod tests {
             return;
         }
         let home = PathBuf::from(r"C:\Users\dev");
-        let f = Forbidden::standard(Some(&home), &[]);
-        for path in [
-            r"C:\Users\dev\.ssh\id_ed25519",
-            r"c:\users\DEV\.SSH",
-            r"C:\Users\dev\AppData\Roaming\Microsoft\Protect",
-            r"C:\Users\dev\Documents\PowerShell\profile.ps1",
-            r"C:\Windows\System32\drivers\etc\hosts",
-        ] {
-            assert!(
-                f.blocks(Path::new(path)).is_some(),
-                "{path} must never be granted quietly"
-            );
-        }
-        assert!(f.blocks(Path::new(r"C:\Users\dev\Downloads")).is_none());
-        assert!(
-            f.blocks(Path::new(r"C:\Users\dev")).is_some(),
-            "the profile holds what is forbidden"
-        );
         assert_eq!(
             resolve(r"C:\a\b\..\c", None).unwrap(),
             PathBuf::from(r"C:\a\c")
         );
-        let c = judge(r"~\.ssh\id_rsa", Some(&home)).unwrap();
-        assert!(c.sensitive.as_deref().unwrap_or("").contains(".ssh"));
+        assert_eq!(
+            resolve(r"~\.ssh\id_rsa", Some(&home)).unwrap(),
+            home.join(r".ssh\id_rsa")
+        );
+        assert!(
+            judge(r"~", Some(&home)).unwrap().full_access,
+            "the whole profile"
+        );
+    }
+
+    /// Git Bash's `/` is Git's own folder: `/usr/bin/env` is read there, a
+    /// drive or a share as it says.
+    #[test]
+    fn a_posix_shell_on_windows_roots_its_paths_in_its_own_folder() {
+        let git = PathBuf::from("C:/Program Files/Git");
+        for shell in [
+            "C:/Program Files/Git/bin/bash.exe",
+            "C:/Program Files/Git/usr/bin/bash.exe",
+        ] {
+            assert_eq!(
+                posix_root_of(Path::new(shell)),
+                Some(git.clone()),
+                "{shell}"
+            );
+        }
+        assert_eq!(posix_root_of(Path::new("C:/tools/bash.exe")), None);
+        assert_eq!(
+            under_posix_root("/usr/bin/env", &git),
+            git.join("usr\\bin\\env").display().to_string()
+        );
+        for token in ["/c/Users/me", "/d", "//server/share", "~/x", "relative"] {
+            assert_eq!(under_posix_root(token, &git), token);
+        }
     }
 
     /// On Windows the home has PowerShell's and cmd's names too, and Git
@@ -629,37 +453,19 @@ mod tests {
         );
     }
 
-    /// Each OS keeps its own credentials and startup files from a reach
-    /// answer, and its own shared folders from being an anchor.
+    /// Each OS keeps its own shared folders from being an anchor.
     #[test]
-    fn every_os_keeps_its_own_credentials_and_shared_folders() {
+    fn every_os_keeps_its_own_shared_folders_from_being_an_anchor() {
         use crate::platform::Os;
-        assert!(forbidden_in_home(Os::Windows).contains(&"Documents/PowerShell"));
-        assert!(forbidden_in_home(Os::Windows).contains(&"AppData/Roaming/Microsoft/Protect"));
-        assert!(forbidden_in_home(Os::MacOs).contains(&"Library/Keychains"));
-        assert!(forbidden_in_home(Os::MacOs).contains(&"Library/LaunchAgents"));
-        assert_eq!(forbidden_in_home(Os::Linux), FORBIDDEN_IN_HOME);
-        for os in [Os::Linux, Os::MacOs, Os::Windows] {
-            assert!(forbidden_in_home(os).contains(&".ssh"), "{os:?}");
-        }
         assert!(shared_anchors(Os::MacOs).contains(&PathBuf::from("/Users")));
         assert!(shared_anchors(Os::Windows)
             .iter()
             .any(|p| p.ends_with("Users")));
-    }
-
-    /// The list as it is on a machine with a home directory and no engine of
-    /// its own — the shape every case below needs unless it says otherwise.
-    fn forbidden() -> Forbidden {
-        Forbidden::standard(Some(&home()), &[])
+        assert!(shared_anchors(Os::Linux).contains(&PathBuf::from("/tmp")));
     }
 
     fn judge(token: &str, home: Option<&Path>) -> Result<Candidate> {
-        Ok(candidate(
-            resolve(token, home)?,
-            home,
-            &Forbidden::standard(home, &[]),
-        ))
+        Ok(candidate(resolve(token, home)?, home))
     }
 
     #[test]
@@ -739,32 +545,17 @@ mod tests {
             return;
         }
         assert_eq!(resolve("/a/b/../c", None).unwrap(), PathBuf::from("/a/c"));
-        // A `..` must not smuggle home past the judge — it comes back flagged,
-        // not refused.
-        let c = judge("~/x/..", Some(&home())).unwrap();
-        assert!(c
-            .sensitive
-            .as_deref()
-            .unwrap_or("")
-            .contains("whole home directory"));
+        // A `..` must not smuggle the whole home past the judge.
+        assert!(judge("~/x/..", Some(&home())).unwrap().full_access);
     }
 
     #[test]
-    fn the_home_directory_is_a_sensitive_full_access_candidate_and_the_root_too() {
+    fn the_home_directory_and_the_root_are_full_access_candidates() {
         if !posix_paths() {
             return;
         }
-        // The old behaviour refused `$HOME` outright; the owner's rule is that
-        // the wizard decides, so it is now a question with the reason on it.
-        let c = judge("~", Some(&home())).unwrap();
-        assert!(c.full_access);
-        assert!(c
-            .sensitive
-            .as_deref()
-            .unwrap_or("")
-            .contains("whole home directory"));
+        assert!(judge("~", Some(&home())).unwrap().full_access);
         assert!(judge("/", None).unwrap().full_access);
-        assert!(judge("/", None).unwrap().sensitive.is_none());
     }
 
     #[test]
@@ -814,97 +605,22 @@ mod tests {
         );
     }
 
-    // ── What only the owner may open ──────────────────────────────────────
-
+    /// Owner, 2026-10-17: no folder is special. A folder that used to be on
+    /// a list of credentials and startup files is anchored like any other —
+    /// a narrow grant the person may keep — on every OS.
     #[test]
-    fn credentials_and_startup_files_are_flagged_however_they_are_reached() {
-        if !posix_paths() {
-            return;
-        }
-        let f = forbidden();
-        // What this OS keeps in a home and in its system, each flagged.
-        let os = crate::platform::OS;
-        for entry in forbidden_in_home(os) {
-            let path = home().join(entry);
-            assert!(
-                f.blocks(&path).is_some(),
-                "{path:?} must never be granted quietly"
+    fn no_folder_in_the_home_is_special() {
+        let dir = std::env::temp_dir().join(format!("rune-reach-dot-{}", std::process::id()));
+        for name in [".ssh", ".aws", ".config/gh", ".bashrc.d"] {
+            std::fs::create_dir_all(dir.join(name)).unwrap();
+            let c = judge(dir.join(name).join("x").to_str().unwrap(), Some(&home())).unwrap();
+            assert!(!c.full_access, "{name}");
+            assert_eq!(
+                c.anchor,
+                crate::platform::canonical(&dir.join(name)).unwrap()
             );
         }
-        for prefix in crate::perm::denylist::protected_prefixes(os) {
-            assert!(f.blocks(&prefix.join("x")).is_some(), "{prefix:?}");
-        }
-        // Linux's own names for them, as a person types them.
-        if os != crate::platform::Os::Linux {
-            return;
-        }
-        for path in [
-            "/home/dev/.ssh",
-            "/home/dev/.ssh/id_ed25519",
-            "/home/dev/.aws/credentials",
-            "/home/dev/.gnupg",
-            "/home/dev/.bashrc",
-            "/home/dev/.zshrc",
-            "/home/dev/.config/systemd/user/evil.service",
-            "/home/dev/.local/bin/rune",
-            "/home/dev/.cargo/config.toml",
-            "/etc/passwd",
-        ] {
-            assert!(
-                f.blocks(Path::new(path)).is_some(),
-                "{path} must never be granted quietly"
-            );
-        }
-    }
-
-    #[test]
-    fn a_directory_that_merely_contains_a_forbidden_one_is_flagged_too() {
-        if !posix_paths() {
-            return;
-        }
-        // Granting ~/.config would hand over ~/.config/gh with it. The check has
-        // to run both ways, or the parent is the way in.
-        let f = forbidden();
-        assert!(f.blocks(Path::new("/home/dev/.config")).is_some());
-        assert!(f.blocks(Path::new("/home/dev")).is_some());
-    }
-
-    #[test]
-    fn ordinary_directories_are_not_on_the_list() {
-        if !posix_paths() {
-            return;
-        }
-        let f = forbidden();
-        for path in ["/home/dev/Downloads", "/home/dev/Project/other", "/var/log"] {
-            assert!(
-                f.blocks(Path::new(path)).is_none(),
-                "{path} should be answerable"
-            );
-        }
-    }
-
-    #[test]
-    fn the_engines_own_directories_are_allowed() {
-        if !posix_paths() {
-            return;
-        }
-        // ~/.rune is permitted without exception
-        let engine = vec![
-            PathBuf::from("/home/dev/.rune"),
-            PathBuf::from("/data/rune"),
-        ];
-        let f = Forbidden::standard(Some(&home()), &engine);
-        assert!(f
-            .blocks(Path::new("/home/dev/.rune/secrets.json"))
-            .is_none());
-    }
-
-    #[test]
-    fn the_sensitive_reason_names_the_root_that_caused_it_rather_than_just_saying_no() {
-        let c = judge("~/.ssh/id_rsa", Some(&home())).unwrap();
-        let why = c.sensitive.as_deref().unwrap_or("");
-        assert!(why.contains(".ssh"), "{why}");
-        assert!(why.contains("credentials"), "{why}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -916,7 +632,6 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rune-reach-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let c = judge(dir.join("file.txt").to_str().unwrap(), Some(&home())).unwrap();
-        assert!(c.sensitive.is_none());
         assert!(!c.full_access);
         let _ = std::fs::remove_dir_all(&dir);
     }

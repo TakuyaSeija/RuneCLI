@@ -30,8 +30,8 @@ pub use console::{
 };
 pub use files::{
     canonical, file_mode, free_space, hand_on, is_private, open_private, open_read_nonblocking,
-    replace, restrict_to_owner, same_file, set_file_mode, sync_dir, take_handed_file, writable,
-    FileIdentity, Handed, LinkFreeDir,
+    remove_entry, replace, restrict_to_owner, same_file, set_file_mode, sync_dir, take_handed_file,
+    writable, FileIdentity, Handed, LinkFreeDir,
 };
 pub use home::{default_shell, home_dir, system_caches};
 pub use pipe::{is_socket, LocalListener, LocalStream};

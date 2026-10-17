@@ -83,6 +83,28 @@ impl Runtime {
     }
 }
 
+/// What a stdio server wrote to its error stream, kept in its own folder —
+/// never told to the model, whose context a server's words have no business
+/// in — so a server that would not start can be diagnosed by the person (and
+/// by CI). The last [`STDERR_KEEP`] bytes of the run are kept.
+pub const STDERR_LOG: &str = "stderr.log";
+const STDERR_KEEP: usize = 16 * 1024;
+
+async fn keep_stderr(mut stderr: crate::platform::PipeReader, log: std::path::PathBuf) {
+    let mut kept: Vec<u8> = Vec::new();
+    let mut buf = [0u8; 4096];
+    while let Ok(n) = stderr.read(&mut buf).await {
+        if n == 0 {
+            break;
+        }
+        kept.extend_from_slice(&buf[..n]);
+        if kept.len() > STDERR_KEEP {
+            kept.drain(..kept.len() - STDERR_KEEP);
+        }
+        let _ = std::fs::write(&log, &kept);
+    }
+}
+
 pub struct Connection {
     pub definition: ResolvedServer,
     pub catalog: Value,
@@ -131,14 +153,15 @@ impl Connection {
                             launch=launch.env(key,value);
                         } else { launch=launch.env(key,value); }
                     }
-                    // Its own session, held by its confinement; Unix sockets only
-                    // where the person allowed them (a socket reaches a daemon the
-                    // confinement does not see).
-                    child=Some(crate::platform::spawn_piped(&launch,crate::platform::Placement{confinement:sandbox.confinement(),unix_sockets:def.allow_host_sockets,..crate::platform::Placement::default()})?);
+                    // Its own session, held by its confinement — Unix sockets only
+                    // where the person allowed them (`allow_host_sockets`, the
+                    // confinement's `local_services`): a socket reaches a program
+                    // the confinement does not see.
+                    child=Some(crate::platform::spawn_piped(&launch,crate::platform::Placement{confinement:sandbox.confinement(),..crate::platform::Placement::default()})?);
                     let process=child.as_mut().expect("spawned child");
                     let stdout=process.take_stdout().ok_or_else(||Error::tool("MCP stdout is unavailable"))?;
                     let stdin=process.take_stdin().ok_or_else(||Error::tool("MCP stdin is unavailable"))?;
-                    if let Some(mut stderr)=process.take_stderr(){tokio::spawn(async move{let mut buf=[0u8;4096];while stderr.read(&mut buf).await.is_ok_and(|n|n>0){};});}
+                    if let Some(stderr)=process.take_stderr(){tokio::spawn(keep_stderr(stderr,scratch.join(STDERR_LOG)));}
                     info.serve_with_lifecycle((BoundedReader{inner:stdout,seen:0,max:settings.max_message_bytes},stdin),lifecycle).await
                 }
                 Transport::Http=>{

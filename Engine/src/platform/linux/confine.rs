@@ -17,6 +17,11 @@ use super::landlock;
 pub struct Confinement {
     ruleset: Arc<OwnedFd>,
     abi: i32,
+    local_services: bool,
+    /// How a command reaches other programs' sockets when local services
+    /// are not granted: supervised (`services`), or refused outright where
+    /// this kernel cannot supervise.
+    pub(super) services: Option<Arc<super::services::Rules>>,
 }
 
 /// What one confinement grants. Read and write are different questions: a
@@ -36,6 +41,21 @@ pub struct Grants<'a> {
     /// Full rights, each answered for by the person by name; a file among
     /// them gets the rights a file can carry.
     pub reach: &'a [PathBuf],
+    /// Whether a confined command may reach the programs already running on
+    /// this machine through Unix-domain sockets (a container engine, the
+    /// user's service manager, an agent holding keys). Landlock does not
+    /// mediate `connect()` on a socket's path before the kernels that have
+    /// `LANDLOCK_ACCESS_FS_RESOLVE_UNIX`, so when this is `false` seccomp
+    /// refuses the creation of every Unix socket (`seccomp::Refusal`)
+    /// — sockets inside the project included — and a pair of connected
+    /// sockets, which reaches no other program, stays allowed.
+    pub local_services: bool,
+    /// Folders whose Unix sockets are the command's own — the project, its
+    /// scratch, what the person granted: reached without a question.
+    pub sockets: &'a [PathBuf],
+    /// Who is asked when a command reaches any other program's socket;
+    /// `None`: nobody, the connection is refused.
+    pub ask_service: Option<crate::platform::ServiceAsk>,
 }
 
 /// Why no confinement holds, said to the person (`SandboxReport.reason`).
@@ -112,9 +132,21 @@ impl Confinement {
             let _ = ruleset.allow(r, rights);
         }
 
+        let services = (!grants.local_services && super::services::available()).then(|| {
+            Arc::new(super::services::Rules {
+                own: grants
+                    .sockets
+                    .iter()
+                    .filter_map(|root| crate::platform::canonical(root).ok())
+                    .collect(),
+                ask: grants.ask_service.clone(),
+            })
+        });
         Ok(Confinement {
             ruleset: Arc::new(ruleset.into_fd()),
             abi,
+            local_services: grants.local_services,
+            services,
         })
     }
 
@@ -126,6 +158,24 @@ impl Confinement {
     /// The kernel's Landlock ABI this confinement was built for.
     pub fn abi(&self) -> i32 {
         self.abi
+    }
+
+    /// How a supervisor taken over from another build answers for a command
+    /// this confinement holds now: by its rules; every connection through
+    /// when it grants local services; the command's own alone when this
+    /// kernel gave it no rules.
+    pub(super) fn supervision_rules(&self) -> Arc<super::services::Rules> {
+        match (&self.services, self.local_services) {
+            (Some(rules), _) => Arc::clone(rules),
+            (None, true) => super::services::Rules::everything(),
+            (None, false) => super::services::Rules::own_only(),
+        }
+    }
+
+    /// Whether a command it confines may reach local services
+    /// ([`Grants::local_services`]).
+    pub fn local_services(&self) -> bool {
+        self.local_services
     }
 
     /// Apply this confinement to the calling thread, permanently: in a
@@ -177,6 +227,9 @@ mod tests {
             reads: &reads,
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .unwrap();
         assert_eq!(confinement.kind(), "landlock");
@@ -219,6 +272,9 @@ mod tests {
             reads: &[],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .err()
         .expect("never a confinement without its project");

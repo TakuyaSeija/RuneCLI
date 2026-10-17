@@ -49,12 +49,7 @@ fn plain_directory(path: &Path) -> bool {
 /// Remove whatever is at `path` without following a link: a link goes, never
 /// what it points at.
 fn discard(path: &Path) -> std::io::Result<()> {
-    let remove = || match std::fs::symlink_metadata(path) {
-        Ok(m) if m.is_dir() => std::fs::remove_dir_all(path),
-        Ok(_) => std::fs::remove_file(path),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e),
-    };
+    let remove = || crate::platform::remove_entry(path);
     match remove() {
         // A read-only file (Windows refuses to delete one) or a folder that
         // lost its write bit: given back to its owner, then removed.

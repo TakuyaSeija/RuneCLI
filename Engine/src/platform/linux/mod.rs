@@ -6,8 +6,10 @@
 mod confine;
 mod input;
 mod landlock;
+mod message;
 mod procfs;
 mod seccomp;
+mod services;
 mod socket;
 
 #[cfg(any(test, feature = "test-support"))]
@@ -99,28 +101,106 @@ pub(in crate::platform) fn claim_terminal() -> io::Result<()> {
 }
 
 /// What a placed child does to itself between `fork` and `exec`, after it
-/// left its session: Landlock, then seccomp's refusal of Unix sockets. Bare
-/// syscalls only.
+/// left its session: Landlock, then — unless its confinement grants local
+/// services — seccomp: its connections supervised by Rune (`services`), its
+/// listener handed over before `exec`; or, where this kernel cannot
+/// supervise, every Unix socket refused. Bare syscalls only.
 pub(in crate::platform) struct ChildSteps {
     confinement: Option<Confinement>,
-    refuse_unix_sockets: bool,
+    refusal: Option<seccomp::Refusal>,
+    supervised: Option<(seccomp::Supervised, services::Handoff)>,
+}
+
+/// Rune's side of [`ChildSteps`], once the child is started: the supervisor
+/// of its connections.
+pub(in crate::platform) struct Watch {
+    supervised: Option<(std::sync::Arc<services::Rules>, services::Taker)>,
+    mark: Option<String>,
 }
 
 impl ChildSteps {
-    pub(in crate::platform) fn new(placement: &Placement<'_>) -> io::Result<ChildSteps> {
-        Ok(ChildSteps {
+    pub(in crate::platform) fn new(placement: &Placement<'_>) -> io::Result<(ChildSteps, Watch)> {
+        let mut steps = ChildSteps {
             confinement: placement.confinement.cloned(),
-            refuse_unix_sockets: !placement.unix_sockets,
-        })
+            refusal: None,
+            supervised: None,
+        };
+        let mut watch = Watch {
+            supervised: None,
+            mark: placement
+                .tree
+                .map(|mark| format!("{}={mark}", crate::platform::TREE_VAR)),
+        };
+        if let Some(confinement) = placement.confinement {
+            if !confinement.local_services() {
+                match &confinement.services {
+                    Some(rules) => {
+                        let (handoff, receiver) = services::handoff()?;
+                        steps.supervised = Some((seccomp::Supervised::of_connections()?, handoff));
+                        watch.supervised = Some((std::sync::Arc::clone(rules), receiver.take()?));
+                    }
+                    None => steps.refusal = Some(seccomp::Refusal::of_unix_sockets()?),
+                }
+            }
+        }
+        Ok((steps, watch))
     }
 
-    pub(in crate::platform) fn run(&self) -> io::Result<()> {
+    pub(in crate::platform) fn run(&mut self) -> io::Result<()> {
         if let Some(confinement) = &self.confinement {
             confinement.restrict_calling_thread()?;
         }
-        if self.refuse_unix_sockets {
-            seccomp::refuse_unix_sockets()?;
+        if let Some(refusal) = &self.refusal {
+            refusal.install()?;
+        }
+        if let Some((filter, handoff)) = &mut self.supervised {
+            let listener = filter.install()?;
+            handoff.send(listener)?;
         }
         Ok(())
+    }
+}
+
+/// A confined command's supervisor as this process lets go of it for the
+/// build it `exec`s into (`platform::release_supervision`).
+pub use services::Released as Supervision;
+
+/// Let go of the supervisor of the command `root` for the build this process
+/// is about to `exec` into, once the answers it is making are made (within
+/// `within`). `None`: nothing supervises it.
+pub fn release_supervision(
+    root: i32,
+    within: std::time::Duration,
+) -> io::Result<Option<Supervision>> {
+    services::release(root, within)
+}
+
+/// Take over the supervisor of the command `root` (its tree `tree`) that the
+/// build before this one handed on, answering as `answers` says.
+pub fn adopt_supervision(
+    handed: crate::platform::Handed,
+    root: i32,
+    tree: Option<&str>,
+    answers: crate::platform::SupervisedAs<'_>,
+) -> io::Result<()> {
+    use crate::platform::SupervisedAs;
+    let rules = match answers {
+        SupervisedAs::Confined(confinement) => confinement.supervision_rules(),
+        SupervisedAs::Unconfined => services::Rules::everything(),
+        SupervisedAs::Orphaned => services::Rules::own_only(),
+    };
+    let mark = tree.map(|mark| format!("{}={mark}", crate::platform::TREE_VAR));
+    services::adopt(handed, rules, root, mark)
+}
+
+impl Watch {
+    /// The child `root` started: supervise its connections.
+    pub(in crate::platform) fn started(self, root: i32) {
+        let Some((rules, taker)) = self.supervised else {
+            return;
+        };
+        if let Ok(listener) = taker.listener(root) {
+            services::supervise(listener, rules, root, self.mark);
+        }
     }
 }

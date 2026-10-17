@@ -418,6 +418,7 @@ mod tests {
                     },
                     pty: Some(handed(9)),
                     written: 1234,
+                    services: None,
                 }],
             }],
             input: br#"{"cmd":"pro"#.to_vec(),

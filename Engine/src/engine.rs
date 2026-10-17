@@ -87,9 +87,6 @@ pub struct Engine {
     /// sessions the store files there and the memory, undo blobs and scratch
     /// the engine keeps beside them.
     home: PathBuf,
-    /// Paths no permission prompt may open. Built here because two of its
-    /// entries are this install's own directories, which only `Config` knows.
-    forbidden: Arc<crate::perm::reach::Forbidden>,
     sessions: HashMap<i64, Session>,
     running: HashMap<i64, JoinHandle<()>>,
     catalogues: Vec<JoinHandle<()>>,
@@ -159,20 +156,6 @@ impl Engine {
                 crate::store::run_files::sweep(&run_home, &sessions, crate::platform::boot_time())
             });
 
-        // Everything this install writes to, so no prompt can be answered into
-        // its own database, its checkpoints, or `secrets.json`.
-        let mut own: Vec<PathBuf> = vec![cfg.data_dir.clone()];
-        if let Some(dir) = cfg.db_path.parent() {
-            own.push(dir.to_path_buf());
-        }
-        if let Ok(home) = Db::home_dir() {
-            own.push(home);
-        }
-        let forbidden = Arc::new(crate::perm::reach::Forbidden::standard(
-            crate::platform::home_dir().as_deref(),
-            &own,
-        ));
-
         let engine = Engine {
             rt: Runtime {
                 mcp: crate::capabilities::mcp::Runtime::new()?,
@@ -186,7 +169,6 @@ impl Engine {
             broker: Arc::new(Broker::new()),
             settings: cfg.settings,
             home,
-            forbidden,
             sessions: HashMap::new(),
             running: HashMap::new(),
             catalogues: Vec::new(),
@@ -257,7 +239,10 @@ impl Engine {
             self.catalogues.push(std::thread::spawn(move||{
                 let result=panic::catch("capability management",||{
                     *panic::lock(&state.capabilities.input.operation)=Some(("host-capability".into(),state.cancel.clone()));
-                    let result=crate::capabilities::manage::execute(&state.capabilities,&state.registry,&request,&state.cancel);
+                    // A reload asks nobody: a server whose folders outside the
+                    // workspace are not allowed yet is put to the person at the
+                    // next turn (`call::authorize_mcp_roots`).
+                    let result=crate::capabilities::manage::execute(&state.capabilities,&state.registry,&request,&state.cancel,&|_,roots|state.mcp_roots_held(roots));
                     *panic::lock(&state.capabilities.input.operation)=None;
                     let result=result?;
                     // Both are Rune's report of what the user chose, carrying text
@@ -1770,7 +1755,8 @@ impl Engine {
             .with_timeout(self.rt.limits.config.duration("permissions.timeout")),
         );
 
-        let reach = standing_reach(&self.rt.db, &project, &self.forbidden);
+        let reach = standing_reach(&self.rt.db, &project);
+        let local_services = standing_services(&self.rt.db, &project);
 
         let capabilities = crate::capabilities::Capabilities::open(
             &config_now,
@@ -1788,6 +1774,7 @@ impl Engine {
             project,
             jail,
             reach,
+            local_services,
             checkpoints,
             gate,
             memory,
@@ -1795,7 +1782,6 @@ impl Engine {
             results,
             mode,
             settings: self.settings_for(id)?,
-            forbidden: Arc::clone(&self.forbidden),
             db: Arc::clone(&self.rt.db),
         }));
         let notifier = Arc::new(EngineNotifier {
@@ -2168,13 +2154,22 @@ impl Engine {
         let mut errors = Vec::new();
         for crate::session::background::SessionTasks { session, tasks } in handed {
             match self.sessions.get(&session) {
-                Some(open) => errors.extend(open.state.background.adopt(tasks, watch.clone())),
+                Some(open) => {
+                    // Answered as the session confines now.
+                    let sandbox = open.state.sandbox();
+                    let answers = match sandbox.confinement() {
+                        Some(confinement) => crate::platform::SupervisedAs::Confined(confinement),
+                        None => crate::platform::SupervisedAs::Unconfined,
+                    };
+                    errors.extend(open.state.background.adopt(tasks, watch.clone(), answers))
+                }
                 None => {
                     let orphans = std::sync::Arc::new(
                         crate::session::background::BackgroundTaskManager::new(),
                     );
                     orphans.stop_all();
-                    for error in orphans.adopt(tasks, watch.clone()) {
+                    let answers = crate::platform::SupervisedAs::Orphaned;
+                    for error in orphans.adopt(tasks, watch.clone(), answers) {
                         errors.push(error);
                     }
                     orphans.stop_all();
@@ -2296,11 +2291,7 @@ impl Engine {
 /// been replaced by the home directory, or stopped existing. Anything that no
 /// longer resolves is silently left out — a session that opens with one fewer
 /// grant asks again, which is the safe end of that mistake.
-pub fn standing_reach(
-    db: &Arc<Mutex<Db>>,
-    project: &str,
-    forbidden: &crate::perm::reach::Forbidden,
-) -> Vec<PathBuf> {
+pub fn standing_reach(db: &Arc<Mutex<Db>>, project: &str) -> Vec<PathBuf> {
     use crate::perm::reach;
     let home = crate::platform::home_dir();
     let rows = {
@@ -2312,9 +2303,23 @@ pub fn standing_reach(
         .filter_map(|g| {
             reach::resolve(&g.pattern, home.as_deref())
                 .ok()
-                .map(|named| reach::candidate(named, home.as_deref(), forbidden).anchor)
+                .map(|named| reach::candidate(named, home.as_deref()).anchor)
         })
         .collect()
+}
+
+/// Whether this project's commands may reach local services: the person
+/// answered "always" for it ([`crate::perm::SERVICES_GRANT_TOOL`]). Read at
+/// every turn as [`standing_reach`] is, so an answer given in another window
+/// holds here without a restart, and a withdrawn one at the next turn.
+pub fn standing_services(db: &Arc<Mutex<Db>>, project: &str) -> bool {
+    panic::lock(db)
+        .is_granted(
+            project,
+            crate::perm::SERVICES_GRANT_TOOL,
+            crate::perm::SERVICES_GRANT_PATTERN,
+        )
+        .unwrap_or(false)
 }
 
 /// What a crash left: the scratch of a session nobody has open, older than
@@ -2399,11 +2404,7 @@ const LEAVING: &str = ".leaving-";
 
 /// Delete a folder taken out of a session's way. A link is removed as a link.
 fn remove_leaving(path: &std::path::Path) {
-    let _ = match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
-        Ok(_) => std::fs::remove_file(path),
-        Err(_) => Ok(()),
-    };
+    let _ = crate::platform::remove_entry(path);
 }
 
 /// Run one tool with no model involved — same jail, same gate, same checkpoint.

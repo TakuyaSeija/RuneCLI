@@ -19,8 +19,8 @@ These belong to the server definition in capabilities.servers, the per-project s
 | `environment` | Additional local-process environment values. Do not store literal credentials in shared definitions; use credential support. Not used for HTTP. |
 | `auth` | none/bearer/oauth; see [authentication](authentication.md). |
 | `project_write` | Allow local server project writes; default false. Changes what it may do, not merely its description. |
-| `read_roots`, `write_roots` | Additional absolute allowed directories for a local server, default []. Grant the minimum needed. |
-| `allow_host_sockets` | Allow local server access to host sockets, default false. Can expose additional local services; do not enable casually. |
+| `read_roots`, `write_roots` | Additional absolute allowed directories for a local server, default []. Grant the minimum needed. A folder outside the workspace is asked about before the server starts in Ask and Auto (Always keeps it for the project; a refusal is not asked again in that session); in Full the server starts without a question. System folders and Rune's own data folder are never allowed. |
+| `allow_host_sockets` | Let the server talk to programs already running on the computer through local sockets (a container engine, the service manager), default false. Those programs act with the user's rights; do not enable casually. |
 
 Use the full documented definition for advanced options; IDs are 1–48 letters/digits/underscore/hyphen. Root lists are at most 64 absolute paths without parent traversal. Arguments/environment and definition sizes have validation limits. Do not invent broad paths to silence an error.
 

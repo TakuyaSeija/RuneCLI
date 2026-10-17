@@ -253,6 +253,18 @@ pub fn restrict_to_owner(path: &Path) -> io::Result<()> {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(private))
 }
 
+/// Remove whatever is at `path` without following a link: a folder with
+/// everything in it, a file, a link as a link — never what it points at.
+/// Nothing there is no failure.
+pub fn remove_entry(path: &Path) -> io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
 /// Whether this process may write to `path` — for a socket, whether it may
 /// talk to whatever listens there. Existence alone proves nothing.
 pub fn writable(path: &Path) -> bool {

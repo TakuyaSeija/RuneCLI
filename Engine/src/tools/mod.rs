@@ -499,6 +499,15 @@ pub trait Tool: Send + Sync {
         Vec::new()
     }
 
+    /// This call talks to a program already running on this machine through
+    /// a Unix socket — read from what it names, as [`Tool::reaches`] is: a
+    /// command whose program is such a client, or a `unix:` address. A socket
+    /// file among [`Tool::reaches`] counts too; the call runner checks that on
+    /// disk. Default no.
+    fn local_services(&self, _args: &Value) -> bool {
+        false
+    }
+
     /// Plain-language statement of what is about to happen, for the prompt.
     fn preview(&self, args: &Value) -> String;
 

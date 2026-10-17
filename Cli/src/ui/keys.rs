@@ -2216,7 +2216,7 @@ mod tests {
             preview: "delete file".into(),
             remember_as: None,
             reach: vec![],
-            sensitive: vec![],
+            local_services: false,
             full_access: false,
             reason: None,
             action: "delete".into(),
@@ -3106,7 +3106,7 @@ mod tests {
             preview: "create_file".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -3146,7 +3146,7 @@ mod tests {
             preview: "$ cargo test".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -3190,7 +3190,7 @@ mod tests {
             preview: "$ cargo test".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -3245,7 +3245,7 @@ mod tests {
             preview: "command row\n".repeat(200),
             remember_as: Some("shell".into()),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -3305,7 +3305,7 @@ mod tests {
             preview: "npm test".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -3352,7 +3352,7 @@ mod tests {
             preview: "npm test".into(),
             remember_as: Some("npm".into()),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -5216,7 +5216,7 @@ mod tests {
             preview: "".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });

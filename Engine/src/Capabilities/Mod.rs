@@ -49,6 +49,13 @@ pub struct CatalogueEntry {
     pub path: PathBuf,
 }
 
+/// Whether a local MCP server may start with these folders of its profile:
+/// the session's permission gate answers by its mode (owner, 2026-10-17 —
+/// a folder outside the workspace is asked in Ask and Auto, nothing is asked
+/// in Full). Given the server's id and every root its profile names; `Err`
+/// keeps the server from starting and says why.
+pub type RootGate<'a> = &'a dyn Fn(&str, &[PathBuf]) -> Result<()>;
+
 pub struct Capabilities {
     pub input: Arc<input::Input>,
     pub home: PathBuf,
@@ -138,6 +145,7 @@ impl Capabilities {
         &self,
         registry: &crate::tools::Registry,
         cancel: &std::sync::atomic::AtomicBool,
+        roots: RootGate<'_>,
     ) -> Result<Vec<Value>> {
         let settings = config::Settings::from_config(&Configuration::load(&self.home)?)?;
         let mut errors = Vec::new();
@@ -160,7 +168,7 @@ impl Capabilities {
                 {
                     continue;
                 }
-                if let Err(e) = self.connect(&s.id, registry, cancel) {
+                if let Err(e) = self.connect(&s.id, registry, cancel, roots) {
                     errors.push(json!({"server":s.id,"error":e.to_string()}));
                 }
             }
@@ -176,6 +184,7 @@ impl Capabilities {
         id: &str,
         registry: &crate::tools::Registry,
         cancel: &std::sync::atomic::AtomicBool,
+        roots: RootGate<'_>,
     ) -> Result<Value> {
         // The gate below read a snapshot taken at session open: enabling
         // capabilities from another process after this session started was
@@ -188,6 +197,18 @@ impl Capabilities {
             .find(|s| s.id == id)
             .ok_or_else(|| Error::NotFound("MCP server".into()))?;
         let scratch = self.state_path.with_extension("").join("Mcp").join(id);
+        if definition.definition.transport == config::Transport::Stdio {
+            let named: Vec<PathBuf> = definition
+                .definition
+                .read_roots
+                .iter()
+                .chain(&definition.definition.write_roots)
+                .cloned()
+                .collect();
+            if !named.is_empty() {
+                roots(id, &named)?;
+            }
+        }
         self.disconnect(id, registry);
         let connection = mcp::Connection::connect(
             self.runtime.clone(),
@@ -284,7 +305,10 @@ impl Capabilities {
             return Ok(connection);
         }
         drop(connection);
-        self.connect(id, registry, cancel)?;
+        // The same server coming back mid-call: its folders were answered
+        // for when it started, under the profile it still has (a changed
+        // definition is no live connection — `connection` refuses it).
+        self.connect(id, registry, cancel, &|_, _| Ok(()))?;
         self.connection(id)
     }
 

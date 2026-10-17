@@ -29,7 +29,7 @@
 //!
 //! Processes
 //!   Launch { program, args, verbatim_tail, dir, clear_env, env }
-//!   Placement { confinement, unix_sockets, tree } where it runs and under what
+//!   Placement { confinement, tree }              where it runs and under what
 //!   spawn_on_terminal(&Launch, &PtySlave, Placement) -> Process
 //!                                                its own session, the terminal its own
 //!   spawn_piped(&Launch, Placement) -> PipedProcess
@@ -53,7 +53,24 @@
 //!
 //! Confinement
 //!   Confinement::build(Grants) -> Result<Confinement, Unconfined>
-//!   Confinement: kind(), abi()                   applied to each placed command
+//!   Confinement: kind(), abi(), local_services() applied to each placed command
+//!   Grants.local_services                        Unix sockets reach programs outside the
+//!                                                confinement: open when granted; otherwise a
+//!                                                command's own (`Grants.sockets`, or served by
+//!                                                its own tree) connect freely and the rest go
+//!                                                to `Grants.ask_service` at the moment they
+//!                                                connect (Linux: seccomp user notification;
+//!                                                macOS: Seatbelt, own folders only; Windows:
+//!                                                the restricted token opens no other's pipe)
+//!   release_supervision(root, within) -> Option<Supervision>
+//!   Supervision: resume(), into_handed() -> Handed
+//!   adopt_supervision(Handed, root, tree, SupervisedAs)
+//!                                                a command's connection supervisor across a
+//!                                                live upgrade (`exec`): let go of once no answer
+//!                                                is pending, its calls waiting in the kernel, and
+//!                                                answered by the next build as its session
+//!                                                confines now (Linux; elsewhere nothing
+//!                                                supervises: `None`)
 //!   DEVICES                                      what a terminal needs, granted with every confinement
 //!   Grants.ledger                                where what a confinement leaves on disk is
 //!                                                recorded before it is written (Windows's ACL
@@ -75,6 +92,7 @@
 //!   replace(from, to)                            `to` replaced by `from` in one step, on disk
 //!   sync_dir(dir)                                the names a folder holds on disk (no-op on Windows)
 //!   writable(path), free_space(path)
+//!   remove_entry(path)                           whatever is there, a link as a link
 //!   open_read_nonblocking(path)                  never waits on a FIFO's peer
 //!   LinkFreeDir::open(path).open_file(relative)  no symbolic link anywhere on the way
 //!   Handed, hand_on(File), take_handed_file(Handed, expected)
@@ -237,30 +255,37 @@ impl Launch {
     }
 }
 
+/// A confined command reaching, through a Unix socket, a program its
+/// confinement does not hold: what is put to the person
+/// ([`Grants::ask_service`](Grants)).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServiceCall {
+    /// The socket as the person reads it: its real path, or `@name` for an
+    /// abstract one.
+    pub address: String,
+    /// The program serving it, when the system names it (`dockerd`).
+    pub server: Option<String>,
+}
+
+/// The person's answer to a [`ServiceCall`], asked on the thread that
+/// supervises the command while it waits in `connect`: `true` lets this one
+/// connection through. Called once per connection; a lasting answer is the
+/// caller's to remember.
+pub type ServiceAsk = std::sync::Arc<dyn Fn(&ServiceCall) -> bool + Send + Sync>;
+
 /// Where a command Rune starts runs, and under what. Every placed command
 /// leads a session (Windows: a process group and a job) of its own — out of
 /// reach of the terminal's `Ctrl+C` and stoppable as one tree.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct Placement<'a> {
-    /// The confinement it runs under; `None` for none.
+    /// The confinement it runs under; `None` for none. Whether it may reach
+    /// local services through Unix sockets is the confinement's own grant
+    /// (`Grants::local_services`), never the placement's: a confined command
+    /// cannot be placed with a door its confinement did not open.
     pub confinement: Option<&'a Confinement>,
-    /// Whether it may create Unix-domain sockets. An MCP server is refused
-    /// them unless the person allowed it (`allow_host_sockets`): a socket
-    /// can reach a daemon the confinement does not see.
-    pub unix_sockets: bool,
     /// The mark every process of its tree carries ([`new_tree_mark`]), so a
     /// stop reaches what left its group too ([`terminate_tree`]).
     pub tree: Option<&'a str>,
-}
-
-impl Default for Placement<'_> {
-    fn default() -> Self {
-        Placement {
-            confinement: None,
-            unix_sockets: true,
-            tree: None,
-        }
-    }
 }
 
 /// How a file that must be this user's alone is opened ([`open_private`]):
@@ -375,6 +400,26 @@ pub use os::{
     OS, REPLACES_IN_PLACE,
 };
 
+/// How a connection supervisor taken over from the build before answers for
+/// its command (`adopt_supervision`).
+#[derive(Clone, Copy)]
+pub enum SupervisedAs<'a> {
+    /// As the command's session confines now.
+    Confined(&'a Confinement),
+    /// Nothing confines the session now (Full): every connection goes through.
+    Unconfined,
+    /// No session holds the command any more: its own sockets alone.
+    Orphaned,
+}
+
+#[cfg(target_os = "linux")]
+pub use os::{adopt_supervision, release_supervision, Supervision};
+
+#[cfg(not(target_os = "linux"))]
+mod unsupervised;
+#[cfg(not(target_os = "linux"))]
+pub use unsupervised::{adopt_supervision, release_supervision, Supervision};
+
 #[cfg(all(
     any(target_os = "linux", target_os = "macos"),
     any(test, feature = "test-support")
@@ -465,6 +510,6 @@ mod tests {
             vec![("K".into(), "v".into()), ("K".into(), "w".into())]
         );
         assert_eq!(launch.verbatim_tail, None);
-        assert!(Placement::default().unix_sockets);
+        assert!(Placement::default().confinement.is_none());
     }
 }

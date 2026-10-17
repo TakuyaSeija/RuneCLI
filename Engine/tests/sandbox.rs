@@ -112,8 +112,27 @@ fn outside_dir(p: &Probe, name: &str) -> PathBuf {
     dir
 }
 
+/// `path` as a POSIX shell command line spells it on every OS: Git Bash on
+/// Windows reads `D:/a/b` as the folder, while the backslashes of `D:\a\b`
+/// are escapes to it (and to Rune's reading of the line).
+fn in_shell(path: &std::path::Path) -> String {
+    path.display().to_string().replace('\\', "/")
+}
+
 fn exited_zero(transcript: &str) -> bool {
-    transcript.starts_with("command ok") && !transcript.contains("Permission denied")
+    transcript.starts_with("command ok") && !refused_by_the_kernel(transcript)
+}
+
+/// How a program reports the kernel's refusal of a path: `EACCES` (Landlock,
+/// a restricted token) or `EPERM` (Seatbelt: "Operation not permitted").
+fn refused_by_the_kernel(transcript: &str) -> bool {
+    [
+        "Permission denied",
+        "Operation not permitted",
+        "Access is denied",
+    ]
+    .iter()
+    .any(|said| transcript.contains(said))
 }
 
 #[test]
@@ -361,7 +380,7 @@ fn killing_a_command_kills_what_it_spawned() {
     let marker = p.project.join("still-alive.txt");
     let cmd = format!(
         "( sleep 3; echo survived > {} ) & sleep 30",
-        marker.display()
+        in_shell(&marker)
     );
     let (_, moved) = invoke(
         &mut p,
@@ -422,7 +441,7 @@ fn an_allowed_path_outside_the_workspace_really_becomes_reachable() {
 
     let ((ok, out), asked) = run(
         &mut p,
-        &format!("cat {}/note.txt", dir.display()),
+        &format!("cat {}/note.txt", in_shell(&dir)),
         Decision::AllowOnce,
     );
 
@@ -446,7 +465,7 @@ fn a_refused_path_outside_the_workspace_stays_unreachable() {
 
     let ((ok, out), _) = run(
         &mut p,
-        &format!("cat {}/note.txt", dir.display()),
+        &format!("cat {}/note.txt", in_shell(&dir)),
         Decision::Deny,
     );
     assert!(!ok, "a refused call must not run:\n{out}");
@@ -461,7 +480,7 @@ fn a_one_call_grant_does_not_outlive_the_call() {
     let mut p = probe("reach-once");
     let dir = outside_dir(&p, "once");
     std::fs::write(dir.join("note.txt"), "one-shot\n").unwrap();
-    let read = format!("cat {}/note.txt", dir.display());
+    let read = format!("cat {}/note.txt", in_shell(&dir));
 
     let ((ok, out), _) = run(&mut p, &read, Decision::AllowOnce);
     assert!(ok, "{out}");
@@ -509,7 +528,7 @@ fn a_confined_command_cannot_read_the_session_hosts_key() {
     );
     assert!(!out.contains(key.trim()), "the key leaked:\n{out}");
     assert!(
-        out.contains("Permission denied"),
+        refused_by_the_kernel(&out),
         "the read was not refused by the kernel:\n{out}"
     );
 
@@ -532,7 +551,7 @@ fn allow_always_survives_into_the_next_call_without_asking_again() {
     let mut p = probe("reach-always");
     let dir = outside_dir(&p, "always");
     std::fs::write(dir.join("note.txt"), "remembered\n").unwrap();
-    let read = format!("cat {}/note.txt", dir.display());
+    let read = format!("cat {}/note.txt", in_shell(&dir));
 
     let ((ok, out), _) = run(&mut p, &read, Decision::AllowAlways);
     assert!(ok, "{out}");
@@ -553,7 +572,8 @@ fn allow_always_survives_into_the_next_call_without_asking_again() {
 #[test]
 fn the_home_directory_is_asked_with_no_always_and_cannot_be_remembered() {
     // The owner's rule, 2026-09-28: `ls ~` is a question, never a refusal.
-    // The card flags it sensitive and offers no "always" — so answering
+    // The whole home is full access under another name: the card offers no
+    // "always" — so answering
     // AllowAlways anyway stores nothing, and the same question comes back.
     let mut p = probe("reach-home");
     let ((ok, out), asked) = run(&mut p, "ls ~", Decision::AllowAlways);
@@ -662,7 +682,6 @@ fn a_path_grant_persisted_by_another_process_reaches_this_session() {
     let standing = runeengine::engine::standing_reach(
         &std::sync::Arc::new(std::sync::Mutex::new(db)),
         p.project.to_str().unwrap(),
-        &state.forbidden,
     );
     assert!(
         standing.contains(&dir),
@@ -720,4 +739,386 @@ fn terminal_use_respects_path_parameter() {
             _ => {}
         }
     }
+}
+
+// ─── Local services ─────────────────────────────────────────────────────────
+//
+// A program already running on this machine, reached through a Unix socket,
+// acts outside the workspace with the user's rights. A confined command
+// reaches its own sockets freely; another program's only once the person
+// allowed it — asked at the moment it connects (owner, 2026-10-17).
+
+/// A stand-in for such a program, outside the project and outside the
+/// command's tree: it notes in a file beside its socket every connection it
+/// is given — the act a command must not get done on its behalf unasked.
+fn service(p: &Probe) -> (PathBuf, PathBuf) {
+    // Short: a socket's path has at most 104 bytes (macOS), and the test
+    // folder sits deep.
+    let dir = p.project.parent().unwrap().join("o");
+    std::fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("s");
+    let marker = dir.join("served.txt");
+    let _ = std::fs::remove_file(&socket);
+    let listener = runeengine::platform::LocalListener::bind(&socket).unwrap();
+    let noted = marker.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            if stream.is_ok() {
+                let mut seen = std::fs::read_to_string(&noted).unwrap_or_default();
+                seen.push_str("served\n");
+                std::fs::write(&noted, seen).unwrap();
+            }
+        }
+    });
+    (socket, marker)
+}
+
+fn served(marker: &std::path::Path) -> usize {
+    std::fs::read_to_string(marker)
+        .unwrap_or_default()
+        .lines()
+        .count()
+}
+
+/// A command that reaches the socket by a path it does not name on its
+/// command line (an environment variable): only the connection itself can
+/// tell.
+fn connect(socket: &std::path::Path) -> String {
+    let python = runeengine::testing::python();
+    let code = "import os,socket,sys\ntry:\n s=socket.socket(socket.AF_UNIX)\n s.connect(os.environ[\"SOCK\"])\nexcept OSError as e:\n print(\"refused\", e.errno); sys.exit(7)\nprint(\"connected\")";
+    format!(
+        "SOCK={} {} -c '{code}'",
+        in_shell(socket),
+        in_shell(&python)
+    )
+}
+
+/// Run `command` (its own card allowed: the probe is in Ask), answering
+/// every question about a local service with `decision`; the result and
+/// those questions (their actions).
+fn run_services(p: &mut Probe, command: &str, decision: Decision) -> (String, Vec<String>) {
+    p.engine.handle(Command::ToolInvoke {
+        id: 1,
+        session: p.session,
+        name: "terminal_use".into(),
+        args: json!({"action": "probe", "command": command}),
+    });
+    let mut asked = Vec::new();
+    loop {
+        match p
+            .events
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .unwrap()
+        {
+            Event::PermissionRequest {
+                req, action, tool, ..
+            } => {
+                let service = tool == runeengine::session::SERVICE_TOOL;
+                if service {
+                    asked.push(action);
+                }
+                p.engine.handle(Command::PermissionReply {
+                    id: 2,
+                    req,
+                    decision: if service {
+                        decision
+                    } else {
+                        Decision::AllowOnce
+                    },
+                });
+            }
+            Event::ToolResult {
+                summary, content, ..
+            } => return (format!("{summary}\n{content}"), asked),
+            _ => {}
+        }
+    }
+}
+
+/// Where a connection is put to the person as it happens: Linux, where Rune
+/// supervises it. Elsewhere the confinement refuses another program's
+/// socket outright (macOS) or never sees one (Windows).
+fn supervised(p: &Probe) -> bool {
+    if !p.enforced || runeengine::platform::OS != runeengine::platform::Os::Linux {
+        eprintln!("note: no supervised Unix-socket confinement here");
+        return false;
+    }
+    true
+}
+
+#[test]
+fn a_service_outside_the_workspace_is_asked_as_the_command_connects_and_a_refusal_holds() {
+    let mut p = probe("sv1");
+    if !supervised(&p) {
+        return;
+    }
+    let (socket, marker) = service(&p);
+    let (out, asked) = run_services(&mut p, &connect(&socket), Decision::Deny);
+    assert_eq!(asked.len(), 1, "{out}");
+    assert!(
+        asked[0].contains(&socket.display().to_string()),
+        "{asked:?}"
+    );
+    assert!(
+        out.contains("refused 13"),
+        "EACCES, as the kernel says it: {out}"
+    );
+    assert_eq!(
+        served(&marker),
+        0,
+        "the service acted for a confined command"
+    );
+}
+
+#[test]
+fn a_service_the_person_allows_once_is_reached_by_that_connection_alone() {
+    let mut p = probe("sv2");
+    if !supervised(&p) {
+        return;
+    }
+    let (socket, marker) = service(&p);
+    let (out, asked) = run_services(&mut p, &connect(&socket), Decision::AllowOnce);
+    assert_eq!(asked.len(), 1, "{out}");
+    assert!(out.contains("connected"), "{out}");
+    assert_eq!(served(&marker), 1);
+
+    let (out, asked) = run_services(&mut p, &connect(&socket), Decision::Deny);
+    assert_eq!(asked.len(), 1, "asked again: {out}");
+    assert!(out.contains("refused"), "{out}");
+    assert_eq!(served(&marker), 1);
+}
+
+#[test]
+fn a_service_allowed_always_is_reached_by_the_projects_later_commands_unasked() {
+    let mut p = probe("sv3");
+    if !supervised(&p) {
+        return;
+    }
+    let (socket, marker) = service(&p);
+    let (out, _) = run_services(&mut p, &connect(&socket), Decision::AllowAlways);
+    assert!(out.contains("connected"), "{out}");
+    let (out, asked) = run_services(&mut p, &connect(&socket), Decision::Deny);
+    assert!(asked.is_empty(), "a kept grant asked again: {asked:?}");
+    assert!(
+        out.contains("connected"),
+        "a kept grant did not hold: {out}"
+    );
+    assert_eq!(served(&marker), 2);
+}
+
+/// What builds do: a server of the command's own — on a socket file in the
+/// project, on an abstract name (Python's process pools) — and a pair of
+/// connected sockets: all reached with no question. (The scratch folder is
+/// one of the confinement's own too, but its path here is longer than a
+/// socket address holds.)
+#[test]
+fn a_commands_own_sockets_are_reached_with_no_question() {
+    let mut p = probe("sv4");
+    if !supervised(&p) {
+        return;
+    }
+    let python = runeengine::testing::python();
+    let script = format!(
+        r#"import os,socket,sys,threading
+def serve(address):
+    s=socket.socket(socket.AF_UNIX); s.bind(address); s.listen()
+    threading.Thread(target=lambda: s.accept(), daemon=True).start()
+    c=socket.socket(socket.AF_UNIX); c.connect(address); c.close()
+for address in ["inside.sock", "\0rune-test-{pid}"]:
+    try:
+        serve(address)
+    except OSError as e:
+        print("refused", address, e.errno); sys.exit(7)
+a,b=socket.socketpair(); a.send(b"x"); assert b.recv(1)==b"x"
+print("all own")"#,
+        pid = std::process::id(),
+    );
+    std::fs::write(p.project.join("own.py"), script).unwrap();
+    let (out, asked) = run_services(
+        &mut p,
+        &format!("{} own.py", in_shell(&python)),
+        Decision::Deny,
+    );
+    assert!(
+        asked.is_empty(),
+        "the command's own socket was asked: {asked:?}"
+    );
+    assert!(out.contains("all own"), "{out}");
+}
+
+/// A datagram stand-in, run as a program of its own outside the sandbox: a
+/// message addressed to it, with no connection, is the act a command must
+/// not get done unasked. Stopped when dropped.
+struct DatagramService {
+    child: std::process::Child,
+    socket: PathBuf,
+    marker: PathBuf,
+}
+
+impl Drop for DatagramService {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn datagram_service(p: &Probe) -> DatagramService {
+    let dir = p.project.parent().unwrap().join("d");
+    std::fs::create_dir_all(&dir).unwrap();
+    let socket = dir.join("s");
+    let marker = dir.join("served.txt");
+    let ready = dir.join("ready");
+    let _ = std::fs::remove_file(&socket);
+    let _ = std::fs::remove_file(&ready);
+    let code = "import socket,sys\ns=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)\ns.bind(sys.argv[1])\nopen(sys.argv[3],\"w\").close()\nwhile True:\n s.recv(65536)\n open(sys.argv[2],\"a\").write(\"served\\n\")";
+    let child = std::process::Command::new(runeengine::testing::python())
+        .args(["-c", code])
+        .arg(&socket)
+        .arg(&marker)
+        .arg(&ready)
+        .spawn()
+        .unwrap();
+    let service = DatagramService {
+        child,
+        socket,
+        marker,
+    };
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !ready.exists() {
+        assert!(std::time::Instant::now() < until, "the service never bound");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    service
+}
+
+/// A command that sends to `SOCK` with no connection, `how` being `sendmsg`
+/// or `sendmmsg` (two messages in one call; Python has no binding, so libc).
+const SEND: &str = r#"import ctypes,os,socket,struct,sys
+how=sys.argv[1]; to=os.environ["SOCK"]
+s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)
+try:
+    if how=="sendmsg":
+        s.sendmsg([b"x"],[],0,to)
+    else:
+        libc=ctypes.CDLL(None,use_errno=True)
+        class iovec(ctypes.Structure): _fields_=[("base",ctypes.c_void_p),("len",ctypes.c_size_t)]
+        class msghdr(ctypes.Structure): _fields_=[("name",ctypes.c_void_p),("namelen",ctypes.c_uint32),("iov",ctypes.POINTER(iovec)),("iovlen",ctypes.c_size_t),("control",ctypes.c_void_p),("controllen",ctypes.c_size_t),("flags",ctypes.c_int)]
+        class mmsghdr(ctypes.Structure): _fields_=[("hdr",msghdr),("len",ctypes.c_uint)]
+        path=to.encode()
+        address=ctypes.create_string_buffer(struct.pack("H",socket.AF_UNIX)+path)
+        data=ctypes.create_string_buffer(b"xy",2)
+        parts=(iovec*1)(iovec(ctypes.cast(data,ctypes.c_void_p),2))
+        messages=(mmsghdr*2)()
+        for m in messages:
+            m.hdr.name=ctypes.cast(address,ctypes.c_void_p); m.hdr.namelen=2+len(path)
+            m.hdr.iov=parts; m.hdr.iovlen=1
+        sent=libc.sendmmsg(s.fileno(),messages,2,0)
+        if sent<0:
+            raise OSError(ctypes.get_errno(),"sendmmsg")
+        if sent!=2 or messages[0].len!=2 or messages[1].len!=2:
+            print("short",sent,messages[0].len,messages[1].len); sys.exit(8)
+except OSError as e:
+    print("refused",e.errno); sys.exit(7)
+print("sent")"#;
+
+fn send(p: &Probe, service: &DatagramService, how: &str) -> String {
+    std::fs::write(p.project.join("send.py"), SEND).unwrap();
+    format!(
+        "SOCK={} {} send.py {how}",
+        in_shell(&service.socket),
+        in_shell(&runeengine::testing::python())
+    )
+}
+
+/// Every way a message names an address is the connection's question:
+/// `sendmsg` and `sendmmsg` carry it inside the message, and a refusal holds
+/// for both — nothing reaches the service.
+#[test]
+fn a_message_addressed_to_a_service_is_asked_and_a_refusal_holds() {
+    let mut p = probe("sv5");
+    if !supervised(&p) {
+        return;
+    }
+    let service = datagram_service(&p);
+    for how in ["sendmsg", "sendmmsg"] {
+        let (out, asked) = {
+            let command = send(&p, &service, how);
+            run_services(&mut p, &command, Decision::Deny)
+        };
+        assert_eq!(asked.len(), 1, "{how}: {out}");
+        assert!(
+            asked[0].contains(&service.socket.display().to_string()),
+            "{how}: {asked:?}"
+        );
+        assert!(out.contains("refused 13"), "{how}: EACCES: {out}");
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(
+        served(&service.marker),
+        0,
+        "the service was reached by a confined command's message"
+    );
+}
+
+/// Allowed, the messages arrive whole: one question for a batch to one
+/// address, each message's length reported back as the kernel reports it.
+#[test]
+fn messages_the_person_allows_arrive_and_a_batch_asks_once() {
+    let mut p = probe("sv6");
+    if !supervised(&p) {
+        return;
+    }
+    let service = datagram_service(&p);
+    let (out, asked) = {
+        let command = send(&p, &service, "sendmsg");
+        run_services(&mut p, &command, Decision::AllowOnce)
+    };
+    assert_eq!(asked.len(), 1, "{out}");
+    assert!(out.contains("sent"), "{out}");
+    let (out, asked) = {
+        let command = send(&p, &service, "sendmmsg");
+        run_services(&mut p, &command, Decision::AllowOnce)
+    };
+    assert_eq!(asked.len(), 1, "a batch to one address asks once: {out}");
+    assert!(out.contains("sent"), "{out}");
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while served(&service.marker) < 3 && std::time::Instant::now() < until {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(served(&service.marker), 3);
+}
+
+/// What programs send among their own sockets goes on unasked and unchanged
+/// now that Rune sends it: a descriptor passed over a pair of sockets is the
+/// same open file on the other side, and a message on a connected socket
+/// arrives as written.
+#[test]
+fn a_commands_own_messages_and_passed_descriptors_arrive_unasked() {
+    let mut p = probe("sv7");
+    if !supervised(&p) {
+        return;
+    }
+    let script = r#"import os,socket,sys
+a,b=socket.socketpair()
+r,w=os.pipe()
+socket.send_fds(a,[b"fd"],[w])
+data,fds,_,_=socket.recv_fds(b,16,1)
+os.write(fds[0],b"through")
+assert os.read(r,7)==b"through", "not the same pipe"
+assert data==b"fd"
+c,d=socket.socketpair(socket.AF_UNIX,socket.SOCK_DGRAM)
+c.sendmsg([b"one",b"two"])
+assert d.recv(16)==b"onetwo"
+print("all own")"#;
+    std::fs::write(p.project.join("own.py"), script).unwrap();
+    let (out, asked) = run_services(
+        &mut p,
+        &format!("{} own.py", in_shell(&runeengine::testing::python())),
+        Decision::Deny,
+    );
+    assert!(
+        asked.is_empty(),
+        "the command's own messages were asked: {asked:?}"
+    );
+    assert!(out.contains("all own"), "{out}");
 }

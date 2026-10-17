@@ -491,8 +491,12 @@ fn question<'a>(
     args: &Value,
 ) -> Result<Ask<'a>> {
     let risk = tool.risk(args);
-    let reaches = tool
-        .reaches(args)
+    let named = tool.reaches(args);
+    let local_services = tool.runs_commands()
+        && st.mode().confines()
+        && !st.sandbox().local_services()
+        && (tool.local_services(args) || names_a_socket(&named));
+    let reaches = named
         .into_iter()
         .filter(|p| {
             (tool.mutates() && !tool.runs_commands()) || st.capabilities.package_root(p).is_none()
@@ -502,12 +506,11 @@ fn question<'a>(
 
     // What is left in `blocked` is not a policy verdict — it is a token that
     // could not be resolved to a path at all (a `~` on a process with no
-    // HOME), and that goes back to the model as an ordinary tool error. A
-    // sensitive or forbidden path is never here: the owner's rule,
-    // 2026-09-28, is that the system never refuses on its own — those ride in
-    // `wanted`, flagged, and the wizard decides. Only for an otherwise
-    // ordinary call, though: anything the deny-list has an opinion on goes to
-    // the gate first and keeps the gate's question.
+    // HOME), and that goes back to the model as an ordinary tool error. No
+    // path is refused for where it is: the owner's rule, 2026-09-28, is that
+    // the system never refuses on its own. Only for an otherwise ordinary
+    // call, though: anything the deny-list has an opinion on goes to the gate
+    // first and keeps the gate's question.
     if matches!(risk, crate::perm::denylist::Risk::Normal) {
         if let Some(why) = blocked.into_iter().next() {
             return Err(why);
@@ -523,6 +526,7 @@ fn question<'a>(
         runs: tool.runs_commands(),
         risk,
         reach: wanted,
+        local_services,
         unconfined: {
             let sandbox = st.sandbox();
             (!sandbox.enforced()).then(|| {
@@ -623,14 +627,89 @@ fn outside_paths(
         if jail.contains(&named) || (commands && sandbox.reachable(&named)) {
             continue;
         }
-        // Never an error: a path the machine runs on its own comes back
-        // flagged (`sensitive`), and the wizard carries the reason.
-        let candidate = reach::candidate(named, home.as_deref(), &st.forbidden);
+        // Never an error: where a rule for it can be anchored, or a one-call
+        // full access when none can.
+        let candidate = reach::candidate(named, home.as_deref());
         if !wanted.contains(&candidate) {
             wanted.push(candidate);
         }
     }
     (wanted, blocked)
+}
+
+/// Whether a local MCP server may start with the folders its profile names
+/// (owner, 2026-10-17): those outside the workspace are put to the person
+/// as any path there is — in Ask and Auto a card naming them, "always" on
+/// offer and filed as this project's path grants; nothing asked in Full. Its
+/// confinement stays the profile the person wrote, whatever the mode.
+pub(crate) fn authorize_mcp_roots(
+    rt: &Runtime,
+    st: &SessionState,
+    server: &str,
+    roots: &[PathBuf],
+) -> Result<()> {
+    let outside = st.outside_roots(roots);
+    if outside.is_empty() {
+        return Ok(());
+    }
+    let refused = Error::Denied(format!(
+        "the person did not allow MCP server {server} its folders outside the workspace"
+    ));
+    let key = (server.to_string(), outside.clone());
+    if panic::lock(&st.refused_servers).contains(&key) {
+        return Err(refused);
+    }
+    let home = crate::platform::home_dir();
+    let mut wanted: Vec<reach::Candidate> = Vec::new();
+    for root in outside {
+        let candidate = reach::candidate(root, home.as_deref());
+        if !wanted.contains(&candidate) {
+            wanted.push(candidate);
+        }
+    }
+    let action = format!("start the MCP server {server}");
+    let preview = format!(
+        "MCP server {server} reads or writes:\n{}",
+        wanted
+            .iter()
+            .map(|c| c.named.display().to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    let ask = Ask {
+        session: st.id,
+        tool: "mcp_server",
+        action: &action,
+        preview,
+        grant_key: server.to_string(),
+        mutates: true,
+        runs: false,
+        risk: crate::perm::denylist::Risk::Normal,
+        reach: wanted,
+        local_services: false,
+        unconfined: None,
+    };
+    let mut emit_fn = |event: Event| emit(rt, event);
+    match st.gate.authorize(st.mode(), ask, &mut emit_fn, &st.cancel) {
+        Ok(_) => Ok(()),
+        // Refused (or unanswered): asked once a session for these folders.
+        Err(Error::Denied(_)) => {
+            panic::lock(&st.refused_servers).push(key);
+            Err(refused)
+        }
+        Err(other) => Err(other),
+    }
+}
+
+/// Whether a path the call names is a Unix socket on disk — a door to a
+/// program running outside the workspace, wherever the socket file is.
+fn names_a_socket(tokens: &[String]) -> bool {
+    let home = crate::platform::home_dir();
+    tokens.iter().any(|token| {
+        reach::resolve(token, home.as_deref()).is_ok_and(|path| {
+            crate::platform::canonical(&path).is_ok_and(|real| crate::platform::is_socket(&real))
+        })
+    })
 }
 
 /// Holds a widening for the life of one call, and takes back exactly what it
@@ -645,32 +724,42 @@ struct Widened<'a> {
     /// This call was allowed with full access: confinement is lifted for it
     /// alone, and the person's mode is never touched ([`SessionState::lift`]).
     lifted: bool,
+    /// This call was allowed local services for this once
+    /// ([`SessionState::open_services`]).
+    services: bool,
 }
 
 impl<'a> Widened<'a> {
     fn apply(st: &'a SessionState, allowed: Allowed) -> Widened<'a> {
+        let mut widened = Widened {
+            st,
+            added: Vec::new(),
+            lifted: false,
+            services: false,
+        };
         if allowed.full_access {
             st.lift();
-            return Widened {
-                st,
-                added: Vec::new(),
-                lifted: true,
-            };
+            widened.lifted = true;
+            return widened;
         }
-        if allowed.reach.is_empty() {
-            return Widened {
-                st,
-                added: Vec::new(),
-                lifted: false,
-            };
+        if allowed.local_services {
+            if allowed.keep {
+                // Filed by the gate; held from now on, as the next turn's
+                // reading of the record would.
+                st.reseed_services(true);
+            } else {
+                st.open_services();
+                widened.services = true;
+            }
         }
-        let added = st.widen(&allowed.reach);
-        // A grant that outlives the call is not this guard's business.
-        Widened {
-            st,
-            added: if allowed.keep { Vec::new() } else { added },
-            lifted: false,
+        if !allowed.reach.is_empty() {
+            let added = st.widen(&allowed.reach);
+            // A grant that outlives the call is not this guard's business.
+            if !allowed.keep {
+                widened.added = added;
+            }
         }
+        widened
     }
 }
 
@@ -678,6 +767,9 @@ impl Drop for Widened<'_> {
     fn drop(&mut self) {
         if self.lifted {
             self.st.unlift();
+        }
+        if self.services {
+            self.st.close_services();
         }
         self.st.narrow(&self.added);
     }

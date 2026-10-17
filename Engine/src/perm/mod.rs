@@ -38,6 +38,14 @@ use denylist::Risk;
 pub use policy::Mode;
 use policy::{Situation, Verdict};
 
+/// The `tool` column a standing grant of local services is filed under, and
+/// its one pattern: the right is the project's, not a socket's — Landlock on
+/// the kernels Rune runs on today cannot tell one socket from another, so a
+/// grant narrower than "this project's commands" would be a promise the
+/// kernel does not keep. `@`-prefixed like [`reach::GRANT_TOOL`].
+pub const SERVICES_GRANT_TOOL: &str = "@local-services";
+pub const SERVICES_GRANT_PATTERN: &str = "unix-sockets";
+
 /// One authorisation question.
 pub struct Ask<'a> {
     pub session: i64,
@@ -58,6 +66,11 @@ pub struct Ask<'a> {
     /// Pre-filtered by the caller to what is genuinely new, so a non-empty list
     /// always means there is something to decide.
     pub reach: Vec<reach::Candidate>,
+    /// The call reaches a service running outside the workspace through a
+    /// Unix socket and this session does not hold that right — see
+    /// [`policy::Situation::services`]. Pre-filtered by the caller, like
+    /// `reach`.
+    pub local_services: bool,
     /// Why a command this session runs now would not be confined by the kernel
     /// sandbox — the sandbox's own reason — or `None` when it would be.
     pub unconfined: Option<String>,
@@ -78,6 +91,9 @@ pub struct Allowed {
     pub keep: bool,
     /// Drop confinement for this call only. Never persisted.
     pub full_access: bool,
+    /// Let the call's commands reach local services; for this call only
+    /// unless `keep`.
+    pub local_services: bool,
 }
 
 pub struct Gate {
@@ -155,7 +171,7 @@ impl Gate {
             granted,
             reaches: !ask.reach.is_empty(),
             full_access: ask.reach.iter().any(|c| c.full_access),
-            sensitive: ask.reach.iter().any(|c| c.sensitive.is_some()),
+            services: ask.local_services,
             runs: ask.runs,
             confined: ask.unconfined.is_none(),
         })
@@ -197,15 +213,7 @@ impl Gate {
                 .iter()
                 .map(|c| c.named.display().to_string())
                 .collect(),
-            sensitive: ask
-                .reach
-                .iter()
-                .filter_map(|c| {
-                    c.sensitive
-                        .as_ref()
-                        .map(|why| format!("{} — {why}", c.named.display()))
-                })
-                .collect(),
+            local_services: ask.local_services,
             full_access: ask.reach.iter().any(|c| c.full_access),
             reason,
         });
@@ -246,6 +254,7 @@ impl Gate {
                 reach: anchors,
                 keep: false,
                 full_access,
+                local_services: ask.local_services,
             }),
             Decision::AllowAlways => {
                 // A grant is only ever stored when the policy offered one. This
@@ -266,6 +275,9 @@ impl Gate {
                             &c.named.display().to_string(),
                         )?;
                     }
+                    if ask.local_services {
+                        db.grant(&self.project, SERVICES_GRANT_TOOL, SERVICES_GRANT_PATTERN)?;
+                    }
                 }
                 Ok(Allowed {
                     person: true,
@@ -276,6 +288,7 @@ impl Gate {
                     // as a one-call grant rather than turning a valid decision
                     // into a confusing sandbox failure.
                     full_access,
+                    local_services: ask.local_services,
                 })
             }
         }
@@ -305,6 +318,7 @@ mod tests {
             runs: false,
             risk,
             reach: Vec::new(),
+            local_services: false,
             unconfined: None,
         }
     }
@@ -507,38 +521,48 @@ mod tests {
         );
     }
 
+    /// A path that used to be "sensitive" is put to the person like any other
+    /// outside path, "always" on offer (owner, 2026-10-17: no folder is
+    /// special), and a service reached through a Unix socket rides the same
+    /// card; "always" files the project's standing grant of local services.
     #[test]
-    fn a_sensitive_reach_reaches_the_card_with_its_reason_and_no_always() {
-        let (g, _db) = gate();
+    fn an_outside_path_and_a_local_service_are_asked_and_may_be_kept() {
+        let (g, db) = gate();
         let cancel = Arc::new(AtomicBool::new(false));
-        answer_with(&g, Decision::AllowOnce);
+        answer_with(&g, Decision::AllowAlways);
         let mut events = Vec::new();
-        let mut a = ask("inspect_file", false, Risk::Normal);
+        let mut a = ask("terminal_use", true, Risk::Normal);
+        a.runs = true;
+        a.local_services = true;
         a.reach = vec![reach::Candidate {
-            named: "/home/dev/.ssh/id_ed25519".into(),
-            anchor: "/home/dev/.ssh".into(),
+            named: "/home/dev/.ssh/config".into(),
+            anchor: "/home/dev/.ssh/config".into(),
             full_access: false,
-            sensitive: Some("holds credentials".into()),
         }];
-        g.authorize(Mode::Ask, a, &mut |e| events.push(e), &cancel)
+        let allowed = g
+            .authorize(Mode::Auto, a, &mut |e| events.push(e), &cancel)
             .unwrap();
         match &events[0] {
             Event::PermissionRequest {
                 remember_as,
-                sensitive,
+                reach,
+                local_services,
                 ..
             } => {
-                assert_eq!(remember_as.as_deref(), None, "sensitive asks every time");
-                assert_eq!(sensitive.len(), 1);
-                assert!(sensitive[0].contains(".ssh/id_ed25519"), "{}", sensitive[0]);
-                assert!(
-                    sensitive[0].contains("holds credentials"),
-                    "{}",
-                    sensitive[0]
-                );
+                assert_eq!(remember_as.as_deref(), Some("key"), "always is on offer");
+                assert_eq!(reach, &vec!["/home/dev/.ssh/config".to_string()]);
+                assert!(local_services, "the card says a service is reached");
             }
             other => panic!("unexpected {other:?}"),
         }
+        assert!(allowed.local_services && allowed.keep);
+        let db = db.lock().unwrap();
+        assert!(db
+            .is_granted("/p", SERVICES_GRANT_TOOL, SERVICES_GRANT_PATTERN)
+            .unwrap());
+        assert!(db
+            .is_granted("/p", reach::GRANT_TOOL, "/home/dev/.ssh/config")
+            .unwrap());
     }
 
     #[test]

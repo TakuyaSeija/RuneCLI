@@ -258,6 +258,23 @@ pub fn restrict_to_owner(path: &Path) -> io::Result<()> {
     set_private(path, std::fs::metadata(path)?.is_dir())
 }
 
+/// Remove whatever is at `path` without following a link: a folder with
+/// everything in it, a file, a link as a link — never what it points at.
+/// Windows removes a link to a folder (a symbolic link or a junction) as a
+/// folder: deleted as a file it answers "Access is denied" (CI, 2026-10-17:
+/// help repair failed on a revision folder turned into a link). Nothing there
+/// is no failure.
+pub fn remove_entry(path: &Path) -> io::Result<()> {
+    use std::os::windows::fs::FileTypeExt;
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink_dir() => std::fs::remove_dir(path),
+        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+        Ok(_) => std::fs::remove_file(path),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
 /// Whether this process may write to `path` — for a named pipe, whether it
 /// may talk to whatever serves it (one busy now is still reachable).
 /// Existence alone proves nothing.

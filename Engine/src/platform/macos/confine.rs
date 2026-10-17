@@ -38,6 +38,11 @@ pub struct Confinement {
     /// `-D` definitions: every granted path is a parameter of the profile,
     /// never text inside it, so no path can change what the profile says.
     params: Arc<Vec<(String, PathBuf)>>,
+    /// Unix sockets granted ([`Grants::local_services`]).
+    local_services: bool,
+    /// The rules that open the command's own sockets (`Grants::sockets`)
+    /// when other programs' stay closed.
+    own_sockets: Arc<str>,
 }
 
 /// What one confinement grants. Read and write are different questions: a
@@ -57,6 +62,16 @@ pub struct Grants<'a> {
     /// Full rights, each answered for by the person by name; a file among
     /// them is granted as a file.
     pub reach: &'a [PathBuf],
+    /// Whether a confined command may reach programs already running on
+    /// this machine through Unix-domain sockets; `false`: the profile denies
+    /// every Unix socket, name resolution and logging excepted.
+    pub local_services: bool,
+    /// Folders whose Unix sockets are the command's own — the project, its
+    /// scratch, what the person granted: reached without a question.
+    pub sockets: &'a [PathBuf],
+    /// Who is asked when a command reaches any other program's socket;
+    /// `None`: nobody, the connection is refused.
+    pub ask_service: Option<crate::platform::ServiceAsk>,
 }
 
 /// Why no confinement holds, said to the person (`SandboxReport.reason`).
@@ -112,10 +127,28 @@ impl Confinement {
             }
             params.push((key, path));
         }
+        // A command's own sockets — in its project, its scratch, what the
+        // person granted — are reached and served there; another program's
+        // are not (Seatbelt has no way to ask at the moment of `connect`).
+        let mut own_sockets = String::from("(allow network-inbound (local unix-socket))\n");
+        for (index, path) in grants
+            .sockets
+            .iter()
+            .filter_map(|p| canonical(p))
+            .enumerate()
+        {
+            let key = format!("SOCKETS_{index}");
+            own_sockets.push_str(&format!(
+                "(allow network-outbound (subpath (param \"{key}\")))\n(allow network-bind (subpath (param \"{key}\")))\n"
+            ));
+            params.push((key, path));
+        }
         let profile = profile(&reads, &writes, &roots);
         let confinement = Confinement {
             profile: profile.into(),
             params: Arc::new(params),
+            local_services: grants.local_services,
+            own_sockets: own_sockets.into(),
         };
         confinement.prove().map_err(unconfined)?;
         Ok(confinement)
@@ -131,18 +164,20 @@ impl Confinement {
         0
     }
 
+    /// Whether a command it confines may reach local services
+    /// ([`Grants::local_services`]).
+    pub fn local_services(&self) -> bool {
+        self.local_services
+    }
+
     /// The whole profile for a command that may (`true`) or may not create
     /// and reach Unix sockets.
     fn full(&self, unix_sockets: bool) -> String {
-        format!(
-            "{}{}",
-            self.profile,
-            if unix_sockets {
-                UNIX_SOCKETS
-            } else {
-                SYSTEM_SOCKETS_ONLY
-            }
-        )
+        if unix_sockets {
+            format!("{}{UNIX_SOCKETS}", self.profile)
+        } else {
+            format!("{}{SYSTEM_SOCKETS_ONLY}{}", self.profile, self.own_sockets)
+        }
     }
 
     /// Run `/usr/bin/true` under the profile: `Err` with what Seatbelt said
@@ -172,19 +207,19 @@ impl Confinement {
 }
 
 /// `launch` as macOS starts it under `placement`: inside Seatbelt when it is
-/// confined or may not create Unix sockets; as asked otherwise.
+/// confined, with Unix sockets as its confinement grants them; as asked
+/// otherwise.
 pub(super) fn wrap<'a>(
     launch: &'a Launch,
     placement: &Placement<'_>,
 ) -> io::Result<Cow<'a, Launch>> {
-    Ok(match (placement.confinement, placement.unix_sockets) {
-        (Some(confinement), sockets) => Cow::Owned(wrapped(
+    Ok(match placement.confinement {
+        Some(confinement) => Cow::Owned(wrapped(
             launch,
-            &confinement.full(sockets),
+            &confinement.full(confinement.local_services),
             &confinement.params,
         )),
-        (None, true) => Cow::Borrowed(launch),
-        (None, false) => Cow::Owned(wrapped(launch, NO_UNIX_SOCKETS, &[])),
+        None => Cow::Borrowed(launch),
     })
 }
 
@@ -321,18 +356,6 @@ const UNIX_SOCKETS: &str = r#"
 /// name resolution and logging excepted.
 const SYSTEM_SOCKETS_ONLY: &str = "";
 
-/// For a command that is not confined but may not reach a Unix socket (an
-/// MCP server without `allow_host_sockets` where nothing else is confined):
-/// everything but Unix sockets, name resolution and logging excepted. The
-/// last matching rule decides, so the exceptions come last.
-const NO_UNIX_SOCKETS: &str = r#"(version 1)
-(allow default)
-(deny network-outbound (remote unix-socket))
-(deny network-bind (local unix-socket))
-(allow network-outbound (literal "/private/var/run/mDNSResponder"))
-(allow network-outbound (literal "/private/var/run/syslog"))
-"#;
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +398,9 @@ mod tests {
             reads: &reads,
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
         assert_eq!(confinement.kind(), "seatbelt");
@@ -437,6 +463,9 @@ mod tests {
             reads: &[],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .err()
         .expect("never a confinement without its project");
@@ -459,6 +488,9 @@ mod tests {
             reads: &[PathBuf::from("/usr"), PathBuf::from("/System")],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
         assert!(!confinement.profile.contains("(allow default)"));

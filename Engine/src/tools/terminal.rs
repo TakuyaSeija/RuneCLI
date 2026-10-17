@@ -100,15 +100,30 @@ impl Tool for TerminalUse {
                 out.push(path);
             }
         };
+        // A POSIX shell on Windows has its own `/` (Git Bash: Git's folder),
+        // so its `/usr/bin/env` is read there and not on the current drive.
+        let shell = shell(&self.0.config.text("terminal.shell"));
+        let posix_root = (platform::OS == platform::Os::Windows
+            && self.shell_kind() == crate::shell::ShellKind::Posix)
+            .then(|| crate::perm::reach::posix_root_of(&shell))
+            .flatten();
         if let Some(cmd) = field_opt_str(args, "command") {
             for path in crate::perm::reach::in_command_for(cmd, self.shell_kind()) {
-                add(path);
+                add(match &posix_root {
+                    Some(root) => crate::perm::reach::under_posix_root(&path, root),
+                    None => path,
+                });
             }
         }
         if let Some(path) = field_opt_str(args, "path").and_then(crate::perm::reach::in_argument) {
             add(path);
         }
         out
+    }
+
+    fn local_services(&self, args: &Value) -> bool {
+        let cmd = field_opt_str(args, "command").unwrap_or("");
+        denylist::reaches_a_service_for(cmd, self.shell_kind())
     }
 
     fn grant_key(&self, args: &Value) -> String {
@@ -347,7 +362,6 @@ fn execute(
         platform::Placement {
             confinement: ctx.sandbox.confinement(),
             tree: Some(&tree),
-            ..platform::Placement::default()
         },
     )?;
     drop(slave);

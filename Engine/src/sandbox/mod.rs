@@ -47,12 +47,35 @@ pub struct Policy {
     ///
     /// Empty in every session where nobody has answered a reach prompt.
     pub reach: Vec<PathBuf>,
+    /// Whether a confined command may reach programs already running on this
+    /// machine through Unix sockets — a container engine, the user's service
+    /// manager, a terminal multiplexer, an agent holding keys. Such a program
+    /// is outside the workspace and acts with the user's own rights, so the
+    /// mode's rule for outside the workspace holds: closed in Ask and Auto
+    /// until the person allows it ([`crate::perm::Allowed::local_services`],
+    /// or an MCP server's `allow_host_sockets`), open in Full, where nothing
+    /// is confined.
+    pub local_services: bool,
     /// Where the confinement records each entry it leaves on disk before
     /// writing it — Windows's access entries — so `rune -sandbox reset` can
     /// take every one back ([`grants_ledger`]). `None`: nothing may be left
     /// on disk, and where the OS would have to (Windows), nothing starts
     /// confined. A probe, which starts nothing, needs none.
     pub ledger: Option<PathBuf>,
+    /// Who decides, at the moment a confined command connects, about a
+    /// program running outside the workspace (`platform::Grants::ask_service`):
+    /// the session's permission gate. `None`: refused.
+    pub ask_service: Option<AskService>,
+}
+
+/// [`Policy::ask_service`]: the session's question, carried with the policy.
+#[derive(Clone)]
+pub struct AskService(pub crate::platform::ServiceAsk);
+
+impl std::fmt::Debug for AskService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AskService")
+    }
 }
 
 use crate::platform::Os;
@@ -261,14 +284,26 @@ fn present(candidates: &[&str]) -> Vec<PathBuf> {
 /// System folders an MCP server may read and run programs from, on Linux.
 const MCP_SYSTEM_READS: &[&str] = &["/usr", "/bin", "/lib", "/lib64"];
 
-/// The same on `os`.
+/// The same on `os`. macOS: its programs in `/usr/bin` (`python3`, `git`)
+/// are `xcrun` shims that read the chosen developer folder from `/var/db`
+/// and run the tool from Xcode under `/Applications` or the command line
+/// tools under `/Library` — as a terminal command reads them.
 fn mcp_system_reads(os: Os) -> Vec<PathBuf> {
     match os {
         Os::Linux => MCP_SYSTEM_READS.iter().map(PathBuf::from).collect(),
-        Os::MacOs => ["/usr", "/bin", "/System", "/Library", "/opt"]
-            .iter()
-            .map(PathBuf::from)
-            .collect(),
+        Os::MacOs => [
+            "/usr",
+            "/bin",
+            "/System",
+            "/Library",
+            "/opt",
+            "/Applications",
+            "/private/var/db",
+            "/private/var/select",
+        ]
+        .iter()
+        .map(PathBuf::from)
+        .collect(),
         Os::Windows => crate::perm::denylist::protected_prefixes(Os::Windows),
     }
 }
@@ -520,6 +555,8 @@ impl Policy {
             reads,
             reach: Vec::new(),
             ledger: None,
+            local_services: false,
+            ask_service: None,
         }
     }
 
@@ -535,6 +572,18 @@ impl Policy {
     /// half-widened while a ruleset is being built from it.
     pub fn with_reach(mut self, reach: Vec<PathBuf>) -> Policy {
         self.reach = reach;
+        self
+    }
+
+    /// The same policy, its commands allowed local services or not.
+    pub fn with_local_services(mut self, allowed: bool) -> Policy {
+        self.local_services = allowed;
+        self
+    }
+
+    /// The same policy, asking `ask` about other programs' sockets.
+    pub fn asking_services(mut self, ask: Option<AskService>) -> Policy {
+        self.ask_service = ask;
         self
     }
 
@@ -580,6 +629,22 @@ pub struct Sandbox {
     policy: Policy,
 }
 
+/// Whether an MCP server's root collides — either way — with what no root may
+/// hold: the system's own folders (`denylist::protected_prefixes`) and Rune's
+/// home, whose `run/` keys drive a session host. No other folder is special
+/// (owner, 2026-10-17).
+fn mcp_root_refused(root: &Path, rune_home: &Path) -> bool {
+    let os = crate::platform::OS;
+    crate::perm::denylist::protected_prefixes(os)
+        .iter()
+        .map(PathBuf::as_path)
+        .chain([rune_home])
+        .any(|held| {
+            crate::jail::starts_with_folded(root, held, os)
+                || crate::jail::starts_with_folded(held, root, os)
+        })
+}
+
 impl Sandbox {
     /// Persistent integrations receive an explicit profile, independent of the conversation mode.
     pub fn for_mcp(
@@ -589,12 +654,8 @@ impl Sandbox {
         server: &crate::capabilities::config::Server,
     ) -> crate::Result<std::sync::Arc<Self>> {
         use std::sync::Arc;
-        let protected = crate::perm::reach::Forbidden::standard(
-            crate::platform::home_dir().as_deref(),
-            &[home.to_path_buf()],
-        );
         for root in server.read_roots.iter().chain(&server.write_roots) {
-            if protected.blocks(root).is_some() {
+            if mcp_root_refused(root, home) {
                 return Err(crate::Error::Denied(
                     "MCP profile includes a protected host path".into(),
                 ));
@@ -622,6 +683,7 @@ impl Sandbox {
         if server.project_write {
             policy.writes.push(project.to_path_buf());
         }
+        policy.local_services = server.allow_host_sockets;
         let sandbox = Self::prepare(&policy);
         if !sandbox.enforced() {
             return Err(crate::Error::Denied(
@@ -643,12 +705,21 @@ impl Sandbox {
     /// root that does not exist is skipped either way — and it leaves nothing
     /// on disk (0.1.5's probe left `scratch/probe` at the top of the home).
     pub fn probe(policy: &Policy) -> Sandbox {
+        // A command's own sockets: in its project, its scratch, and what the
+        // person let it reach.
+        let sockets: Vec<PathBuf> = [policy.project.clone(), policy.scratch.clone()]
+            .into_iter()
+            .chain(policy.reach.iter().cloned())
+            .collect();
         let built = crate::platform::Confinement::build(crate::platform::Grants {
             project: &policy.project,
             ledger: policy.ledger.as_deref(),
             reads: &policy.reads,
             writes: &policy.writes,
             reach: &policy.reach,
+            local_services: policy.local_services,
+            sockets: &sockets,
+            ask_service: policy.ask_service.as_ref().map(|ask| ask.0.clone()),
         });
         match built {
             Ok(confinement) => Sandbox {
@@ -713,6 +784,14 @@ impl Sandbox {
     /// Always true when nothing is being enforced.
     pub fn reachable(&self, path: &Path) -> bool {
         !self.report.enforced || self.policy.reachable(path)
+    }
+
+    /// Whether a command spawned under this sandbox may reach local services:
+    /// always where nothing confines it.
+    pub fn local_services(&self) -> bool {
+        self.confinement
+            .as_ref()
+            .is_none_or(|confinement| confinement.local_services())
     }
 
     /// What confines a command spawned under this sandbox, for

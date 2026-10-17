@@ -28,7 +28,37 @@ struct Cleanup(PathBuf);
 
 impl Drop for Cleanup {
     fn drop(&mut self) {
+        // A failed test says what its MCP servers wrote to their error
+        // stream before the folder goes: the only word from a server that
+        // would not start on another OS.
+        if std::thread::panicking() {
+            print_server_errors(&self.0);
+        }
         let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn print_server_errors(dir: &std::path::Path) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            print_server_errors(&path);
+        } else if path.file_name()
+            == Some(std::ffi::OsStr::new(
+                runeengine::capabilities::mcp::STDERR_LOG,
+            ))
+        {
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
+            let tail: String = text
+                .chars()
+                .rev()
+                .take(4000)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            eprintln!("--- {} ---\n{tail}", path.display());
+        }
     }
 }
 
@@ -6783,6 +6813,13 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
         let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
         let fixture = h.project.join("McpFixture.py");
         std::fs::write(&fixture, include_str!("McpFixture.py")).unwrap();
+        // A program of another's, outside the server's folders (short: a
+        // socket's path holds about a hundred bytes).
+        let outside =
+            std::env::temp_dir().join(format!("mcp-{}-{}.s", std::process::id(), legacy as u8));
+        let _ = std::fs::remove_file(&outside);
+        let listener = runeengine::platform::LocalListener::bind(&outside).unwrap();
+        std::thread::spawn(move || for _ in listener.incoming() {});
         let request = runeengine::capabilities::manage::Request {
             group: "mcp".into(),
             operation: "add".into(),
@@ -6795,6 +6832,7 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
                 } else {
                     "modern".into()
                 },
+                outside.to_string_lossy().into_owned(),
             ],
         };
         runeengine::capabilities::manage::execute(
@@ -6802,11 +6840,12 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
             &state.registry,
             &request,
             &state.cancel,
+            &|_, _| Ok(()),
         )
         .unwrap();
         let connected = state
             .capabilities
-            .connect("fixture", &state.registry, &state.cancel)
+            .connect("fixture", &state.registry, &state.cancel, &|_, _| Ok(()))
             .unwrap();
         assert_eq!(
             connected["protocol"],
@@ -6842,7 +6881,12 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
             result["structuredContent"]["action"],
             "original remote field"
         );
-        assert_eq!(result["structuredContent"]["unix_socket_blocked"], true);
+        if runeengine::platform::OS != runeengine::platform::Os::Windows {
+            assert_eq!(
+                result["structuredContent"]["unix_socket_blocked"], true,
+                "an MCP server reached another program's socket"
+            );
+        }
         let resource = state
             .capabilities
             .connection("fixture")
@@ -6865,6 +6909,7 @@ fn mcp_stdio_both_eras_discovery_original_schema_resource_and_revocation() {
             &state.registry,
             &disable,
             &state.cancel,
+            &|_, _| Ok(()),
         )
         .unwrap();
         assert!(state.registry.target("call_mcp_tool", &call).is_err());
@@ -6935,11 +6980,17 @@ fn mcp_http_json_sse_and_oauth_browser_callback_are_real_flows() {
             &state.registry,
             &add,
             &state.cancel,
+            &|_, _| Ok(()),
         )
         .unwrap();
         state
             .capabilities
-            .connect("httpfixture", &state.registry, &state.cancel)
+            .connect(
+                "httpfixture",
+                &state.registry,
+                &state.cancel,
+                &|_, _| Ok(()),
+            )
             .unwrap();
         let content = state
             .capabilities
@@ -6968,6 +7019,7 @@ fn mcp_http_json_sse_and_oauth_browser_callback_are_real_flows() {
                 &state.registry,
                 &add,
                 &state.cancel,
+                &|_, _| Ok(()),
             )
             .unwrap();
             let login = state
@@ -7000,7 +7052,12 @@ fn mcp_http_json_sse_and_oauth_browser_callback_are_real_flows() {
             );
             state
                 .capabilities
-                .connect("httpfixture", &state.registry, &state.cancel)
+                .connect(
+                    "httpfixture",
+                    &state.registry,
+                    &state.cancel,
+                    &|_, _| Ok(()),
+                )
                 .unwrap();
         }
         engine.shutdown();
@@ -7038,6 +7095,7 @@ fn skill_zip_install_update_and_script_changes_are_integrity_checked() {
         &state.registry,
         &install,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     assert!(
@@ -7063,6 +7121,7 @@ fn skill_zip_install_update_and_script_changes_are_integrity_checked() {
         &state.registry,
         &update,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     assert!(std::path::Path::new(updated["backup"].as_str().unwrap()).is_dir());
@@ -7157,11 +7216,14 @@ fn mcp_elicitation_uses_real_validated_user_input_and_cancel_stops_the_server() 
         &state.registry,
         &add,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     state
         .capabilities
-        .connect("inputfixture", &state.registry, &state.cancel)
+        .connect("inputfixture", &state.registry, &state.cancel, &|_, _| {
+            Ok(())
+        })
         .unwrap();
     engine.handle(Command::ToolInvoke {
         id: 930,
@@ -7293,11 +7355,12 @@ fn connect_fixture(project: &std::path::Path, state: &runeengine::session::Sessi
         &state.registry,
         &add,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     state
         .capabilities
-        .connect(id, &state.registry, &state.cancel)
+        .connect(id, &state.registry, &state.cancel, &|_, _| Ok(()))
         .unwrap();
 }
 
@@ -7529,6 +7592,7 @@ fn removing_the_last_mcp_server_leaves_no_project_stub() {
         &state.registry,
         &remove,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     let left = projects(&state.capabilities.home);
@@ -7563,12 +7627,13 @@ fn discovery_shows_mcp_tools_with_their_schema_within_the_output_limit() {
         &state.registry,
         &add,
         &state.cancel,
+        &|_, _| Ok(()),
     )
     .unwrap();
     state.capabilities.refresh().unwrap();
     state
         .capabilities
-        .connect("budget", &state.registry, &state.cancel)
+        .connect("budget", &state.registry, &state.cancel, &|_, _| Ok(()))
         .unwrap();
     let discover = |engine: &mut Engine, id: u64, query: &str| -> String {
         engine.handle(Command::ToolInvoke {
@@ -12338,11 +12403,28 @@ fn a_persons_own_calls_tell_the_model_nothing() {
         captured,
     );
 
+    // A wait each system tells: any read on Linux, a hidden one on macOS
+    // (`INPUT_WAIT_DETECTION`); Windows tells none.
+    let ask = match runeengine::platform::INPUT_WAIT_DETECTION {
+        runeengine::platform::InputWaitDetection::Every => "printf 'Proceed? '; read x",
+        runeengine::platform::InputWaitDetection::HiddenOnly => {
+            "printf 'Proceed? '; stty -echo; read x; stty echo"
+        }
+        runeengine::platform::InputWaitDetection::Never => {
+            h.engine
+                .session(h.session)
+                .unwrap()
+                .state
+                .background
+                .stop_all();
+            return;
+        }
+    };
     let (waiting, _, captured) = invoke_capturing(
         &mut h,
         5,
         "terminal_use",
-        json!({"action": "ask", "command": "printf 'Proceed? '; read x"}),
+        json!({"action": "ask", "command": ask}),
         Decision::AllowOnce,
     );
     assert!(
@@ -13704,4 +13786,94 @@ fn official_product_help_does_not_grant_general_rune_home_access() {
         }
     }
     h.engine.shutdown();
+}
+
+/// Owner, 2026-10-17: an MCP server's folders outside the workspace follow
+/// the mode as any path there does — in Auto a card names them before the
+/// server starts, and a refusal leaves it stopped; in Full it starts with
+/// nobody asked. Its confinement is the profile written, whatever the mode.
+#[test]
+fn an_mcp_servers_folders_outside_the_workspace_follow_the_mode() {
+    let text = |words: &str| json!({ "chunks": [ { "text": words } ] });
+    let mut h = harness(
+        "mcp-roots",
+        json!({ "responses": [text("one"), text("two")] }),
+    );
+    let fixture = h.project.join("McpFixture.py");
+    std::fs::write(&fixture, include_str!("McpFixture.py")).unwrap();
+    let state = h.engine.session(h.session).unwrap().state.clone();
+    runeengine::capabilities::manage::execute(
+        &state.capabilities,
+        &state.registry,
+        &runeengine::capabilities::manage::Request {
+            group: "mcp".into(),
+            operation: "add".into(),
+            arguments: vec![
+                "fixture".into(),
+                runeengine::testing::python().to_string_lossy().into_owned(),
+                fixture.to_string_lossy().into_owned(),
+                "modern".into(),
+            ],
+        },
+        &state.cancel,
+        &|_, _| Ok(()),
+    )
+    .unwrap();
+    // A folder of the profile outside the workspace: written into the
+    // server's table as the person would.
+    let outside = h.project.parent().unwrap().join("mcp-outside");
+    std::fs::create_dir_all(&outside).unwrap();
+    let toml = h.db_path.parent().unwrap().join("data/rune.toml");
+    let written = std::fs::read_to_string(&toml).unwrap();
+    assert_eq!(written.matches("read_roots = []").count(), 1, "{written}");
+    std::fs::write(
+        &toml,
+        written.replace(
+            "read_roots = []",
+            &format!("read_roots = ['{}']", outside.display()),
+        ),
+    )
+    .unwrap();
+
+    h.engine.handle(Command::SessionMode {
+        id: 3,
+        session: h.session,
+        mode: "auto".into(),
+    });
+    let events = prompt(&mut h, "hello", Decision::Deny);
+    let asked: Vec<Vec<String>> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::PermissionRequest { tool, reach, .. } if tool == "mcp_server" => {
+                Some(reach.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(asked.len(), 1, "{events:?}");
+    assert!(
+        asked[0].iter().any(|path| path.ends_with("mcp-outside")),
+        "{asked:?}"
+    );
+    assert!(
+        state.capabilities.connection("fixture").is_err(),
+        "a server whose folders were refused started"
+    );
+
+    h.engine.handle(Command::SessionMode {
+        id: 4,
+        session: h.session,
+        mode: "full".into(),
+    });
+    let events = prompt(&mut h, "again", Decision::Deny);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::PermissionRequest { .. })),
+        "Full asked: {events:?}"
+    );
+    assert!(
+        state.capabilities.connection("fixture").is_ok(),
+        "in Full the server starts with nobody asked"
+    );
 }

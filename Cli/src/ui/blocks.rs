@@ -124,10 +124,9 @@ pub struct Ask {
     /// Paths outside the workspace this answer would open. Almost always empty,
     /// and the part that must be read when it is not.
     pub reach: Vec<String>,
-    /// Reach paths the machine itself runs on, as `path — reason`. The system
-    /// never refuses on its own; these are the owner's to open or deny, and
-    /// the reason is why the card makes them a section of their own.
-    pub sensitive: Vec<String>,
+    /// The answer lets the call's commands reach programs already running on
+    /// this machine through Unix sockets — services outside the workspace.
+    pub local_services: bool,
     /// The answer drops confinement for this call only.
     pub full_access: bool,
     /// Why a mode that would not have asked does, in the engine's words.

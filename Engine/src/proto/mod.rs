@@ -17,7 +17,7 @@ use serde_json::Value;
 /// changed field. A frontend compares it with the `protocol` its session host
 /// reports and hands itself over to the installed build on a mismatch, instead
 /// of silently skipping lines it cannot parse.
-pub const PROTOCOL: u32 = 15;
+pub const PROTOCOL: u32 = 16;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FRONTEND → ENGINE
@@ -1100,8 +1100,8 @@ pub enum Event {
         /// Human-readable summary of exactly what will happen if allowed.
         preview: String,
         /// What `allow_always` would persist, or `None` when the answer may
-        /// never be remembered — the ask-every-time classes: deny-list severe,
-        /// a sensitive reach, or a full-access call.
+        /// never be remembered — the ask-every-time classes: the deny-list's,
+        /// a command read aloud, or a full-access call.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         remember_as: Option<String>,
         /// Paths outside the workspace this call would be allowed to reach.
@@ -1111,12 +1111,12 @@ pub enum Event {
         /// where it does it. Empty for the overwhelming majority of calls.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         reach: Vec<String>,
-        /// Reach paths the machine itself runs on — credentials, startup
-        /// files, system prefixes — as `path — reason`. The system never
-        /// refuses these on its own; the card carries the reason so the
-        /// answer is an informed one, and no answer is remembered.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        sensitive: Vec<String>,
+        /// The call's commands would reach programs already running on this
+        /// machine through Unix sockets — services outside the workspace that
+        /// act with the user's rights. Allowing it opens that for this call;
+        /// "always", for every command of this project.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        local_services: bool,
         /// This call cannot be represented by a narrow reach grant. Allowing it
         /// turns off the jail and sandbox for this call only.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]

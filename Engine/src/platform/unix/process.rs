@@ -43,10 +43,14 @@ fn command_for(launch: &Launch, placement: &Placement<'_>) -> io::Result<Command
 /// What must happen in the child — a session of its own, the terminal
 /// claimed, the confinement applied — runs there between `fork` and `exec`,
 /// syscalls only.
-fn in_child(command: &mut Command, terminal: bool, placement: &Placement<'_>) -> io::Result<()> {
+fn in_child(
+    command: &mut Command,
+    terminal: bool,
+    placement: &Placement<'_>,
+) -> io::Result<os::Watch> {
     // Held by the command itself, so what the child applies is open there
     // whatever the caller drops before it spawns.
-    let steps = os::ChildSteps::new(placement)?;
+    let (mut steps, watch) = os::ChildSteps::new(placement)?;
     unsafe {
         command.pre_exec(move || {
             leave_session()?;
@@ -59,7 +63,7 @@ fn in_child(command: &mut Command, terminal: bool, placement: &Placement<'_>) ->
             steps.run()
         });
     }
-    Ok(())
+    Ok(watch)
 }
 
 /// Start `launch` on `terminal` — its stdin, stdout, stderr and controlling
@@ -76,8 +80,10 @@ pub fn spawn_on_terminal(
         .stdin(Stdio::from(terminal.0.try_clone()?))
         .stdout(Stdio::from(terminal.0.try_clone()?))
         .stderr(Stdio::from(terminal.0.try_clone()?));
-    in_child(&mut command, true, &placement)?;
-    command.spawn().map(Process)
+    let watch = in_child(&mut command, true, &placement)?;
+    let child = command.spawn()?;
+    watch.started(child.id() as i32);
+    Ok(Process(child))
 }
 
 /// Start `launch` with pipes for its stdin, stdout and stderr — a server Rune
@@ -85,14 +91,18 @@ pub fn spawn_on_terminal(
 /// dropped. Called inside the async runtime its pipes are read on.
 pub fn spawn_piped(launch: &Launch, placement: Placement<'_>) -> io::Result<PipedProcess> {
     let mut command = command_for(launch, &placement)?;
-    in_child(&mut command, false, &placement)?;
+    let watch = in_child(&mut command, false, &placement)?;
     let mut command = tokio::process::Command::from(command);
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    command.spawn().map(PipedProcess)
+    let child = command.spawn()?;
+    if let Some(root) = child.id() {
+        watch.started(root as i32);
+    }
+    Ok(PipedProcess(child))
 }
 
 /// Start `launch` on its own: no terminal, its stdin and stdout to nothing,
@@ -106,8 +116,10 @@ pub fn spawn_detached(launch: &Launch, log: std::fs::File) -> io::Result<Process
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::from(log));
-    in_child(&mut command, false, &placement)?;
-    command.spawn().map(Process)
+    let watch = in_child(&mut command, false, &placement)?;
+    let child = command.spawn()?;
+    watch.started(child.id() as i32);
+    Ok(Process(child))
 }
 
 /// A process Rune started and watches through its handle.

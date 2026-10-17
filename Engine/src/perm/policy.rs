@@ -93,11 +93,12 @@ pub struct Situation<'a> {
     /// Consent therefore drops both confinements for this call only and can
     /// never be remembered.
     pub full_access: bool,
-    /// At least one reach candidate names something the machine itself runs
-    /// on — credentials, startup files, system prefixes. The gate still asks
-    /// rather than refusing — the system has no voice of its own to say no —
-    /// but consent is never stored, and the card carries the reason.
-    pub sensitive: bool,
+    /// The call reaches a program already running on this machine through a
+    /// Unix socket — a service outside the workspace, acting with the user's
+    /// rights — and the session does not hold that right yet. The same rule
+    /// as a path outside the workspace (owner, 2026-10-17): asked in Ask and
+    /// Auto, "always" on offer, nothing asked in Full.
+    pub services: bool,
     /// The call runs a command line rather than touching a named path.
     ///
     /// # Why this is its own axis
@@ -141,7 +142,7 @@ pub fn verdict(s: &Situation<'_>) -> Verdict {
         granted,
         reaches,
         full_access,
-        sensitive,
+        services,
         runs,
         confined: _,
     } = *s;
@@ -160,15 +161,15 @@ pub fn verdict(s: &Situation<'_>) -> Verdict {
         Risk::AskEvery { .. } | Risk::Severe { .. } => Verdict::Ask { remember: false },
 
         Risk::Normal => {
-            if full_access || sensitive {
-                // A reach too broad to anchor as a narrow grant, or a path the
-                // machine runs on its own: the question is put, but no answer
-                // may be remembered against it.
+            if full_access {
+                // A reach too broad to anchor as a narrow grant: the question
+                // is put, but no answer may be remembered against it.
                 Verdict::Ask { remember: false }
-            } else if reaches {
-                // Leaving the workspace is never covered by "work freely inside
-                // the workspace", so auto mode asks here too — and the prompt
-                // names the paths rather than the tool.
+            } else if reaches || services {
+                // Leaving the workspace — by a path, or through a service
+                // running outside it — is never covered by "work freely inside
+                // the workspace", so auto mode asks here too, and the prompt
+                // names what is reached rather than the tool.
                 Verdict::Ask { remember: true }
             } else if runs && matches!(mode, Mode::Ask) || unconfined {
                 // A command line cannot be read in advance, so `Ask` reads it
@@ -210,7 +211,7 @@ mod tests {
             granted,
             reaches: false,
             full_access: false,
-            sensitive: false,
+            services: false,
             runs: false,
             confined: true,
         })
@@ -224,7 +225,7 @@ mod tests {
             granted: true,
             reaches: true,
             full_access: false,
-            sensitive: false,
+            services: false,
             runs: false,
             confined: true,
         })
@@ -238,7 +239,7 @@ mod tests {
             granted,
             reaches: false,
             full_access: false,
-            sensitive: false,
+            services: false,
             runs: true,
             confined: true,
         })
@@ -259,7 +260,7 @@ mod tests {
                 granted,
                 reaches: false,
                 full_access: false,
-                sensitive: false,
+                services: false,
                 runs,
                 confined: false,
             })
@@ -366,26 +367,36 @@ mod tests {
         assert_eq!(at(Mode::Full, true, &severe(), true), Verdict::Allow);
     }
 
+    /// The owner's rule, 2026-10-17: no folder is special. What used to be
+    /// a "sensitive" reach (`~/.ssh`, `.bashrc`) is a path outside the
+    /// workspace like any other — asked in Ask and Auto, "always" on offer —
+    /// and a service reached through a Unix socket is asked the same way.
     #[test]
-    fn a_sensitive_reach_is_asked_and_never_remembered_in_either_mode() {
-        // The old bug this replaces: a sensitive path used to be refused
-        // outright, before any person saw it. Now it is the person's call.
-        let v = |mode, reaches| {
+    fn a_service_outside_the_workspace_is_asked_like_a_path_and_may_be_remembered() {
+        let v = |mode, risk: &Risk| {
             verdict(&Situation {
                 mode,
-                mutates: false,
-                risk: &Risk::Normal,
-                granted: false,
-                reaches,
+                mutates: true,
+                risk,
+                granted: true,
+                reaches: false,
                 full_access: false,
-                sensitive: true,
-                runs: false,
+                services: true,
+                runs: true,
                 confined: true,
             })
         };
-        assert_eq!(v(Mode::Ask, true), Verdict::Ask { remember: false });
-        assert_eq!(v(Mode::Auto, true), Verdict::Ask { remember: false });
-        assert_eq!(v(Mode::Ask, false), Verdict::Ask { remember: false });
+        assert_eq!(v(Mode::Ask, &Risk::Normal), Verdict::Ask { remember: true });
+        assert_eq!(
+            v(Mode::Auto, &Risk::Normal),
+            Verdict::Ask { remember: true }
+        );
+        assert_eq!(v(Mode::Full, &Risk::Normal), Verdict::Allow);
+        assert_eq!(
+            v(Mode::Auto, &ask_every()),
+            Verdict::Ask { remember: false },
+            "a command asked every time stays so"
+        );
     }
 
     #[test]
@@ -412,7 +423,7 @@ mod tests {
             granted: false,
             reaches: true,
             full_access: false,
-            sensitive: false,
+            services: false,
             runs: false,
             confined: true,
         });

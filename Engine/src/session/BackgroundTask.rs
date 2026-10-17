@@ -232,7 +232,16 @@ pub struct HandedTask {
     /// Bytes of output already in its log, counted against the log's limit.
     #[serde(default)]
     pub written: usize,
+    /// The supervisor of its connections, open across the exec — `None` when
+    /// nothing supervises it (`platform::release_supervision`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub services: Option<crate::platform::Handed>,
 }
+
+/// How long letting go of a task waits for the answers its connection
+/// supervisor is still making; a question to the person outlasts it, and the
+/// upgrade waits for a later idle moment.
+const SUPERVISION_GRACE: Duration = Duration::from_secs(2);
 
 /// Every task of one session, as one build hands them to the next.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1222,7 +1231,30 @@ impl BackgroundTaskManager {
                 break;
             }
         }
+        // Each supervisor let go of only once every terminal could be: its
+        // command's calls then wait in the kernel for the next build.
+        let mut supervisions = HashMap::new();
+        if failure.is_none() {
+            for (id, ..) in &released {
+                let Some(pid) = self.get(id).map(|task| task.pid) else {
+                    continue;
+                };
+                match crate::platform::release_supervision(pid, SUPERVISION_GRACE) {
+                    Ok(Some(supervision)) => {
+                        supervisions.insert(id.clone(), supervision);
+                    }
+                    Ok(None) => {}
+                    Err(error) => {
+                        failure = Some(error.to_string());
+                        break;
+                    }
+                }
+            }
+        }
         if let Some(why) = failure {
+            for (_, supervision) in supervisions {
+                supervision.resume();
+            }
             // Taken back: every terminal closes on exec again and is watched
             // as before.
             for (id, pty, file, written, watch) in released {
@@ -1248,7 +1280,17 @@ impl BackgroundTaskManager {
                 let (pty, written) = terminals
                     .remove(&info.task_id)
                     .map_or((None, 0), |(fd, written)| (Some(fd), written));
-                HandedTask { info, pty, written }
+                // One that cannot be handed on closes at the exec, and the
+                // kernel refuses what its command then asks (`ENOSYS`).
+                let services = supervisions
+                    .remove(&info.task_id)
+                    .and_then(|supervision| supervision.into_handed().ok());
+                HandedTask {
+                    info,
+                    pty,
+                    written,
+                    services,
+                }
             })
             .collect();
         // A task handed on is the successor's from here: this manager neither
@@ -1265,15 +1307,30 @@ impl BackgroundTaskManager {
     }
 
     /// Take over what the previous build handed on: every task is listed
-    /// again, and every running one watched again, its log continued. A
-    /// terminal that cannot be taken over leaves a process nobody could see
-    /// or stop, so that process is stopped, and the error says which.
-    pub fn adopt(self: &Arc<Self>, tasks: Vec<HandedTask>, watch: Watch) -> Vec<String> {
+    /// again, and every running one watched again, its log continued, its
+    /// connections supervised again as `answers` says. A terminal that cannot
+    /// be taken over leaves a process nobody could see or stop, so that
+    /// process is stopped, and the error says which.
+    pub fn adopt(
+        self: &Arc<Self>,
+        tasks: Vec<HandedTask>,
+        watch: Watch,
+        answers: crate::platform::SupervisedAs<'_>,
+    ) -> Vec<String> {
         let mut errors = Vec::new();
         for task in tasks {
             let id = task.info.task_id.clone();
             let pid = task.info.pid;
             let out_file = task.info.out_file.clone();
+            if let Some(handed) = task.services {
+                let tree = task.info.tree.as_deref();
+                if let Err(error) = crate::platform::adopt_supervision(handed, pid, tree, answers) {
+                    errors.push(format!(
+                        "the connections of background task {id} could not be supervised again \
+                         and are refused: {error}"
+                    ));
+                }
+            }
             self.register(task.info);
             let Some(handed) = task.pty else {
                 continue;
@@ -1569,7 +1626,9 @@ mod tests {
         );
 
         let after = Arc::new(BackgroundTaskManager::new());
-        assert!(after.adopt(handed, watch()).is_empty());
+        assert!(after
+            .adopt(handed, watch(), crate::platform::SupervisedAs::Orphaned)
+            .is_empty());
         assert!(
             !crate::platform::fixture::kept_across_exec(terminal),
             "closes on exec again once taken over"
@@ -1607,7 +1666,9 @@ mod tests {
         let after = Arc::new(BackgroundTaskManager::new());
         let notifier = Arc::new(RecordingNotifier::default());
         after.set_notifier(notifier.clone());
-        assert!(after.adopt(handed, watch()).is_empty());
+        assert!(after
+            .adopt(handed, watch(), crate::platform::SupervisedAs::Orphaned)
+            .is_empty());
         until("it to be reported", || {
             matches!(
                 after.get("bg_end").unwrap().status,
@@ -1660,8 +1721,10 @@ mod tests {
                 },
                 pty: Some(not_a_terminal),
                 written: 0,
+                services: None,
             }],
             watch(),
+            crate::platform::SupervisedAs::Orphaned,
         );
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(matches!(

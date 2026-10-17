@@ -122,6 +122,77 @@ pub fn classify(command: &str) -> Risk {
     worst
 }
 
+/// Programs whose work is done by another program already running on this
+/// machine, reached through a Unix socket: container engines, service
+/// managers and the message bus, terminal multiplexers, key agents. Such a
+/// program acts outside the workspace with the user's rights, so a command
+/// naming one reaches outside it as a path there would
+/// ([`crate::perm::policy::Situation::services`]). Not a refusal and not a
+/// boundary — the kernel refuses the socket until the person allows it; this
+/// is how the question comes before the command instead of a failure after.
+const SERVICE_CLIENTS: &[&str] = &[
+    "docker",
+    "podman",
+    "nerdctl",
+    "ctr",
+    "lxc",
+    "machinectl",
+    "virsh",
+    "systemctl",
+    "service",
+    "launchctl",
+    "systemd-run",
+    "loginctl",
+    "busctl",
+    "gdbus",
+    "dbus-send",
+    "tmux",
+    "screen",
+    "ssh-add",
+    "gpg",
+    "gpg2",
+    "gpg-connect-agent",
+    "gpgconf",
+];
+
+/// Whether a command line written for a shell of `kind` talks to a program
+/// already running on this machine through a Unix socket: one of
+/// [`SERVICE_CLIENTS`] is run (through `sudo`, `env` and the like too), or a
+/// `unix:` address or a socket flag is given. PowerShell and cmd reach Windows's services
+/// through pipes a confined token is refused: nothing to ask there.
+pub fn reaches_a_service_for(command: &str, kind: crate::shell::ShellKind) -> bool {
+    if kind != crate::shell::ShellKind::Posix {
+        return false;
+    }
+    split_segments(command).iter().any(|segment| {
+        let toks = tokens(&segment.text);
+        names_a_unix_address(&toks) || runs_a_service_client(&toks)
+    })
+}
+
+/// A `unix:` address, or a flag that hands the program a socket to talk
+/// through (`--unix-socket`, `--socket=…`).
+fn names_a_unix_address(toks: &[String]) -> bool {
+    toks.iter().any(|t| {
+        let value = t.rsplit_once('=').map_or(t.as_str(), |(_, v)| v);
+        let flag = t.split('=').next().unwrap_or(t);
+        value.starts_with("unix:") || (flag.starts_with("--") && flag.contains("socket"))
+    })
+}
+
+fn runs_a_service_client(toks: &[String]) -> bool {
+    let Some(program) = program_of(toks) else {
+        return false;
+    };
+    if PRIVILEGE_WRAPPERS.contains(&program.as_str())
+        || TRANSPARENT_WRAPPERS.contains(&program.as_str())
+    {
+        let inner = unwrap_tail(toks, &program);
+        return !inner.is_empty() && runs_a_service_client(&inner);
+    }
+    SERVICE_CLIENTS.contains(&program.as_str())
+}
+
 struct Segment {
     text: String,
     /// This segment's input comes from a `curl`/`wget` on the left of a pipe.
@@ -468,6 +539,12 @@ fn classify_segment(toks: &[String], from_download_pipe: bool) -> Risk {
         "systemctl" | "service" | "launchctl" => Risk::AskEvery {
             why: "changes machine services".into(),
         },
+        "systemd-run" => Risk::AskEvery {
+            why: "starts work as a machine service, outside this session".into(),
+        },
+        "busctl" | "gdbus" | "dbus-send" => Risk::AskEvery {
+            why: "asks a service of this machine to act for it".into(),
+        },
         // A container runtime talks to a root-owned daemon. Whatever the sandbox
         // says, `-v /:/host` is root on the real machine — the kernel sees the
         // daemon doing the writing, not us. The escape shapes are Severe — the
@@ -646,6 +723,51 @@ fn is_harmless_device(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A command whose work another running program does is known before
+    /// it runs — wrapped, chained, or by its socket's address — and an
+    /// ordinary one is not.
+    #[test]
+    fn a_command_that_reaches_a_running_service_is_known_before_it_runs() {
+        use crate::shell::ShellKind;
+        for command in [
+            "docker ps",
+            "cd x && systemctl --user restart thing",
+            "sudo podman ps",
+            "env A=1 tmux new -d",
+            "curl --unix-socket /run/x.sock http://localhost/",
+            "DOCKER_HOST=unix:///var/run/docker.sock make up",
+            "systemd-run --user true",
+            "busctl --user list",
+            "gpg --sign notes.txt",
+        ] {
+            assert!(
+                reaches_a_service_for(command, ShellKind::Posix),
+                "{command}"
+            );
+        }
+        for command in [
+            "cargo test",
+            "ls -la",
+            "python3 -m pytest",
+            "git status",
+            "grep -r socket .",
+        ] {
+            assert!(
+                !reaches_a_service_for(command, ShellKind::Posix),
+                "{command}"
+            );
+        }
+        assert!(!reaches_a_service_for("docker ps", ShellKind::PowerShell));
+        assert!(matches!(
+            classify("systemd-run --user true"),
+            Risk::AskEvery { .. }
+        ));
+        assert!(matches!(
+            classify("gdbus call --session"),
+            Risk::AskEvery { .. }
+        ));
+    }
 
     /// A POSIX shell on Windows protects its own root and the Windows
     /// folders as it spells them.

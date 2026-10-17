@@ -41,6 +41,11 @@ pub const FS_MAKE_SYM: u64 = 1 << 12;
 pub const FS_REFER: u64 = 1 << 13;
 pub const FS_TRUNCATE: u64 = 1 << 14;
 pub const FS_IOCTL_DEV: u64 = 1 << 15;
+/// Connecting to (or sending to) a pathname Unix socket a server outside the
+/// domain created (ABI 9): the kernel's own door for local services, granted
+/// where the command's own sockets live; sockets of the domain itself are
+/// always reached.
+pub const FS_RESOLVE_UNIX: u64 = 1 << 16;
 
 /// The kernel reads as many fields as the size we pass, and zero-fills the rest.
 /// So one struct serves every ABI: send 8 bytes on an old kernel (filesystem
@@ -86,6 +91,9 @@ pub fn file_rights(abi: i32) -> u64 {
     }
     if abi >= 5 {
         r |= FS_IOCTL_DEV;
+    }
+    if abi >= 9 {
+        r |= FS_RESOLVE_UNIX;
     }
     r
 }
@@ -137,6 +145,9 @@ pub fn all_fs_rights(abi: i32) -> u64 {
     }
     if abi >= 5 {
         r |= FS_IOCTL_DEV;
+    }
+    if abi >= 9 {
+        r |= FS_RESOLVE_UNIX;
     }
     r
 }
@@ -249,6 +260,12 @@ mod tests {
         assert!(all_fs_rights(2) & FS_REFER != 0);
         assert!(all_fs_rights(3) & FS_TRUNCATE != 0);
         assert!(all_fs_rights(5) & FS_IOCTL_DEV != 0);
+        assert!(all_fs_rights(8) & FS_RESOLVE_UNIX == 0);
+        assert!(all_fs_rights(9) & FS_RESOLVE_UNIX != 0);
+        assert!(
+            file_rights(9) & FS_RESOLVE_UNIX != 0,
+            "a socket file granted by name"
+        );
         assert!(all_fs_rights(1) & all_fs_rights(5) == all_fs_rights(1));
     }
 

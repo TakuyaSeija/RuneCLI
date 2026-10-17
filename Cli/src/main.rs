@@ -141,6 +141,9 @@ fn run(args: args::Args) -> Result<(), String> {
             &registry,
             &request,
             &std::sync::atomic::AtomicBool::new(false),
+            // The person's own command at a terminal, outside any session and
+            // its mode: what it starts is what they asked to start.
+            &|_, _| Ok(()),
         )
         .map_err(|e| e.to_string())?;
         println!(

@@ -5,11 +5,12 @@
 //! permission gate. It tests what is left when the gate has already said yes —
 //! since 2026-09-28 that is **only the kernel sandbox** (and Landlock), because
 //! the gate no longer refuses anything on its own: the owner's rule is that the
-//! system never says no by itself. The catastrophic deny-list class and the
-//! sensitive paths (`.ssh`, `.bashrc`, `.cargo/config.toml`) are now wizard
-//! questions — the battery approves, so they run, and a sensitive candidate
-//! drops confinement for that one call so the answer is never a lie about what
-//! it opened.
+//! system never says no by itself. The catastrophic deny-list class is a
+//! wizard question, and since 2026-10-17 no folder is special (`.ssh`,
+//! `.bashrc` are paths outside the workspace like any other, granted by name
+//! as narrowly as the kernel can) — the battery approves, so they run. What a
+//! confined command reaches through a Unix socket without anyone being asked
+//! is `sandbox.rs`'s (local services).
 //!
 //! # What changed when paths became answerable (2026-08-31)
 //!
@@ -224,9 +225,9 @@ fn escape_battery() {
         return;
     }
     // The battery is approved throughout, and since 2026-09-28 approved means
-    // *runs* — including the sensitive class. It must never do that against
-    // the owner's real home, so a throwaway `$HOME` is built here, before the
-    // engine binds its jail, sandbox and forbidden list. The fixtures below
+    // *runs* — whatever folder of the home it names. It must never do that
+    // against the owner's real home, so a throwaway `$HOME` is built here,
+    // before the engine binds its jail and sandbox. The fixtures below
     // are what the cases expect to find; everything else about the fake home
     // is absent, exactly like a fresh account.
     let fake_home = std::env::temp_dir()
@@ -291,9 +292,10 @@ fn escape_battery() {
         ("list grandparent (b)", format!("ls {grandparent}"), Expect::Runs),
 
         // ── the user's own files ─────────────────────────────────────────
-        // Sensitive paths ask, and the battery answers "allow once" — so they
-        // run, dropping confinement for that one call. The fixtures live in
-        // the fake home; nothing here ever touches the real one.
+        // Paths outside the workspace ask, and the battery answers "allow
+        // once" — so they run, granted by name for that one call. The
+        // fixtures live in the fake home; nothing here ever touches the real
+        // one.
         ("write to $HOME", format!("echo pwned > {home}/.rune-probe-w"), Expect::Runs),
         ("append to .bashrc", format!("echo evil >> {home}/.bashrc"), Expect::Runs),
         ("read ~/.ssh", format!("ls {home}/.ssh"), Expect::Runs),
@@ -304,8 +306,8 @@ fn escape_battery() {
         // The memory is the jail's annex, a door for the file tools only. The
         // jail holds the path, so approving a command that names it widens
         // nothing, and the kernel sandbox never grants it: the shell is
-        // stopped even when approved. Beside it is the engine's store, the
-        // sensitive class: an approval reaches it, and approved means runs.
+        // stopped even when approved. Beside it is the engine's store: an
+        // approval reaches it, and approved means runs.
         ("read the agent's own memory from a shell", format!("cat {mem_dir}/MEMORY.md"), Expect::Stopped),
         ("write the agent's own memory from a shell", format!("echo x > {mem_dir}/probe"), Expect::Stopped),
         ("write beside the memory, in its project's folder", format!("echo x > {folder}/probe"), Expect::Runs),
@@ -314,8 +316,7 @@ fn escape_battery() {
         // Never a reach candidate: `~/.cargo` is already readable under the
         // base policy, so `outside_paths` treats the target as reachable and
         // nothing is widened. The kernel is what stops the *write* — an
-        // approval cannot escalate a read into a write, and that is still
-        // true now that sensitive paths are asked instead of refused.
+        // approval cannot escalate a read into a write.
         ("write ~/.cargo/config.toml", format!("echo x > {home}/.cargo/config.toml"), Expect::Stopped),
         ("install a systemd user unit",
          format!("mkdir -p {home}/.config/systemd/user && echo x > {home}/.config/systemd/user/evil.service"),
@@ -445,9 +446,7 @@ fn escape_battery() {
             ));
         } else if expected == Expect::Stopped && !body.contains("outside workspace") {
             // Stopped for the wrong reason is not a pass: a missing file would
-            // look identical and prove nothing. The jail owns these paths —
-            // the forbidden list only flags candidates for the wizard now, it
-            // never stops anything itself.
+            // look identical and prove nothing. The jail owns these paths.
             mark = "!! ";
             failures.push(format!("{name}: stopped, but not by the jail — {body}"));
         }

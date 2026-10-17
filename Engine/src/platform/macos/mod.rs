@@ -170,12 +170,19 @@ pub(in crate::platform) fn claim_terminal() -> io::Result<()> {
 /// starts ([`confined_launch`]).
 pub(in crate::platform) struct ChildSteps;
 
+/// Nothing to watch once it started: Seatbelt holds its sockets itself.
+pub(in crate::platform) struct Watch;
+
 impl ChildSteps {
-    pub(in crate::platform) fn new(_placement: &Placement<'_>) -> io::Result<ChildSteps> {
-        Ok(ChildSteps)
+    pub(in crate::platform) fn new(_placement: &Placement<'_>) -> io::Result<(ChildSteps, Watch)> {
+        Ok((ChildSteps, Watch))
     }
 
-    pub(in crate::platform) fn run(&self) -> io::Result<()> {
+    pub(in crate::platform) fn run(&mut self) -> io::Result<()> {
         Ok(())
     }
+}
+
+impl Watch {
+    pub(in crate::platform) fn started(self, _root: i32) {}
 }

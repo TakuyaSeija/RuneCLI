@@ -76,6 +76,8 @@ struct Inner {
     grants: Vec<Grant>,
     /// Where each entry is recorded before it is written; `None`: none is.
     ledger: Option<PathBuf>,
+    /// [`Grants::local_services`], as it was asked for.
+    local_services: bool,
     written: Mutex<bool>,
 }
 
@@ -108,6 +110,17 @@ pub struct Grants<'a> {
     /// Full rights, each answered for by the person by name; a file among
     /// them is granted as a file.
     pub reach: &'a [PathBuf],
+    /// Whether a confined command may reach programs already running on
+    /// this machine (Unix sockets elsewhere). Recorded for the contract: a
+    /// restricted token is refused every pipe or socket file whose ACL names
+    /// only the user, as programs of the user make theirs.
+    pub local_services: bool,
+    /// Folders whose Unix sockets are the command's own — the project, its
+    /// scratch, what the person granted: reached without a question.
+    pub sockets: &'a [PathBuf],
+    /// Who is asked when a command reaches any other program's socket;
+    /// `None`: nobody, the connection is refused.
+    pub ask_service: Option<crate::platform::ServiceAsk>,
 }
 
 /// Why no confinement holds, said to the person (`SandboxReport.reason`).
@@ -265,6 +278,7 @@ impl Confinement {
                 token,
                 grants: planned,
                 ledger: grants.ledger.map(Path::to_path_buf),
+                local_services: grants.local_services,
                 written: Mutex::new(false),
             }),
         })
@@ -278,6 +292,12 @@ impl Confinement {
     /// Landlock's ABI on Linux; Windows has none.
     pub fn abi(&self) -> i32 {
         0
+    }
+
+    /// Whether a command it confines may reach local services
+    /// ([`Grants::local_services`]).
+    pub fn local_services(&self) -> bool {
+        self.inner.local_services
     }
 
     /// The token a confined command starts with — its grants written on disk
@@ -541,6 +561,9 @@ mod tests {
             reads: &[],
             writes: std::slice::from_ref(&cache),
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
         let sid = sid_for(true, &project);
@@ -583,6 +606,9 @@ mod tests {
             reads: &[],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .unwrap_or_else(|why| panic!("{}", why.reason));
         assert!(confinement.token_for_start().is_err());
@@ -619,6 +645,9 @@ mod tests {
             reads: &[],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .err()
         .expect("never a confinement that writes in System32");
@@ -633,6 +662,9 @@ mod tests {
             reads: &[],
             writes: &[],
             reach: &[],
+            local_services: false,
+            sockets: &[],
+            ask_service: None,
         })
         .err()
         .expect("never a confinement without its project");

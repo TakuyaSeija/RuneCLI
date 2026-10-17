@@ -439,7 +439,7 @@ mod tests {
             preview: "$ ls".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         };

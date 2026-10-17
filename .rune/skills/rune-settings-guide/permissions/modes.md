@@ -5,9 +5,11 @@ In the conversation, Tab cycles modes; `/mode ask`, `/mode auto` or `/mode full`
 
 | Mode | User-visible behavior and risk |
 | --- | --- |
-| Ask | Default. Reads in allowed locations generally proceed; edits and commands can ask. Commands require an explicit answer each time. |
-| Auto | Ordinary work in the allowed scope can proceed without repeated approval; sensitive, risky or additional access can still ask. Suitable only when the user wants that autonomy. |
-| Full | Broad access as the user's OS account, without normal permission questions. High risk; not a troubleshooting shortcut and not a bypass of every other validation/review. |
+| Ask | Default. Reads inside the workspace proceed; every edit asks (Always can be offered), every command asks each time, and reading anything outside the workspace asks. |
+| Auto | Reading and writing inside the workspace proceed without questions. Anything outside it asks: a file or folder elsewhere, or a program already running on the computer (a container engine, the service manager, a terminal multiplexer, a key agent). Risky commands still ask each time. Suitable only when the user wants that autonomy. |
+| Full | No restriction inside or outside the workspace, as the user's OS account, without permission questions. High risk; not a troubleshooting shortcut and not a bypass of every other validation/review. |
+
+The modes mean the same on Linux, macOS and Windows. No folder of the home is treated specially: a folder such as `~/.ssh` is asked about like any other location outside the workspace.
 
 An approval for one action is not a global mode change. A remember option, when offered, applies to its stated scope; it is not approval for every later command. Deny, cancel or expiry does not execute the action. A clarification question or Settings confirmation is not a general execution approval.
 

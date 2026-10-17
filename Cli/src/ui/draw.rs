@@ -8370,7 +8370,7 @@ mod tests {
             preview: "$ command".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -8453,7 +8453,7 @@ mod tests {
                 preview: format!("$ {}", "printf benchmark && ".repeat(1000)),
                 remember_as: Some("shell".into()),
                 reach: vec!["/proc/meminfo".into()],
-                sensitive: vec!["/ — host filesystem".into()],
+                local_services: true,
                 full_access: true,
                 reason: Some("This command runs outside confinement.".into()),
             });
@@ -8484,7 +8484,7 @@ mod tests {
             preview: "$ ls".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: Some(reason.into()),
         });
@@ -8522,7 +8522,7 @@ mod tests {
             preview: "run `ls ~/Downloads`".into(),
             remember_as: Some("ls".into()),
             reach: vec!["/home/dev/Downloads".into()],
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -8579,7 +8579,7 @@ mod tests {
             preview: "create NOTES.md (1 line)".into(),
             remember_as: Some("create_file".into()),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -8610,7 +8610,7 @@ mod tests {
             preview: "big.txt".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         };
@@ -8634,7 +8634,7 @@ mod tests {
             preview: "npm test".into(),
             remember_as: remember.map(String::from),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         };
@@ -8672,21 +8672,18 @@ mod tests {
         );
     }
 
-    /// The owner's rule, on the card: a path the machine runs on its own is
-    /// never refused by the system — it is asked with the reason attached.
+    /// Owner, 2026-10-17: no folder is special, so a path that used to be a
+    /// "sensitive" one is put like any other, "always" on offer; a terminal
+    /// command that reaches a local service says so in its title.
     #[test]
-    fn the_card_shows_why_a_sensitive_path_needs_the_owner() {
-        let mut ask = super::super::blocks::Ask {
+    fn a_card_offers_always_for_any_outside_path_and_names_local_services() {
+        let ask = super::super::blocks::Ask {
             req: "r".into(),
-            action: "inspect the ssh key".into(),
-            preview: "read ~/.ssh/id_ed25519".into(),
-            remember_as: None,
-            reach: vec!["/home/dev/.ssh/id_ed25519".into()],
-            sensitive: vec![
-                "/home/dev/.ssh/id_ed25519 — /home/dev/.ssh holds credentials or files the \
-                 user's machine runs on its own"
-                    .into(),
-            ],
+            action: "read the ssh configuration".into(),
+            preview: "read ~/.ssh/config".into(),
+            remember_as: Some("inspect_file".into()),
+            reach: vec!["/home/dev/.ssh/config".into()],
+            local_services: false,
             full_access: false,
             reason: None,
         };
@@ -8695,22 +8692,21 @@ mod tests {
             .iter()
             .map(|l| ansi::plain(l))
             .collect();
-        assert!(text.contains("never refused"), "{text}");
-        assert!(text.contains("holds credentials"), "{text}");
-        assert!(
-            !text.contains("Always"),
-            "a sensitive path must never be offered a remembered grant"
-        );
-        assert_eq!(ask.answers().len(), 2);
+        assert!(text.contains("reaches outside the workspace"), "{text}");
+        assert!(text.contains("Always"), "{text}");
+        assert_eq!(ask.answers().len(), 3);
 
-        // And an ordinary reach carries no such section.
-        ask.sensitive.clear();
-        let plain: String = permission_card(&ask, 0, 90, 40, None)
+        let services = super::super::blocks::Ask {
+            reach: Vec::new(),
+            local_services: true,
+            ..ask
+        };
+        let text: String = permission_card(&services, 0, 90, 40, None)
             .lines
             .iter()
             .map(|l| ansi::plain(l))
             .collect();
-        assert!(!plain.contains("never refused"), "{plain}");
+        assert!(text.contains("Unix sockets"), "{text}");
     }
 
     /// The card is the one boxed thing on the screen, and every row of it has to
@@ -8723,7 +8719,7 @@ mod tests {
             preview: "$ ls -la ~/Downloads".into(),
             remember_as: Some("ls".into()),
             reach: vec!["/home/dev/Downloads".into()],
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         };
@@ -8754,7 +8750,7 @@ mod tests {
             preview: "p".into(),
             remember_as: Some("ls".into()),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         };
@@ -10037,7 +10033,7 @@ mod tests {
             preview: "p".into(),
             remember_as: None,
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         });
@@ -10402,7 +10398,7 @@ mod tests {
             preview: "$ ls -la ~/Downloads".into(),
             remember_as: Some("ls".into()),
             reach: vec!["/home/dev/Downloads".into()],
-            sensitive: Vec::new(),
+            local_services: false,
             action: "list what is in the Downloads folder".into(),
             full_access: false,
             reason: None,

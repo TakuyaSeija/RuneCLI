@@ -173,6 +173,12 @@ pub struct SessionState {
     /// Where this session's confinement records what it leaves on disk
     /// (`sandbox::grants_ledger`), in Rune's home.
     grants_ledger: PathBuf,
+    /// The question a confined command's connection to a program outside
+    /// the workspace puts to the person ([`services_door`]).
+    ask_service: crate::sandbox::AskService,
+    /// What that question asks through, held here alone: the door reaches it
+    /// only while this session lives.
+    _door: Arc<Door>,
     /// Where this session keeps what a tool wrote to disk for it — output too
     /// long to show, a background command's log: its folder's `tools_result/`.
     pub results: PathBuf,
@@ -201,10 +207,18 @@ pub struct SessionState {
     /// views of one decision, and a decision with two homes is a decision that
     /// drifts (see [`crate::perm::reach`]).
     reach: Mutex<Vec<PathBuf>>,
-    /// Paths no answer to a prompt can open — credentials, startup files, and
-    /// this install's own directories. Built once per engine and shared, because
-    /// two of its entries depend on where this engine was pointed.
-    pub forbidden: Arc<crate::perm::reach::Forbidden>,
+    /// The project's commands may reach local services: the person answered
+    /// "always" for it. Seeded when the session opens and read again at every
+    /// turn ([`Self::reseed_services`]), so a grant withdrawn elsewhere stops
+    /// at the next turn and one given in another window starts there.
+    standing_services: AtomicBool,
+    /// Calls running now that the person allowed local services for this
+    /// once ([`Self::open_services`]).
+    services_held: std::sync::atomic::AtomicUsize,
+    /// MCP servers whose folders outside the workspace the person refused in
+    /// this session, with the folders refused: not put to them again until
+    /// those change ([`crate::session::call::authorize_mcp_roots`]).
+    pub(crate) refused_servers: Mutex<Vec<(String, Vec<PathBuf>)>>,
     /// Set to stop the running turn. Cleared when the next one starts.
     pub cancel: Arc<AtomicBool>,
     /// The tool call running right now and the flag that stops just that one.
@@ -267,7 +281,9 @@ pub struct NewSession {
     /// The project's standing path grants, already validated. Empty for a
     /// project nobody has ever allowed outside.
     pub reach: Vec<PathBuf>,
-    pub forbidden: Arc<crate::perm::reach::Forbidden>,
+    /// The project's standing grant of local services
+    /// ([`crate::engine::standing_services`]).
+    pub local_services: bool,
     pub db: Arc<Mutex<Db>>,
 }
 
@@ -277,11 +293,20 @@ impl SessionState {
             confined: n.mode.confines(),
             reach: n.reach.clone(),
             roots: n.capabilities.package_roots(),
+            local_services: n.local_services,
         };
         // Rune's home: the store's root.
         let grants_ledger = crate::sandbox::grants_ledger(panic::lock(&n.db).jsonl.root());
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (ask_service, door) = services_door(&n, &cancel);
         let sandbox = Confinement {
-            sandbox: Arc::new(build_sandbox(&n.jail, &n.scratch, &grants_ledger, &inputs)),
+            sandbox: Arc::new(build_sandbox(
+                &n.jail,
+                &n.scratch,
+                &grants_ledger,
+                &ask_service,
+                &inputs,
+            )),
             inputs,
         };
         SessionState {
@@ -304,6 +329,8 @@ impl SessionState {
             )),
             scratch: n.scratch,
             grants_ledger,
+            ask_service,
+            _door: door,
             results: n.results,
             settings: Mutex::new(n.settings),
             sandbox: Mutex::new(sandbox),
@@ -311,13 +338,15 @@ impl SessionState {
             lifted: std::sync::atomic::AtomicUsize::new(0),
             db: n.db,
             reach: Mutex::new(n.reach),
-            forbidden: n.forbidden,
+            standing_services: AtomicBool::new(n.local_services),
+            services_held: std::sync::atomic::AtomicUsize::new(0),
+            refused_servers: Mutex::new(Vec::new()),
             input: Arc::new(InputSlot::default()),
             term: Mutex::new((
                 n.config.number("terminal.rows") as u16,
                 n.config.number("terminal.columns") as u16,
             )),
-            cancel: Arc::new(AtomicBool::new(false)),
+            cancel,
             current_calls: Mutex::new(Vec::new()),
             busy: AtomicBool::new(false),
             admission: Mutex::new(Admission::default()),
@@ -373,6 +402,62 @@ impl SessionState {
     pub(crate) fn unlift(&self) {
         self.lifted.fetch_sub(1, Ordering::AcqRel);
         self.sync_sandbox();
+    }
+
+    /// Let this session's commands reach local services while one call the
+    /// person allowed them for runs, until [`Self::close_services`].
+    /// Crate-private: only the call runner opens, and only through its guard.
+    pub(crate) fn open_services(&self) {
+        self.services_held.fetch_add(1, Ordering::AcqRel);
+        self.sync_sandbox();
+    }
+
+    /// End one [`Self::open_services`].
+    pub(crate) fn close_services(&self) {
+        self.services_held.fetch_sub(1, Ordering::AcqRel);
+        self.sync_sandbox();
+    }
+
+    /// The project's standing grant of local services as it is on record now:
+    /// kept by an "always" answered here or in another window, gone when it
+    /// was withdrawn.
+    pub fn reseed_services(&self, standing: bool) {
+        if self.standing_services.swap(standing, Ordering::AcqRel) != standing {
+            self.sync_sandbox();
+        }
+    }
+
+    /// Whether an MCP server whose profile names `roots` may start without
+    /// asking: nothing is asked in Full, and elsewhere every root is inside
+    /// the workspace, already reached, or allowed for this project.
+    pub fn mcp_roots_held(&self, roots: &[PathBuf]) -> crate::error::Result<()> {
+        if self.outside_roots(roots).is_empty() {
+            return Ok(());
+        }
+        Err(crate::error::Error::Denied(
+            "this MCP server reaches folders outside the workspace; it is asked about at the next turn"
+                .into(),
+        ))
+    }
+
+    /// The roots of an MCP profile a confining mode has to ask about.
+    pub(crate) fn outside_roots(&self, roots: &[PathBuf]) -> Vec<PathBuf> {
+        if !self.mode().confines() {
+            return Vec::new();
+        }
+        let jail = self.jail();
+        let sandbox = self.sandbox();
+        roots
+            .iter()
+            .filter(|root| !jail.contains(root) && !sandbox.reachable(root))
+            .cloned()
+            .collect()
+    }
+
+    /// Whether this session's commands may reach local services right now.
+    fn local_services(&self) -> bool {
+        self.standing_services.load(Ordering::Acquire)
+            || self.services_held.load(Ordering::Acquire) > 0
     }
 
     /// Whether what this session runs is confined right now: the person's mode
@@ -484,6 +569,7 @@ impl SessionState {
             confined: self.confined(),
             reach: self.reach(),
             roots: self.capabilities.package_roots(),
+            local_services: self.local_services(),
         };
         if !force && held.inputs == inputs {
             return;
@@ -492,6 +578,7 @@ impl SessionState {
             &self.base_jail,
             &self.scratch,
             &self.grants_ledger,
+            &self.ask_service,
             &inputs,
         ));
         held.inputs = inputs;
@@ -783,6 +870,7 @@ struct SandboxInputs {
     confined: bool,
     reach: Vec<PathBuf>,
     roots: Vec<PathBuf>,
+    local_services: bool,
 }
 
 /// The sandbox in force and what it was built from.
@@ -791,9 +879,17 @@ struct Confinement {
     inputs: SandboxInputs,
 }
 
-fn build_sandbox(jail: &Jail, scratch: &Path, ledger: &Path, inputs: &SandboxInputs) -> Sandbox {
+fn build_sandbox(
+    jail: &Jail,
+    scratch: &Path,
+    ledger: &Path,
+    ask: &crate::sandbox::AskService,
+    inputs: &SandboxInputs,
+) -> Sandbox {
     let mut policy = Policy::for_project(jail.root(), scratch)
         .with_reach(inputs.reach.clone())
+        .with_local_services(inputs.local_services)
+        .asking_services(Some(ask.clone()))
         .recorded_in(ledger.to_path_buf());
     policy.reads.extend_from_slice(&inputs.roots);
     if inputs.confined {
@@ -802,6 +898,103 @@ fn build_sandbox(jail: &Jail, scratch: &Path, ledger: &Path, inputs: &SandboxInp
         Sandbox::full_access(&policy)
     }
 }
+
+/// The question a confined command's connection to a program running outside
+/// the workspace — a container engine, the service manager, a key agent —
+/// puts to the person, at the moment it connects (owner, 2026-10-17:
+/// automatic, nothing to set up). The project's standing grant answers yes
+/// without a question; otherwise the permission gate asks as it asks about
+/// any reach outside the workspace — "always" files that grant. One question
+/// at a time: connections waiting behind it read the grant an answer filed.
+///
+/// A supervisor answers for its command for as long as the command runs — a
+/// background task outlives its window, a process that left its tree may
+/// outlive the session — so the door holds the session's parts weakly: once
+/// the session is gone nobody is asked and the connection is refused, and a
+/// door never keeps the session's event stream open (a host that ends waits
+/// for that stream to close).
+fn services_door(
+    n: &NewSession,
+    cancel: &Arc<AtomicBool>,
+) -> (crate::sandbox::AskService, Arc<Door>) {
+    let door = Arc::new(Door {
+        gate: Arc::clone(&n.gate),
+        db: Arc::clone(&n.db),
+        events: n.capabilities.input.events.clone(),
+        cancel: Arc::clone(cancel),
+    });
+    let held = Arc::downgrade(&door);
+    let project = n.project.clone();
+    let session = n.id;
+    let one_at_a_time = Arc::new(Mutex::new(()));
+    let ask = crate::sandbox::AskService(Arc::new(move |call: &crate::platform::ServiceCall| {
+        let Some(door) = held.upgrade() else {
+            // The session is gone: nobody to ask.
+            return false;
+        };
+        let standing = || {
+            panic::lock(&door.db)
+                .is_granted(
+                    &project,
+                    crate::perm::SERVICES_GRANT_TOOL,
+                    crate::perm::SERVICES_GRANT_PATTERN,
+                )
+                .unwrap_or(false)
+        };
+        if standing() {
+            return true;
+        }
+        let _turn = panic::lock(&one_at_a_time);
+        if standing() {
+            return true;
+        }
+        let Some(events) = &door.events else {
+            // Nobody to ask.
+            return false;
+        };
+        let served = call
+            .server
+            .as_deref()
+            .map(|name| format!(" ({name})"))
+            .unwrap_or_default();
+        let action = format!("connect to {}{served}", call.address);
+        let ask = crate::perm::Ask {
+            session,
+            tool: SERVICE_TOOL,
+            action: &action,
+            preview: format!(
+                "A running command wants to talk to {}{served}, a program running outside the workspace with your rights.",
+                call.address
+            ),
+            grant_key: crate::perm::SERVICES_GRANT_PATTERN.into(),
+            mutates: true,
+            runs: false,
+            risk: crate::perm::denylist::Risk::Normal,
+            reach: Vec::new(),
+            local_services: true,
+            unconfined: None,
+        };
+        let mut emit = |event: crate::proto::Event| {
+            let _ = events.send(event);
+        };
+        // A confined command only: the mode confines, so it asks.
+        door.gate
+            .authorize(Mode::Auto, ask, &mut emit, &door.cancel)
+            .is_ok()
+    }));
+    (ask, door)
+}
+
+/// What [`services_door`] asks through.
+struct Door {
+    gate: Arc<crate::perm::Gate>,
+    db: Arc<Mutex<crate::store::Db>>,
+    events: Option<crate::session::live::Bus>,
+    cancel: Arc<AtomicBool>,
+}
+
+/// The name a connection's question goes by ([`services_door`]).
+pub const SERVICE_TOOL: &str = "local_service";
 
 /// A handle the engine keeps per open session.
 #[derive(Clone)]

@@ -569,7 +569,10 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
     report_unavailable(
         rt,
         st,
-        &st.capabilities.connect_enabled(&st.registry, &st.cancel)?,
+        &st.capabilities
+            .connect_enabled(&st.registry, &st.cancel, &|server, roots| {
+                super::call::authorize_mcp_roots(rt, st, server, roots)
+            })?,
     );
     // The cached prefix: the same bytes for every request of every session.
     // Everything that moves is told through `super::context`.
@@ -619,7 +622,10 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
             report_unavailable(
                 rt,
                 st,
-                &st.capabilities.connect_enabled(&st.registry, &st.cancel)?,
+                &st.capabilities
+                    .connect_enabled(&st.registry, &st.cancel, &|server, roots| {
+                        super::call::authorize_mcp_roots(rt, st, server, roots)
+                    })?,
             );
             panic::lock(&rt.settings).reload_providers();
             panic::lock(&rt.settings).reload_secrets();
@@ -627,8 +633,9 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
         // A path grant persisted by another Rune process — "always allow" in a
         // second window, or `rune -permission revoke`'s counterpart — belongs to
         // every session on this project, not only the one that asked.
-        let standing = crate::engine::standing_reach(&rt.db, &st.project, &st.forbidden);
+        let standing = crate::engine::standing_reach(&rt.db, &st.project);
         st.reseed_reach(&standing);
+        st.reseed_services(crate::engine::standing_services(&rt.db, &st.project));
         // After both: a refresh above may have changed the skill roots, and a
         // tool in the last round may have created the MCP media root.
         st.sync_sandbox();

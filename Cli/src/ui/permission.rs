@@ -66,18 +66,14 @@ fn wrapped(out: &mut Vec<String>, text: &str, ink: ansi::Ink, width: usize) {
 fn document(ask: &Ask, tool: Option<&Tool>, width: usize) -> (String, Vec<String>) {
     let mut body = Vec::new();
     if let Some(tool) = tool.filter(|tool| steps::is_terminal(tool)) {
-        let warning = if !ask.sensitive.is_empty() {
-            Some(if ask.full_access {
-                "Sensitive · review the submitted command."
-            } else {
-                "Sensitive access — review the submitted command."
-            })
-        } else if !ask.reach.is_empty() {
+        let warning = if !ask.reach.is_empty() {
             Some(if ask.full_access {
                 "Outside workspace · review the submitted command."
             } else {
                 "Outside workspace — review the submitted command."
             })
+        } else if ask.local_services {
+            Some("Local services — review the submitted command.")
         } else if ask.full_access || ask.reason.is_some() {
             Some("Unconfined — review the submitted command.")
         } else {
@@ -112,16 +108,13 @@ fn document(ask: &Ask, tool: Option<&Tool>, width: usize) -> (String, Vec<String
             wrapped(&mut body, path, TEXT, width);
         }
     }
-    if !ask.sensitive.is_empty() {
+    if ask.local_services {
         wrapped(
             &mut body,
-            "never refused — yours to open, never remembered",
+            "reaches programs running outside the workspace (Unix sockets)",
             REMOVED,
             width,
         );
-        for why in &ask.sensitive {
-            wrapped(&mut body, why, TEXT, width);
-        }
     }
     if ask.full_access {
         wrapped(
@@ -362,7 +355,7 @@ mod tests {
             preview: "request".into(),
             remember_as: Some("tool".into()),
             reach: Vec::new(),
-            sensitive: Vec::new(),
+            local_services: false,
             full_access: false,
             reason: None,
         }
@@ -378,7 +371,7 @@ mod tests {
 
     #[test]
     fn every_permission_component_shares_one_bounded_scrollable_document() {
-        for component in ["preview", "action", "reason", "reach", "sensitive"] {
+        for component in ["preview", "action", "reason", "reach"] {
             let mut ask = ask();
             let long = (0..200)
                 .map(|i| format!("{component} row {i}\n"))
@@ -390,8 +383,7 @@ mod tests {
                     ask.action = long;
                 }
                 "reason" => ask.reason = Some(long),
-                "reach" => ask.reach = vec![long],
-                _ => ask.sensitive = vec![long],
+                _ => ask.reach = vec![long],
             }
             for rows in [8, 10, 16, 24, 40, 80] {
                 for cols in [20, 40, 80, 150] {

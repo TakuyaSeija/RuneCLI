@@ -423,7 +423,7 @@ fn fast_wheels_stay_on_long_cards_and_sidebar_even_at_their_ends() {
                         preview: "output\n".repeat(200),
                         remember_as: None,
                         reach: Vec::new(),
-                        sensitive: Vec::new(),
+                        local_services: false,
                         full_access: false,
                         reason: None,
                     });
