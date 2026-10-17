@@ -13,6 +13,8 @@ use runeengine::proto::{Command, Decision, Event};
 use runeengine::provider::scripted::Scripted;
 use serde_json::json;
 
+mod support;
+
 struct Probe {
     engine: Engine,
     events: std::sync::mpsc::Receiver<Event>,
@@ -37,6 +39,7 @@ fn probe(name: &str) -> Probe {
     let project = base.join("project");
     std::fs::create_dir_all(&project).unwrap();
     std::fs::create_dir_all(&store).unwrap();
+    support::posix_shell_for_tests(&store.join("data"));
 
     let cfg = Config::at(
         store.join("rune.db"),
@@ -121,12 +124,18 @@ fn the_engine_says_out_loud_whether_it_is_enforcing() {
     let sandbox = p.engine.sandbox_of(p.session).unwrap();
     let r = sandbox.report();
     if r.enforced {
-        assert_eq!(r.kind, "landlock");
-        assert!(r.abi >= 1);
+        use runeengine::platform::Os;
+        let (kind, abi) = match runeengine::platform::OS {
+            Os::Linux => ("landlock", 1),
+            Os::MacOs => ("seatbelt", 0),
+            Os::Windows => ("restricted-token", 0),
+        };
+        assert_eq!(r.kind, kind);
+        assert!(r.abi >= abi);
     } else {
         assert!(r.reason.is_some(), "a disabled sandbox must carry a reason");
         eprintln!(
-            "note: landlock not enforced here — {}",
+            "note: no confinement enforced here — {}",
             r.reason.clone().unwrap()
         );
     }
@@ -190,8 +199,16 @@ fn a_command_can_write_inside_the_project() {
 #[test]
 fn a_command_can_still_read_the_rest_of_the_machine() {
     let mut p = probe("read");
-    // A compiler needs its headers; a shell needs its binaries. Reading stays open.
-    let (ok, out) = shell(&mut p, "head -1 /etc/hostname > /dev/null && echo readable");
+    // A compiler needs its headers; a shell needs its binaries. Reading stays
+    // open — a file of the system's own on each OS.
+    let system_file = match runeengine::platform::OS {
+        runeengine::platform::Os::Windows => "\"$SYSTEMROOT/System32/drivers/etc/hosts\"",
+        _ => "/etc/hosts",
+    };
+    let (ok, out) = shell(
+        &mut p,
+        &format!("head -1 {system_file} > /dev/null && echo readable"),
+    );
     assert!(ok, "{out}");
     assert!(exited_zero(&out), "{out}");
 }

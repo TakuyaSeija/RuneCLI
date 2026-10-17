@@ -216,6 +216,13 @@ fn read_file(p: &mut P, path: &str) -> (Expect, String) {
 
 #[test]
 fn escape_battery() {
+    // The cases name Linux's tools and paths (systemd units, `unshare`,
+    // seccomp's refusals, `/etc`, `docker.sock`); macOS's and Windows's
+    // confinement is held to the same lines by `sandbox.rs` and their
+    // platform tests.
+    if runeengine::platform::OS != runeengine::platform::Os::Linux {
+        return;
+    }
     // The battery is approved throughout, and since 2026-09-28 approved means
     // *runs* — including the sensitive class. It must never do that against
     // the owner's real home, so a throwaway `$HOME` is built here, before the

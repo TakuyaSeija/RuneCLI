@@ -12,6 +12,8 @@ use runeengine::provider::scripted::Scripted;
 use runeengine::provider::{Chunk, Flow, Provider, Request};
 use serde_json::{json, Value};
 
+mod support;
+
 struct Harness {
     engine: Engine,
     events: std::sync::mpsc::Receiver<Event>,
@@ -43,42 +45,6 @@ fn temp(name: &str) -> PathBuf {
     dir
 }
 
-/// The scripts these tests run are POSIX. On Windows, where `auto` is
-/// PowerShell, they run in Git Bash (`platform::fixture::posix_shell`): what
-/// is tested is Rune's terminal on Windows — ConPTY, jobs, confinement — not
-/// PowerShell reading bash. The Windows shells have tests of their own.
-fn posix_shell_for_tests(data: &std::path::Path) {
-    if runeengine::platform::OS != runeengine::platform::Os::Windows {
-        return;
-    }
-    if let Some(shell) = runeengine::platform::fixture::posix_shell() {
-        runeengine::settings::configuration::Configuration::edit(
-            data,
-            Some("terminal.shell"),
-            Some(json!(shell.to_string_lossy())),
-            false,
-            None,
-        )
-        .unwrap();
-    }
-}
-
-/// A POSIX command starting `command` outside its own process group, as a
-/// daemon does: `setsid` on Linux, Perl's `POSIX::setsid` on macOS (no
-/// `setsid` command there; every macOS has `/usr/bin/perl`). `None` on
-/// Windows, which has no groups to leave — a job holds the whole tree, and
-/// the Windows platform's own tests stop it.
-fn leaving_its_group(command: &str) -> Option<String> {
-    use runeengine::platform::Os;
-    match runeengine::platform::OS {
-        Os::Linux => Some(format!("setsid {command}")),
-        Os::MacOs => Some(format!(
-            "perl -MPOSIX -e 'POSIX::setsid(); exec @ARGV' {command}"
-        )),
-        Os::Windows => None,
-    }
-}
-
 fn harness(name: &str, fixture: Value) -> Harness {
     let provider = Arc::new(Scripted::from_value(&fixture, "test".into()).unwrap());
     harness_with(name, provider)
@@ -106,7 +72,7 @@ fn harness_with(name: &str, provider: Arc<dyn Provider>) -> Harness {
         None,
     )
     .unwrap();
-    posix_shell_for_tests(&base.join("data"));
+    support::posix_shell_for_tests(&base.join("data"));
     let cfg = Config::at(db_path.clone(), base.join("data"), provider).unwrap();
     let (mut engine, events) = Engine::start(cfg).unwrap();
     let session = engine.open(project.to_str().unwrap()).unwrap().id();
@@ -2490,7 +2456,7 @@ fn manage_process_has_no_way_to_wait() {
 
 #[test]
 fn a_command_with_a_detached_pty_descendant_moves_to_the_background_on_time() {
-    let Some(detached) = leaving_its_group("sleep 8") else {
+    let Some(detached) = support::leaving_its_group("sleep 8") else {
         return;
     };
     let mut h = harness_with_config(
@@ -3857,7 +3823,7 @@ fn harness_with_config_and(name: &str, config: &str, provider: Arc<dyn Provider>
     std::fs::create_dir_all(&data_dir).unwrap();
     std::fs::write(data_dir.join("rune.toml"), config).unwrap();
     if !config.contains("shell") {
-        posix_shell_for_tests(&data_dir);
+        support::posix_shell_for_tests(&data_dir);
     }
 
     let db_path = base.join("rune.db");
@@ -12534,7 +12500,7 @@ fn a_9router_entry_speaking_anthropic_reports_the_cache_exactly() {
 /// where a signal to the group does not.
 #[test]
 fn stopping_a_background_task_stops_what_left_its_group() {
-    let Some(daemon) = leaving_its_group("sleep 300") else {
+    let Some(daemon) = support::leaving_its_group("sleep 300") else {
         return;
     };
     let mut h = harness_with_config(
