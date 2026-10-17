@@ -69,19 +69,21 @@ impl Sid {
         Ok(Sid(buffer))
     }
 
-    /// A SID of Rune's own for `name`, the way Windows derives a capability's
-    /// SID from its name: `S-1-15-3-` and eight numbers from a SHA-256 of the
-    /// name. No account or group has it; only a token Rune builds carries it,
-    /// so an entry granting it lets in Rune's confined commands and nothing
-    /// else.
+    /// A SID of Rune's own for `name`: `S-1-5-21-` and six numbers from a
+    /// SHA-256 of the name — the shape Chromium's sandbox gives the SIDs it
+    /// makes up for restricted tokens. No account or group has it; only a
+    /// token Rune builds carries it, so an entry granting it lets in Rune's
+    /// confined commands and nothing else. Not an app-package SID
+    /// (`S-1-15-…`): those belong to AppContainer tokens, and Windows refuses
+    /// a restricted token that names one (CI, 2026-10-17: error 87).
     pub(super) fn derived(name: &str) -> Sid {
         use sha2::Digest;
         let hash = sha2::Sha256::digest(format!("rune:{name}").as_bytes());
-        // Revision 1, nine sub-authorities, authority 15 (app packages):
-        // 3 (capability base), then the hash.
-        let mut sid = vec![1u8, 9, 0, 0, 0, 0, 0, 15];
-        sid.extend_from_slice(&3u32.to_le_bytes());
-        sid.extend_from_slice(&hash[..32]);
+        // Revision 1, seven sub-authorities, NT authority (5): 21
+        // (non-unique), then the hash.
+        let mut sid = vec![1u8, 7, 0, 0, 0, 0, 0, 5];
+        sid.extend_from_slice(&21u32.to_le_bytes());
+        sid.extend_from_slice(&hash[..24]);
         Sid(sid)
     }
 
@@ -413,8 +415,8 @@ mod tests {
         assert_eq!(a, Sid::derived("project:C:\\work\\one"));
         assert_ne!(a, Sid::derived("project:C:\\work\\two"));
         let text = a.string().unwrap();
-        assert!(text.starts_with("S-1-15-3-"), "{text}");
-        assert_eq!(text.matches('-').count(), 11, "{text}");
+        assert!(text.starts_with("S-1-5-21-"), "{text}");
+        assert_eq!(text.matches('-').count(), 9, "{text}");
     }
 
     #[test]

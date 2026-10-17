@@ -29,8 +29,8 @@
 //! every program of the user does.
 //!
 //! What the token's other restricting SIDs open stays open, as it does for any
-//! program of the user: the system folders and Program Files (readable by all
-//! application packages), what Windows lets every user read or write
+//! program of the user: the system folders and Program Files (readable by
+//! every user), what Windows lets every user read or write
 //! (Everyone, Users: ProgramData, Public, the Windows temp folder), the
 //! desktop of the logon session, the user's registry hive (RESTRICTED). Not
 //! the user's own files: a profile grants none of those SIDs.
@@ -47,10 +47,10 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     CreateRestrictedToken, GetLengthSid, SetTokenInformation, TokenDefaultDacl,
-    TokenIntegrityLevel, WinBuiltinAdministratorsSid, WinBuiltinAnyPackageSid, WinBuiltinUsersSid,
-    WinLocalSystemSid, WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL,
-    DISABLE_MAX_PRIVILEGE, NO_INHERITANCE, SID_AND_ATTRIBUTES, TOKEN_ADJUST_DEFAULT,
-    TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    TokenIntegrityLevel, WinBuiltinAdministratorsSid, WinBuiltinUsersSid, WinLocalSystemSid,
+    WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL, DISABLE_MAX_PRIVILEGE,
+    NO_INHERITANCE, SID_AND_ATTRIBUTES, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY,
+    TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ALL_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_GENERIC_EXECUTE,
@@ -234,8 +234,12 @@ impl Confinement {
             if windows_own(&path).is_some() {
                 return;
             }
+            let sid = sid_for(write, &path);
+            if planned.iter().any(|grant: &Grant| grant.sid == sid) {
+                return;
+            }
             planned.push(Grant {
-                sid: sid_for(write, &path),
+                sid,
                 folder: path.is_dir(),
                 path,
                 access: if write {
@@ -395,10 +399,13 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
         Sid::well_known(WinWorldSid)?,
         Sid::well_known(WinBuiltinUsersSid)?,
         Sid::well_known(WinRestrictedCodeSid)?,
-        Sid::well_known(WinBuiltinAnyPackageSid)?,
     ];
     restricting.extend(logon.iter().cloned());
-    restricting.extend(grants.iter().cloned());
+    for grant in grants {
+        if !restricting.contains(grant) {
+            restricting.push(grant.clone());
+        }
+    }
     let disable = [SID_AND_ATTRIBUTES {
         Sid: administrators.as_psid(),
         Attributes: 0,
@@ -423,7 +430,8 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
             restrict.as_ptr(),
             &mut restricted,
         )
-    })?;
+    })
+    .map_err(failed("CreateRestrictedToken"))?;
     let restricted = owned(restricted)?;
 
     // An elevated (high) or system token is lowered to medium: a confined
@@ -444,7 +452,8 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
                 (std::mem::size_of::<TOKEN_MANDATORY_LABEL>() as u32)
                     + GetLengthSid(medium.as_psid()),
             )
-        })?;
+        })
+        .map_err(failed("SetTokenInformation(TokenIntegrityLevel)"))?;
     }
 
     // What a confined process creates without saying — its own threads, the
@@ -480,7 +489,8 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
             std::ptr::null(),
             &mut acl,
         )
-    })?;
+    })
+    .map_err(failed("SetEntriesInAclW"))?;
     let acl = Local(acl);
     let default = TOKEN_DEFAULT_DACL { DefaultDacl: acl.0 };
     check(unsafe {
@@ -490,8 +500,15 @@ fn restricted_token(grants: &[Sid]) -> io::Result<OwnedHandle> {
             (&default as *const TOKEN_DEFAULT_DACL).cast(),
             std::mem::size_of::<TOKEN_DEFAULT_DACL>() as u32,
         )
-    })?;
+    })
+    .map_err(failed("SetTokenInformation(TokenDefaultDacl)"))?;
     Ok(restricted)
+}
+
+/// The error of a Windows call, said with the call's name — which of the
+/// steps of a token refused is what tells a person (and a port) what to fix.
+fn failed(call: &'static str) -> impl Fn(io::Error) -> io::Error {
+    move |error| io::Error::new(error.kind(), format!("{call}: {error}"))
 }
 
 #[cfg(test)]
