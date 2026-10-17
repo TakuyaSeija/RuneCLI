@@ -168,8 +168,8 @@ fn known_escapes() -> Vec<Escape> {
 ///
 /// `/run` is deliberately absent: it holds daemon sockets — `docker.sock` above
 /// all — and a process that can reach the Docker socket is root on the host, no
-/// matter what any sandbox says. `/etc/resolv.conf` is a real file on this
-/// distribution, so name resolution does not need `/run`.
+/// matter what any sandbox says. Where `/etc/resolv.conf` links into `/run`,
+/// its target alone is read ([`resolver_files`]).
 const SYSTEM_READS: &[&str] = &[
     "/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/libx32", "/etc", "/opt", "/snap",
     "/proc", "/sys", "/var",
@@ -204,6 +204,33 @@ fn system_reads(os: Os) -> Vec<PathBuf> {
         .collect(),
         Os::Windows => crate::perm::denylist::protected_prefixes(Os::Windows),
     }
+}
+
+/// The file the name service is configured by, where it really is: on a
+/// system whose `/etc/resolv.conf` is a link into `/run` — systemd-resolved,
+/// NetworkManager, resolvconf (Ubuntu, Fedora) — the link's target, granted
+/// alone, so no confined command could resolve a name there (CI, 2026-10-17:
+/// `curl` exit 6 on Ubuntu). `/run` and its daemons' sockets stay closed: a
+/// regular file is granted, never a folder. Found on this machine, never
+/// assumed from a distribution; nothing where the file is not a link (Windows
+/// keeps no such file).
+pub fn resolver_files(os: Os) -> Vec<PathBuf> {
+    let link: &[&str] = match os {
+        Os::Linux => &["/etc/resolv.conf"],
+        Os::MacOs => &["/etc/resolv.conf", "/private/etc/resolv.conf"],
+        Os::Windows => &[],
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    for path in link {
+        let path = Path::new(path);
+        let Ok(real) = crate::platform::canonical(path) else {
+            continue;
+        };
+        if real != path && real.is_file() && !found.contains(&real) {
+            found.push(real);
+        }
+    }
+    found
 }
 
 /// Package stores of systems that keep every program and its libraries in one
@@ -476,6 +503,7 @@ impl Policy {
         // command on the machine already uses.
         reads.push(PathBuf::from(crate::platform::DEVICES));
         reads.extend(package_stores());
+        reads.extend(resolver_files(os));
 
         if let Some(home) = crate::platform::home_dir() {
             writes.extend(home_writes(os).iter().map(|p| home.join(p)));
@@ -582,6 +610,7 @@ impl Sandbox {
         policy.reads = mcp_system_reads(os)
             .into_iter()
             .chain(mcp_network_reads(os))
+            .chain(resolver_files(os))
             .chain(package_stores())
             .collect();
         policy.reads.push(project.to_path_buf());
@@ -807,11 +836,37 @@ mod tests {
         assert!(mcp_network_reads(Os::Windows).is_empty());
     }
 
+    /// Nothing under `/run` is granted but the resolver's own file, read
+    /// only: never `/run` or a folder in it, where daemons keep their sockets.
     #[test]
     fn nothing_grants_run_where_daemon_sockets_live() {
         let p = policy("/tmp/x");
-        for path in p.reads.iter().chain(p.writes.iter()) {
+        for path in &p.writes {
             assert!(!path.starts_with("/run"), "{path:?} exposes daemon sockets");
+        }
+        for path in &p.reads {
+            assert!(
+                !path.starts_with("/run") || path.is_file(),
+                "{path:?} exposes daemon sockets"
+            );
+        }
+    }
+
+    /// A resolver file reached through a link is granted as its target, a
+    /// file; one that is no link adds nothing.
+    #[test]
+    fn the_resolver_is_read_where_its_link_points() {
+        for path in resolver_files(crate::platform::OS) {
+            assert!(path.is_file(), "{path:?}");
+            assert!(path.is_absolute());
+        }
+        assert!(resolver_files(Os::Windows).is_empty());
+        if let Ok(real) = crate::platform::canonical(Path::new("/etc/resolv.conf")) {
+            let policy = policy("/tmp/x");
+            assert!(
+                policy.reachable(&real),
+                "{real:?}: a confined command reads the file names are resolved by"
+            );
         }
     }
 
