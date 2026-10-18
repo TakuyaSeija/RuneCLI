@@ -1188,7 +1188,13 @@ while True:
     let ((_, confined), asked) = run(&mut p, &open, Decision::AllowOnce);
     std::thread::sleep(std::time::Duration::from_millis(500));
     let served_confined = served();
-    let kind = p.engine.sandbox_of(p.session).unwrap().report().kind.clone();
+    let kind = p
+        .engine
+        .sandbox_of(p.session)
+        .unwrap()
+        .report()
+        .kind
+        .clone();
     eprintln!("MEASURED ({kind}) confined:\n{confined}\nserved {served_confined}");
 
     p.engine.handle(Command::SessionMode {
