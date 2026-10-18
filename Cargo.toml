@@ -5,7 +5,7 @@ resolver = "2"
 members  = ["Engine", "Cli"]
 
 [workspace.package]
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 
 # Dependency policy: a crate earns its place only when we would use most of it and
@@ -40,6 +40,8 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Time",
     "Win32_UI_Shell",
     "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_NetworkManagement_NetManagement",
     "Wdk_System_SystemInformation",
 ] }
 sha2       = "0.10"

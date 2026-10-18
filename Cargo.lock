@@ -1776,7 +1776,7 @@ dependencies = [
 
 [[package]]
 name = "runecli"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "runeengine",
  "serde",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "runeengine"
-version = "0.7.1"
+version = "0.7.2"
 dependencies = [
  "aes-gcm",
  "arc-swap",
