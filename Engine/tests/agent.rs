@@ -8114,9 +8114,12 @@ fn track_one(h: &mut Harness, id: u64, text: &str) -> (bool, String) {
 }
 
 /// Launches a background command, lets it finish on its own, and then — in the
-/// turn the wake opens — checks the very task the wake just reported.
+/// turn the wake opens — checks the very task the wake just reported. `hold`
+/// delays the answer that ends the launching turn, so the job can be made to
+/// end while that turn still runs.
 struct BackgroundThenCheck {
     calls: std::sync::atomic::AtomicUsize,
+    hold: std::time::Duration,
 }
 
 /// The task id, which every message that names the task spells the same way.
@@ -8157,6 +8160,7 @@ impl Provider for BackgroundThenCheck {
                 });
             }
             1 => {
+                std::thread::sleep(self.hold);
                 sink(Chunk::Text("launched".into()));
             }
             2 => {
@@ -8183,10 +8187,24 @@ impl Provider for BackgroundThenCheck {
 /// report must be written out once, and the wake exactly once.
 #[test]
 fn a_completion_the_wake_already_reported_is_not_reported_twice() {
+    completion_is_reported_once("bgsurface", std::time::Duration::ZERO);
+}
+
+/// The same promise when the job ends before the launching turn does: the wake
+/// is taken by the run still going (`Settle::Continue`), so that run opens the
+/// wake's turn and ends with one `done`. A loaded machine reaches this path on
+/// its own; the test above once waited for a second `done` and timed out here.
+#[test]
+fn a_completion_while_the_launching_turn_runs_is_woken_once_in_the_same_run() {
+    completion_is_reported_once("bgsurface-busy", std::time::Duration::from_millis(2500));
+}
+
+fn completion_is_reported_once(name: &str, hold: std::time::Duration) {
     let mut h = harness_with(
-        "bgsurface",
+        name,
         Arc::new(BackgroundThenCheck {
             calls: std::sync::atomic::AtomicUsize::new(0),
+            hold,
         }),
     );
 
@@ -8197,11 +8215,13 @@ fn a_completion_the_wake_already_reported_is_not_reported_twice() {
         attach: Vec::new(),
     });
 
+    // Whether the wake opens a run of its own or continues the launching one
+    // is timing; what is waited for is the `done` after the check.
     let mut checked = String::new();
     let mut saw_wake = false;
-    let mut done = 0;
+    let mut finished = false;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(40);
-    while done < 2 && std::time::Instant::now() < deadline {
+    while !finished && std::time::Instant::now() < deadline {
         let event = h
             .events
             .recv_timeout(std::time::Duration::from_secs(30))
@@ -8224,7 +8244,7 @@ fn a_completion_the_wake_already_reported_is_not_reported_twice() {
             Event::ToolResult { id, content, .. } if id == "check" => {
                 checked = content.clone();
             }
-            Event::Done { .. } => done += 1,
+            Event::Done { .. } => finished = !checked.is_empty(),
             _ => {}
         }
     }
