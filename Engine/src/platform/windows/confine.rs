@@ -47,11 +47,11 @@ use windows_sys::Win32::Security::Authorization::{
 };
 use windows_sys::Win32::Security::{
     CreateRestrictedToken, GetLengthSid, SetTokenInformation, TokenDefaultDacl,
-    TokenIntegrityLevel, WinBuiltinAdministratorsSid, WinBuiltinAnyPackageSid, WinBuiltinUsersSid,
-    WinLocalSystemSid, WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL,
-    DISABLE_MAX_PRIVILEGE, NO_INHERITANCE, SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES,
-    TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
-    TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    TokenIntegrityLevel, WinAuthenticatedUserSid, WinBuiltinAdministratorsSid,
+    WinBuiltinAnyPackageSid, WinBuiltinUsersSid, WinLocalSystemSid, WinMediumLabelSid,
+    WinRestrictedCodeSid, WinWorldSid, ACL, DISABLE_MAX_PRIVILEGE, NO_INHERITANCE,
+    SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES, TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY,
+    TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ALL_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_GENERIC_EXECUTE,
@@ -109,10 +109,12 @@ pub(super) enum Mechanism {
     /// few every program needs (Everyone, Users, RESTRICTED, the logon
     /// session). Named objects and pipes are the user's own namespace.
     RestrictedToken,
-    /// The same token without Everyone and Users among its restricting
-    /// SIDs — what every signed-in user may read stays closed — and with
-    /// ALL APPLICATION PACKAGES, which Windows grants its own folders.
-    TightRestrictedToken,
+    /// No restricting SID at all — one access check, as the account — with
+    /// Administrators and Authenticated Users deny-only: what Windows lets
+    /// every signed-in user change (a folder made at a drive's root) is not
+    /// this token's. For an account of Rune's own, whose grants are entries
+    /// for that account.
+    DenyOnlyToken,
     /// An AppContainer: a package SID and the grants as capabilities. Named
     /// objects live in the container's own namespace; the user's pipes and
     /// local servers are out of reach unless granted. `profile`: whether its
@@ -201,7 +203,7 @@ fn sid_for(mechanism: Mechanism, write: bool, path: &Path) -> Sid {
         path.as_os_str().to_string_lossy().to_uppercase()
     );
     match mechanism {
-        Mechanism::RestrictedToken | Mechanism::TightRestrictedToken => Sid::derived(&name),
+        Mechanism::RestrictedToken | Mechanism::DenyOnlyToken => Sid::derived(&name),
         Mechanism::AppContainer { .. } => Sid::capability(&name),
     }
 }
@@ -332,8 +334,8 @@ impl Confinement {
         }
         let sids: Vec<Sid> = planned.iter().map(|grant| grant.sid.clone()).collect();
         let (token, container) = match mechanism {
-            Mechanism::RestrictedToken | Mechanism::TightRestrictedToken => (
-                restricted_token(&sids, None, mechanism == Mechanism::TightRestrictedToken)
+            Mechanism::RestrictedToken | Mechanism::DenyOnlyToken => (
+                restricted_token(&sids, None, mechanism == Mechanism::DenyOnlyToken)
                     .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?,
                 None,
             ),
@@ -366,7 +368,7 @@ impl Confinement {
     pub fn kind(&self) -> &'static str {
         match self.inner.mechanism {
             Mechanism::RestrictedToken => "restricted-token",
-            Mechanism::TightRestrictedToken => "tight-restricted-token",
+            Mechanism::DenyOnlyToken => "deny-only-token",
             Mechanism::AppContainer { .. } => "appcontainer",
         }
     }
@@ -625,7 +627,11 @@ fn own_token() -> io::Result<OwnedHandle> {
 /// token an AppContainer is made from: no restricting SID — the container's
 /// capabilities are its second check — and a default ACL the container's
 /// processes can open again.
-fn restricted_token(grants: &[Sid], package: Option<&Sid>, tight: bool) -> io::Result<OwnedHandle> {
+fn restricted_token(
+    grants: &[Sid],
+    package: Option<&Sid>,
+    deny_only: bool,
+) -> io::Result<OwnedHandle> {
     let own = Token::of_this_process(
         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT,
     )?;
@@ -633,27 +639,32 @@ fn restricted_token(grants: &[Sid], package: Option<&Sid>, tight: bool) -> io::R
     let logon = own.logon_sid();
     let administrators = Sid::well_known(WinBuiltinAdministratorsSid)?;
     let mut restricting = Vec::new();
-    if package.is_none() {
-        if tight {
-            restricting.push(Sid::well_known(WinBuiltinAnyPackageSid)?);
-        } else {
-            restricting.extend([
-                Sid::well_known(WinWorldSid)?,
-                Sid::well_known(WinBuiltinUsersSid)?,
-            ]);
-        }
-        restricting.push(Sid::well_known(WinRestrictedCodeSid)?);
+    if package.is_none() && !deny_only {
+        restricting.extend([
+            Sid::well_known(WinWorldSid)?,
+            Sid::well_known(WinBuiltinUsersSid)?,
+            Sid::well_known(WinRestrictedCodeSid)?,
+        ]);
         restricting.extend(logon.iter().cloned());
     }
-    for grant in grants {
-        if !restricting.contains(grant) {
-            restricting.push(grant.clone());
+    if !deny_only {
+        for grant in grants {
+            if !restricting.contains(grant) {
+                restricting.push(grant.clone());
+            }
         }
     }
-    let disable = [SID_AND_ATTRIBUTES {
-        Sid: administrators.as_psid(),
-        Attributes: 0,
-    }];
+    let mut denied = vec![administrators];
+    if deny_only {
+        denied.push(Sid::well_known(WinAuthenticatedUserSid)?);
+    }
+    let disable: Vec<SID_AND_ATTRIBUTES> = denied
+        .iter()
+        .map(|sid| SID_AND_ATTRIBUTES {
+            Sid: sid.as_psid(),
+            Attributes: 0,
+        })
+        .collect();
     let restrict: Vec<SID_AND_ATTRIBUTES> = restricting
         .iter()
         .map(|sid| SID_AND_ATTRIBUTES {

@@ -123,6 +123,28 @@ fn checks(probe: &Probe) -> Vec<Check> {
             Expect::Holds(|p, _| !p.open.join("written.txt").exists()),
         ),
         cmd(
+            "cmd write ProgramData (must fail)",
+            format!("echo x> \"%ProgramData%\\rune-probe-{}.txt\"", std::process::id()),
+            Expect::Holds(|_, _| {
+                !std::path::Path::new(&std::env::var("ProgramData").unwrap_or_default())
+                    .join(format!("rune-probe-{}.txt", std::process::id()))
+                    .exists()
+            }),
+        ),
+        cmd(
+            "cmd write Users\\Public (must fail)",
+            format!("echo x> \"C:\\Users\\Public\\rune-probe-{}.txt\"", std::process::id()),
+            Expect::Holds(|_, _| {
+                !std::path::Path::new(&format!(r"C:\Users\Public\rune-probe-{}.txt", std::process::id()))
+                    .exists()
+            }),
+        ),
+        cmd(
+            "cmd read system file",
+            "type C:\\Windows\\System32\\drivers\\etc\\hosts >NUL && echo probe-ok".into(),
+            Expect::Runs("probe-ok"),
+        ),
+        cmd(
             "cmd write outside (must fail)",
             format!("echo x> \"{outside}\\written.txt\""),
             Expect::Holds(|p, _| !p.outside.join("written.txt").exists()),
@@ -684,7 +706,7 @@ fn probe_runner() {
     };
     let mechanism = match job.mode.as_str() {
         "restricted" => Some(Mechanism::RestrictedToken),
-        "tight" => Some(Mechanism::TightRestrictedToken),
+        "deny-only" => Some(Mechanism::DenyOnlyToken),
         _ => None,
     };
     let confinement = match mechanism {
@@ -718,7 +740,11 @@ fn probe_runner() {
 
 /// What the runner said: its output and exit code, or why it said nothing.
 fn runner_result(said: &str) -> (String, Option<i32>) {
-    match said.lines().find_map(|line| line.strip_prefix("RESULT\t")) {
+    // libtest writes its own words on the same line, before.
+    match said
+        .lines()
+        .find_map(|line| line.split_once("RESULT\t").map(|(_, rest)| rest))
+    {
         Some(rest) => {
             let (code, out) = rest.split_once('\t').unwrap_or((rest, ""));
             (out.to_string(), code.parse().ok())
@@ -837,13 +863,8 @@ fn sandbox_mechanisms_measured() {
     }
 
     // (label, mechanism here, mode of the runner as the account)
-    let candidates: [(&str, Mechanism, Option<&str>); 6] = [
+    let candidates: [(&str, Mechanism, Option<&str>); 5] = [
         ("restricted-token", Mechanism::RestrictedToken, None),
-        (
-            "tight-restricted-token",
-            Mechanism::TightRestrictedToken,
-            None,
-        ),
         ("account", Mechanism::RestrictedToken, Some("plain")),
         (
             "account+restricted-token",
@@ -851,9 +872,9 @@ fn sandbox_mechanisms_measured() {
             Some("restricted"),
         ),
         (
-            "account+tight-restricted-token",
-            Mechanism::TightRestrictedToken,
-            Some("tight"),
+            "account+deny-only-token",
+            Mechanism::DenyOnlyToken,
+            Some("deny-only"),
         ),
         (
             "appcontainer",
@@ -907,7 +928,16 @@ fn sandbox_mechanisms_measured() {
             probe
                 .pipe_reached
                 .store(false, std::sync::atomic::Ordering::SeqCst);
-            for leftover in [outside.join("written.txt"), open.join("written.txt")] {
+            for leftover in [
+                outside.join("written.txt"),
+                open.join("written.txt"),
+                PathBuf::from(std::env::var("ProgramData").unwrap_or_default())
+                    .join(format!("rune-probe-{}.txt", std::process::id())),
+                PathBuf::from(format!(
+                    r"C:\Users\Public\rune-probe-{}.txt",
+                    std::process::id()
+                )),
+            ] {
                 let _ = std::fs::remove_file(leftover);
             }
             let _ = std::fs::remove_dir_all(hello.join("target"));
