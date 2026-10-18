@@ -1472,9 +1472,9 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
 
     // The same process, never stopped, still the host's child.
     let (state, parent) = process(serve_pid).expect("the server is gone");
-    assert_ne!(
+    assert_eq!(
         state,
-        runeengine::platform::fixture::ProcessState::Zombie,
+        runeengine::platform::fixture::ProcessState::Live,
         "the server ended"
     );
     assert_eq!(parent, host);
@@ -1829,7 +1829,7 @@ fn a_window_coming_back_keeps_the_sessions_work_running() {
     let pid = listed["detail"]["processes"][0]["pid"].as_i64().unwrap();
     let running = |pid: i64| {
         process(pid)
-            .is_some_and(|(state, _)| state != runeengine::platform::fixture::ProcessState::Zombie)
+            .is_some_and(|(state, _)| state == runeengine::platform::fixture::ProcessState::Live)
     };
 
     writeln!(

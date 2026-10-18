@@ -1576,7 +1576,7 @@ mod tests {
         crate::platform::fixture::process_state(pid)
     }
 
-    use crate::platform::fixture::ProcessState::Zombie;
+    use crate::platform::fixture::ProcessState::{Exiting, Live, Zombie};
 
     /// What a live upgrade does, in one process: the task is let go of with
     /// its terminal kept open, taken over by another manager (the next
@@ -1610,7 +1610,7 @@ mod tests {
         );
         assert!(task.written > 0);
         assert_eq!(
-            state_of(pid).map(|s| s != Zombie),
+            state_of(pid).map(|s| s == Live),
             Some(true),
             "it never stopped"
         );
@@ -1620,7 +1620,7 @@ mod tests {
         before.stop_all();
         drop(before);
         assert_eq!(
-            state_of(pid).map(|s| s != Zombie),
+            state_of(pid).map(|s| s == Live),
             Some(true),
             "stop_all reached it"
         );
@@ -1662,7 +1662,10 @@ mod tests {
         let (pid, log) = launch(&before, &dir, "bg_end", "sleep 0.2; echo bye; exit 7");
         let handed = before.release().unwrap();
         let ended = Instant::now() + Duration::from_secs(5);
-        while state_of(pid) != Some(Zombie) {
+        // Ended: collected by nobody yet (a zombie), or — on macOS — held in
+        // its end until its terminal's output is read, which only the next
+        // manager does.
+        while !matches!(state_of(pid), Some(Zombie | Exiting)) {
             assert!(
                 Instant::now() < ended,
                 "timed out waiting for it to end unwatched: {:?}\n{}",
@@ -2207,7 +2210,7 @@ mod tests {
         let (pid, _log) = launch(&manager, &dir, "bg_run", "sleep 30");
         manager.suspend();
         std::thread::sleep(Duration::from_millis(300));
-        assert_eq!(state_of(pid).map(|s| s != Zombie), Some(true));
+        assert_eq!(state_of(pid).map(|s| s == Live), Some(true));
         manager.stop_all();
         until("the task to end", || state_of(pid).is_none());
         let _ = std::fs::remove_dir_all(dir);

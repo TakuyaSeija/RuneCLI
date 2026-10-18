@@ -7472,20 +7472,20 @@ fn an_mcp_error_answer_keeps_the_server_and_tells_its_words() {
 fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
     let h = harness_with_config(
         "mcp-slow-answer",
-        "[capabilities]\ntimeout_seconds = 3\n",
+        "[capabilities]\ntimeout_seconds = 10\n",
         json!({"responses":[]}),
     );
     let mut engine = h.engine;
     let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
     connect_fixture(&h.project, &state, "slow");
     // Adding the server kept the owner's limit: the call below runs against
-    // 3 s (room for a cold interpreter to connect on a slow machine; CI macOS
-    // took more than 1 s), and the answer comes after it.
+    // 10 s — the limit also bounds connecting, and a cold interpreter on a
+    // CI macOS took more than 3 s (2026-10-18) — and the answer comes after it.
     assert_eq!(
         runeengine::settings::configuration::Configuration::load(&state.capabilities.home)
             .unwrap()
             .get("capabilities")["timeout_seconds"],
-        3,
+        10,
         "{}",
         std::fs::read_to_string(state.capabilities.home.join("rune.toml")).unwrap()
     );
@@ -7510,7 +7510,7 @@ fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
                 });
             }
             Event::McpInputRequest { req, .. } => {
-                std::thread::sleep(std::time::Duration::from_millis(4500));
+                std::thread::sleep(std::time::Duration::from_millis(11_500));
                 engine.handle(Command::McpInputReply {
                     id: 972,
                     session: h.session,
@@ -11343,10 +11343,19 @@ fn a_sessions_scratch_goes_when_the_last_process_lets_go() {
             .unwrap()
         });
         h.engine.shutdown();
+        // Whether a lock of the session is still taken, for a failure's
+        // message: a folder kept because something holds the session, or one
+        // made again after it went.
+        let free = |path: std::path::PathBuf| {
+            runeengine::lock::exclusive(&path, runeengine::lock::Wait::No).is_ok()
+        };
         assert_eq!(
             mine.exists(),
             held_elsewhere,
-            "held elsewhere: {held_elsewhere}"
+            "held elsewhere: {held_elsewhere}; its file still there: {}; lease free: {}; host lock free: {}",
+            mine.join("build.tmp").exists(),
+            held_elsewhere || free(runeengine::store::run_files::lease(&home, h.session)),
+            free(runeengine::store::run_files::host_lock(&home, h.session)),
         );
         assert_eq!(
             std::fs::read_to_string(other.join("keep")).unwrap(),

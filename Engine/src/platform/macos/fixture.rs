@@ -15,6 +15,11 @@ pub enum ProcessState {
     Live,
     /// Ended and not yet collected by its parent.
     Zombie,
+    /// Its program ended, the OS still ending it: macOS holds a process
+    /// whose terminal still has output nobody read until it is read
+    /// (`PROC_FLAG_INEXIT`; CI, 2026-10-18: `ps` state `E`). Linux and
+    /// Windows end it at once and never say this.
+    Exiting,
 }
 
 /// `pid`'s state; `None` once it is gone (collected). An ended child of this
@@ -38,6 +43,8 @@ pub fn process_state(pid: i32) -> Option<ProcessState> {
     match super::procinfo::bsd_info(pid) {
         // SZOMB: ended, its parent (not this process) yet to collect it.
         Some(info) if info.pbi_status == 5 => Some(ProcessState::Zombie),
+        // PROC_FLAG_INEXIT
+        Some(info) if info.pbi_flags & 4 != 0 => Some(ProcessState::Exiting),
         Some(_) => Some(ProcessState::Live),
         None => (unsafe { libc::kill(pid, 0) } == 0).then_some(ProcessState::Live),
     }

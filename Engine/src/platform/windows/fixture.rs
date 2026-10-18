@@ -35,6 +35,11 @@ pub enum ProcessState {
     Live,
     /// Ended and not yet reaped by Rune, which keeps it by pid.
     Zombie,
+    /// Its program ended, the OS still ending it: macOS holds a process
+    /// whose terminal still has output nobody read until it is read
+    /// (`PROC_FLAG_INEXIT`; CI, 2026-10-18: `ps` state `E`). Linux and
+    /// Windows end it at once and never say this.
+    Exiting,
 }
 
 /// `pid`'s state; `None` once it is gone (reaped, or never Rune's and
