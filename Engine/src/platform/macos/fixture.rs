@@ -43,11 +43,39 @@ pub fn process_state(pid: i32) -> Option<ProcessState> {
     match super::procinfo::bsd_info(pid) {
         // SZOMB: ended, its parent (not this process) yet to collect it.
         Some(info) if info.pbi_status == 5 => Some(ProcessState::Zombie),
-        // PROC_FLAG_INEXIT
-        Some(info) if info.pbi_flags & 4 != 0 => Some(ProcessState::Exiting),
+        Some(_) if exiting(pid) => Some(ProcessState::Exiting),
         Some(_) => Some(ProcessState::Live),
         None => (unsafe { libc::kill(pid, 0) } == 0).then_some(ProcessState::Live),
     }
+}
+
+/// Whether `pid` has begun to end — what `ps` shows as `E`: `P_WEXIT` in its
+/// `p_flag`, set as `exit` starts and before the terminal's output is
+/// drained (`proc_pidinfo`'s `PROC_FLAG_INEXIT` comes only after it: CI,
+/// 2026-10-18). Read from `kern.proc.pid`'s `kinfo_proc`, which libc does not
+/// declare for macOS: `p_flag` is the `int` after the first union (16 bytes)
+/// and two pointers, at byte 32 on every 64-bit macOS.
+fn exiting(pid: i32) -> bool {
+    const P_WEXIT: i32 = 0x0000_2000;
+    const P_FLAG_AT: usize = 32;
+    let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
+    let mut buffer = [0u8; 1024];
+    let mut size = buffer.len();
+    let got = unsafe {
+        libc::sysctl(
+            mib.as_mut_ptr(),
+            mib.len() as libc::c_uint,
+            buffer.as_mut_ptr().cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if got != 0 || size < P_FLAG_AT + 4 {
+        return false;
+    }
+    let flag = i32::from_ne_bytes(buffer[P_FLAG_AT..P_FLAG_AT + 4].try_into().unwrap());
+    flag & P_WEXIT != 0
 }
 
 /// The process `pid`'s parent; `None` once it is gone.
