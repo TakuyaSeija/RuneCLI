@@ -732,7 +732,7 @@ impl Sandbox {
                         let mut escapes = known_escapes();
                         escapes.extend(confinement.gaps().into_iter().map(|gap| Escape {
                             id: gap.id.into(),
-                            detail: gap.detail.into(),
+                            detail: gap.detail,
                             fix: gap.fix.into(),
                         }));
                         escapes

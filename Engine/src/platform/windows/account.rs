@@ -24,7 +24,9 @@ use std::sync::Mutex;
 
 use rand::RngCore;
 use sha2::Digest;
-use windows_sys::Win32::Foundation::{ERROR_FILE_NOT_FOUND, ERROR_MEMBER_IN_ALIAS, WAIT_OBJECT_0};
+use windows_sys::Win32::Foundation::{
+    ERROR_ACCESS_DENIED, ERROR_FILE_NOT_FOUND, ERROR_MEMBER_IN_ALIAS, WAIT_OBJECT_0,
+};
 use windows_sys::Win32::NetworkManagement::NetManagement::{
     NERR_GroupNotFound, NERR_Success, NERR_UserExists, NERR_UserNotFound, NetLocalGroupAddMembers,
     NetUserAdd, NetUserDel, NetUserSetInfo, LOCALGROUP_MEMBERS_INFO_0, UF_DONT_EXPIRE_PASSWD,
@@ -32,7 +34,7 @@ use windows_sys::Win32::NetworkManagement::NetManagement::{
     USER_INFO_1008, USER_PRIV_USER,
 };
 use windows_sys::Win32::Security::{
-    LookupAccountSidW, WinBuiltinAdministratorsSid, WinBuiltinUsersSid, SID_NAME_USE, TOKEN_QUERY,
+    LookupAccountSidW, WinBuiltinAdministratorsSid, WinBuiltinUsersSid, SID_NAME_USE,
 };
 use windows_sys::Win32::Storage::FileSystem::FILE_GENERIC_READ;
 use windows_sys::Win32::System::Registry::{
@@ -42,7 +44,7 @@ use windows_sys::Win32::System::Registry::{
 use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 
-use super::security::{current_user, grant, set_private, Sid, Token};
+use super::security::{current_user, grant, set_private, Sid};
 use super::wide::{check, owned, wide, wide_path};
 
 /// The sandbox account for this person's Windows profile, its credentials, and
@@ -76,23 +78,36 @@ pub(super) fn account_file(home: &Path) -> PathBuf {
     home.join("sandbox").join("account")
 }
 
-type CachedAccount = Mutex<Option<Result<(SandboxAccount, PathBuf), String>>>;
-
-static ACTIVE: std::sync::OnceLock<CachedAccount> = std::sync::OnceLock::new();
-
-fn active_slot() -> &'static CachedAccount {
-    ACTIVE.get_or_init(Default::default)
+/// Where this Windows user's sandbox account record, staged runner and
+/// session holds live (`%LOCALAPPDATA%\\Rune`, as `<this>\\sandbox\\…`): the
+/// account is one per Windows user, so its record is too, whatever `RUNE_HOME`
+/// a Rune runs with — two homes sharing the account share its password and
+/// see each other's holds.
+pub(super) fn user_home() -> Option<PathBuf> {
+    use windows_sys::Win32::UI::Shell::FOLDERID_LocalAppData;
+    Some(super::home::known_folder(&FOLDERID_LocalAppData)?.join("Rune"))
 }
 
-/// The active sandbox account and staging home in this process, if any.
+/// The account found in use by this process, with [`user_home`].
+static ACTIVE: Mutex<Option<(SandboxAccount, PathBuf)>> = Mutex::new(None);
+
+/// Why the last look found no account in use; `None` once one is.
+static NOT_IN_USE: Mutex<Option<String>> = Mutex::new(None);
+
+/// The active sandbox account and its home in this process, if any.
 pub(super) fn active_account() -> Option<(SandboxAccount, PathBuf)> {
-    let guard = crate::panic::lock(active_slot());
-    guard.as_ref()?.as_ref().ok().cloned()
+    crate::panic::lock(&ACTIVE).clone()
 }
 
 /// Whether the dedicated sandbox account is active in this process.
 pub(super) fn is_active() -> bool {
     active_account().is_some()
+}
+
+/// Why confined commands do not run under the sandbox account, as the last
+/// confinement found it; `None` when they do or none was built yet.
+pub(super) fn not_in_use() -> Option<String> {
+    crate::panic::lock(&NOT_IN_USE).clone()
 }
 
 /// The SID of the current user's sandbox account if that account exists on
@@ -103,137 +118,170 @@ pub(super) fn owner_sandbox_sid() -> Option<Sid> {
     Sid::of_account(&name).ok()
 }
 
-/// Resolve (or provision once per process) the sandbox account and its
-/// staging home for a confinement build.
-pub(super) fn resolve_for_confinement(ledger: Option<&Path>) -> Option<(SandboxAccount, PathBuf)> {
-    let mut guard = crate::panic::lock(active_slot());
-    if let Some(cached) = &*guard {
-        return cached.as_ref().ok().cloned();
+/// The sandbox account a confinement starts its commands under. Only found,
+/// never set up here: a confinement is built by a host or a one-shot run that
+/// has nobody to confirm an administrator prompt ([`set_up`] does that). Once
+/// found it is kept for the process; until then every confinement looks
+/// again, so one set up meanwhile is taken at the next session.
+pub(super) fn resolve_for_confinement() -> Option<(SandboxAccount, PathBuf)> {
+    let mut active = crate::panic::lock(&ACTIVE);
+    if let Some(found) = &*active {
+        return Some(found.clone());
     }
-    let temp = std::env::temp_dir();
-    let in_test_tmp = cfg!(test)
-        || temp.to_string_lossy().contains("test-tmp")
-        || ledger.is_some_and(|l| l.starts_with(&temp));
-    let home = if in_test_tmp {
-        temp.join(format!("rune-sbx-{}", std::process::id()))
-    } else if let Some(parent) = ledger.and_then(Path::parent) {
-        parent.to_path_buf()
-    } else if let Some(env_home) = std::env::var_os("RUNE_HOME")
-        .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
-    {
-        env_home
-    } else {
-        super::home::home_dir()?.join(".rune")
-    };
-
-    if ledger.is_none() && !in_test_tmp {
-        let file = account_file(&home);
-        if let Ok((name, password)) = read_credentials(&file) {
-            if let Ok(sid) = Sid::of_account(&name) {
-                let pair = (
-                    SandboxAccount {
-                        name,
-                        password,
-                        sid,
-                    },
-                    home,
-                );
-                *guard = Some(Ok(pair.clone()));
-                return Some(pair);
-            }
+    let found = user_home()
+        .ok_or_else(|| "Windows names no local application data folder for this user".to_string())
+        .and_then(|home| in_use(&home).map(|account| (account, home)));
+    match found {
+        Ok(pair) => {
+            *active = Some(pair.clone());
+            *crate::panic::lock(&NOT_IN_USE) = None;
+            Some(pair)
         }
-        return None;
+        Err(why) => {
+            *crate::panic::lock(&NOT_IN_USE) = Some(why);
+            None
+        }
     }
-
-    let result = ensure_with_policy(&home, !in_test_tmp).map(|acct| (acct, home));
-    let out = result.as_ref().ok().cloned();
-    *guard = Some(result);
-    out
 }
 
-/// Ensure the local sandbox account for the current user exists and its
-/// private credential record under `home` is ready.
-#[cfg(test)]
-pub(super) fn ensure(home: &Path) -> Result<SandboxAccount, String> {
-    ensure_with_policy(home, true)
-}
-
-fn ensure_with_policy(home: &Path, allow_uac_prompt: bool) -> Result<SandboxAccount, String> {
-    let owner = current_user().map_err(|e| format!("current_user: {e}"))?;
-    let owner_sid = owner.string().map_err(|e| format!("owner SID: {e}"))?;
-    let expected = account_name_for_sid(&owner_sid);
+/// This user's account as its record under `home` names it, or why not.
+fn in_use(home: &Path) -> Result<SandboxAccount, String> {
+    let owner = current_user()
+        .and_then(|user| user.string())
+        .map_err(|e| format!("this user's SID could not be read ({e})"))?;
+    let expected = account_name_for_sid(&owner);
     let file = account_file(home);
-
-    if let Ok((name, password)) = read_credentials(&file) {
-        if name == expected {
-            if let Ok(sid) = Sid::of_account(&name) {
-                return Ok(SandboxAccount {
-                    name,
-                    password,
-                    sid,
-                });
-            }
+    let (name, password) = match read_credentials(&file) {
+        Ok(pair) => pair,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            return Err("Rune's sandbox account is not set up for this user".into())
         }
-    }
-
-    let elevated = Token::of_this_process(TOKEN_QUERY).is_ok_and(|t| t.elevated());
-    if !elevated && !allow_uac_prompt {
-        return Err("process is not elevated in non-interactive test mode".into());
-    }
-
-    let password = random_password();
-    write_credentials(&file, &expected, &password)
-        .map_err(|e| format!("write {}: {e}", file.display()))?;
-
-    let provisioned = if elevated {
-        setup_account_at(&file)
-    } else {
-        elevate_account_setup(&file)
+        Err(e) => {
+            return Err(format!(
+                "the sandbox account record {} cannot be used ({e})",
+                file.display()
+            ))
+        }
     };
-    if let Err(err) = provisioned {
-        let _ = std::fs::remove_file(&file);
-        return Err(err);
+    if name != expected {
+        return Err(format!(
+            "the sandbox account record names {name}, not this user's {expected}"
+        ));
     }
-
-    let sid =
-        Sid::of_account(&expected).map_err(|e| format!("LookupAccountNameW({expected}): {e}"))?;
+    let sid = Sid::of_account(&name)
+        .map_err(|e| format!("the sandbox account {name} is not on this computer ({e})"))?;
     Ok(SandboxAccount {
-        name: expected,
+        name,
         password,
         sid,
     })
 }
 
+/// Why setting the account up did not happen.
+pub(super) enum Refusal {
+    /// This process may not add local accounts: an administrator must.
+    NoRight,
+    Failed(String),
+}
+
+impl std::fmt::Display for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Refusal::NoRight => f.write_str("only an administrator may add a local account"),
+            Refusal::Failed(why) => f.write_str(why),
+        }
+    }
+}
+
+/// Set this user's sandbox account up, unless it is already: directly when
+/// this process may add local accounts, else through Windows's administrator
+/// confirmation (`-sandbox account-setup <record>` run elevated). By
+/// `rune -sandbox setup` and the first interactive start ([`set_up_once`]);
+/// never by a host.
+pub(super) fn set_up() -> Result<(), String> {
+    let home = user_home().ok_or_else(|| {
+        "Windows names no local application data folder for this user".to_string()
+    })?;
+    if in_use(&home).is_ok() {
+        return Ok(());
+    }
+    let owner = current_user()
+        .and_then(|user| user.string())
+        .map_err(|e| format!("this user's SID could not be read ({e})"))?;
+    let expected = account_name_for_sid(&owner);
+    let file = account_file(&home);
+    write_credentials(&file, &expected, &random_password())
+        .map_err(|e| format!("write {}: {e}", file.display()))?;
+    let provisioned = match setup_account_at(&file) {
+        Err(Refusal::NoRight) => elevate_account_setup(&file),
+        other => other.map_err(|refusal| refusal.to_string()),
+    };
+    if let Err(err) = provisioned {
+        let _ = std::fs::remove_file(&file);
+        return Err(err);
+    }
+    let _ = std::fs::remove_file(declined_file(&home));
+    in_use(&home).map(drop)
+}
+
+/// Where a declined or failed automatic setup is remembered, so an
+/// interactive start asks once, not at every start.
+fn declined_file(home: &Path) -> PathBuf {
+    home.join("sandbox").join("declined")
+}
+
+/// [`set_up`] at an interactive start, once: a setup declined or failed
+/// before is not asked again (`rune -sandbox setup` asks again).
+pub(super) fn set_up_once() {
+    let Some(home) = user_home() else {
+        return;
+    };
+    if in_use(&home).is_ok() || declined_file(&home).exists() {
+        return;
+    }
+    if let Err(why) = set_up() {
+        let _ = std::fs::create_dir_all(home.join("sandbox"));
+        let _ = std::fs::write(declined_file(&home), why);
+    }
+}
+
 /// Read `(name, password)` from `path` (or create it when invoked directly by
 /// an administrator) and provision the local Windows account.
-pub(super) fn setup_account_at(path: &Path) -> Result<(), String> {
+pub(super) fn setup_account_at(path: &Path) -> Result<(), Refusal> {
+    let failed = Refusal::Failed;
     let (name, password) = match read_credentials_unchecked(path) {
         Ok(pair) => pair,
         Err(_) if !path.exists() => {
-            let owner = current_user().map_err(|e| format!("current_user: {e}"))?;
-            let owner_sid = owner.string().map_err(|e| format!("owner SID: {e}"))?;
+            let owner = current_user().map_err(|e| failed(format!("current_user: {e}")))?;
+            let owner_sid = owner
+                .string()
+                .map_err(|e| failed(format!("owner SID: {e}")))?;
             let name = account_name_for_sid(&owner_sid);
             let password = random_password();
             write_credentials(path, &name, &password)
-                .map_err(|e| format!("write {}: {e}", path.display()))?;
+                .map_err(|e| failed(format!("write {}: {e}", path.display())))?;
             (name, password)
         }
-        Err(e) => return Err(format!("read {}: {e}", path.display())),
+        Err(e) => return Err(failed(format!("read {}: {e}", path.display()))),
     };
     if !valid_account_name(&name) {
-        return Err(format!("refusing invalid sandbox account name: {name}"));
+        return Err(failed(format!(
+            "refusing invalid sandbox account name: {name}"
+        )));
     }
     provision_local_account(&name, &password)
 }
 
-/// Remove the sandbox account for `home` (or the current user) and delete its
-/// credential record and staged runner binary.
-pub(super) fn remove(home: &Path) -> Result<(), String> {
+/// Remove this user's sandbox account, then its record, staged runner and
+/// holds. The account goes first: a record removed before an account that
+/// could not be would leave an account nobody knows the password of.
+pub(super) fn remove() -> Result<(), String> {
     super::runner::stop_runner();
-    *crate::panic::lock(active_slot()) = None;
-
-    let file = account_file(home);
+    *crate::panic::lock(&ACTIVE) = None;
+    let home = user_home().ok_or_else(|| {
+        "Windows names no local application data folder for this user".to_string()
+    })?;
+    let file = account_file(&home);
     let name = read_credentials_unchecked(&file)
         .ok()
         .map(|(n, _)| n)
@@ -246,18 +294,18 @@ pub(super) fn remove(home: &Path) -> Result<(), String> {
         })
         .ok_or_else(|| "could not determine sandbox account name".to_string())?;
 
-    let _ = std::fs::remove_file(&file);
-    let _ = std::fs::remove_dir_all(home.join("sandbox").join("runner"));
-
     let wide_name = wide(OsStr::new(&name)).map_err(|e| e.to_string())?;
     let status = unsafe { NetUserDel(std::ptr::null(), wide_name.as_ptr()) };
     if status != NERR_Success && status != NERR_UserNotFound {
         return Err(format!(
-            "NetUserDel({name}): {}",
+            "the sandbox account {name} could not be removed ({}); run the reset as an administrator",
             io::Error::from_raw_os_error(status as i32)
         ));
     }
     let _ = unhide_from_welcome_screen(&name);
+    let _ = std::fs::remove_file(&file);
+    let _ = std::fs::remove_file(declined_file(&home));
+    let _ = std::fs::remove_dir_all(home.join("sandbox").join("runner"));
     Ok(())
 }
 
@@ -364,9 +412,9 @@ fn run_elevated_setup(exe: &Path, path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn provision_local_account(name: &str, password: &str) -> Result<(), String> {
-    let mut wide_name = wide(OsStr::new(name)).map_err(|e| e.to_string())?;
-    let mut wide_pass = wide(OsStr::new(password)).map_err(|e| e.to_string())?;
+fn provision_local_account(name: &str, password: &str) -> Result<(), Refusal> {
+    let mut wide_name = wide(OsStr::new(name)).map_err(|e| Refusal::Failed(e.to_string()))?;
+    let mut wide_pass = wide(OsStr::new(password)).map_err(|e| Refusal::Failed(e.to_string()))?;
     let flags = UF_SCRIPT | UF_DONT_EXPIRE_PASSWD | UF_PASSWD_CANT_CHANGE | UF_NORMAL_ACCOUNT;
     let info = USER_INFO_1 {
         usri1_name: wide_name.as_mut_ptr(),
@@ -387,6 +435,9 @@ fn provision_local_account(name: &str, password: &str) -> Result<(), String> {
             &mut parm_err,
         )
     };
+    if status == ERROR_ACCESS_DENIED {
+        return Err(Refusal::NoRight);
+    }
     if status == NERR_UserExists {
         let pass_info = USER_INFO_1003 {
             usri1003_password: wide_pass.as_mut_ptr(),
@@ -401,10 +452,10 @@ fn provision_local_account(name: &str, password: &str) -> Result<(), String> {
             )
         };
         if status != NERR_Success {
-            return Err(format!(
+            return Err(Refusal::Failed(format!(
                 "NetUserSetInfo(password): {}",
                 io::Error::from_raw_os_error(status as i32)
-            ));
+            )));
         }
         let flag_info = USER_INFO_1008 {
             usri1008_flags: flags,
@@ -419,20 +470,21 @@ fn provision_local_account(name: &str, password: &str) -> Result<(), String> {
             )
         };
         if status != NERR_Success {
-            return Err(format!(
+            return Err(Refusal::Failed(format!(
                 "NetUserSetInfo(flags): {}",
                 io::Error::from_raw_os_error(status as i32)
-            ));
+            )));
         }
     } else if status != NERR_Success {
-        return Err(format!(
+        return Err(Refusal::Failed(format!(
             "NetUserAdd({name}): {}",
             io::Error::from_raw_os_error(status as i32)
-        ));
+        )));
     }
 
-    let sid = Sid::of_account(name).map_err(|e| format!("LookupAccountNameW({name}): {e}"))?;
-    add_to_users_group(&sid)?;
+    let sid = Sid::of_account(name)
+        .map_err(|e| Refusal::Failed(format!("LookupAccountNameW({name}): {e}")))?;
+    add_to_users_group(&sid).map_err(Refusal::Failed)?;
     let _ = hide_from_welcome_screen(name);
     Ok(())
 }
@@ -558,10 +610,6 @@ mod tests {
 
         write_credentials(&file, "Administrator", &pass).unwrap();
         assert!(read_credentials(&file).is_err());
-        if super::super::process::running_elevated() {
-            let acct = ensure(&dir).unwrap();
-            assert!(valid_account_name(&acct.name));
-        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

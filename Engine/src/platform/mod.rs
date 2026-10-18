@@ -88,8 +88,11 @@
 //!                                                entries; Landlock and Seatbelt leave nothing)
 //!   recorded_grants(ledger) -> [RecordedGrant]   what is recorded — the same on every OS
 //!   forget_grants(ledger) -> Forgotten           take every recorded entry back
-//!   setup_sandbox_account(path), remove_sandbox_account(home),
-//!   run_sandbox_runner(pipe)                     Windows's local sandbox account and runner
+//!   set_up_sandbox_account(), prepare_sandbox_account() (interactive start, once),
+//!   remove_sandbox_account(), setup_sandbox_account(path) (elevated helper),
+//!   run_sandbox_runner(pipe)                     Windows's local sandbox account and runner;
+//!                                                a confinement only finds the account, never
+//!                                                sets it up, and says why when not in use
 //!
 //! Files
 //!   canonical(path) -> PathBuf                   every link resolved, spelt one way
@@ -417,12 +420,12 @@ pub use os::{
 
 /// What a confinement leaves reachable that its grants do not say, named so
 /// a person can act on it (`Confinement::gaps`; a report's escapes).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Gap {
     /// Stable identifier.
     pub id: &'static str,
     /// What stays reachable.
-    pub detail: &'static str,
+    pub detail: String,
     /// What the person can do about it.
     pub fix: &'static str,
 }

@@ -73,6 +73,10 @@ fn run(args: args::Args) -> Result<(), String> {
     // tasks are its successor's to read.
     if matches!(args.cmd, Cmd::Ui | Cmd::Resume { .. }) {
         runeengine::platform::reap_exited();
+        // Windows: Rune's own sandbox account is set up here, at a start a
+        // person sees, once — a host or a one-shot run never asks for an
+        // administrator.
+        runeengine::platform::prepare_sandbox_account();
     }
     // Before anything reads the home: it is brought up to this build, or this
     // process goes back to the build that can read it.

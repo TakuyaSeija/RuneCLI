@@ -54,7 +54,15 @@ pub fn setup_sandbox_account(_path: &std::path::Path) -> Result<(), String> {
 }
 
 /// Only Windows uses a local sandbox account.
-pub fn remove_sandbox_account(_home: &std::path::Path) -> Result<(), String> {
+pub fn set_up_sandbox_account() -> Result<(), String> {
+    Ok(())
+}
+
+/// Only Windows uses a local sandbox account.
+pub fn prepare_sandbox_account() {}
+
+/// Only Windows uses a local sandbox account.
+pub fn remove_sandbox_account() -> Result<(), String> {
     Ok(())
 }
 

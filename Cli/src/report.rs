@@ -114,6 +114,7 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
             match what {
                 SandboxCmd::List => "show",
                 SandboxCmd::Reset | SandboxCmd::AccountSetup { .. } => "take back",
+                SandboxCmd::Setup => "set up",
             }
         );
         return Ok(());
@@ -124,6 +125,12 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
     match what {
         SandboxCmd::AccountSetup { ref path } => {
             return platform::setup_sandbox_account(path);
+        }
+        SandboxCmd::Setup => {
+            platform::set_up_sandbox_account()?;
+            println!(
+                "Rune's sandbox account is set up: confined commands run under it from their next session."
+            );
         }
         SandboxCmd::List => {
             let recorded = platform::recorded_grants(&ledger)
@@ -167,7 +174,7 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
             if !forgotten.kept.is_empty() {
                 println!("What was kept stays recorded; run the reset again to retry.");
             }
-            if let Err(err) = platform::remove_sandbox_account(&home) {
+            if let Err(err) = platform::remove_sandbox_account() {
                 eprintln!("warning: sandbox account cleanup: {err}");
             }
             println!("A Rune still running lets its commands in again at their next start.");

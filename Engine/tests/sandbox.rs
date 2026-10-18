@@ -195,6 +195,15 @@ fn the_engine_says_out_loud_whether_it_is_enforcing() {
             r.kind
         );
         assert!(r.abi >= abi);
+        // CI sets Rune's sandbox account up before the tests: a confinement
+        // that does not use it says why, and that is a failure there.
+        if std::env::var_os("RUNE_EXPECT_SANDBOX_ACCOUNT").is_some() {
+            assert_eq!(
+                r.kind, "sandbox-account",
+                "the sandbox account was set up but is not in use: {:?}",
+                r.escapes
+            );
+        }
     } else {
         assert!(r.reason.is_some(), "a disabled sandbox must carry a reason");
         eprintln!(

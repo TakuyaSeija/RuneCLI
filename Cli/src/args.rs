@@ -98,6 +98,8 @@ pub enum SandboxCmd {
     List,
     /// Take every one back (and remove the local sandbox account on Windows).
     Reset,
+    /// Set up Rune's own sandbox account (Windows; nothing elsewhere).
+    Setup,
     /// Internal elevated helper: provision the local sandbox account and write
     /// its private credential file at `path`.
     AccountSetup { path: PathBuf },
@@ -188,6 +190,7 @@ STORAGE
     rune -storage prune                delete what belonged to projects that are gone
     rune -sandbox                      access entries the sandbox wrote (Windows only)
     rune -sandbox reset                take every one of them back
+    rune -sandbox setup                set up Rune's own sandbox account (Windows only)
 
 PROVIDER & MODEL
     rune -provider list                list connections (models, search, fetch) and presets
@@ -433,6 +436,7 @@ fn sandbox(words: &[&str]) -> Result<SandboxCmd, String> {
     match words {
         [] | ["list"] => Ok(SandboxCmd::List),
         ["reset"] => Ok(SandboxCmd::Reset),
+        ["setup"] => Ok(SandboxCmd::Setup),
         ["account-setup", path] if !path.is_empty() => Ok(SandboxCmd::AccountSetup {
             path: PathBuf::from(path),
         }),
@@ -558,6 +562,10 @@ mod tests {
         assert_eq!(
             parse_of("-sandbox reset").cmd,
             Cmd::Sandbox(SandboxCmd::Reset)
+        );
+        assert_eq!(
+            parse_of("-sandbox setup").cmd,
+            Cmd::Sandbox(SandboxCmd::Setup)
         );
         for wrong in [vec!["-sandbox", "wipe"], vec!["-sandbox", "reset", "now"]] {
             let argv: Vec<String> = wrong.iter().map(|w| w.to_string()).collect();

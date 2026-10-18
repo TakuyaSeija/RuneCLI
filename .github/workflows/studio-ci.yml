@@ -114,21 +114,18 @@ jobs:
       - name: Check lints
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      - name: Set up Rune's sandbox account
+        # As a person's first start does: the tests' confinements then run
+        # their commands under it, and the sandbox test fails if one does not.
+        run: |
+          cargo run --locked -p runecli -- -sandbox setup
+          echo "RUNE_EXPECT_SANDBOX_ACCOUNT=1" >> "$GITHUB_ENV"
+
       - name: Test workspace
         # Shorter than the job's limit: a hung test fails this step and its
         # log is kept (libtest names a test running for over 60 seconds).
         timeout-minutes: 40
         run: cargo test --workspace --locked --no-fail-fast
-
-      - name: Confined commands ran under the sandbox account
-        # The runner is elevated, so the tests' confinements set up Rune's
-        # own account: its absence means every test ran on the restricted
-        # token and the account path went untested.
-        shell: pwsh
-        run: |
-          $accounts = Get-LocalUser | Where-Object Name -like 'rune-sbx-*'
-          if (-not $accounts) { Write-Error 'no rune-sbx account: the sandbox account path did not run'; exit 1 }
-          $accounts | Format-Table Name, Enabled
 
       - name: Build release (x64)
         if: always()

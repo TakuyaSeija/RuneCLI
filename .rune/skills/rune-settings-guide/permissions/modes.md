@@ -11,7 +11,7 @@ In the conversation, Tab cycles modes; `/mode ask`, `/mode auto` or `/mode full`
 
 The modes mean the same on Linux, macOS and Windows. No folder of the home is treated specially: a folder such as `~/.ssh` is asked about like any other location outside the workspace.
 
-On Windows, Rune confines commands using a dedicated local user account (`rune-sbx-…`, set up once with Administrator confirmation and removed by `rune -sandbox reset`), or falls back to a restricted token of your user account when Administrator confirmation is declined:
+On Windows, Rune confines commands using a dedicated local user account (`rune-sbx-…`). The first time you open Rune it asks once for Administrator confirmation to set the account up; if you decline, it does not ask again at every start — run `rune -sandbox setup` whenever you want it. `rune -sandbox reset` removes it. Without the account, Rune uses a restricted token of your user account, and `rune -sandbox` says why the account is not in use:
 - A command held to its mode can still read what Windows lets every user read (folders at a drive's root, other drives, ProgramData) and create files in ProgramData (`rune -sandbox` names this). Your profile folder stays out of its reach.
 - With the sandbox account active, Git Bash (`MSYS2`/Cygwin) and Windows's own HTTPS (`curl.exe`, `Invoke-WebRequest`) work inside a command held to its mode. When falling back to a restricted token without the sandbox account, `MSYS2`/Cygwin programs ask before each command and run that call with full access once allowed, and Windows's own HTTPS fails (git's HTTPS still works).
 

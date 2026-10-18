@@ -51,14 +51,27 @@ pub use pty::{open_pty, Pty, PtySlave};
 pub use stdio::{read_stdin, read_stdin_timeout, wait_stdin, InputWaker};
 pub use time::local_time;
 
-/// Provision the local sandbox account and write its private credentials to `path`.
+/// Provision the local sandbox account a record at `path` names: what the
+/// elevated `-sandbox account-setup <path>` does.
 pub fn setup_sandbox_account(path: &std::path::Path) -> Result<(), String> {
-    account::setup_account_at(path)
+    account::setup_account_at(path).map_err(|refusal| refusal.to_string())
 }
 
-/// Remove the local sandbox account and its credentials under `home`.
-pub fn remove_sandbox_account(home: &std::path::Path) -> Result<(), String> {
-    account::remove(home)
+/// Set this user's sandbox account up (`rune -sandbox setup`), confirming
+/// with an administrator when this process may not add accounts.
+pub fn set_up_sandbox_account() -> Result<(), String> {
+    account::set_up()
+}
+
+/// At an interactive start: set the sandbox account up unless it is, or a
+/// setup was declined before.
+pub fn prepare_sandbox_account() {
+    account::set_up_once()
+}
+
+/// Remove this user's sandbox account and what Rune keeps for it.
+pub fn remove_sandbox_account() -> Result<(), String> {
+    account::remove()
 }
 
 /// Run the persistent sandbox-account runner connected to `pipe`.

@@ -288,9 +288,7 @@ impl Confinement {
     /// of the current user. Nothing is written on the granted paths until the
     /// first command starts.
     pub fn build(grants: Grants<'_>) -> Result<Confinement, Unconfined> {
-        if let Some((account, staging_home)) =
-            super::account::resolve_for_confinement(grants.ledger)
-        {
+        if let Some((account, staging_home)) = super::account::resolve_for_confinement() {
             return Confinement::build_with_account(
                 grants,
                 Mechanism::Account,
@@ -443,17 +441,36 @@ impl Confinement {
     /// `Users` and `Everyone` remain enabled, so what Windows lets every user
     /// read stays readable, and `ProgramData` — where `Users` may create —
     /// writable.
+    /// Under the restricted token, also why Rune's own account is not in
+    /// use: never a silent fallback.
     pub fn gaps(&self) -> Vec<crate::platform::Gap> {
+        let readable = crate::platform::Gap {
+            id: "readable_by_every_user",
+            detail: "A confined command can still read what Windows lets every user \
+                     read — folders at a drive's root, other drives, ProgramData — and \
+                     create files in ProgramData. Your profile folder and your other \
+                     programs stay out of its reach."
+                .into(),
+            fix: "Keep what no command may read inside your profile folder, or give \
+                  such a folder an access list that names only you.",
+        };
         match self.inner.mechanism {
-            Mechanism::RestrictedToken | Mechanism::Account => vec![crate::platform::Gap {
-                id: "readable_by_every_user",
-                detail: "A confined command can still read what Windows lets every user \
-                         read — folders at a drive's root, other drives, ProgramData — and \
-                         create files in ProgramData. Your profile folder and your other \
-                         programs stay out of its reach.",
-                fix: "Keep what no command may read inside your profile folder, or give \
-                      such a folder an access list that names only you.",
-            }],
+            Mechanism::Account => vec![readable],
+            Mechanism::RestrictedToken => {
+                let mut gaps = vec![readable];
+                if let Some(why) = super::account::not_in_use() {
+                    gaps.push(crate::platform::Gap {
+                        id: "sandbox_account_not_in_use",
+                        detail: format!(
+                            "Commands run under a restricted token of your own account, not \
+                             Rune's sandbox account: {why}. Git Bash and Windows's own HTTPS \
+                             cannot run confined this way."
+                        ),
+                        fix: "Run `rune -sandbox setup` and confirm the administrator prompt.",
+                    });
+                }
+                gaps
+            }
             Mechanism::DenyOnlyToken | Mechanism::AppContainer { .. } => Vec::new(),
         }
     }
