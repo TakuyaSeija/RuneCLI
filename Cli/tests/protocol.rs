@@ -1251,7 +1251,17 @@ fn a_manage_process_result_keeps_additional_information_inside_its_report() {
             json!({"cmd":"tool.invoke","id":10 + i,"session":session,"name":"terminal_use",
             "args":{"action":"print report fixture", "command":command, "run_in_background":true}}),
         );
-        let launch = h.until("tool_result");
+        let mut asked = Vec::new();
+        let launch = loop {
+            let e = h.next();
+            if e["t"] == "permission_request" {
+                asked.push(e["full_access"].clone());
+                h.send(json!({"cmd":"permission.reply","id":90,"req":e["req"],"decision":"allow_once"}));
+            }
+            if e["t"] == "tool_result" {
+                break e;
+            }
+        };
         assert_eq!(launch["ok"], true, "{launch}");
         let task = launch["content"]
             .as_str()
@@ -1277,7 +1287,10 @@ fn a_manage_process_result_keeps_additional_information_inside_its_report() {
         assert_eq!(content.matches("</tool_notice>").count(), 1, "{content}");
         let split = runeengine::tools::notice::split(content);
         assert_eq!(split.notices.len(), 1);
-        assert!(split.notices[0].contains("Process: Completed"), "{content}");
+        assert!(
+            split.notices[0].contains("Process: Completed"),
+            "asked with full access: {asked:?}\n{content}"
+        );
         assert_eq!(split.notices[0].contains("Additional information:"), i == 1);
         assert!(!split.notices[0].contains("Capture:"));
         if i == 1 {

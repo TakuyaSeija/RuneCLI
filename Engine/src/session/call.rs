@@ -504,9 +504,13 @@ fn question<'a>(
         .collect();
     let (wanted, blocked) = outside_paths(st, reaches, tool.runs_commands());
     let sandbox = st.sandbox();
-    // A sandbox that holds the session but not this call's program: asked
-    // as where none holds, and lifted for this call once allowed.
-    let beyond = if sandbox.enforced() && tool.runs_commands() {
+    // A program no confinement holds, in a mode that confines: asked as
+    // where no sandbox holds, and lifted for this call once allowed. Read
+    // from the mode, never from the sandbox as built this moment — one built
+    // after this question would otherwise start the program confined, and on
+    // Windows a confined MSYS2 process leaves the runtime's shared memory
+    // unopenable to every other of the person's.
+    let beyond = if tool.runs_commands() && st.mode().confines() {
         tool.unconfinable(args)
     } else {
         None

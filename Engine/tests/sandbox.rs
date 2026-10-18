@@ -1227,7 +1227,9 @@ fn a_shell_the_sandbox_cannot_hold_is_asked_in_auto_and_runs_with_full_access_on
             id: 4,
             session: p.session,
             name: "terminal_use".into(),
-            args: json!({"action": "probe", "command": "echo lifted > lifted.txt"}),
+            // `cat` is a program of its own: on Windows an MSYS2 child, which
+            // starts only when the whole tree runs unconfined.
+            args: json!({"action": "probe", "command": "echo lifted | cat > lifted.txt"}),
         });
         let mut asked = Vec::new();
         loop {
