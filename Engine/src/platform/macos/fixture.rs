@@ -40,10 +40,17 @@ pub fn process_state(pid: i32) -> Option<ProcessState> {
     if ended == 0 && info.si_pid == pid {
         return Some(ProcessState::Zombie);
     }
-    match super::procinfo::bsd_info(pid) {
-        // SZOMB: ended, its parent (not this process) yet to collect it.
-        Some(info) if info.pbi_status == 5 => Some(ProcessState::Zombie),
-        Some(_) if exiting(pid) => Some(ProcessState::Exiting),
+    let info = super::procinfo::bsd_info(pid);
+    // SZOMB: ended, its parent (not this process) yet to collect it.
+    if info.is_some_and(|info| info.pbi_status == 5) {
+        return Some(ProcessState::Zombie);
+    }
+    // Asked whatever `proc_pidinfo` said: a process in its end may no longer
+    // answer it.
+    if exiting(pid) {
+        return Some(ProcessState::Exiting);
+    }
+    match info {
         Some(_) => Some(ProcessState::Live),
         None => (unsafe { libc::kill(pid, 0) } == 0).then_some(ProcessState::Live),
     }
@@ -57,6 +64,11 @@ pub fn process_state(pid: i32) -> Option<ProcessState> {
 /// and two pointers, at byte 32 on every 64-bit macOS.
 fn exiting(pid: i32) -> bool {
     const P_WEXIT: i32 = 0x0000_2000;
+    p_flag(pid).is_some_and(|flag| flag & P_WEXIT != 0)
+}
+
+/// `pid`'s `p_flag` from `kern.proc.pid`; `None` when the kernel says nothing.
+fn p_flag(pid: i32) -> Option<i32> {
     const P_FLAG_AT: usize = 32;
     let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
     let mut buffer = [0u8; 1024];
@@ -72,10 +84,11 @@ fn exiting(pid: i32) -> bool {
         )
     };
     if got != 0 || size < P_FLAG_AT + 4 {
-        return false;
+        return None;
     }
-    let flag = i32::from_ne_bytes(buffer[P_FLAG_AT..P_FLAG_AT + 4].try_into().unwrap());
-    flag & P_WEXIT != 0
+    Some(i32::from_ne_bytes(
+        buffer[P_FLAG_AT..P_FLAG_AT + 4].try_into().ok()?,
+    ))
 }
 
 /// The process `pid`'s parent; `None` once it is gone.
@@ -196,6 +209,15 @@ pub fn signal_resize(pid: u32) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The kernel answers for a living process, and it is not ending: what
+    /// `Exiting` is read from is read at all.
+    #[test]
+    fn a_living_process_is_read_and_not_ending() {
+        let own = std::process::id() as i32;
+        assert!(p_flag(own).is_some());
+        assert!(!exiting(own));
+    }
 
     #[test]
     fn a_process_is_live_then_a_zombie_then_gone() {
