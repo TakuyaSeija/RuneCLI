@@ -23,8 +23,8 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, OwnedHandle};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use rand::RngCore;
@@ -55,11 +55,11 @@ use windows_sys::Win32::System::Pipes::{
 };
 use windows_sys::Win32::System::Threading::{
     CreateProcessAsUserW, DeleteProcThreadAttributeList, GetCurrentProcess, GetCurrentProcessId,
-    InitializeProcThreadAttributeList, ResumeThread, TerminateProcess, UpdateProcThreadAttribute,
-    WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT,
-    EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST, PROCESS_INFORMATION,
-    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, STARTF_USESTDHANDLES,
-    STARTUPINFOEXW, STARTUPINFOW,
+    GetExitCodeProcess, InitializeProcThreadAttributeList, ResumeThread, TerminateProcess,
+    UpdateProcThreadAttribute, WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED,
+    CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+    PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+    STARTF_USESTDHANDLES, STARTUPINFOEXW, STARTUPINFOW,
 };
 
 use super::account::SandboxAccount;
@@ -513,6 +513,8 @@ impl RunnerClient {
         })?;
         let runner_process = unsafe { OwnedHandle::from_raw_handle(proc_info.hProcess) };
         drop(unsafe { OwnedHandle::from_raw_handle(proc_info.hThread) });
+        let ready = Arc::new(AtomicBool::new(false));
+        watch_until_ready(&runner_process, &pipe_name, Arc::clone(&ready))?;
 
         if unsafe { ConnectNamedPipe(server_pipe.as_raw_handle(), std::ptr::null_mut()) } == 0 {
             let err = io::Error::last_os_error();
@@ -528,15 +530,14 @@ impl RunnerClient {
             || client_pid != proc_info.dwProcessId
         {
             unsafe { TerminateProcess(runner_process.as_raw_handle(), 1) };
-            return Err(io::Error::new(
-                io::ErrorKind::PermissionDenied,
-                "unexpected process connected to sandbox runner pipe",
-            ));
+            return Err(not_ready(&runner_process, client_pid));
         }
 
         let mut pipe = File::from(server_pipe);
         send_frame(&mut pipe, &Handshake { owner_sid })?;
-        let ack: HandshakeAck = recv_frame(&mut pipe)?;
+        let ack: HandshakeAck =
+            recv_frame(&mut pipe).map_err(|_| not_ready(&runner_process, client_pid))?;
+        ready.store(true, Ordering::SeqCst);
         if !ack.ok {
             unsafe { TerminateProcess(runner_process.as_raw_handle(), 1) };
             return Err(io::Error::other(
@@ -550,6 +551,74 @@ impl RunnerClient {
             process: runner_process,
         })
     }
+}
+
+/// How long a runner may take from its logon to its handshake. A first logon
+/// of the account makes its profile, which takes seconds.
+const RUNNER_READY_MS: u32 = 120_000;
+
+/// A runner that dies or hangs before its handshake would leave Rune waiting
+/// for its connection, or its first reply, for ever — every confined command
+/// of the process behind it. A watcher ends that wait: at the runner's end,
+/// or once [`RUNNER_READY_MS`] passed (stopping it first), it connects to the
+/// pipe itself, so the connection Rune waits for comes and is found not the
+/// runner's; a stopped runner breaks the pipe a reply is awaited on.
+fn watch_until_ready(
+    runner: &OwnedHandle,
+    pipe_name: &str,
+    ready: Arc<AtomicBool>,
+) -> io::Result<()> {
+    let process = runner.try_clone()?;
+    let pipe_name = pipe_name.to_string();
+    std::thread::Builder::new()
+        .name("rune-runner-watch".into())
+        .spawn(move || {
+            let waited = unsafe { WaitForSingleObject(process.as_raw_handle(), RUNNER_READY_MS) };
+            if ready.load(Ordering::SeqCst) {
+                return;
+            }
+            if waited != WAIT_OBJECT_0 {
+                unsafe { TerminateProcess(process.as_raw_handle(), 1) };
+            }
+            if let Ok(name) = wide(OsStr::new(&pipe_name)) {
+                let handle = unsafe {
+                    CreateFileW(
+                        name.as_ptr(),
+                        GENERIC_READ | GENERIC_WRITE,
+                        0,
+                        std::ptr::null(),
+                        OPEN_EXISTING,
+                        0,
+                        std::ptr::null_mut(),
+                    )
+                };
+                if handle != INVALID_HANDLE_VALUE {
+                    drop(unsafe { OwnedHandle::from_raw_handle(handle) });
+                }
+            }
+        })
+        .map(drop)
+}
+
+/// Why a runner never became ready: it ended (and how), or it was stopped
+/// after [`RUNNER_READY_MS`], or another process connected in its place.
+fn not_ready(runner: &OwnedHandle, client_pid: u32) -> io::Error {
+    const STILL_ACTIVE: u32 = 259;
+    let mut code = STILL_ACTIVE;
+    unsafe { GetExitCodeProcess(runner.as_raw_handle(), &mut code) };
+    let why = if client_pid == unsafe { GetCurrentProcessId() } || code != STILL_ACTIVE {
+        if code == 1 || code == STILL_ACTIVE {
+            format!(
+                "the sandbox runner did not become ready within {} s",
+                RUNNER_READY_MS / 1000
+            )
+        } else {
+            format!("the sandbox runner ended before it was ready (exit code {code:#x})")
+        }
+    } else {
+        "another process connected to the sandbox runner's pipe".to_string()
+    };
+    io::Error::new(io::ErrorKind::TimedOut, why)
 }
 
 /// Deterministic 16-hex fingerprint of a runner executable from the build

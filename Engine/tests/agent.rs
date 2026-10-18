@@ -2104,6 +2104,9 @@ fn a_mode_chosen_during_a_full_access_call_is_the_one_in_force_after_it() {
     });
     let mut switched_during_the_call = false;
     let mut said_during_the_call = None;
+    // When each step happened, said if the order is wrong.
+    let started = std::time::Instant::now();
+    let mut timeline: Vec<String> = Vec::new();
     loop {
         let event = h
             .events
@@ -2114,11 +2117,13 @@ fn a_mode_chosen_during_a_full_access_call_is_the_one_in_force_after_it() {
                 req, full_access, ..
             } => {
                 assert!(full_access, "the root is asked as full access");
+                timeline.push(format!("asked {:?}", started.elapsed()));
                 h.engine.handle(Command::PermissionReply {
                     id: 42,
                     req: req.clone(),
                     decision: Decision::AllowOnce,
                 });
+                timeline.push(format!("allowed {:?}", started.elapsed()));
                 // The call runs for a second; the person picks Ask meanwhile.
                 std::thread::sleep(std::time::Duration::from_millis(300));
                 said_during_the_call = Some(h.engine.session(h.session).unwrap().state.mode());
@@ -2127,14 +2132,20 @@ fn a_mode_chosen_during_a_full_access_call_is_the_one_in_force_after_it() {
                     session: h.session,
                     mode: "ask".into(),
                 });
+                timeline.push(format!("mode handled {:?}", started.elapsed()));
             }
             Event::Ack { id: 43, ok, .. } => {
                 assert!(ok);
+                timeline.push(format!("mode acked {:?}", started.elapsed()));
                 switched_during_the_call = true;
             }
-            Event::ToolResult { ok, .. } => {
+            Event::ToolResult { ok, content, .. } => {
+                timeline.push(format!("result {:?}", started.elapsed()));
                 assert!(ok, "the allowed call ran");
-                assert!(switched_during_the_call, "the switch landed after the call");
+                assert!(
+                    switched_during_the_call,
+                    "the switch landed after the call: {timeline:?}; result: {content}"
+                );
             }
             Event::Done { .. } => break,
             _ => {}
