@@ -2176,6 +2176,7 @@ fn auto_asks_before_a_command_that_nothing_would_confine() {
         list(), { "chunks": [ { "text": "not listed" } ] }
     ]});
     let mut h = harness("auto-unconfined", fixture);
+    confinable_shell(&mut h);
     h.engine.handle(Command::SessionMode {
         id: 60,
         session: h.session,
@@ -2740,6 +2741,23 @@ fn without_opening(ack: &Value) -> Vec<&Value> {
         .iter()
         .filter(|m| m["context"]["kind"] != "session")
         .collect()
+}
+
+/// Commands of `h` run in the shell this machine runs them in when none is
+/// chosen — one its sandbox holds on every OS. A test of what Auto or the
+/// classifier does with a confined command needs it on Windows, where the
+/// tests' Git Bash is beyond the sandbox and so always put to the person.
+fn confinable_shell(h: &mut Harness) {
+    if runeengine::platform::OS != runeengine::platform::Os::Windows {
+        return;
+    }
+    h.engine.handle(Command::SettingsSet {
+        id: 77,
+        session: h.session,
+        key: "terminal.shell".into(),
+        value: "auto".into(),
+    });
+    wait_for_ack(&h.events, 77);
 }
 
 fn wait_for_ack(rx: &std::sync::mpsc::Receiver<Event>, id: u64) -> Value {
@@ -13128,6 +13146,7 @@ fn the_classifier_sees_the_exact_command_but_never_opens_named_files_or_manifest
         vec![Chunk::Text("done".into())],
     ]);
     let mut h = harness_with("classifier-evidence-everything", provider.clone());
+    confinable_shell(&mut h);
     let p = h.project.clone();
     std::fs::write(p.join("CLASSIFIER.md"), "Judge commands.").unwrap();
     std::fs::write(p.join("deploy"), "echo deploy-step-content\n").unwrap();

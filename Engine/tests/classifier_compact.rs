@@ -96,7 +96,9 @@ impl Harness {
             None,
         )
         .unwrap();
-        runeengine::testing::posix_shell_for_tests(&home);
+        // The shell this machine runs commands in, held by its sandbox on
+        // every OS: a call no sandbox holds is the person's to answer, and
+        // the classifier reviews only what the sandbox confines.
         runeengine::settings::configuration::Configuration::edit(
             &home,
             Some("compact.max_output_tokens"),

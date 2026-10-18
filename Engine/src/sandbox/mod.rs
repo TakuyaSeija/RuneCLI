@@ -976,13 +976,22 @@ mod tests {
             .report()
             .escapes
             .iter()
-            .filter(|e| e.id != "elevated")
+            .filter(|e| e.id == "container_daemon")
             .collect();
         assert_eq!(
             escapes.len(),
             daemons.len(),
             "every reachable daemon socket must be reported"
         );
+        if s.report().kind == "restricted-token" {
+            assert!(
+                s.report()
+                    .escapes
+                    .iter()
+                    .any(|e| e.id == "readable_by_every_user"),
+                "what a restricted token leaves readable is reported"
+            );
+        }
         assert_eq!(
             s.report().escapes.iter().any(|e| e.id == "elevated"),
             crate::platform::running_elevated(),
