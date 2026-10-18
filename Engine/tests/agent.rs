@@ -13136,7 +13136,13 @@ fn an_agent_intent_cannot_forge_lines_of_the_classifier_input() {
 
 #[test]
 fn the_classifier_sees_the_exact_command_but_never_opens_named_files_or_manifests() {
-    let command = "sh deploy && cat notes.txt .env/run.sh big.log ../outside.txt && npm test && cmake --version";
+    // On Windows `sh` is Git's MSYS2 program, which no sandbox holds: such a
+    // call is the person's to answer and never reaches the classifier.
+    let command = if runeengine::platform::OS == runeengine::platform::Os::Windows {
+        r".\deploy && cat notes.txt .env/run.sh big.log ../outside.txt && npm test && cmake --version"
+    } else {
+        "sh deploy && cat notes.txt .env/run.sh big.log ../outside.txt && npm test && cmake --version"
+    };
     let provider = Recorder::new(vec![
         vec![Chunk::ToolCall {
             id: "run".into(),
