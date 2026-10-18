@@ -202,8 +202,8 @@ pub(super) fn set_up() -> Result<(), String> {
     let home = user_home().ok_or_else(|| {
         "Windows names no local application data folder for this user".to_string()
     })?;
-    if in_use(&home).is_ok() {
-        return Ok(());
+    if let Ok(account) = in_use(&home) {
+        return first_logon(&account);
     }
     let owner = current_user()
         .and_then(|user| user.string())
@@ -221,7 +221,59 @@ pub(super) fn set_up() -> Result<(), String> {
         return Err(err);
     }
     let _ = std::fs::remove_file(declined_file(&home));
-    in_use(&home).map(drop)
+    first_logon(&in_use(&home)?)
+}
+
+/// How long the account's first logon may take.
+const FIRST_LOGON_MS: u32 = 180_000;
+
+/// Log the account on once, as its runner will: the first logon makes its
+/// Windows profile, which takes seconds (tens on a fresh machine) — here, at
+/// setup, so no command waits for it. A later one finds the profile made.
+fn first_logon(account: &SandboxAccount) -> Result<(), String> {
+    use windows_sys::Win32::System::Threading::{
+        CreateProcessWithLogonW, CREATE_NO_WINDOW, LOGON_WITH_PROFILE, PROCESS_INFORMATION,
+        STARTUPINFOW,
+    };
+    use windows_sys::Win32::UI::Shell::FOLDERID_System;
+    let system = super::home::known_folder(&FOLDERID_System)
+        .ok_or_else(|| "Windows names no system folder".to_string())?;
+    let cmd = system.join("cmd.exe");
+    let user = wide(OsStr::new(&account.name)).map_err(|e| e.to_string())?;
+    let domain = wide(OsStr::new(".")).map_err(|e| e.to_string())?;
+    let password = wide(OsStr::new(&account.password)).map_err(|e| e.to_string())?;
+    let application = wide_path(&cmd).map_err(|e| e.to_string())?;
+    let mut line = wide(OsStr::new(&format!("\"{}\" /d /c exit 0", cmd.display())))
+        .map_err(|e| e.to_string())?;
+    let folder = wide_path(&system).map_err(|e| e.to_string())?;
+    let mut startup: STARTUPINFOW = unsafe { std::mem::zeroed() };
+    startup.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+    let mut started: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
+    check(unsafe {
+        CreateProcessWithLogonW(
+            user.as_ptr(),
+            domain.as_ptr(),
+            password.as_ptr(),
+            LOGON_WITH_PROFILE,
+            application.as_ptr(),
+            line.as_mut_ptr(),
+            CREATE_NO_WINDOW,
+            std::ptr::null(),
+            folder.as_ptr(),
+            &startup,
+            &mut started,
+        )
+    })
+    .map_err(|e| format!("the sandbox account could not log on ({e})"))?;
+    let process = owned(started.hProcess).map_err(|e| e.to_string())?;
+    drop(owned(started.hThread));
+    if unsafe { WaitForSingleObject(process.as_raw_handle(), FIRST_LOGON_MS) } != WAIT_OBJECT_0 {
+        return Err(format!(
+            "the sandbox account's first logon took over {} s",
+            FIRST_LOGON_MS / 1000
+        ));
+    }
+    Ok(())
 }
 
 /// Where a declined or failed automatic setup is remembered, so an
