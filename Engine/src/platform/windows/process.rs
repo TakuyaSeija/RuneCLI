@@ -288,12 +288,35 @@ pub(super) fn command_interpreter() -> PathBuf {
         .join(r"System32\cmd.exe")
 }
 
+/// Git's HTTPS through OpenSSL, its own CA bundle, for a confined command:
+/// Windows's TLS (schannel) finds no credentials under a restricted token
+/// (CI probe, 2026-10-18: `SEC_E_NO_CREDENTIALS` for git, curl.exe and
+/// `Invoke-WebRequest` alike), and Git for Windows carries both backends.
+/// Added after the configuration the person's environment already passes
+/// this way (`GIT_CONFIG_COUNT`), which git reads above every file; a count
+/// git itself would refuse is left as it is.
+fn confined_git(count: Option<&OsStr>) -> Vec<(String, String)> {
+    let next = match count {
+        None => 0,
+        Some(count) => match count.to_str().and_then(|n| n.parse::<u32>().ok()) {
+            Some(n) => n,
+            None => return Vec::new(),
+        },
+    };
+    vec![
+        (format!("GIT_CONFIG_KEY_{next}"), "http.sslBackend".into()),
+        (format!("GIT_CONFIG_VALUE_{next}"), "openssl".into()),
+        ("GIT_CONFIG_COUNT".into(), (next + 1).to_string()),
+    ]
+}
+
 /// The environment block `launch` asks for: this process's unless cleared,
-/// then its own settings, then the tree's mark — sorted by name without
-/// case, as `CreateProcess` requires.
-fn environment(launch: &Launch, tree: Option<&str>) -> io::Result<Vec<u16>> {
+/// then its own settings, then — `confined` — what a restricted token needs
+/// ([`confined_git`]), then the tree's mark — sorted by name without case,
+/// as `CreateProcess` requires.
+fn environment(launch: &Launch, tree: Option<&str>, confined: bool) -> io::Result<Vec<u16>> {
     let mut vars: BTreeMap<String, (OsString, OsString)> = BTreeMap::new();
-    let mut set = |key: &OsStr, value: &OsStr| {
+    let set = |vars: &mut BTreeMap<String, (OsString, OsString)>, key: &OsStr, value: &OsStr| {
         vars.insert(
             key.to_string_lossy().to_uppercase(),
             (key.to_owned(), value.to_owned()),
@@ -301,14 +324,20 @@ fn environment(launch: &Launch, tree: Option<&str>) -> io::Result<Vec<u16>> {
     };
     if !launch.clear_env {
         for (key, value) in std::env::vars_os() {
-            set(&key, &value);
+            set(&mut vars, &key, &value);
         }
     }
     for (key, value) in &launch.env {
-        set(key, value);
+        set(&mut vars, key, value);
+    }
+    if confined {
+        let count = vars.get("GIT_CONFIG_COUNT").map(|(_, value)| value.clone());
+        for (key, value) in confined_git(count.as_deref()) {
+            set(&mut vars, OsStr::new(&key), OsStr::new(&value));
+        }
     }
     if let Some(mark) = tree {
-        set(OsStr::new(TREE_VAR), OsStr::new(mark));
+        set(&mut vars, OsStr::new(TREE_VAR), OsStr::new(mark));
     }
     let mut block: Vec<u16> = Vec::new();
     for (key, value) in vars.values() {
@@ -457,7 +486,7 @@ fn start(
     let (application, mut line) =
         command_line(&program, &launch.args, launch.verbatim_tail.as_deref())?;
     let application = wide_path(&application)?;
-    let environment = environment(launch, placement.tree)?;
+    let environment = environment(launch, placement.tree, placement.confinement.is_some())?;
     // The folder a process starts in as written: Windows keeps no verbatim
     // (`\\?\`) current folder, and cmd refuses to run in one.
     let folder = launch
@@ -1284,10 +1313,48 @@ mod tests {
             .env("b", "2")
             .env("A", "1")
             .env("PATH", r"C:\other");
-        let block = environment(&launch, Some("m1")).unwrap();
+        let block = environment(&launch, Some("m1"), false).unwrap();
         let text = String::from_utf16_lossy(&block);
         assert_eq!(text, "A=1\0b=2\0PATH=C:\\other\0RUNE_PROCESS_TREE=m1\0\0");
-        assert!(environment(&Launch::new("x").clear_env().env("BAD", "a\0b"), None).is_err());
+        assert!(environment(
+            &Launch::new("x").clear_env().env("BAD", "a\0b"),
+            None,
+            false
+        )
+        .is_err());
+    }
+
+    /// A confined command's git speaks HTTPS through OpenSSL, after whatever
+    /// configuration its environment already passed; an unconfined one's is
+    /// left alone.
+    #[test]
+    fn a_confined_commands_git_uses_openssl_after_the_persons_own_settings() {
+        let text = |launch: &Launch, confined| {
+            String::from_utf16_lossy(&environment(launch, None, confined).unwrap())
+        };
+        let bare = Launch::new("x").clear_env();
+        assert_eq!(
+            text(&bare, true),
+            "GIT_CONFIG_COUNT=1\0GIT_CONFIG_KEY_0=http.sslBackend\0GIT_CONFIG_VALUE_0=openssl\0\0"
+        );
+        assert_eq!(text(&bare, false), "\0\0");
+        let theirs = Launch::new("x")
+            .clear_env()
+            .env("GIT_CONFIG_COUNT", "1")
+            .env("GIT_CONFIG_KEY_0", "core.autocrlf")
+            .env("GIT_CONFIG_VALUE_0", "false");
+        let after = text(&theirs, true);
+        assert!(after.contains("GIT_CONFIG_COUNT=2\0"), "{after}");
+        assert!(
+            after.contains("GIT_CONFIG_KEY_0=core.autocrlf\0"),
+            "{after}"
+        );
+        assert!(
+            after.contains("GIT_CONFIG_KEY_1=http.sslBackend\0"),
+            "{after}"
+        );
+        let refused = Launch::new("x").clear_env().env("GIT_CONFIG_COUNT", "many");
+        assert_eq!(text(&refused, true), "GIT_CONFIG_COUNT=many\0\0");
     }
 
     /// A program is found on PATH with PATHEXT; a relative PATH folder —

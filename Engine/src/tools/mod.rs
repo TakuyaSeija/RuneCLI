@@ -508,6 +508,14 @@ pub trait Tool: Send + Sync {
         false
     }
 
+    /// Why the program this call's commands start cannot run under the
+    /// kernel confinement on this machine (`platform::unconfinable`) — the
+    /// gate then asks before it, as where no sandbox holds, and an allowed
+    /// call runs with confinement lifted for it alone. Default `None`.
+    fn unconfinable(&self, _args: &Value) -> Option<String> {
+        None
+    }
+
     /// Plain-language statement of what is about to happen, for the prompt.
     fn preview(&self, args: &Value) -> String;
 

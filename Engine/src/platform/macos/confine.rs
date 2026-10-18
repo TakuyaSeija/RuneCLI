@@ -164,6 +164,12 @@ impl Confinement {
         0
     }
 
+    /// What this confinement leaves reachable that the person should know
+    /// of: nothing — what it holds is what the grants say.
+    pub fn gaps(&self) -> Vec<crate::platform::Gap> {
+        Vec::new()
+    }
+
     /// Whether a command it confines may reach local services
     /// ([`Grants::local_services`]).
     pub fn local_services(&self) -> bool {

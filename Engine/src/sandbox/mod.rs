@@ -728,7 +728,15 @@ impl Sandbox {
                     abi: confinement.abi(),
                     enforced: true,
                     reason: None,
-                    escapes: known_escapes(),
+                    escapes: {
+                        let mut escapes = known_escapes();
+                        escapes.extend(confinement.gaps().into_iter().map(|gap| Escape {
+                            id: gap.id.into(),
+                            detail: gap.detail.into(),
+                            fix: gap.fix.into(),
+                        }));
+                        escapes
+                    },
                 },
                 confinement: Some(confinement),
                 scratch: policy.scratch.clone(),

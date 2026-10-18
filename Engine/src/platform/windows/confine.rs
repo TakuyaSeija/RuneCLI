@@ -378,6 +378,25 @@ impl Confinement {
         0
     }
 
+    /// What a restricted token leaves reachable (CI probe, 2026-10-18): its
+    /// restricting SIDs keep Users and Everyone, so what Windows lets every
+    /// user read stays readable, and ProgramData — where Users may create —
+    /// writable.
+    pub fn gaps(&self) -> Vec<crate::platform::Gap> {
+        match self.inner.mechanism {
+            Mechanism::RestrictedToken => vec![crate::platform::Gap {
+                id: "readable_by_every_user",
+                detail: "A confined command can still read what Windows lets every user \
+                         read — folders at a drive's root, other drives, ProgramData — and \
+                         create files in ProgramData. Your profile folder and your other \
+                         programs stay out of its reach.",
+                fix: "Keep what no command may read inside your profile folder, or give \
+                      such a folder an access list that names only you.",
+            }],
+            Mechanism::DenyOnlyToken | Mechanism::AppContainer { .. } => Vec::new(),
+        }
+    }
+
     /// Whether a command it confines may reach local services
     /// ([`Grants::local_services`]).
     pub fn local_services(&self) -> bool {
@@ -498,6 +517,36 @@ fn write_grant(planned: &Grant, ledger: Option<&mut io::Result<Ledger>>) -> io::
         grant(&planned.path, &planned.sid, planned.access, planned.folder)?;
     }
     Ok(())
+}
+
+/// The runtimes that give every process of theirs one shared memory section
+/// made by the first of them (MSYS2's, Git Bash's own; Cygwin's): a command
+/// whose program loads one cannot start under a restricted token once a
+/// process of the person's runs it (CI probe, 2026-10-18: `CreateFileMapping`
+/// refused, Git Bash exit 256).
+const SHARED_RUNTIMES: [&str; 2] = ["msys-2.0.dll", "cygwin1.dll"];
+
+/// Why a command started by `program` cannot run under this confinement, or
+/// `None` when it can: a program beside an MSYS2 or Cygwin runtime — in its
+/// own folder, or for Git's `bin\bash.exe` launcher in `..\usr\bin`.
+pub fn unconfinable(program: &Path) -> Option<String> {
+    let folder = program.parent()?;
+    let mut folders = vec![folder.to_path_buf()];
+    if let Some(root) = folder.parent() {
+        folders.push(root.join("usr").join("bin"));
+    }
+    let runtime = folders.iter().find_map(|folder| {
+        SHARED_RUNTIMES
+            .iter()
+            .find(|name| folder.join(name).is_file())
+    })?;
+    Some(format!(
+        "{} runs on {runtime}, whose shared memory a confined process cannot open",
+        program
+            .file_name()
+            .unwrap_or(program.as_os_str())
+            .to_string_lossy()
+    ))
 }
 
 /// Take back every entry the ledger at `ledger` records, from the path it is
@@ -790,6 +839,30 @@ mod tests {
             a,
             sid_for(Mechanism::RestrictedToken, true, Path::new(r"C:\Work\Two"))
         );
+    }
+
+    /// A program beside an MSYS2 or Cygwin runtime — Git Bash's launcher
+    /// included — is said to be beyond the confinement; any other is not.
+    #[test]
+    fn a_program_on_a_shared_runtime_is_unconfinable() {
+        let base = std::env::temp_dir().join(format!("rune-runtime-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        for folder in ["Git\\bin", "Git\\usr\\bin", "cygwin\\bin", "plain"] {
+            std::fs::create_dir_all(base.join(folder)).unwrap();
+        }
+        std::fs::write(base.join(r"Git\usr\bin\msys-2.0.dll"), "").unwrap();
+        std::fs::write(base.join(r"cygwin\bin\cygwin1.dll"), "").unwrap();
+        let launcher = unconfinable(&base.join(r"Git\bin\bash.exe")).unwrap();
+        assert!(
+            launcher.contains("bash.exe runs on msys-2.0.dll"),
+            "{launcher}"
+        );
+        assert!(unconfinable(&base.join(r"Git\usr\bin\sh.exe")).is_some());
+        assert!(unconfinable(&base.join(r"cygwin\bin\bash.exe"))
+            .unwrap()
+            .contains("cygwin1.dll"));
+        assert_eq!(unconfinable(&base.join(r"plain\pwsh.exe")), None);
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     /// Building a confinement writes nothing on disk; its first start records

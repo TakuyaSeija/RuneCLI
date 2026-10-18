@@ -20,7 +20,7 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -67,7 +67,7 @@ fn let_go(connection: Arc<Connection>) {
     let flusher = std::thread::Builder::new()
         .name("rune-pipe-let-go".into())
         .spawn(move || {
-            let handle = flushing.handle.as_raw_handle();
+            let handle = flushing.host_handle();
             unsafe { FlushFileBuffers(handle) };
             unsafe { DisconnectNamedPipe(handle) };
             let (flushed, changed) = &*told;
@@ -75,7 +75,7 @@ fn let_go(connection: Arc<Connection>) {
             changed.notify_all();
         });
     if flusher.is_err() {
-        unsafe { DisconnectNamedPipe(connection.handle.as_raw_handle()) };
+        unsafe { DisconnectNamedPipe(connection.host_handle()) };
         return;
     }
     let _ = std::thread::Builder::new()
@@ -88,7 +88,7 @@ fn let_go(connection: Arc<Connection>) {
             let timed_out = waited.map(|(_, result)| result.timed_out()).unwrap_or(true);
             if timed_out {
                 // The window reads nothing: its wait ends, and it is let go.
-                unsafe { CancelIoEx(connection.handle.as_raw_handle(), std::ptr::null()) };
+                unsafe { CancelIoEx(connection.host_handle(), std::ptr::null()) };
             }
         });
 }
@@ -112,11 +112,74 @@ struct Listening {
 pub struct LocalStream(Arc<Connection>);
 
 struct Connection {
-    handle: OwnedHandle,
+    /// `None` once a window's end is closed: the last operation on it after
+    /// its shutdown closes it, for only a closed handle ends a pipe at the
+    /// host's end (`using`).
+    handle: Mutex<Option<OwnedHandle>>,
     server: bool,
     shut: AtomicBool,
+    /// Operations using `handle` now.
+    busy: AtomicUsize,
     read_timeout: Mutex<Option<Duration>>,
     write_timeout: Mutex<Option<Duration>>,
+}
+
+impl Connection {
+    fn stream(handle: OwnedHandle, server: bool) -> LocalStream {
+        LocalStream(Arc::new(Connection {
+            handle: Mutex::new(Some(handle)),
+            server,
+            shut: AtomicBool::new(false),
+            busy: AtomicUsize::new(0),
+            read_timeout: Mutex::new(None),
+            write_timeout: Mutex::new(None),
+        }))
+    }
+
+    /// The handle for one operation, kept open until the guard is dropped;
+    /// `None` once the connection was shut. The count is raised before the
+    /// shutdown is read, and a shutdown sets it before reading the count, so
+    /// a handle is never closed under an operation that took it.
+    fn using(&self) -> Option<Using<'_>> {
+        self.busy.fetch_add(1, Ordering::SeqCst);
+        let mut using = Using {
+            connection: self,
+            raw: std::ptr::null_mut(),
+        };
+        if self.shut.load(Ordering::SeqCst) {
+            return None;
+        }
+        using.raw = crate::panic::lock(&self.handle).as_ref()?.as_raw_handle();
+        Some(using)
+    }
+
+    /// A host's end, which only `let_go` disconnects and is never closed
+    /// before the connection is dropped.
+    fn host_handle(&self) -> HANDLE {
+        crate::panic::lock(&self.handle)
+            .as_ref()
+            .map_or(std::ptr::null_mut(), |handle| handle.as_raw_handle())
+    }
+}
+
+/// One operation's hold on a connection's handle ([`Connection::using`]).
+struct Using<'a> {
+    connection: &'a Connection,
+    raw: HANDLE,
+}
+
+impl Drop for Using<'_> {
+    fn drop(&mut self) {
+        let connection = self.connection;
+        // A window's end, shut and no longer in use, is closed: the host's
+        // read then ends, as a socket's does at its peer's shutdown.
+        if connection.busy.fetch_sub(1, Ordering::SeqCst) == 1
+            && !connection.server
+            && connection.shut.load(Ordering::SeqCst)
+        {
+            crate::panic::lock(&connection.handle).take();
+        }
+    }
 }
 
 /// A manual-reset event, for one overlapped operation or a wake.
@@ -291,13 +354,7 @@ impl LocalListener {
         if let Ok(next) = instance(&listening.name, false) {
             *crate::panic::lock(&listening.next) = Some(next);
         }
-        Ok(LocalStream(Arc::new(Connection {
-            handle: pipe,
-            server: true,
-            shut: AtomicBool::new(false),
-            read_timeout: Mutex::new(None),
-            write_timeout: Mutex::new(None),
-        })))
+        Ok(Connection::stream(pipe, true))
     }
 
     /// Every connection, as it comes; ends once [`LocalListener::wake`] was
@@ -346,15 +403,7 @@ impl LocalStream {
                 )
             };
             match owned(handle) {
-                Ok(handle) => {
-                    return Ok(LocalStream(Arc::new(Connection {
-                        handle,
-                        server: false,
-                        shut: AtomicBool::new(false),
-                        read_timeout: Mutex::new(None),
-                        write_timeout: Mutex::new(None),
-                    })))
-                }
+                Ok(handle) => return Ok(Connection::stream(handle, false)),
                 Err(error) => match error.raw_os_error().map(|e| e as u32) {
                     Some(ERROR_PIPE_BUSY) if std::time::Instant::now() < deadline => {
                         unsafe { WaitNamedPipeW(name.as_ptr(), 250) };
@@ -382,16 +431,10 @@ impl LocalStream {
                 std::ptr::null_mut(),
             )
         })?;
-        let end = |handle, server| {
-            LocalStream(Arc::new(Connection {
-                handle,
-                server,
-                shut: AtomicBool::new(false),
-                read_timeout: Mutex::new(None),
-                write_timeout: Mutex::new(None),
-            }))
-        };
-        Ok((end(server, true), end(client, false)))
+        Ok((
+            Connection::stream(server, true),
+            Connection::stream(client, false),
+        ))
     }
 
     /// Another handle on the same connection: a reader beside a writer.
@@ -413,16 +456,21 @@ impl LocalStream {
 
     /// End the connection both ways, as a socket's shutdown does: every
     /// clone of this end reads its end and writes no more, its waits woken
-    /// now; the other end reads everything written before, then its end.
+    /// now; the other end reads everything written before, then its end —
+    /// a window's end is closed once nothing uses it, whatever clones are
+    /// still held.
     /// A host's end lets the window go only once the window has read what it
     /// was sent ([`let_go`]): Windows throws away what the other end has not
     /// read when a pipe is disconnected, and a host's last words to a window
     /// (`HostUpgrading`) are written just before it lets the window go.
     pub fn shutdown(&self) -> io::Result<()> {
-        if self.0.shut.swap(true, Ordering::AcqRel) {
+        let Some(using) = self.0.using() else {
+            return Ok(());
+        };
+        if self.0.shut.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
-        unsafe { CancelIoEx(self.0.handle.as_raw_handle(), std::ptr::null()) };
+        unsafe { CancelIoEx(using.raw, std::ptr::null()) };
         if self.0.server {
             let_go(Arc::clone(&self.0));
         }
@@ -437,11 +485,15 @@ impl LocalStream {
         let Ok(me) = current_user() else {
             return false;
         };
-        let peer = if self.0.server {
-            client_token(self.0.handle.as_raw_handle())
-        } else {
-            server_token(self.0.handle.as_raw_handle())
+        let Some(using) = self.0.using() else {
+            return false;
         };
+        let peer = if self.0.server {
+            client_token(using.raw)
+        } else {
+            server_token(using.raw)
+        };
+        drop(using);
         let Some(peer) = peer else {
             return false;
         };
@@ -457,13 +509,13 @@ impl LocalStream {
 
     fn transfer(&self, buf: &mut [u8], writing: bool) -> io::Result<usize> {
         let connection = &self.0;
-        if connection.shut.load(Ordering::Acquire) {
+        let Some(using) = connection.using() else {
             return if writing {
                 Err(io::Error::from(io::ErrorKind::BrokenPipe))
             } else {
                 Ok(0)
             };
-        }
+        };
         let timeout = *crate::panic::lock(if writing {
             &connection.write_timeout
         } else {
@@ -472,7 +524,7 @@ impl LocalStream {
         let signal = event()?;
         let mut ov: OVERLAPPED = unsafe { std::mem::zeroed() };
         ov.hEvent = signal.as_raw_handle();
-        let handle = connection.handle.as_raw_handle();
+        let handle = using.raw;
         let len = buf.len().min(u32::MAX as usize) as u32;
         let started = unsafe {
             if writing {
@@ -710,6 +762,30 @@ mod tests {
         (&window).read_to_string(&mut got).unwrap();
         assert_eq!(got.lines().count(), 200, "every line reached the window");
         assert!(got.ends_with("line 199 of what the host had to say\n"));
+    }
+
+    /// A window's shutdown ends the host's read at once, though a clone of
+    /// the window's end is still held (a reader beside a writer): the host
+    /// would otherwise keep the window counted until that clone is dropped.
+    #[test]
+    fn a_windows_shutdown_ends_the_hosts_read_whatever_clones_it_keeps() {
+        let (host, window) = LocalStream::pair().unwrap();
+        let kept = window.try_clone().unwrap();
+        (&window).write_all(b"bye").unwrap();
+        window.shutdown().unwrap();
+        host.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let mut got = String::new();
+        (&host)
+            .read_to_string(&mut got)
+            .expect("the host read its end");
+        assert_eq!(got, "bye");
+        assert!(
+            (&kept).write_all(b"more").is_err(),
+            "a shut end writes no more"
+        );
+        let mut buf = [0u8; 1];
+        assert_eq!((&kept).read(&mut buf).unwrap(), 0);
+        assert!(!kept.peer_is_same_user(), "a shut end has no peer to ask");
     }
 
     #[test]

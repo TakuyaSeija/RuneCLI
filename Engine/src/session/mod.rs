@@ -973,6 +973,7 @@ fn services_door(
             reach: Vec::new(),
             local_services: true,
             unconfined: None,
+            lifts: false,
         };
         let mut emit = |event: crate::proto::Event| {
             let _ = events.send(event);

@@ -160,6 +160,12 @@ impl Confinement {
         self.abi
     }
 
+    /// What this confinement leaves reachable that the person should know
+    /// of: nothing — what it holds is what the grants say.
+    pub fn gaps(&self) -> Vec<crate::platform::Gap> {
+        Vec::new()
+    }
+
     /// How a supervisor taken over from another build answers for a command
     /// this confinement holds now: by its rules; every connection through
     /// when it grants local services; the command's own alone when this

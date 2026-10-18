@@ -130,9 +130,12 @@ fn prompt_with(h: &mut Harness, text: &str, attach: Vec<String>, decision: Decis
     });
     let mut seen = Vec::new();
     loop {
+        // A first confined command on Windows writes its folders' access
+        // entries before it starts, through every file below them: tens of
+        // seconds on a toolchain cache, with nothing to tell meanwhile.
         let event = h
             .events
-            .recv_timeout(std::time::Duration::from_secs(30))
+            .recv_timeout(std::time::Duration::from_secs(120))
             .expect("engine went quiet");
         if let Event::PermissionRequest { req, .. } = &event {
             h.engine.handle(Command::PermissionReply {
@@ -2005,18 +2008,38 @@ fn full_access_lets_a_tool_leave_the_workspace_and_says_so_loudly() {
 
 #[test]
 fn a_whole_filesystem_call_asks_in_confined_modes_and_restores_them_afterward() {
+    // Git Bash's `/` is Git's own folder: on Windows the root is the system
+    // drive's, named in the shell Windows runs commands in by default.
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let root = if windows {
+        format!(
+            "{}\\",
+            std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into())
+        )
+    } else {
+        "/".to_string()
+    };
+    let command = if windows {
+        format!("Get-Item -Path {root}")
+    } else {
+        "find / -maxdepth 0 -print".to_string()
+    };
     for (mode, name) in [("ask", "rootask"), ("auto", "rootauto")] {
         let fixture = json!({
             "responses": [
                 { "chunks": [
                     { "tool_call": { "id": format!("{mode}1"), "name": "terminal_use",
                                      "args": { "action": "inspect the filesystem root",
-                                               "command": "find / -maxdepth 0 -print" } } }
+                                               "command": command } } }
                 ]},
                 { "chunks": [ { "text": "inspected" } ]}
             ]
         });
-        let mut h = harness(name, fixture);
+        let mut h = if windows {
+            harness_with_config(name, "[terminal]\nshell = \"auto\"\n", fixture)
+        } else {
+            harness(name, fixture)
+        };
         if mode == "auto" {
             h.engine.handle(Command::SessionMode {
                 id: 32,
@@ -2028,11 +2051,14 @@ fn a_whole_filesystem_call_asks_in_confined_modes_and_restores_them_afterward() 
 
         let events = prompt(&mut h, "inspect root", Decision::AllowOnce);
         assert_eq!(count_asks(&events), 1, "{mode} rejected before asking");
-        assert!(events.iter().any(|event| matches!(
-            event,
-            Event::PermissionRequest { full_access: true, reach, .. }
-                if reach == &vec!["/".to_string()]
-        )));
+        assert!(
+            events.iter().any(|event| matches!(
+                event,
+                Event::PermissionRequest { full_access: true, reach, .. }
+                    if reach == &vec![root.clone()]
+            )),
+            "{events:?}"
+        );
         assert!(
             tool_results(&events)[0].1,
             "the allowed root inspection did not run"

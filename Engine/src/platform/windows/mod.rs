@@ -25,7 +25,7 @@ pub mod fixture;
 use super::{InputWaitDetection, Os};
 
 pub use clipboard::set_clipboard;
-pub use confine::{forget_grants, Confinement, Grants, Unconfined, DEVICES};
+pub use confine::{forget_grants, unconfinable, Confinement, Grants, Unconfined, DEVICES};
 pub use console::{
     console_mouse, console_resized, console_size, take_console_resized, watch_console_resize,
     ConsoleMode, Typed,

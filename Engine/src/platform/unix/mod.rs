@@ -32,6 +32,12 @@ pub use socket::{is_socket, LocalListener, LocalStream};
 pub use stdio::{read_stdin, read_stdin_timeout, wait_stdin, InputWaker};
 pub use time::local_time;
 
+/// Landlock and Seatbelt hold every program a command starts alike: none
+/// is beyond them.
+pub fn unconfinable(_program: &std::path::Path) -> Option<String> {
+    None
+}
+
 /// Landlock and Seatbelt hold a confinement in the kernel and leave nothing
 /// on disk: there is nothing to take back.
 pub fn forget_grants(_ledger: &std::path::Path) -> std::io::Result<crate::platform::Forgotten> {

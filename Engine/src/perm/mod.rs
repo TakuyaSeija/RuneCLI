@@ -74,6 +74,11 @@ pub struct Ask<'a> {
     /// Why a command this session runs now would not be confined by the kernel
     /// sandbox — the sandbox's own reason — or `None` when it would be.
     pub unconfined: Option<String>,
+    /// The sandbox holds this session, but not the program this call's
+    /// commands start ([`crate::tools::Tool::unconfinable`]): an allowed
+    /// call runs with confinement lifted for it alone, as a full-access
+    /// reach does — never remembered.
+    pub lifts: bool,
 }
 
 /// What an authorised call may now do that it could not a moment ago.
@@ -139,10 +144,19 @@ impl Gate {
             Verdict::Ask { remember } => {
                 // A mode that would not have asked says why it does.
                 let reason = policy::unconfined_command(&situation).then(|| {
-                    format!(
-                        "Commands run unconfined here: {}. Auto asks before each one; Full stops asking.",
-                        ask.unconfined.as_deref().unwrap_or("the kernel sandbox is not enforcing")
-                    )
+                    let why = ask
+                        .unconfined
+                        .as_deref()
+                        .unwrap_or("the kernel sandbox is not enforcing");
+                    if ask.lifts {
+                        format!(
+                            "This command cannot run confined: {why}. Auto asks before each one; allowing runs it with full access, this once."
+                        )
+                    } else {
+                        format!(
+                            "Commands run unconfined here: {why}. Auto asks before each one; Full stops asking."
+                        )
+                    }
                 });
                 self.ask_user(ask, remember, reason, emit, cancel)
             }
@@ -214,7 +228,7 @@ impl Gate {
                 .map(|c| c.named.display().to_string())
                 .collect(),
             local_services: ask.local_services,
-            full_access: ask.reach.iter().any(|c| c.full_access),
+            full_access: ask.lifts || ask.reach.iter().any(|c| c.full_access),
             reason,
         });
 
@@ -238,7 +252,7 @@ impl Gate {
             decision,
         });
 
-        let full_access = ask.reach.iter().any(|c| c.full_access);
+        let full_access = ask.lifts || ask.reach.iter().any(|c| c.full_access);
         let anchors: Vec<PathBuf> = ask
             .reach
             .iter()
@@ -320,6 +334,7 @@ mod tests {
             reach: Vec::new(),
             local_services: false,
             unconfined: None,
+            lifts: false,
         }
     }
 
@@ -374,6 +389,7 @@ mod tests {
         let command = |unconfined: Option<&str>| Ask {
             runs: true,
             unconfined: unconfined.map(str::to_string),
+            lifts: false,
             ..ask("terminal_use", true, Risk::Normal)
         };
 
@@ -407,6 +423,67 @@ mod tests {
             reason.as_deref(),
             Some("Commands run unconfined here: this kernel has no Landlock support. Auto asks before each one; Full stops asking.")
         );
+    }
+
+    /// A command whose program the sandbox cannot hold is asked in `Auto`
+    /// with that reason, offers nothing to remember, and once allowed runs
+    /// with confinement lifted for that call; refused, nothing is lifted.
+    #[test]
+    fn an_unconfinable_program_is_asked_and_runs_lifted_once_allowed() {
+        let (g, db) = gate();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let command = || Ask {
+            runs: true,
+            unconfined: Some("bash.exe runs on msys-2.0.dll".into()),
+            lifts: true,
+            ..ask("terminal_use", true, Risk::Normal)
+        };
+
+        answer_with(&g, Decision::AllowAlways);
+        let mut events = Vec::new();
+        let allowed = g
+            .authorize(Mode::Auto, command(), &mut |e| events.push(e), &cancel)
+            .unwrap();
+        assert!(allowed.full_access, "allowed, it runs lifted");
+        assert!(!allowed.keep);
+        let (remember_as, full_access, reason) = events
+            .iter()
+            .find_map(|e| match e {
+                Event::PermissionRequest {
+                    remember_as,
+                    full_access,
+                    reason,
+                    ..
+                } => Some((remember_as.clone(), *full_access, reason.clone())),
+                _ => None,
+            })
+            .expect("the command was put to the person");
+        assert_eq!(remember_as, None);
+        assert!(full_access, "the card says the answer gives full access");
+        assert_eq!(
+            reason.as_deref(),
+            Some("This command cannot run confined: bash.exe runs on msys-2.0.dll. Auto asks before each one; allowing runs it with full access, this once.")
+        );
+        assert!(
+            !db.lock()
+                .unwrap()
+                .is_granted("/p", "terminal_use", "key")
+                .unwrap(),
+            "an Always answer stores nothing"
+        );
+
+        answer_with(&g, Decision::AllowOnce);
+        let mut events = Vec::new();
+        let in_ask = g
+            .authorize(Mode::Ask, command(), &mut |e| events.push(e), &cancel)
+            .unwrap();
+        assert!(in_ask.full_access, "Ask lifts it as well once allowed");
+
+        answer_with(&g, Decision::Deny);
+        let refused = g
+            .authorize(Mode::Auto, command(), &mut |_| {}, &cancel)
+            .unwrap_err();
+        assert!(matches!(refused, Error::Denied(_)), "{refused}");
     }
 
     #[test]

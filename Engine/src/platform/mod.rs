@@ -54,6 +54,9 @@
 //! Confinement
 //!   Confinement::build(Grants) -> Result<Confinement, Unconfined>
 //!   Confinement: kind(), abi(), local_services() applied to each placed command
+//!                gaps() -> [Gap]                 what it leaves reachable beyond its grants
+//!                                                (Windows's restricted token: what every user
+//!                                                may read; Landlock, Seatbelt: nothing)
 //!   Grants.local_services                        Unix sockets reach programs outside the
 //!                                                confinement: open when granted; otherwise a
 //!                                                command's own (`Grants.sockets`, or served by
@@ -71,6 +74,9 @@
 //!                                                answered by the next build as its session
 //!                                                confines now (Linux; elsewhere nothing
 //!                                                supervises: `None`)
+//!   unconfinable(program) -> Option<String>      why a command `program` starts cannot run
+//!                                                confined (Windows: an MSYS2/Cygwin runtime's
+//!                                                shared memory; Linux, macOS: never)
 //!   DEVICES                                      what a terminal needs, granted with every confinement
 //!   Grants.ledger                                where what a confinement leaves on disk is
 //!                                                recorded before it is written (Windows's ACL
@@ -399,6 +405,18 @@ pub use os::{
     set_clipboard, system_caches, Confinement, Grants, Unconfined, DEVICES, INPUT_WAIT_DETECTION,
     OS, REPLACES_IN_PLACE,
 };
+
+/// What a confinement leaves reachable that its grants do not say, named so
+/// a person can act on it (`Confinement::gaps`; a report's escapes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Gap {
+    /// Stable identifier.
+    pub id: &'static str,
+    /// What stays reachable.
+    pub detail: &'static str,
+    /// What the person can do about it.
+    pub fix: &'static str,
+}
 
 /// How a connection supervisor taken over from the build before answers for
 /// its command (`adopt_supervision`).

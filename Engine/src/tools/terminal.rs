@@ -126,6 +126,10 @@ impl Tool for TerminalUse {
         denylist::reaches_a_service_for(cmd, self.shell_kind())
     }
 
+    fn unconfinable(&self, _args: &Value) -> Option<String> {
+        platform::unconfinable(&shell(&self.0.config.text("terminal.shell")))
+    }
+
     fn grant_key(&self, args: &Value) -> String {
         let cmd = field_opt_str(args, "command").unwrap_or("");
         let program = match self.shell_kind() {

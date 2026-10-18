@@ -503,6 +503,14 @@ fn question<'a>(
         })
         .collect();
     let (wanted, blocked) = outside_paths(st, reaches, tool.runs_commands());
+    let sandbox = st.sandbox();
+    // A sandbox that holds the session but not this call's program: asked
+    // as where none holds, and lifted for this call once allowed.
+    let beyond = if sandbox.enforced() && tool.runs_commands() {
+        tool.unconfinable(args)
+    } else {
+        None
+    };
 
     // What is left in `blocked` is not a policy verdict — it is a token that
     // could not be resolved to a path at all (a `~` on a process with no
@@ -527,8 +535,8 @@ fn question<'a>(
         risk,
         reach: wanted,
         local_services,
-        unconfined: {
-            let sandbox = st.sandbox();
+        lifts: beyond.is_some(),
+        unconfined: beyond.or_else(|| {
             (!sandbox.enforced()).then(|| {
                 sandbox
                     .report()
@@ -536,7 +544,7 @@ fn question<'a>(
                     .clone()
                     .unwrap_or_else(|| "the kernel sandbox is not enforcing".into())
             })
-        },
+        }),
     })
 }
 
@@ -688,6 +696,7 @@ pub(crate) fn authorize_mcp_roots(
         reach: wanted,
         local_services: false,
         unconfined: None,
+        lifts: false,
     };
     let mut emit_fn = |event: Event| emit(rt, event);
     match st.gate.authorize(st.mode(), ask, &mut emit_fn, &st.cancel) {

@@ -4,6 +4,10 @@
 //! engine cannot enforce itself: once `bash` is running, only the kernel decides
 //! where it may write. If Landlock is silently not applied, these tests are the
 //! ones that notice.
+//!
+//! On Windows they run in PowerShell, which the restricted token holds: Git
+//! Bash is beyond it (`platform::unconfinable`), so a command of Git Bash's
+//! runs only with full access once allowed — the last test here.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,6 +31,12 @@ struct Probe {
 /// workspace" path in these tests would sit inside the engine's own store, which
 /// no permission prompt may open, and the tests would be measuring that instead.
 fn probe(name: &str) -> Probe {
+    probe_in(name, false)
+}
+
+/// A probe whose commands run in the tests' POSIX shell on every OS — Git
+/// Bash on Windows.
+fn probe_in(name: &str, posix_on_windows: bool) -> Probe {
     let tag = format!("{}-{}", std::process::id(), name);
     let base = std::env::temp_dir()
         .join("rune-test")
@@ -37,7 +47,9 @@ fn probe(name: &str) -> Probe {
     let project = base.join("project");
     std::fs::create_dir_all(&project).unwrap();
     std::fs::create_dir_all(&store).unwrap();
-    runeengine::testing::posix_shell_for_tests(&store.join("data"));
+    if posix_on_windows {
+        runeengine::testing::posix_shell_for_tests(&store.join("data"));
+    }
 
     let cfg = Config::at(
         store.join("rune.db"),
@@ -112,6 +124,34 @@ fn outside_dir(p: &Probe, name: &str) -> PathBuf {
     dir
 }
 
+fn windows() -> bool {
+    runeengine::platform::OS == runeengine::platform::Os::Windows
+}
+
+/// The command line these tests run: POSIX on Linux and macOS, PowerShell
+/// on Windows.
+fn script(posix: &str, powershell: &str) -> String {
+    if windows() { powershell } else { posix }.to_string()
+}
+
+/// `path` quoted for PowerShell, which reads nothing inside single quotes.
+fn in_powershell(path: &std::path::Path) -> String {
+    format!("'{}'", path.display().to_string().replace('\'', "''"))
+}
+
+/// A file read whole by the command line of this OS's test shell.
+fn read_command(file: &std::path::Path) -> String {
+    script(
+        &format!("cat {}", in_shell(file)),
+        &format!("Get-Content -Raw -Path {}", in_powershell(file)),
+    )
+}
+
+/// The home folder, as the machine names it.
+fn home() -> PathBuf {
+    runeengine::platform::home_dir().expect("a home folder")
+}
+
 /// `path` as a POSIX shell command line spells it on every OS: Git Bash on
 /// Windows reads `D:/a/b` as the folder, while the backslashes of `D:\a\b`
 /// are escapes to it (and to Rune's reading of the line).
@@ -130,6 +170,8 @@ fn refused_by_the_kernel(transcript: &str) -> bool {
         "Permission denied",
         "Operation not permitted",
         "Access is denied",
+        // PowerShell: "Access to the path '…' is denied."
+        "Access to the path",
     ]
     .iter()
     .any(|said| transcript.contains(said))
@@ -160,6 +202,10 @@ fn the_engine_says_out_loud_whether_it_is_enforcing() {
 
 #[test]
 fn an_inline_awk_regex_does_not_ask_for_root_or_lift_the_sandbox() {
+    if windows() {
+        eprintln!("note: awk is a POSIX program; Windows's shells are read by their own rules");
+        return;
+    }
     let mut p = probe("awk-regex");
     std::fs::write(p.project.join("memory.txt"), "MemTotal: 1024\n").unwrap();
     p.engine.handle(Command::ToolInvoke {
@@ -204,12 +250,20 @@ fn an_inline_awk_regex_does_not_ask_for_root_or_lift_the_sandbox() {
 #[test]
 fn a_command_can_write_inside_the_project() {
     let mut p = probe("inside");
-    let (ok, out) = shell(&mut p, "echo inside > probe.txt");
+    let (ok, out) = shell(
+        &mut p,
+        &script(
+            "echo inside > probe.txt",
+            "Set-Content -Path probe.txt -Value inside",
+        ),
+    );
     assert!(ok, "{out}");
     assert!(exited_zero(&out), "{out}");
     assert_eq!(
-        std::fs::read_to_string(p.project.join("probe.txt")).unwrap(),
-        "inside\n"
+        std::fs::read_to_string(p.project.join("probe.txt"))
+            .unwrap()
+            .trim_end(),
+        "inside"
     );
 }
 
@@ -218,13 +272,12 @@ fn a_command_can_still_read_the_rest_of_the_machine() {
     let mut p = probe("read");
     // A compiler needs its headers; a shell needs its binaries. Reading stays
     // open — a file of the system's own on each OS.
-    let system_file = match runeengine::platform::OS {
-        runeengine::platform::Os::Windows => "\"$SYSTEMROOT/System32/drivers/etc/hosts\"",
-        _ => "/etc/hosts",
-    };
     let (ok, out) = shell(
         &mut p,
-        &format!("head -1 {system_file} > /dev/null && echo readable"),
+        &script(
+            "head -1 /etc/hosts > /dev/null && echo readable",
+            "Get-Content -TotalCount 1 \"$env:SystemRoot\\System32\\drivers\\etc\\hosts\" | Out-Null; echo readable",
+        ),
     );
     assert!(ok, "{out}");
     assert!(exited_zero(&out), "{out}");
@@ -233,19 +286,21 @@ fn a_command_can_still_read_the_rest_of_the_machine() {
 #[test]
 fn a_command_cannot_write_outside_the_project() {
     let mut p = probe("outside");
-    let home = std::env::var("HOME").expect("HOME");
-    let target = PathBuf::from(&home).join(format!(".rune-escape-probe-{}", std::process::id()));
+    let target = home().join(format!(".rune-escape-probe-{}", std::process::id()));
     let _ = std::fs::remove_file(&target);
 
     // The path is built by the shell rather than written as an argument, so the
     // reach scanner cannot see it and the *kernel* is what has to stop this.
     // That is the property under test: the scanner is convenience, Landlock is
     // the boundary, and a test that let the scanner answer would prove nothing.
+    let name = target.file_name().unwrap().to_string_lossy().to_string();
     let (_, out) = shell(
         &mut p,
-        &format!(
-            "d=$HOME; echo escaped > \"$d/{}\"",
-            target.file_name().unwrap().to_string_lossy()
+        &script(
+            &format!("d=$HOME; echo escaped > \"$d/{name}\""),
+            &format!(
+                "$d=[Environment]::GetFolderPath('UserProfile'); Set-Content -Path \"$d\\{name}\" -Value escaped"
+            ),
         ),
     );
 
@@ -267,7 +322,10 @@ fn scratch_directories_stay_writable_so_ordinary_builds_work() {
     let mut p = probe("tmp");
     let (ok, out) = shell(
         &mut p,
-        "t=$(mktemp) && echo work > \"$t\" && rm -f \"$t\" && echo tmp-ok",
+        &script(
+            "t=$(mktemp) && echo work > \"$t\" && rm -f \"$t\" && echo tmp-ok",
+            "$t = New-TemporaryFile; Set-Content -Path $t -Value work; Remove-Item $t; echo tmp-ok",
+        ),
     );
     assert!(ok, "{out}");
     assert!(
@@ -279,8 +337,7 @@ fn scratch_directories_stay_writable_so_ordinary_builds_work() {
 #[test]
 fn confinement_survives_a_child_of_the_command() {
     let mut p = probe("child");
-    let home = std::env::var("HOME").expect("HOME");
-    let target = PathBuf::from(&home).join(format!(".rune-escape-child-{}", std::process::id()));
+    let target = home().join(format!(".rune-escape-child-{}", std::process::id()));
     let _ = std::fs::remove_file(&target);
 
     // A sub-shell, two levels down: the restriction must be inherited, not
@@ -289,7 +346,12 @@ fn confinement_survives_a_child_of_the_command() {
     let name = target.file_name().unwrap().to_string_lossy().to_string();
     let (_, out) = shell(
         &mut p,
-        &format!("d=$HOME; bash -c \"bash -c 'echo nested > $d/{name}'\""),
+        &script(
+            &format!("d=$HOME; bash -c \"bash -c 'echo nested > $d/{name}'\""),
+            &format!(
+                "$d=[Environment]::GetFolderPath('UserProfile'); powershell -NoProfile -Command \"cmd /c 'echo nested > $d\\{name}'\""
+            ),
+        ),
     );
 
     if p.enforced {
@@ -349,7 +411,7 @@ fn a_command_that_hangs_moves_to_the_background_at_the_timeout() {
         &mut p,
         1,
         "terminal_use",
-        json!({ "action": "hang", "command": "sleep 60" }),
+        json!({ "action": "hang", "command": script("sleep 60", "Start-Sleep 60") }),
     );
     assert!(ok, "moving on is not a failure: {content}");
     assert!(
@@ -378,9 +440,12 @@ fn killing_a_command_kills_what_it_spawned() {
         value: "1s".into(),
     });
     let marker = p.project.join("still-alive.txt");
-    let cmd = format!(
-        "( sleep 3; echo survived > {} ) & sleep 30",
-        in_shell(&marker)
+    let cmd = script(
+        &format!("( sleep 3; echo survived > {} ) & sleep 30", in_shell(&marker)),
+        &format!(
+            "Start-Process -NoNewWindow powershell -ArgumentList '-NoProfile','-Command','Start-Sleep 3; Set-Content -Path {} -Value survived'; Start-Sleep 30",
+            in_powershell(&marker).replace('\'', "''")
+        ),
     );
     let (_, moved) = invoke(
         &mut p,
@@ -414,6 +479,13 @@ fn a_catastrophic_command_is_asked_and_stopped_by_the_kernel() {
     // to the user, and — answered "allow once" — the shell runs it under the
     // sandbox. The kernel, or rm's own root guard, is the wall. That is the
     // deny-list's own definition of itself: a tripwire, never a boundary.
+    if windows() {
+        // A whole drive's removal is not tried on a real Windows drive: the
+        // token's refusal of writes outside is
+        // `a_command_cannot_write_outside_the_project`.
+        eprintln!("note: not tried on Windows");
+        return;
+    }
     let mut p = probe("severe");
     let ((ok, out), asked) = run(&mut p, "rm -rf /", Decision::AllowOnce);
     assert!(
@@ -441,7 +513,7 @@ fn an_allowed_path_outside_the_workspace_really_becomes_reachable() {
 
     let ((ok, out), asked) = run(
         &mut p,
-        &format!("cat {}/note.txt", in_shell(&dir)),
+        &read_command(&dir.join("note.txt")),
         Decision::AllowOnce,
     );
 
@@ -463,11 +535,7 @@ fn a_refused_path_outside_the_workspace_stays_unreachable() {
     let dir = outside_dir(&p, "deny");
     std::fs::write(dir.join("note.txt"), "secret\n").unwrap();
 
-    let ((ok, out), _) = run(
-        &mut p,
-        &format!("cat {}/note.txt", in_shell(&dir)),
-        Decision::Deny,
-    );
+    let ((ok, out), _) = run(&mut p, &read_command(&dir.join("note.txt")), Decision::Deny);
     assert!(!ok, "a refused call must not run:\n{out}");
     assert!(
         !out.contains("secret"),
@@ -480,7 +548,7 @@ fn a_one_call_grant_does_not_outlive_the_call() {
     let mut p = probe("reach-once");
     let dir = outside_dir(&p, "once");
     std::fs::write(dir.join("note.txt"), "one-shot\n").unwrap();
-    let read = format!("cat {}/note.txt", in_shell(&dir));
+    let read = read_command(&dir.join("note.txt"));
 
     let ((ok, out), _) = run(&mut p, &read, Decision::AllowOnce);
     assert!(ok, "{out}");
@@ -513,14 +581,17 @@ fn a_confined_command_cannot_read_the_session_hosts_key() {
     std::fs::create_dir_all(socket.parent().unwrap()).unwrap();
     let _key = runeengine::access::HostKey::issue(&socket).unwrap();
     let key = std::fs::read_to_string(runeengine::access::key_path(&socket)).unwrap();
-    let hidden: String = runeengine::access::key_path(&socket)
-        .display()
-        .to_string()
-        .bytes()
-        .map(|b| format!("\\{b:03o}"))
-        .collect();
-
-    let read = format!("cat \"$(printf '{hidden}')\"");
+    let path = runeengine::access::key_path(&socket).display().to_string();
+    let read = if windows() {
+        let codes: Vec<String> = path.encode_utf16().map(|c| c.to_string()).collect();
+        format!(
+            "Get-Content -Raw -Path ([string]::new([char[]]@({})))",
+            codes.join(",")
+        )
+    } else {
+        let hidden: String = path.bytes().map(|b| format!("\\{b:03o}")).collect();
+        format!("cat \"$(printf '{hidden}')\"")
+    };
     let ((_, out), asked) = run(&mut p, &read, Decision::AllowOnce);
     assert!(
         asked.is_empty(),
@@ -551,7 +622,7 @@ fn allow_always_survives_into_the_next_call_without_asking_again() {
     let mut p = probe("reach-always");
     let dir = outside_dir(&p, "always");
     std::fs::write(dir.join("note.txt"), "remembered\n").unwrap();
-    let read = format!("cat {}/note.txt", in_shell(&dir));
+    let read = read_command(&dir.join("note.txt"));
 
     let ((ok, out), _) = run(&mut p, &read, Decision::AllowAlways);
     assert!(ok, "{out}");
@@ -596,11 +667,18 @@ fn a_system_path_every_command_already_uses_is_not_put_to_the_user() {
     let mut p = probe("reach-system");
     // /usr/bin is readable under the base policy. Prompting for it would put a
     // dialog in front of half the commands an agent runs.
-    let ((ok, out), asked) = run(
-        &mut p,
-        "/usr/bin/env true && echo fine",
-        Decision::AllowOnce,
-    );
+    let system_program = if windows() {
+        format!(
+            "& {} | Out-Null; echo fine",
+            in_powershell(
+                &PathBuf::from(std::env::var_os("SystemRoot").expect("SystemRoot"))
+                    .join(r"System32\hostname.exe")
+            )
+        )
+    } else {
+        "/usr/bin/env true && echo fine".to_string()
+    };
+    let ((ok, out), asked) = run(&mut p, &system_program, Decision::AllowOnce);
     assert!(
         asked.is_empty(),
         "an already-reachable path was put to the user: {asked:?}"
@@ -618,7 +696,7 @@ fn chained_commands_run_successfully() {
         name: "terminal_use".into(),
         args: json!({
             "action": "run chained commands",
-            "command": "echo first && echo second"
+            "command": script("echo first && echo second", "echo first; echo second")
         }),
     });
 
@@ -1121,4 +1199,85 @@ print("all own")"#;
         "the command's own messages were asked: {asked:?}"
     );
     assert!(out.contains("all own"), "{out}");
+}
+
+/// A shell the sandbox cannot hold (Git Bash on Windows: MSYS2's shared
+/// memory is refused to a restricted token) is put to the person in Auto
+/// with that reason, and once allowed runs with full access for that call
+/// alone; refused, it does not run. Where every program can be confined
+/// (Linux, macOS) the same command runs unasked, confined.
+#[test]
+fn a_shell_the_sandbox_cannot_hold_is_asked_in_auto_and_runs_with_full_access_once_allowed() {
+    let mut p = probe_in("beyond", true);
+    if !p.enforced {
+        eprintln!("note: no kernel sandbox on this machine");
+        return;
+    }
+    if windows() && runeengine::platform::fixture::posix_shell().is_none() {
+        eprintln!("note: no Git Bash on this machine");
+        return;
+    }
+    p.engine.handle(Command::SessionMode {
+        id: 3,
+        session: p.session,
+        mode: "auto".into(),
+    });
+    let invoke = |p: &mut Probe, decision: Decision| {
+        p.engine.handle(Command::ToolInvoke {
+            id: 4,
+            session: p.session,
+            name: "terminal_use".into(),
+            args: json!({"action": "probe", "command": "echo lifted > lifted.txt"}),
+        });
+        let mut asked = Vec::new();
+        loop {
+            match p
+                .events
+                .recv_timeout(std::time::Duration::from_secs(60))
+                .unwrap()
+            {
+                Event::PermissionRequest {
+                    req,
+                    full_access,
+                    remember_as,
+                    reason,
+                    ..
+                } => {
+                    asked.push((full_access, remember_as, reason));
+                    p.engine.handle(Command::PermissionReply {
+                        id: 5,
+                        req,
+                        decision,
+                    });
+                }
+                Event::ToolResult { ok, content, .. } => return (ok, content, asked),
+                _ => {}
+            }
+        }
+    };
+    let written = p.project.join("lifted.txt");
+
+    let (ok, out, asked) = invoke(&mut p, Decision::AllowOnce);
+    assert!(ok, "{out}");
+    assert!(written.is_file(), "the command did not run: {out}");
+    if !windows() {
+        assert!(
+            asked.is_empty(),
+            "a confinable shell was asked in Auto: {asked:?}"
+        );
+        return;
+    }
+    let [(full_access, remember_as, reason)] = asked.as_slice() else {
+        panic!("one question, got {asked:?}");
+    };
+    assert!(full_access, "the answer must say it gives full access");
+    assert_eq!(remember_as, &None, "nothing about it may be remembered");
+    let reason = reason.as_deref().unwrap_or_default();
+    assert!(reason.contains("msys-2.0.dll"), "{reason}");
+
+    std::fs::remove_file(&written).unwrap();
+    let (ok, out, asked) = invoke(&mut p, Decision::Deny);
+    assert!(!ok, "a refused command ran: {out}");
+    assert_eq!(asked.len(), 1);
+    assert!(!written.exists(), "a refused command ran: {out}");
 }
