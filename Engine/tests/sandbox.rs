@@ -1037,6 +1037,81 @@ print("all own")"#,
     assert!(out.contains("all own"), "{out}");
 }
 
+/// Off Linux nobody asks at the moment of connecting: the confinement itself
+/// keeps a program of the person's out of reach — Seatbelt opens no Unix
+/// socket beyond the command's own folders (macOS), and a pipe of the user's
+/// alone admits neither the sandbox account nor a restricted token's SIDs
+/// (Windows; Rune's own session pipes are made so). The address is hidden from
+/// the gate, as text steered by an injection would hide it, so the refusal
+/// measured is the kernel's; the same command run in Full is the control.
+#[test]
+fn a_service_of_the_persons_is_out_of_a_confined_commands_reach_off_linux() {
+    let mut p = probe("sv8");
+    if !p.enforced || runeengine::platform::OS == runeengine::platform::Os::Linux {
+        eprintln!("note: the supervised tests above hold this on Linux");
+        return;
+    }
+    let (socket, marker) = service(&p);
+    let reach = if windows() {
+        let text = std::fs::read_to_string(&socket).unwrap();
+        let name = text
+            .lines()
+            .nth(1)
+            .and_then(|pipe| pipe.strip_prefix(r"\\.\pipe\"))
+            .expect("a meeting file names its pipe")
+            .to_string();
+        let codes: Vec<String> = name.encode_utf16().map(|c| c.to_string()).collect();
+        format!(
+            "$c = [System.IO.Pipes.NamedPipeClientStream]::new('.', [string]::new([char[]]@({})), [System.IO.Pipes.PipeDirection]::InOut); try {{ $c.Connect(5000); 'connected' }} catch {{ 'refused: ' + $_.Exception.Message; exit 7 }}",
+            codes.join(",")
+        )
+    } else {
+        let hidden: String = socket
+            .display()
+            .to_string()
+            .bytes()
+            .map(|b| format!("\\{b:03o}"))
+            .collect();
+        let code = "import os,socket,sys\ntry:\n s=socket.socket(socket.AF_UNIX)\n s.connect(os.environ[\"SOCK\"])\nexcept OSError as e:\n print(\"refused:\", os.strerror(e.errno)); sys.exit(7)\nprint(\"connected\")";
+        format!(
+            "SOCK=\"$(printf '{hidden}')\" {} -c '{code}'",
+            in_shell(&runeengine::testing::python())
+        )
+    };
+
+    let ((_, out), asked) = run(&mut p, &reach, Decision::AllowOnce);
+    assert!(
+        asked.is_empty(),
+        "the gate saw the address, so this measured the gate, not the kernel: {asked:?}"
+    );
+    assert!(
+        out.contains("refused:") && refused_by_the_kernel(&out),
+        "the connection was not refused by the kernel:\n{out}"
+    );
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    assert_eq!(served(&marker), 0, "a confined command reached the service");
+
+    p.engine.handle(Command::SessionMode {
+        id: 9,
+        session: p.session,
+        mode: "full".into(),
+    });
+    let ((_, out), _) = run(&mut p, &reach, Decision::AllowOnce);
+    assert!(
+        out.contains("connected"),
+        "the control did not connect:\n{out}"
+    );
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while served(&marker) == 0 && std::time::Instant::now() < until {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(
+        served(&marker),
+        1,
+        "the control's connection was not served"
+    );
+}
+
 /// A datagram stand-in, run as a program of its own outside the sandbox: a
 /// message addressed to it, with no connection, is the act a command must
 /// not get done unasked. Stopped when dropped.
