@@ -120,6 +120,16 @@ jobs:
         timeout-minutes: 40
         run: cargo test --workspace --locked --no-fail-fast
 
+      - name: Confined commands ran under the sandbox account
+        # The runner is elevated, so the tests' confinements set up Rune's
+        # own account: its absence means every test ran on the restricted
+        # token and the account path went untested.
+        shell: pwsh
+        run: |
+          $accounts = Get-LocalUser | Where-Object Name -like 'rune-sbx-*'
+          if (-not $accounts) { Write-Error 'no rune-sbx account: the sandbox account path did not run'; exit 1 }
+          $accounts | Format-Table Name, Enabled
+
       - name: Build release (x64)
         if: always()
         run: cargo build --release --locked -p runecli
