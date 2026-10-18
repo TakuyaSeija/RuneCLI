@@ -6,14 +6,17 @@ key beside it, never stops Rune from starting, and is set aside only on the
 person's explicit yes."""
 import os
 from pathlib import Path
-import pty
 import re
-import select
 import subprocess
+import sys
 import tempfile
 import time
 
-BIN = Path(os.environ.get("RUNE_BIN", "target/debug/rune")).resolve()
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import RuneTerminal
+
+BIN = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
+    "RUNE_BIN", "target/debug/rune.exe" if RuneTerminal.WINDOWS else "target/debug/rune")).resolve()
 BASE = Path(__file__).resolve().parents[2] / "target" / "test-tmp"
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -33,25 +36,17 @@ with tempfile.TemporaryDirectory(prefix="Credentials-", dir=BASE) as temp:
         return result.stdout + result.stderr
 
     def window_starts():
-        pid, fd = pty.fork()
-        if pid == 0:
-            os.chdir(project)
-            os.execve(str(BIN), ["rune"], dict(env, TERM="xterm-256color"))
+        window = RuneTerminal.Terminal([BIN], dict(env, TERM="xterm-256color"), 34, 120, cwd=str(project))
         out, deadline, ended = b"", time.time() + 5, None
         while time.time() < deadline:
-            ready, _, _ = select.select([fd], [], [], 0.2)
-            if ready:
-                try:
-                    out += os.read(fd, 65536)
-                except OSError:
-                    pass
-            done, status = os.waitpid(pid, os.WNOHANG)
-            if done:
-                ended = status
+            out += window.read()
+            if not window.alive():
+                ended = True
                 break
+            time.sleep(0.2)
+        out += window.read()
         if ended is None:
-            os.kill(pid, 9)
-            os.waitpid(pid, 0)
+            window.kill()
         text = re.sub(rb"\x1b\[[0-9;?<>=]*[a-zA-Z]|\x1b\][^\x07]*\x07", b"", out).decode("utf-8", "replace")
         return ended is None, text
 

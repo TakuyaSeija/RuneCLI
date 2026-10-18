@@ -1,5 +1,7 @@
-import json,subprocess,tempfile,sqlite3,select,time,sys,os,re
+import json,subprocess,tempfile,sqlite3,time,sys,os,re,queue,threading
 from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+import RuneTerminal
 BIN=sys.argv[1]
 ROOT=Path(tempfile.mkdtemp(prefix='R016Wire.',dir=str(Path(__file__).resolve().parents[2]/'target/test-tmp')))
 PASSED=False
@@ -12,15 +14,18 @@ def folder_of(project):return HOME/'projects'/re.sub('[^A-Za-z0-9]','-',str(proj
 class Host:
  def __init__(self):
   self.p=subprocess.Popen([BIN,'-host','-script',str(SCRIPT)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=dict(os.environ,RUNE_HOME=str(HOME)),text=True,bufsize=1)
-  self.events=[];self.buffer=b'';self.line()
+  # A thread reads the host's lines: a pipe cannot be waited on with a
+  # deadline on every OS (Windows has no select for pipes).
+  self.lines=queue.Queue()
+  def read():
+   for l in self.p.stdout:self.lines.put(l)
+   self.lines.put(None)
+  threading.Thread(target=read,daemon=True).start()
+  self.events=[];self.line()
  def line(self):
-  deadline=time.monotonic()+15
-  while b'\n' not in self.buffer:
-   remaining=deadline-time.monotonic()
-   if remaining<=0 or not select.select([self.p.stdout],[],[],remaining)[0]:raise AssertionError('host request deadline')
-   chunk=os.read(self.p.stdout.fileno(),65536);assert chunk, 'host closed protocol output'
-   self.buffer+=chunk
-  line,self.buffer=self.buffer.split(b'\n',1)
+  try:line=self.lines.get(timeout=15)
+  except queue.Empty:raise AssertionError('host request deadline')
+  assert line is not None, 'host closed protocol output'
   return json.loads(line)
  def command(self,command):
   global SEQ
@@ -81,10 +86,7 @@ finally:
   HOST.p.terminate();HOST.p.wait(timeout=15)
  # Session hosts this run started detach from it: they end with its home.
  import signal as _signal
- for _pid in os.popen('pgrep -x rune').read().split():
-  try:
-   if str(ROOT).encode() in open(f'/proc/{_pid}/cmdline','rb').read():os.kill(int(_pid),_signal.SIGTERM)
-  except OSError:pass
+ for _pid in RuneTerminal.holding(ROOT):RuneTerminal.stop(_pid)
  # A passing run leaves nothing behind; a failing one keeps its home and logs.
  if PASSED:
   import shutil;shutil.rmtree(ROOT,ignore_errors=True)

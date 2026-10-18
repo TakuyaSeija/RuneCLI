@@ -1,36 +1,34 @@
-import os,pty,subprocess,fcntl,termios,struct,time,json,sqlite3,select,tempfile,sys,socket
+import os,subprocess,time,json,sqlite3,tempfile,sys,socket
 from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+import RuneTerminal
 ROOT=Path(tempfile.mkdtemp(prefix='R016.',dir=str(Path(__file__).resolve().parents[2]/'target/test-tmp')))
 PASSED=False
 HOME=ROOT/'Home'; HOME.mkdir()
 PROJECT=ROOT/'Project'; PROJECT.mkdir()
-BIN=sys.argv[1] if len(sys.argv)>1 else str(Path(__file__).resolve().parents[2]/'target/debug/rune')
+BIN=sys.argv[1] if len(sys.argv)>1 else str(Path(__file__).resolve().parents[2]/'target/debug'/('rune.exe' if RuneTerminal.WINDOWS else 'rune'))
 (HOME/'fixture.json').write_text(json.dumps({'responses':[{'chunks':[{'text':'Fixture completed.'}]} for _ in range(10)]}))
 (HOME/'rune.toml').write_text('[host]\nidle_lifetime = "1s"\n[ui]\nsidebar = true\n[providers]\ndefault = "fixture"\n[[providers.list]]\nname = "fixture"\nbase_url = "http://127.0.0.1:1"\napi = "openai"\nauth = { header = "Authorization", prefix = "Bearer " }\n[[providers.list.models]]\nid = "test"\nthinking = false\ncontext = 32768\n[[providers.list.models]]\nid = "other"\nthinking = false\ncontext = 65536\n')
 WINDOWS=[]
 class Window:
  def __init__(self,resume=None,project=PROJECT):
-  self.master,slave=pty.openpty();fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',34,120,0,0))
   env=dict(os.environ,RUNE_HOME=str(HOME),TERM='xterm-256color',COLORTERM='truecolor')
   args=[BIN,'-project',str(project),'-script',str(HOME/'fixture.json')]
   if resume is not None:args+=['-resume',str(resume)]
-  self.p=subprocess.Popen(args,stdin=slave,stdout=slave,stderr=slave,env=env);os.close(slave);self.output=b'';WINDOWS.append(self)
- def drain(self):
-  while select.select([self.master],[],[],0)[0]:
-   try:self.output+=os.read(self.master,65536)
-   except OSError:break
- def send(self,data):os.write(self.master,data);self.drain()
+  self.p=RuneTerminal.Terminal(args,env,34,120);self.output=b'';WINDOWS.append(self)
+ def drain(self):self.output+=self.p.read()
+ def send(self,data):self.p.write(data);self.drain()
  def close(self):
-  if self.p.poll() is None:
+  if self.p.alive():
    self.send(b'\x03\x03')
-   until(lambda:self.p.poll() is not None,'clean exit process',timeout=20)
+   until(lambda:not self.p.alive(),'clean exit process',timeout=20)
   self.drain()
 def until(predicate,description,timeout=15):
  end=time.monotonic()+timeout
  while time.monotonic()<end:
   for w in WINDOWS:w.drain()
   if predicate():return
-  select.select([],[],[],.025)
+  time.sleep(.025)
  raise AssertionError(description)
 # Sessions are filed under their project's folder: projects/<name>/sessions/<id>.
 def session_dir(n):return next(HOME.glob(f'projects/*/sessions/{n}'),HOME/'projects'/'(unfiled)'/'sessions'/str(n))
@@ -107,15 +105,12 @@ except BaseException:
  raise
 finally:
  for w in WINDOWS:
-  if w.p.poll() is None:
+  if w.p.alive():
    try:w.close()
-   except Exception:w.p.terminate()
+   except Exception:w.p.kill()
  # Session hosts this run started detach from it: they end with its home.
  import signal as _signal
- for _pid in os.popen('pgrep -x rune').read().split():
-  try:
-   if str(ROOT).encode() in open(f'/proc/{_pid}/cmdline','rb').read():os.kill(int(_pid),_signal.SIGTERM)
-  except OSError:pass
+ for _pid in RuneTerminal.holding(ROOT):RuneTerminal.stop(_pid)
  # A passing run leaves nothing behind; a failing one keeps its home and logs.
  if PASSED:
   import shutil;shutil.rmtree(ROOT,ignore_errors=True)

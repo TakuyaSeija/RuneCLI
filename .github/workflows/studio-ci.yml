@@ -19,7 +19,7 @@ jobs:
   quality:
     name: Rust quality gate (Linux)
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 70
     defaults:
       run:
         shell: bash
@@ -61,6 +61,13 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace --locked --no-fail-fast
 
+      - name: PTY fixtures (the windows in a real terminal)
+        if: always()
+        timeout-minutes: 40
+        run: |
+          cargo build --locked -p runecli
+          python3 -I Cli/tests/RunPTY.py target/debug/rune
+
   # The same gate on a real Windows: Windows Server 2025 (Windows 11's
   # kernel), x64. Its binaries — x64 tested, arm64 built — are kept as
   # artifacts of the run, never published.
@@ -70,7 +77,7 @@ jobs:
     if: ${{ !contains(github.event.head_commit.message, '[ci probe]') }}
     runs-on: windows-2025
     # A hung test costs the whole limit, twice over in billed minutes.
-    timeout-minutes: 80
+    timeout-minutes: 120
     defaults:
       run:
         shell: bash
@@ -126,6 +133,18 @@ jobs:
         # log is kept (libtest names a test running for over 60 seconds).
         timeout-minutes: 40
         run: cargo test --workspace --locked --no-fail-fast
+
+      - name: PTY fixtures (the windows in a real ConPTY)
+        # ConPTY is what Windows Terminal hosts a program in; pywinpty opens
+        # one for the fixtures and psutil finds the hosts they start. Test
+        # tools only, in a throwaway environment: nothing of Rune's.
+        if: always()
+        timeout-minutes: 40
+        run: |
+          python -m venv "$RUNNER_TEMP/pty"
+          "$RUNNER_TEMP/pty/Scripts/python" -m pip install --quiet pywinpty==2.0.15 psutil==7.0.0
+          cargo build --locked -p runecli
+          "$RUNNER_TEMP/pty/Scripts/python" -I Cli/tests/RunPTY.py target/debug/rune.exe
 
       - name: Build release (x64)
         if: always()
@@ -239,7 +258,7 @@ jobs:
     runs-on: macos-14
     # Billed ten times over: a hung test must not run long (its step stops
     # at 30 minutes; the rest is building).
-    timeout-minutes: 75
+    timeout-minutes: 110
     defaults:
       run:
         shell: bash
@@ -286,6 +305,17 @@ jobs:
         # log is kept (libtest names a test running for over 60 seconds).
         timeout-minutes: 30
         run: cargo test --workspace --locked --no-fail-fast
+
+      - name: PTY fixtures (the windows in a real terminal)
+        # psutil finds the hosts the fixtures start (macOS has no /proc):
+        # a test tool, in a throwaway environment.
+        if: always()
+        timeout-minutes: 40
+        run: |
+          python3 -m venv "$RUNNER_TEMP/pty"
+          "$RUNNER_TEMP/pty/bin/python" -m pip install --quiet psutil==7.0.0
+          cargo build --locked -p runecli
+          "$RUNNER_TEMP/pty/bin/python" -I Cli/tests/RunPTY.py target/debug/rune
 
       - name: Build release (arm64, x64)
         if: always()

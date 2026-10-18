@@ -19,13 +19,8 @@ ITERATIONS = int(sys.argv[2]) if len(sys.argv) > 2 else 60
 
 
 def cleanup():
-    for path in Path('/proc').glob('[0-9]*/cmdline'):
-        try:
-            args=path.read_bytes()
-            if str(live.HOME).encode() in args or str(live.PROJECT).encode() in args:
-                os.kill(int(path.parent.name),signal.SIGTERM)
-        except OSError: pass
-
+    for pid in live.RuneTerminal.holding(live.HOME, live.PROJECT):
+        live.RuneTerminal.stop(pid)
 
 def main():
     provider=live.Provider()
@@ -37,12 +32,15 @@ def main():
         live.ask(w,provider,'seed',live.text('Seed done.'),expect='Seed done.')
         until=live.HOME/'run'/'session_1.sock'
         live.until(lambda:until.exists(),'session socket',w)
+        # The socket's path is longer than an address holds: reached from
+        # its own folder, by its name alone.
         client=socket.socket(socket.AF_UNIX)
-        directory=os.open(until.parent,os.O_RDONLY|os.O_DIRECTORY)
+        here=os.getcwd()
+        os.chdir(until.parent)
         try:
-            client.connect(f'/proc/self/fd/{directory}/{until.name}')
+            client.connect(until.name)
         finally:
-            os.close(directory)
+            os.chdir(here)
         key=(live.HOME/'run'/'session_1.key').read_text().strip()
         client.sendall((json.dumps({'cmd':'session.hello','id':70001,'key':key})+'\n').encode())
         recording=(live.ROOT/'events.jsonl').open('w',buffering=1)
@@ -95,4 +93,9 @@ def main():
 
 
 if __name__=='__main__':
-    main()
+    if live.WINDOWS:
+        # It speaks to the session host's socket itself; on Windows that is a
+        # named pipe, which the host-protocol tests drive there.
+        print('skip submit stress: drives the host socket as a Unix socket')
+    else:
+        main()

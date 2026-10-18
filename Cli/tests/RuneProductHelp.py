@@ -4,9 +4,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
-BIN = Path(os.environ.get("RUNE_BIN", "target/debug/rune")).resolve()
+WINDOWS = sys.platform == "win32"
+BIN = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
+    "RUNE_BIN", "target/debug/rune.exe" if WINDOWS else "target/debug/rune")).resolve()
 BASE = Path(__file__).resolve().parents[2] / "target" / "test-tmp"
 BASE.mkdir(parents=True, exist_ok=True)
 

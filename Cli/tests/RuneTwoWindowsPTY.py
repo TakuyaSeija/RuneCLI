@@ -10,38 +10,34 @@ Window A creates session 1 (scripted provider), window B resumes it.
   3. Ctrl+O in A (it writes `ui.sidebar` to rune.toml) leaves every window alive
      and the setting flips each time — the press that once ended all processes.
 """
-import json, os, re, pty, fcntl, termios, struct, select, shutil, signal, subprocess, sys, tempfile, time
+import json, os, re, shutil, signal, subprocess, sys, tempfile, time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import RuneTerminal
 
 ROOT = Path(tempfile.mkdtemp(prefix="RuneTwoWindows.", dir=str(Path(__file__).resolve().parents[2]/"target/test-tmp")))
 HOME = ROOT / "Home"; HOME.mkdir()
 PROJECT = ROOT / "Project"; PROJECT.mkdir()
-BIN = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parents[2] / "target/debug/rune")
+BIN = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parents[2] / "target/debug" / ("rune.exe" if RuneTerminal.WINDOWS else "rune"))
 (HOME / "fixture.json").write_text(json.dumps({"responses": [{"chunks": [{"text": f"Reply number {n}."}]} for n in range(1, 7)]}))
 (HOME / "rune.toml").write_text('[providers]\ndefault = "fixture"\n[[providers.list]]\nname = "fixture"\nbase_url = "http://127.0.0.1:1"\napi = "openai"\nauth = { header = "Authorization", prefix = "Bearer " }\n[[providers.list.models]]\nid = "test"\nthinking = false\ncontext = 32768\n')
 
 
 class Window:
     def __init__(self, args):
-        self.master, slave = pty.openpty()
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 34, 140, 0, 0))
         env = dict(os.environ, RUNE_HOME=str(HOME), TERM="xterm-256color", COLORTERM="truecolor")
-        self.proc = subprocess.Popen([BIN, *args], stdin=slave, stdout=slave, stderr=slave, env=env)
-        os.close(slave)
+        self.term = RuneTerminal.Terminal([BIN, *args], env, 34, 140)
         self.out = bytearray()
 
     def drain(self):
-        while select.select([self.master], [], [], 0)[0]:
-            try:
-                self.out.extend(os.read(self.master, 65536))
-            except OSError:
-                return
+        self.out.extend(self.term.read())
 
     def send(self, data):
-        os.write(self.master, data)
+        self.term.write(data)
 
     def alive(self):
-        return self.proc.poll() is None
+        return self.term.alive()
 
     def shows(self, text):
         return text.encode() in self.out
@@ -77,18 +73,7 @@ def transcript():
 
 
 def hosts():
-    found = []
-    for entry in Path("/proc").iterdir():
-        if not entry.name.isdigit():
-            continue
-        try:
-            cmd = (entry / "cmdline").read_bytes()
-            environ = (entry / "environ").read_bytes()
-        except OSError:
-            continue
-        if b"-detached-host" in cmd and f"RUNE_HOME={HOME}".encode() in environ:
-            found.append(int(entry.name))
-    return found
+    return RuneTerminal.hosts(HOME)
 
 
 windows = []
@@ -127,12 +112,10 @@ finally:
         if w.alive():
             try:
                 w.send(b"\x03\x03")
-                w.proc.wait(timeout=8)
+                if not w.term.wait(8):
+                    w.term.kill()
             except Exception:
-                w.proc.kill()
+                w.term.kill()
     for h in hosts():
-        try:
-            os.kill(h, signal.SIGKILL)
-        except OSError:
-            pass
+        RuneTerminal.kill(h)
     shutil.rmtree(ROOT, ignore_errors=True)

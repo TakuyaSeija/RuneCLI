@@ -48,16 +48,20 @@ the bytes it wrote: a row is sent from its first changed cell, so a sentence is
 on the screen without ever being in the stream whole. The window's questions
 are answered as a terminal answers them (`ESC [ 5 n`, the background colour).
 """
-import codecs, collections, fcntl, http.server, json, os, pty, re, select, shutil, signal
-import socket, struct, subprocess, sys, tempfile, termios, threading, time, unicodedata
+import codecs, collections, http.server, json, os, re, select, shutil, signal
+import socket, subprocess, sys, tempfile, threading, time, unicodedata
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import RuneTerminal
+from RuneTerminal import WINDOWS, LINUX
 
 TEST_TMP = Path(__file__).resolve().parents[2] / "target" / "test-tmp"
 TEST_TMP.mkdir(parents=True, exist_ok=True)
 ROOT = Path(tempfile.mkdtemp(prefix="RuneLiveProvider.", dir=TEST_TMP))
 HOME = ROOT / "Home"; HOME.mkdir()
 PROJECT = ROOT / "Project"; PROJECT.mkdir()
-BIN = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parents[2] / "target/debug/rune")
+BIN = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).resolve().parents[2] / "target/debug" / ("rune.exe" if WINDOWS else "rune"))
 assert os.path.realpath(HOME) != os.path.realpath(os.path.expanduser("~/.rune"))
 
 
@@ -439,21 +443,15 @@ class Screen:
 
 class Window:
     def __init__(self, args, rows=46, cols=160, bin=None):
-        self.master, slave = pty.openpty()
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
         env = dict(os.environ, RUNE_HOME=str(HOME), TERM="xterm-256color", COLORTERM="truecolor")
-        self.proc = subprocess.Popen([bin or BIN, *args], stdin=slave, stdout=slave, stderr=slave, env=env,
-                                     start_new_session=True)
-        os.close(slave)
+        self.term = RuneTerminal.Terminal([bin or BIN, *args], env, rows, cols)
+        self.pid = self.term.pid
         self.screen = Screen(rows, cols)
         self.tail = b""
 
     def drain(self):
-        while select.select([self.master], [], [], 0)[0]:
-            try:
-                data = os.read(self.master, 65536)
-            except OSError:
-                return
+        while True:
+            data = self.term.read()
             if not data:
                 return
             seen = self.tail + data
@@ -461,14 +459,20 @@ class Window:
             # background colour when asked.
             asked = seen.count(b"\x1b[5n") - self.tail.count(b"\x1b[5n")
             if asked > 0:
-                os.write(self.master, b"\x1b[0n" * asked)
+                self.term.write(b"\x1b[0n" * asked)
             if b"\x1b]11;?" in seen and b"\x1b]11;?" not in self.tail:
-                os.write(self.master, b"\x1b]11;rgb:1010/1010/1010\x1b\\")
+                self.term.write(b"\x1b]11;rgb:1010/1010/1010\x1b\\")
             self.tail = seen[-8:]
             self.screen.feed(data)
 
     def send(self, data):
-        os.write(self.master, data)
+        self.term.write(data)
+
+    def alive(self):
+        return self.term.alive()
+
+    def resize(self, rows, cols):
+        self.term.resize(rows, cols)
 
     def type(self, text):
         for ch in text:
@@ -479,13 +483,10 @@ class Window:
         return needle in self.screen.text()
 
     def close(self):
-        if self.proc.poll() is None:
+        if self.term.alive():
             self.send(b"\x03\x03")
-            try:
-                self.proc.wait(5)
-            except subprocess.TimeoutExpired:
-                self.proc.terminate()
-                self.proc.wait(5)
+            if not self.term.wait(5):
+                self.term.kill()
 
 
 def until(predicate, description, window=None, timeout=40):
@@ -661,6 +662,7 @@ def main():
     (PROJECT / "AGENTS.md").write_text("Rule one: be brief.\n")
     window = Window(["-project", str(PROJECT)])
     passed = []
+    skipped = []
     try:
         until(lambda: window.shows("fake-model"), "first paint", window)
 
@@ -1098,147 +1100,155 @@ def main():
         except subprocess.TimeoutExpired:
             host.kill()
 
-    # 16. The session picker takes a release over live: the build it runs from
-    #     replaced on disk, the same process `exec`s the new one and the list
-    #     is back.
-    installed = ROOT / "bin" / "rune"
-    installed.parent.mkdir()
-    shutil.copy2(BIN, installed)
-    picker = Window(["-session", "-project", str(PROJECT)], bin=str(installed))
-    try:
-        until(lambda: picker.shows("Live provider test"), "the session list", picker, 20)
-        before = os.stat(f"/proc/{picker.proc.pid}/exe").st_ino
-        staged = installed.with_name("rune.new")
-        shutil.copy2(BIN, staged)
-        os.rename(staged, installed)
-        new = os.stat(installed).st_ino
-        assert new != before
-        until(lambda: os.stat(f"/proc/{picker.proc.pid}/exe").st_ino == new,
-              "the picker never took the release over", picker, 20)
-        picker.screen = Screen(picker.screen.rows, picker.screen.cols)
-        until(lambda: picker.shows("Live provider test"), "the list after the take-over", picker, 20)
-        assert picker.proc.poll() is None, "the picker exited"
-        # 16b. A window opened from the picker keeps what is typed while it
-        #      opens, and takes the next release over with it: the keys the
-        #      picker was given are not counted as the window's (0.3.8 kept
-        #      such a window on the old build for good, and lost the keys
-        #      typed between the choice and the window).
-        for key in (b"\x1b[B", b"\x1b[A"):
-            picker.send(key)
-            time.sleep(0.2)
-        picker.send(b"\r")
-        # Typed at once, while the session's host is still starting: these
-        # keys belong to the window that opens (0.3.8 lost them).
-        picker.type("typed after picking")
-        stored = lambda: any("typed after picking" in c.read_text()
-                             for c in HOME.glob("projects/*/sessions/*/composer.json"))
-        until(stored, "the words typed during the opening reached the session's composer", picker, 30)
-        time.sleep(3.5)  # hands at rest
-        before = os.stat(f"/proc/{picker.proc.pid}/exe").st_ino
-        staged = installed.with_name("rune.new")
-        shutil.copy2(BIN, staged)
-        os.rename(staged, installed)
-        new = os.stat(installed).st_ino
-        assert new != before
-        until(lambda: os.stat(f"/proc/{picker.proc.pid}/exe").st_ino == new,
-              "the window opened from the picker never took the release over", picker, 30)
-        # The new build may have drawn its first frame already: a fresh
-        # screen model sees it only when the whole screen is drawn again.
-        picker.screen = Screen(picker.screen.rows, picker.screen.cols)
-        picker.send(b"\x0c")  # ctrl+l
-        until(lambda: picker.shows("typed after picking"), "the words carried over", picker, 20)
-        assert picker.proc.poll() is None, "the window exited"
-        passed.append("session picker took a release installed under it over: same pid, new build, list back; "
-                      "a window opened from it took the next one over with its words")
-    finally:
-        picker.close()
+    # 16-17 replace the running build in place, which Windows cannot do
+    # (`platform::REPLACES_IN_PLACE`: a newer build is taken at the next start).
+    if RuneTerminal.REPLACES_IN_PLACE:
+        # 16. The session picker takes a release over live: the build it runs from
+        #     replaced on disk, the same process `exec`s the new one and the list
+        #     is back.
+        installed = ROOT / "bin" / "rune"
+        installed.parent.mkdir()
+        shutil.copy2(BIN, installed)
+        picker = Window(["-session", "-project", str(PROJECT)], bin=str(installed))
+        try:
+            until(lambda: picker.shows("Live provider test"), "the session list", picker, 20)
+            before = RuneTerminal.running_image(picker.pid)
+            staged = installed.with_name("rune.new")
+            shutil.copy2(BIN, staged)
+            os.rename(staged, installed)
+            new = os.stat(installed).st_ino
+            assert new != before
+            until(lambda: RuneTerminal.running_image(picker.pid) == new,
+                  "the picker never took the release over", picker, 20)
+            picker.screen = Screen(picker.screen.rows, picker.screen.cols)
+            until(lambda: picker.shows("Live provider test"), "the list after the take-over", picker, 20)
+            assert picker.alive(), "the picker exited"
+            # 16b. A window opened from the picker keeps what is typed while it
+            #      opens, and takes the next release over with it: the keys the
+            #      picker was given are not counted as the window's (0.3.8 kept
+            #      such a window on the old build for good, and lost the keys
+            #      typed between the choice and the window).
+            for key in (b"\x1b[B", b"\x1b[A"):
+                picker.send(key)
+                time.sleep(0.2)
+            picker.send(b"\r")
+            # Typed at once, while the session's host is still starting: these
+            # keys belong to the window that opens (0.3.8 lost them).
+            picker.type("typed after picking")
+            stored = lambda: any("typed after picking" in c.read_text()
+                                 for c in HOME.glob("projects/*/sessions/*/composer.json"))
+            until(stored, "the words typed during the opening reached the session's composer", picker, 30)
+            time.sleep(3.5)  # hands at rest
+            before = RuneTerminal.running_image(picker.pid)
+            staged = installed.with_name("rune.new")
+            shutil.copy2(BIN, staged)
+            os.rename(staged, installed)
+            new = os.stat(installed).st_ino
+            assert new != before
+            until(lambda: RuneTerminal.running_image(picker.pid) == new,
+                  "the window opened from the picker never took the release over", picker, 30)
+            # The new build may have drawn its first frame already: a fresh
+            # screen model sees it only when the whole screen is drawn again.
+            picker.screen = Screen(picker.screen.rows, picker.screen.cols)
+            picker.send(b"\x0c")  # ctrl+l
+            until(lambda: picker.shows("typed after picking"), "the words carried over", picker, 20)
+            assert picker.alive(), "the window exited"
+            passed.append("session picker took a release installed under it over: same pid, new build, list back; "
+                          "a window opened from it took the next one over with its words")
+        finally:
+            picker.close()
 
-    # 17. A release installed while windows sit on drafts (owner, 2026-10-09):
-    #     what is typed does not hold a window on the old build. An empty
-    #     draft takes the release over at once; one with words and a file
-    #     attached takes it over too, once the hands rest (3 s) — never while
-    #     they type — carrying its words, its attachment and its draft entry.
-    #     A key typed while the new build starts is not lost, and the draft
-    #     sent after it is answered.
-    installed = ROOT / "bin2" / "rune"
-    installed.parent.mkdir()
-    shutil.copy2(BIN, installed)
-    typed_dir = ROOT / "DraftTyped"; typed_dir.mkdir()
-    empty_dir = ROOT / "DraftEmpty"; empty_dir.mkdir()
-    note = typed_dir / "release-notes.txt"
-    note.write_text("notes the draft carries\n")
-    typed = Window(["-project", str(typed_dir)], bin=str(installed))
-    empty = Window(["-project", str(empty_dir)], bin=str(installed))
-    try:
-        for w in (typed, empty):
-            until(lambda: w.shows("fake-model"), "draft window paints", w, 20)
-        typed.send(b"\x1b[200~" + str(note).encode() + b"\x1b[201~")
-        until(lambda: typed.shows("release-notes.txt"), "the file attached", typed)
-        typed.type("words typed before the release")
-        drafts = HOME / "drafts.json"
-        until(lambda: "words typed before the release" in drafts.read_text(), "draft saved", typed)
-        staged = installed.with_name("rune.new")
-        shutil.copy2(BIN, staged)
-        os.rename(staged, installed)
-        new = os.stat(installed).st_ino
-        exe = lambda w: os.stat(f"/proc/{w.proc.pid}/exe").st_ino
-        old = exe(typed)
-        # Waiting for the empty window may exceed the typed window's 3 s
-        # hand-rest interval (preflight/copy under load). Keep its hands active
-        # during that wait: otherwise a correct idle handover makes the next
-        # assertion falsely report that it moved *while* being typed into.
-        last_touch = [time.monotonic()]
-        typed.send(b"\x05")
+        # 17. A release installed while windows sit on drafts (owner, 2026-10-09):
+        #     what is typed does not hold a window on the old build. An empty
+        #     draft takes the release over at once; one with words and a file
+        #     attached takes it over too, once the hands rest (3 s) — never while
+        #     they type — carrying its words, its attachment and its draft entry.
+        #     A key typed while the new build starts is not lost, and the draft
+        #     sent after it is answered.
+        installed = ROOT / "bin2" / "rune"
+        installed.parent.mkdir()
+        shutil.copy2(BIN, installed)
+        typed_dir = ROOT / "DraftTyped"; typed_dir.mkdir()
+        empty_dir = ROOT / "DraftEmpty"; empty_dir.mkdir()
+        note = typed_dir / "release-notes.txt"
+        note.write_text("notes the draft carries\n")
+        typed = Window(["-project", str(typed_dir)], bin=str(installed))
+        empty = Window(["-project", str(empty_dir)], bin=str(installed))
+        try:
+            for w in (typed, empty):
+                until(lambda: w.shows("fake-model"), "draft window paints", w, 20)
+            typed.send(b"\x1b[200~" + str(note).encode() + b"\x1b[201~")
+            until(lambda: typed.shows("release-notes.txt"), "the file attached", typed)
+            typed.type("words typed before the release")
+            drafts = HOME / "drafts.json"
+            until(lambda: "words typed before the release" in drafts.read_text(), "draft saved", typed)
+            staged = installed.with_name("rune.new")
+            shutil.copy2(BIN, staged)
+            os.rename(staged, installed)
+            new = os.stat(installed).st_ino
+            exe = lambda w: RuneTerminal.running_image(w.pid)
+            old = exe(typed)
+            # Waiting for the empty window may exceed the typed window's 3 s
+            # hand-rest interval (preflight/copy under load). Keep its hands active
+            # during that wait: otherwise a correct idle handover makes the next
+            # assertion falsely report that it moved *while* being typed into.
+            last_touch = [time.monotonic()]
+            typed.send(b"\x05")
 
-        def empty_has_taken_over():
-            typed.drain()
-            now = time.monotonic()
-            if now - last_touch[0] >= 0.5:
-                typed.send(b"\x05")
-                last_touch[0] = now
-            return exe(empty) == new
+            def empty_has_taken_over():
+                typed.drain()
+                now = time.monotonic()
+                if now - last_touch[0] >= 0.5:
+                    typed.send(b"\x05")
+                    last_touch[0] = now
+                return exe(empty) == new
 
-        until(empty_has_taken_over, "the empty draft never took the release over", empty, 20)
+            until(empty_has_taken_over, "the empty draft never took the release over", empty, 20)
 
-        # Hands still typing: no take-over for as long as the keys come.
-        for ch in " and more":
-            typed.type(ch)
-            resting = time.monotonic()
-            time.sleep(0.7)
-            assert exe(typed) == old, "the window handed over while being typed into"
-        # The moment the new build is in place, type: the keys wait in the
-        # terminal for it, and it reads them.
-        deadline = time.monotonic() + 20
-        while exe(typed) != new and time.monotonic() < deadline:
-            time.sleep(0.005)
-        rested = time.monotonic() - resting
-        assert exe(typed) == new, "the window with words never took the release over"
-        assert rested >= 2.5, f"handed over {rested:.1f}s after the last key"
-        typed.type("+late")
-        typed.screen = Screen(typed.screen.rows, typed.screen.cols)
-        until(lambda: typed.shows("words typed before the release and more+late"),
-              "the words, and the keys typed as the new build started", typed, 20)
-        until(lambda: typed.shows("release-notes.txt"), "the attachment after the take-over", typed)
-        until(lambda: "words typed before the release and more+late" in drafts.read_text(),
-              "the draft entry after the take-over", typed)
+            # Hands still typing: no take-over for as long as the keys come.
+            for ch in " and more":
+                typed.type(ch)
+                resting = time.monotonic()
+                time.sleep(0.7)
+                assert exe(typed) == old, "the window handed over while being typed into"
+            # The moment the new build is in place, type: the keys wait in the
+            # terminal for it, and it reads them.
+            deadline = time.monotonic() + 20
+            while exe(typed) != new and time.monotonic() < deadline:
+                time.sleep(0.005)
+            rested = time.monotonic() - resting
+            assert exe(typed) == new, "the window with words never took the release over"
+            assert rested >= 2.5, f"handed over {rested:.1f}s after the last key"
+            typed.type("+late")
+            typed.screen = Screen(typed.screen.rows, typed.screen.cols)
+            until(lambda: typed.shows("words typed before the release and more+late"),
+                  "the words, and the keys typed as the new build started", typed, 20)
+            until(lambda: typed.shows("release-notes.txt"), "the attachment after the take-over", typed)
+            until(lambda: "words typed before the release and more+late" in drafts.read_text(),
+                  "the draft entry after the take-over", typed)
 
-        before = len(provider.main_calls())
-        provider.queue(text("Answer to the words typed before."))
-        typed.send(b"\r")
-        until(lambda: typed.shows("Answer to the words typed before."),
-              "the draft sent after a release was never answered", typed, 40)
-        told = "\n".join(messages_of(provider.main_calls()[before]))
-        assert "words typed before the release and more+late" in told, told
-        assert "notes the draft carries" in told, told
-        passed.append(f"release over drafts: empty one moved at once; typed one waited for the "
-                      f"hands to rest ({rested:.1f}s), moved with its words, attachment and late keys, "
-                      f"and was answered")
-    finally:
-        typed.close()
-        empty.close()
+            before = len(provider.main_calls())
+            provider.queue(text("Answer to the words typed before."))
+            typed.send(b"\r")
+            until(lambda: typed.shows("Answer to the words typed before."),
+                  "the draft sent after a release was never answered", typed, 40)
+            told = "\n".join(messages_of(provider.main_calls()[before]))
+            assert "words typed before the release and more+late" in told, told
+            assert "notes the draft carries" in told, told
+            passed.append(f"release over drafts: empty one moved at once; typed one waited for the "
+                          f"hands to rest ({rested:.1f}s), moved with its words, attachment and late keys, "
+                          f"and was answered")
+        finally:
+            typed.close()
+            empty.close()
+
+    else:
+        skipped.append("16-17 release taken over live: Windows replaces no running program")
 
     for line in passed:
         print("ok  ", line)
+    for line in skipped:
+        print("skip", line)
     print(f"PASS: {len(passed)} cases")
 
 
@@ -1249,16 +1259,8 @@ if __name__ == "__main__":
         passed_all = True
     finally:
         # Hosts this test started run detached; they end with their home.
-        for pid in os.popen("pgrep -x rune").read().split():
-            try:
-                cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
-            except OSError:
-                continue
-            if str(HOME).encode() in cmdline or str(PROJECT).encode() in cmdline:
-                try:
-                    os.kill(int(pid), signal.SIGTERM)
-                except OSError:
-                    pass
+        for pid in RuneTerminal.holding(HOME, PROJECT):
+            RuneTerminal.stop(pid)
         # A failed run keeps its home: the session's own files are the
         # evidence of what the windows and the host did.
         if passed_all:

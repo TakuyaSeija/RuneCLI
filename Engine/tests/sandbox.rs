@@ -1112,6 +1112,110 @@ fn a_service_of_the_persons_is_out_of_a_confined_commands_reach_off_linux() {
     );
 }
 
+/// A pipe another program of the person's makes with Windows's default
+/// security (no descriptor of its own: most programs) — measured, not read
+/// from documentation: what a confined command gets when it opens one to
+/// read, and to read and write. Full is the control.
+#[test]
+fn a_default_secured_pipe_of_the_persons_as_a_confined_command_meets_it() {
+    let mut p = probe("pipe-gap");
+    if !p.enforced || !windows() {
+        eprintln!("note: Windows only");
+        return;
+    }
+    let dir = outside_dir(&p, "pipe");
+    let marker = dir.join("served.txt");
+    let server = dir.join("server.py");
+    std::fs::write(
+        &server,
+        r#"import _winapi, sys, threading
+name, marker = sys.argv[1], sys.argv[2]
+def note(text):
+    with open(marker, "a") as f:
+        f.write(text + "\n")
+def serve(h):
+    try:
+        _winapi.WriteFile(h, b"from the service\n")
+        data, _ = _winapi.ReadFile(h, 64)
+        note("told " + data.decode(errors="replace").strip())
+    except OSError:
+        pass
+first = True
+while True:
+    mode = _winapi.PIPE_ACCESS_DUPLEX | (_winapi.FILE_FLAG_FIRST_PIPE_INSTANCE if first else 0)
+    h = _winapi.CreateNamedPipe(name, mode, _winapi.PIPE_TYPE_BYTE | _winapi.PIPE_READMODE_BYTE | _winapi.PIPE_WAIT, 255, 4096, 4096, 0, _winapi.NULL)
+    if first:
+        note("ready")
+        first = False
+    try:
+        _winapi.ConnectNamedPipe(h, False)
+    except OSError as e:
+        if e.winerror != 535:
+            continue
+    note("served")
+    threading.Thread(target=serve, args=(h,), daemon=True).start()
+"#,
+    )
+    .unwrap();
+    let name = format!("rune-gap-{}", std::process::id());
+    let mut service = std::process::Command::new(runeengine::testing::python())
+        .arg(&server)
+        .arg(format!(r"\\.\pipe\{name}"))
+        .arg(&marker)
+        .spawn()
+        .unwrap();
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while !std::fs::read_to_string(&marker)
+        .unwrap_or_default()
+        .contains("ready")
+        && std::time::Instant::now() < until
+    {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    let codes: Vec<String> = name.encode_utf16().map(|c| c.to_string()).collect();
+    let open = format!(
+        "$n = [string]::new([char[]]@({})); foreach ($d in 'In','InOut') {{ $c = [System.IO.Pipes.NamedPipeClientStream]::new('.', $n, [System.IO.Pipes.PipeDirection]$d); try {{ $c.Connect(5000); $r = [System.IO.StreamReader]::new($c); \"$d opened: \" + $r.ReadLine(); if ($d -eq 'InOut') {{ $w = [System.IO.StreamWriter]::new($c); $w.WriteLine('hi'); $w.Flush(); 'InOut wrote' }} }} catch {{ \"$d refused: \" + $_.Exception.Message }} finally {{ $c.Dispose() }} }}",
+        codes.join(",")
+    );
+    let served = || {
+        std::fs::read_to_string(&marker)
+            .unwrap_or_default()
+            .lines()
+            .filter(|l| *l == "served")
+            .count()
+    };
+
+    let ((_, confined), asked) = run(&mut p, &open, Decision::AllowOnce);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let served_confined = served();
+    let kind = p.engine.sandbox_of(p.session).unwrap().report().kind.clone();
+    eprintln!("MEASURED ({kind}) confined:\n{confined}\nserved {served_confined}");
+
+    p.engine.handle(Command::SessionMode {
+        id: 9,
+        session: p.session,
+        mode: "full".into(),
+    });
+    let ((_, full), _) = run(&mut p, &open, Decision::AllowOnce);
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let _ = service.kill();
+    let _ = service.wait();
+    eprintln!(
+        "MEASURED full:\n{full}\nmarker:\n{}",
+        std::fs::read_to_string(&marker).unwrap_or_default()
+    );
+
+    assert!(asked.is_empty(), "the gate saw the pipe: {asked:?}");
+    assert!(
+        full.contains("In opened: from the service") && full.contains("InOut wrote"),
+        "the control did not reach the pipe:\n{full}"
+    );
+    assert!(
+        confined.contains("InOut refused:"),
+        "a confined command opened another program's pipe to write:\n{confined}"
+    );
+}
+
 /// A datagram stand-in, run as a program of its own outside the sandbox: a
 /// message addressed to it, with no connection, is the act a command must
 /// not get done unasked. Stopped when dropped.

@@ -5,16 +5,13 @@
 Uses the existing terminal model, a local HTTP provider, and an isolated home;
 no desktop settings, live sessions, or owner credentials are read or changed.
 """
-import fcntl
 import importlib.util
 import json
 import os
 from pathlib import Path
 import shutil
 import signal
-import struct
 import sys
-import termios
 
 spec = importlib.util.spec_from_file_location(
     "rune_live_pty", Path(__file__).with_name("RuneLiveProviderPTY.py")
@@ -50,9 +47,8 @@ def paste(window, text):
 
 
 def resize(window, rows, cols):
-    fcntl.ioctl(window.master, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
     window.screen = live.Screen(rows, cols)
-    os.kill(window.proc.pid, signal.SIGWINCH)
+    window.resize(rows, cols)
     window.send(b"\x0c")
 
 
@@ -183,12 +179,7 @@ if __name__ == "__main__":
         passed = True
     finally:
         # Only processes carrying this test's isolated home/project are touched.
-        for proc in Path("/proc").glob("[0-9]*/cmdline"):
-            try:
-                args = proc.read_bytes()
-                if str(live.HOME).encode() in args or str(live.PROJECT).encode() in args:
-                    os.kill(int(proc.parent.name), signal.SIGTERM)
-            except (OSError, ProcessLookupError):
-                pass
+        for pid in live.RuneTerminal.holding(live.HOME, live.PROJECT):
+            live.RuneTerminal.stop(pid)
         if passed:
             shutil.rmtree(live.ROOT, ignore_errors=True)

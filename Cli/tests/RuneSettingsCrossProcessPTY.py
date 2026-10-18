@@ -150,11 +150,7 @@ if __name__ == "__main__":
         main()
         passed = True
     finally:
-        for proc in Path("/proc").glob("[0-9]*/cmdline"):
-            try:
-                if str(live.HOME).encode() in proc.read_bytes():
-                    os.kill(int(proc.parent.name), signal.SIGTERM)
-            except (OSError, ProcessLookupError):
-                pass
+        for pid in live.RuneTerminal.holding(live.HOME):
+            live.RuneTerminal.stop(pid)
         if passed:
             shutil.rmtree(live.ROOT, ignore_errors=True)

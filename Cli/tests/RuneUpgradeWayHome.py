@@ -8,9 +8,12 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 
-BIN = Path(os.environ.get("RUNE_BIN", "target/debug/rune")).resolve()
+WINDOWS = sys.platform == "win32"
+BIN = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
+    "RUNE_BIN", "target/debug/rune.exe" if WINDOWS else "target/debug/rune")).resolve()
 BASE = Path(__file__).resolve().parents[2] / "target" / "test-tmp"
 BASE.mkdir(parents=True, exist_ok=True)
 
@@ -20,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix="UpgradeWayHome-", dir=BASE) as temp:
     # developer rollback, which must stay untouched.
     install = base / "bin"
     install.mkdir()
-    rune = install / "rune"
+    rune = install / ("rune.exe" if WINDOWS else "rune")
     shutil.copy2(BIN, rune)
     decoy = install / "rune.prev"
     decoy.write_text("not a program")
@@ -66,30 +69,36 @@ with tempfile.TemporaryDirectory(prefix="UpgradeWayHome-", dir=BASE) as temp:
     assert refused["attempts"] == 1, refused
     print("PASS a failed upgrade holds handovers back instead of every window failing at once")
 
-    # A process another build handed over goes back to that build — here a
-    # stand-in that records how it was started — with the same arguments and
-    # the handover record still there to read.
-    previous = base / "previous-build"
-    seen = base / "seen.json"
-    previous.write_text(
-        "#!/usr/bin/env python3\n"
-        "import json, os, sys\n"
-        f"open({str(seen)!r}, 'w').write(json.dumps({{'args': sys.argv[1:], "
-        "'record': os.environ.get('RUNE_HANDOVER')}))\n"
-    )
-    previous.chmod(0o700)
-    fd = os.open(previous, os.O_RDONLY)
-    os.set_inheritable(fd, True)
-    record = json.dumps({"format": 2, "sessions": [], "program": fd})
-    back = run("-config", "check", extra={"RUNE_HANDOVER": record}, fds=(fd,))
-    os.close(fd)
-    assert back.returncode == 0, back
-    assert "Staying on the previous build" in back.stderr, back.stderr
-    went = json.loads(seen.read_text())
-    assert went["args"] == ["-config", "check"], went
-    assert json.loads(went["record"])["program"] == fd, went
-    unchanged_install()
-    print("PASS a handed-over process goes back to the build that handed it, on any machine")
+    # A process another build handed over goes back to that build — by
+    # `exec`, which Windows has not (`REPLACES_IN_PLACE`): there a newer build
+    # is taken at the next start and nothing is handed over.
+    if WINDOWS:
+        print("skip a handed-over process going back: Windows replaces no running program")
+    else:
+        # A process another build handed over goes back to that build — here a
+        # stand-in that records how it was started — with the same arguments and
+        # the handover record still there to read.
+        previous = base / "previous-build"
+        seen = base / "seen.json"
+        previous.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, os, sys\n"
+            f"open({str(seen)!r}, 'w').write(json.dumps({{'args': sys.argv[1:], "
+            "'record': os.environ.get('RUNE_HANDOVER')}))\n"
+        )
+        previous.chmod(0o700)
+        fd = os.open(previous, os.O_RDONLY)
+        os.set_inheritable(fd, True)
+        record = json.dumps({"format": 2, "sessions": [], "program": fd})
+        back = run("-config", "check", extra={"RUNE_HANDOVER": record}, fds=(fd,))
+        os.close(fd)
+        assert back.returncode == 0, back
+        assert "Staying on the previous build" in back.stderr, back.stderr
+        went = json.loads(seen.read_text())
+        assert went["args"] == ["-config", "check"], went
+        assert json.loads(went["record"])["program"] == fd, went
+        unchanged_install()
+        print("PASS a handed-over process goes back to the build that handed it, on any machine")
 
     # Its wait over and the cause gone, the newest build takes the home over.
     refused["at"] -= 2 * 3600 * 1000
