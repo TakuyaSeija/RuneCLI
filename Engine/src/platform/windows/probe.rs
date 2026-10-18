@@ -682,8 +682,13 @@ fn probe_runner() {
         scratch: &job.scratch,
         env: &job.env,
     };
-    let confinement = match job.mode.as_str() {
-        "restricted" => match Confinement::build_as(
+    let mechanism = match job.mode.as_str() {
+        "restricted" => Some(Mechanism::RestrictedToken),
+        "tight" => Some(Mechanism::TightRestrictedToken),
+        _ => None,
+    };
+    let confinement = match mechanism {
+        Some(mechanism) => match Confinement::build_as(
             Grants {
                 project: &job.project,
                 reads: &job.reads,
@@ -694,7 +699,7 @@ fn probe_runner() {
                 sockets: &[],
                 ask_service: None,
             },
-            Mechanism::RestrictedToken,
+            mechanism,
         ) {
             Ok(confinement) => Some(confinement),
             Err(why) => {
@@ -702,7 +707,7 @@ fn probe_runner() {
                 return;
             }
         },
-        _ => None,
+        None => None,
     };
     let (out, code, _) = run(&check, &place, confinement.as_ref());
     println!(
@@ -832,13 +837,23 @@ fn sandbox_mechanisms_measured() {
     }
 
     // (label, mechanism here, mode of the runner as the account)
-    let candidates: [(&str, Mechanism, Option<&str>); 4] = [
+    let candidates: [(&str, Mechanism, Option<&str>); 6] = [
         ("restricted-token", Mechanism::RestrictedToken, None),
+        (
+            "tight-restricted-token",
+            Mechanism::TightRestrictedToken,
+            None,
+        ),
         ("account", Mechanism::RestrictedToken, Some("plain")),
         (
             "account+restricted-token",
             Mechanism::RestrictedToken,
             Some("restricted"),
+        ),
+        (
+            "account+tight-restricted-token",
+            Mechanism::TightRestrictedToken,
+            Some("tight"),
         ),
         (
             "appcontainer",
@@ -850,8 +865,11 @@ fn sandbox_mechanisms_measured() {
         ),
     ];
     let mut summary = Vec::new();
+    // A logon refused once is refused again, and enough refusals lock the
+    // account: the account's candidates stop at the first.
+    let mut logon_refused = false;
     for (label, mechanism, as_account_mode) in candidates {
-        if as_account_mode.is_some() && account.is_none() {
+        if as_account_mode.is_some() && (account.is_none() || logon_refused) {
             continue;
         }
         let confinement = match Confinement::build_as(
@@ -910,6 +928,11 @@ fn sandbox_mechanisms_measured() {
                     std::fs::write(runner.join("job.json"), serde_json::to_vec(&job).unwrap())
                         .unwrap();
                     let (said, _) = as_account(account, &runner_exe, &runner);
+                    if said.starts_with("CreateProcessWithLogonW") {
+                        println!("PROBE {label} | logon | FAIL | {said}");
+                        logon_refused = true;
+                        break;
+                    }
                     runner_result(&said)
                 }
                 _ => {

@@ -205,13 +205,19 @@ jobs:
         continue-on-error: true
         shell: pwsh
         run: |
-          $bytes = New-Object byte[] 18
+          # Letters and digits only: nothing a shell or the env file reads
+          # as anything else.
+          $bytes = New-Object byte[] 16
           [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
-          $pw = [Convert]::ToBase64String($bytes) + 'Aa1!'
+          $pw = 'Rp' + [Convert]::ToHexString($bytes) + 'x9'
           Write-Output "::add-mask::$pw"
           New-LocalUser -Name runeprobe -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -PasswordNeverExpires -AccountNeverExpires | Out-Null
           Add-Content $env:GITHUB_ENV "RUNE_PROBE_USER=runeprobe"
           Add-Content $env:GITHUB_ENV "RUNE_PROBE_PASSWORD=$pw"
+          # The logon the probe makes, tried once here: a refusal is said now.
+          $cred = New-Object System.Management.Automation.PSCredential('runeprobe', (ConvertTo-SecureString $pw -AsPlainText -Force))
+          Start-Process -FilePath cmd.exe -ArgumentList '/c','exit 0' -Credential $cred -Wait -NoNewWindow -LoadUserProfile
+          Write-Output "logon as runeprobe: ok"
 
       - name: Probe
         timeout-minutes: 30

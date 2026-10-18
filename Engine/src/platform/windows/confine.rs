@@ -51,7 +51,7 @@ use windows_sys::Win32::Security::{
     WinLocalSystemSid, WinMediumLabelSid, WinRestrictedCodeSid, WinWorldSid, ACL,
     DISABLE_MAX_PRIVILEGE, NO_INHERITANCE, SECURITY_CAPABILITIES, SID_AND_ATTRIBUTES,
     TOKEN_ADJUST_DEFAULT, TOKEN_ASSIGN_PRIMARY, TOKEN_DEFAULT_DACL, TOKEN_DUPLICATE,
-    TOKEN_MANDATORY_LABEL, TOKEN_QUERY, WRITE_RESTRICTED,
+    TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FILE_ALL_ACCESS, FILE_FLAG_BACKUP_SEMANTICS, FILE_GENERIC_EXECUTE,
@@ -109,9 +109,10 @@ pub(super) enum Mechanism {
     /// few every program needs (Everyone, Users, RESTRICTED, the logon
     /// session). Named objects and pipes are the user's own namespace.
     RestrictedToken,
-    /// The same token, its restricting SIDs checked only when writing:
-    /// reads are the user's.
-    WriteRestrictedToken,
+    /// The same token without Everyone and Users among its restricting
+    /// SIDs — what every signed-in user may read stays closed — and with
+    /// ALL APPLICATION PACKAGES, which Windows grants its own folders.
+    TightRestrictedToken,
     /// An AppContainer: a package SID and the grants as capabilities. Named
     /// objects live in the container's own namespace; the user's pipes and
     /// local servers are out of reach unless granted. `profile`: whether its
@@ -200,7 +201,7 @@ fn sid_for(mechanism: Mechanism, write: bool, path: &Path) -> Sid {
         path.as_os_str().to_string_lossy().to_uppercase()
     );
     match mechanism {
-        Mechanism::RestrictedToken | Mechanism::WriteRestrictedToken => Sid::derived(&name),
+        Mechanism::RestrictedToken | Mechanism::TightRestrictedToken => Sid::derived(&name),
         Mechanism::AppContainer { .. } => Sid::capability(&name),
     }
 }
@@ -331,8 +332,8 @@ impl Confinement {
         }
         let sids: Vec<Sid> = planned.iter().map(|grant| grant.sid.clone()).collect();
         let (token, container) = match mechanism {
-            Mechanism::RestrictedToken | Mechanism::WriteRestrictedToken => (
-                restricted_token(&sids, None, mechanism == Mechanism::WriteRestrictedToken)
+            Mechanism::RestrictedToken | Mechanism::TightRestrictedToken => (
+                restricted_token(&sids, None, mechanism == Mechanism::TightRestrictedToken)
                     .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?,
                 None,
             ),
@@ -365,7 +366,7 @@ impl Confinement {
     pub fn kind(&self) -> &'static str {
         match self.inner.mechanism {
             Mechanism::RestrictedToken => "restricted-token",
-            Mechanism::WriteRestrictedToken => "write-restricted-token",
+            Mechanism::TightRestrictedToken => "tight-restricted-token",
             Mechanism::AppContainer { .. } => "appcontainer",
         }
     }
@@ -624,11 +625,7 @@ fn own_token() -> io::Result<OwnedHandle> {
 /// token an AppContainer is made from: no restricting SID — the container's
 /// capabilities are its second check — and a default ACL the container's
 /// processes can open again.
-fn restricted_token(
-    grants: &[Sid],
-    package: Option<&Sid>,
-    write_only: bool,
-) -> io::Result<OwnedHandle> {
+fn restricted_token(grants: &[Sid], package: Option<&Sid>, tight: bool) -> io::Result<OwnedHandle> {
     let own = Token::of_this_process(
         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT,
     )?;
@@ -637,11 +634,15 @@ fn restricted_token(
     let administrators = Sid::well_known(WinBuiltinAdministratorsSid)?;
     let mut restricting = Vec::new();
     if package.is_none() {
-        restricting.extend([
-            Sid::well_known(WinWorldSid)?,
-            Sid::well_known(WinBuiltinUsersSid)?,
-            Sid::well_known(WinRestrictedCodeSid)?,
-        ]);
+        if tight {
+            restricting.push(Sid::well_known(WinBuiltinAnyPackageSid)?);
+        } else {
+            restricting.extend([
+                Sid::well_known(WinWorldSid)?,
+                Sid::well_known(WinBuiltinUsersSid)?,
+            ]);
+        }
+        restricting.push(Sid::well_known(WinRestrictedCodeSid)?);
         restricting.extend(logon.iter().cloned());
     }
     for grant in grants {
@@ -664,7 +665,7 @@ fn restricted_token(
     check(unsafe {
         CreateRestrictedToken(
             own.raw(),
-            DISABLE_MAX_PRIVILEGE | if write_only { WRITE_RESTRICTED } else { 0 },
+            DISABLE_MAX_PRIVILEGE,
             disable.len() as u32,
             disable.as_ptr(),
             0,
