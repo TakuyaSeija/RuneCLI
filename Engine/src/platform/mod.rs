@@ -126,6 +126,8 @@
 //!   running_elevated()                           root, or an Administrator's full rights
 //!   system_caches()                              the system's folders for this user's tool caches
 //!   default_shell()                              the shell commands run in when none was chosen
+//!   find_program(name) -> Option<PathBuf>        what a bare program name runs, on this
+//!                                                process's PATH (Windows: with PATHEXT)
 //!   local_time(epoch_secs) -> LocalTime, local_date()
 //!
 //! Tests only (fixture, `test-support`)

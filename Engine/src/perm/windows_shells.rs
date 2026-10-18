@@ -107,6 +107,48 @@ fn program(words: &[String]) -> Option<(usize, String)> {
     Some((at, name))
 }
 
+/// Names PowerShell answers itself before it looks for a file of that name:
+/// its aliases (Windows PowerShell 5.1 and PowerShell 7 on Windows).
+const POWERSHELL_ALIASES: &[&str] = &[
+    "ac", "cat", "cd", "chdir", "clc", "clear", "clhy", "cli", "clp", "cls", "clv", "copy", "cp",
+    "cpi", "curl", "cvpa", "dbp", "del", "diff", "dir", "echo", "epal", "epcsv", "erase", "fc",
+    "fl", "foreach", "ft", "fw", "gc", "gci", "gcm", "gi", "gl", "gm", "gp", "gps", "group", "gsv",
+    "gu", "gv", "h", "history", "icm", "iex", "ii", "ipal", "ipcsv", "irm", "iwr", "kill", "lp",
+    "ls", "man", "md", "measure", "mi", "mount", "move", "mp", "mv", "ni", "nv", "popd", "ps",
+    "pushd", "pwd", "r", "rd", "ren", "ri", "rm", "rmdir", "rni", "rnp", "rp", "rv", "rvpa", "sal",
+    "saps", "sc", "select", "set", "si", "sl", "sleep", "sort", "sp", "start", "sv", "tee", "type",
+    "wget", "where", "write",
+];
+
+/// cmd's own commands, run without looking for a file.
+const CMD_BUILTINS: &[&str] = &[
+    "assoc", "break", "call", "cd", "chdir", "cls", "color", "copy", "date", "del", "dir", "echo",
+    "endlocal", "erase", "exit", "for", "ftype", "goto", "if", "md", "mkdir", "mklink", "move",
+    "path", "pause", "popd", "prompt", "pushd", "rd", "rem", "ren", "rename", "rmdir", "set",
+    "setlocal", "shift", "start", "time", "title", "type", "ver", "verify", "vol",
+];
+
+/// The programs the commands of `line` start from a file, as written: each
+/// command's program word less what the shell answers itself (an alias, a
+/// builtin), a variable, a script block or an expression. A cmdlet's name
+/// stays: no file has it, so looking for one finds nothing.
+pub(crate) fn external_programs(line: &str, kind: ShellKind) -> Vec<String> {
+    let own: &[&str] = if kind == ShellKind::PowerShell {
+        POWERSHELL_ALIASES
+    } else {
+        CMD_BUILTINS
+    };
+    commands(line, kind)
+        .iter()
+        .filter_map(|words| {
+            let (at, name) = program(words)?;
+            let word = words[at].trim_start_matches('(');
+            let expression = word.starts_with(['$', '{', '@', '[']) || word.is_empty();
+            (!expression && !own.contains(&name.as_str())).then(|| word.to_string())
+        })
+        .collect()
+}
+
 /// The program the first command of `line` runs: what a remembered answer
 /// is filed under.
 pub(crate) fn first_program(line: &str, kind: ShellKind) -> Option<String> {
@@ -564,6 +606,28 @@ pub(crate) fn path_shaped(word: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What a command starts from a file, in each shell's own words: its
+    /// aliases and builtins, variables and blocks are the shell's.
+    #[test]
+    fn the_programs_a_line_starts_from_files_are_named_as_written() {
+        let ps = ShellKind::PowerShell;
+        assert_eq!(
+            external_programs(
+                r#"printf 'x' | cat; & "C:\Git\usr\bin\sed.exe" -n p; echo hi"#,
+                ps
+            ),
+            vec!["printf".to_string(), r"C:\Git\usr\bin\sed.exe".to_string()]
+        );
+        assert_eq!(
+            external_programs("Get-Item C:\\ ; $x = 1; ls; git status", ps),
+            vec!["Get-Item".to_string(), "git".to_string()]
+        );
+        assert_eq!(
+            external_programs("echo a & grep.exe a file && type x", ShellKind::Cmd),
+            vec!["grep.exe".to_string()]
+        );
+    }
 
     fn ps(line: &str) -> Risk {
         classify(line, ShellKind::PowerShell)

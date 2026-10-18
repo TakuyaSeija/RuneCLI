@@ -21,7 +21,7 @@ pub use files::{
     remove_entry, replace, restrict_to_owner, same_file, set_file_mode, sync_dir, take_handed_file,
     writable, FileIdentity, Handed, LinkFreeDir,
 };
-pub use home::{default_shell, home_dir};
+pub use home::{default_shell, find_program, home_dir};
 pub use process::{
     at_start, exit_code, group_alive, new_tree_mark, reap, reap_exited, replace_process,
     running_elevated, spawn_detached, spawn_on_terminal, spawn_piped, terminate_group,

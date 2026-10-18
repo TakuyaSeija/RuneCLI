@@ -38,8 +38,8 @@ pub use files::{
 pub use home::{default_shell, home_dir, system_caches};
 pub use pipe::{is_socket, LocalListener, LocalStream};
 pub use process::{
-    at_start, boot_time, exit_code, group_alive, installed_program, new_tree_mark, own_program,
-    process_started, program_at, reap, reap_exited, replace_process, running_elevated,
+    at_start, boot_time, exit_code, find_program, group_alive, installed_program, new_tree_mark,
+    own_program, process_started, program_at, reap, reap_exited, replace_process, running_elevated,
     running_program, spawn_detached, spawn_on_terminal, spawn_piped, terminate_group,
     terminate_tree, PipeReader, PipeWriter, PipedProcess, Process, TREE_VAR,
 };

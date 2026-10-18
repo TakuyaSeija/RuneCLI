@@ -158,6 +158,13 @@ pub(super) fn resolve(program: &Path, launch: &Launch) -> io::Result<PathBuf> {
         })
 }
 
+/// The program a command naming `name` with no folder runs: the first match
+/// on this process's `PATH`, which commands inherit, with `PATHEXT`'s
+/// endings, as Windows looks.
+pub fn find_program(name: &str) -> Option<PathBuf> {
+    resolve(Path::new(name), &Launch::new(name)).ok()
+}
+
 /// Whether `program` is a batch file, which Windows runs through `cmd.exe`.
 fn is_batch(program: &Path) -> bool {
     program

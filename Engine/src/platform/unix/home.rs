@@ -24,22 +24,53 @@ pub fn default_shell() -> PathBuf {
 }
 
 fn shell_on(path: Option<std::ffi::OsString>) -> PathBuf {
+    on_path(path, "bash").unwrap_or_else(|| PathBuf::from("/bin/sh"))
+}
+
+/// The program a command naming `name` with no folder runs: the first
+/// executable file of that name in an absolute folder of this process's
+/// `PATH`, which commands inherit.
+pub fn find_program(name: &str) -> Option<PathBuf> {
+    on_path(std::env::var_os("PATH"), name)
+}
+
+fn on_path(path: Option<std::ffi::OsString>, name: &str) -> Option<PathBuf> {
     use std::os::unix::fs::PermissionsExt;
     path.map(|path| std::env::split_paths(&path).collect::<Vec<_>>())
         .unwrap_or_default()
         .into_iter()
         .filter(|dir| dir.is_absolute())
-        .map(|dir| dir.join("bash"))
+        .map(|dir| dir.join(name))
         .find(|candidate| {
             std::fs::metadata(candidate)
                 .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
         })
-        .unwrap_or_else(|| PathBuf::from("/bin/sh"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A bare name is what the first executable of that name on PATH is.
+    #[test]
+    fn a_program_is_found_on_path_where_it_is_executable() {
+        let dir = std::env::temp_dir().join(format!("rune-find-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("plain")).unwrap();
+        std::fs::create_dir_all(dir.join("run")).unwrap();
+        std::fs::write(dir.join("plain/tool"), "").unwrap();
+        std::fs::write(dir.join("run/tool"), "").unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir.join("run/tool"), std::fs::Permissions::from_mode(0o755))
+            .unwrap();
+        let path = std::env::join_paths([dir.join("plain"), dir.join("run")]).unwrap();
+        assert_eq!(
+            on_path(Some(path.clone()), "tool"),
+            Some(dir.join("run/tool"))
+        );
+        assert_eq!(on_path(Some(path), "absent"), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// Owner, 2026-10-16: `/bin/bash` is not on every Linux.
     #[test]

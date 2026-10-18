@@ -126,8 +126,33 @@ impl Tool for TerminalUse {
         denylist::reaches_a_service_for(cmd, self.shell_kind())
     }
 
-    fn unconfinable(&self, _args: &Value) -> Option<String> {
-        platform::unconfinable(&shell(&self.0.config.text("terminal.shell")))
+    fn unconfinable(&self, args: &Value) -> Option<String> {
+        let shell = shell(&self.0.config.text("terminal.shell"));
+        if let Some(why) = platform::unconfinable(&shell) {
+            return Some(why);
+        }
+        // A POSIX shell the sandbox holds runs programs it holds alike; a
+        // Windows shell may start one it cannot (an MSYS2 program on PATH).
+        let kind = self.shell_kind();
+        if kind == crate::shell::ShellKind::Posix {
+            return None;
+        }
+        let cmd = field_opt_str(args, "command").unwrap_or("");
+        crate::perm::windows_shells::external_programs(cmd, kind)
+            .iter()
+            .find_map(|word| {
+                let named = std::path::Path::new(word);
+                let program = if named.is_absolute() {
+                    Some(named.to_path_buf())
+                } else if word.contains(['\\', '/']) {
+                    // Relative to the command's folder, which the call names
+                    // apart: looked for nowhere rather than guessed.
+                    None
+                } else {
+                    platform::find_program(word)
+                };
+                program.and_then(|program| platform::unconfinable(&program))
+            })
     }
 
     fn grant_key(&self, args: &Value) -> String {

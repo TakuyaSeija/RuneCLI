@@ -13,7 +13,7 @@ The modes mean the same on Linux, macOS and Windows. No folder of the home is tr
 
 On Windows three things differ, and `rune -sandbox` names the first:
 - A command held to its mode can still read what Windows lets every user read (folders at a drive's root, other drives, ProgramData) and create files in ProgramData. Your profile folder stays out of its reach.
-- Git Bash and other `MSYS2` or Cygwin shells cannot run held to a mode. With such a shell chosen, Ask and Auto ask before each command, and allowing it runs that one command with full access. PowerShell and Command Prompt do not have this limit.
+- Git Bash and other `MSYS2` or Cygwin programs cannot run held to a mode. With such a shell chosen, or a command in PowerShell or Command Prompt that starts such a program (Git's Unix tools on your PATH, for example), Ask and Auto ask before each command, and allowing it runs that one command with full access.
 - Windows's own HTTPS (`curl.exe` from Windows, `Invoke-WebRequest`) fails inside a command held to its mode; git's HTTPS works. For such a download, allow it in Full mode or use git or another tool that brings its own TLS.
 
 An approval for one action is not a global mode change. A remember option, when offered, applies to its stated scope; it is not approval for every later command. Deny, cancel or expiry does not execute the action. A clarification question or Settings confirmation is not a general execution approval.
