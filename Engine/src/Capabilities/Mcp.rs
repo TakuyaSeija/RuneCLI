@@ -186,7 +186,7 @@ impl Connection {
                     }
                     info.serve_with_lifecycle(StreamableHttpClientTransport::with_client(client,options),lifecycle).await
                 }
-            }.map_err(|_|Error::tool("MCP connection failed; check the endpoint, credentials and supported protocol"))?;
+            }.map_err(|e|Error::tool(format!("MCP connection failed ({e}); check the endpoint, credentials and supported protocol")))?;
             Ok(service)
         });
         let service = match service {
