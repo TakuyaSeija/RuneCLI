@@ -55,8 +55,11 @@
 //!   Confinement::build(Grants) -> Result<Confinement, Unconfined>
 //!   Confinement: kind(), abi(), local_services() applied to each placed command
 //!                gaps() -> [Gap]                 what it leaves reachable beyond its grants
-//!                                                (Windows's restricted token: what every user
-//!                                                may read; Landlock, Seatbelt: nothing)
+//!                                                (Windows: what every user may read and
+//!                                                ProgramData's create right; Landlock,
+//!                                                Seatbelt: nothing)
+//!                revoke_paths([PathBuf]), revoke_session_grants()
+//!   revoke_sandbox_paths([PathBuf])              take back a session's or one-call grants
 //!   Grants.local_services                        Unix sockets reach programs outside the
 //!                                                confinement: open when granted; otherwise a
 //!                                                command's own (`Grants.sockets`, or served by
@@ -64,7 +67,8 @@
 //!                                                to `Grants.ask_service` at the moment they
 //!                                                connect (Linux: seccomp user notification;
 //!                                                macOS: Seatbelt, own folders only; Windows:
-//!                                                the restricted token opens no other's pipe)
+//!                                                another account or restricted token opens no
+//!                                                other's pipe)
 //!   release_supervision(root, within) -> Option<Supervision>
 //!   Supervision: resume(), into_handed() -> Handed
 //!   adopt_supervision(Handed, root, tree, SupervisedAs)
@@ -75,14 +79,17 @@
 //!                                                confines now (Linux; elsewhere nothing
 //!                                                supervises: `None`)
 //!   unconfinable(program) -> Option<String>      why a command `program` starts cannot run
-//!                                                confined (Windows: an MSYS2/Cygwin runtime's
-//!                                                shared memory; Linux, macOS: never)
+//!                                                confined (Windows without the sandbox account:
+//!                                                an MSYS2/Cygwin runtime's shared memory;
+//!                                                Linux, macOS, Windows sandbox account: never)
 //!   DEVICES                                      what a terminal needs, granted with every confinement
 //!   Grants.ledger                                where what a confinement leaves on disk is
 //!                                                recorded before it is written (Windows's ACL
 //!                                                entries; Landlock and Seatbelt leave nothing)
 //!   recorded_grants(ledger) -> [RecordedGrant]   what is recorded — the same on every OS
 //!   forget_grants(ledger) -> Forgotten           take every recorded entry back
+//!   setup_sandbox_account(path), remove_sandbox_account(home),
+//!   run_sandbox_runner(pipe)                     Windows's local sandbox account and runner
 //!
 //! Files
 //!   canonical(path) -> PathBuf                   every link resolved, spelt one way

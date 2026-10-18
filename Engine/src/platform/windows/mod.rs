@@ -4,6 +4,7 @@
 //! met at a path for local sockets, and the console's virtual-terminal modes
 //! for the window's own terminal. Windows 10 1809 and later.
 
+mod account;
 mod clipboard;
 mod confine;
 mod console;
@@ -14,6 +15,7 @@ mod pipe;
 mod probe;
 mod process;
 pub(in crate::platform) mod pty;
+mod runner;
 mod security;
 mod stdio;
 mod time;
@@ -25,7 +27,9 @@ pub mod fixture;
 use super::{InputWaitDetection, Os};
 
 pub use clipboard::set_clipboard;
-pub use confine::{forget_grants, unconfinable, Confinement, Grants, Unconfined, DEVICES};
+pub use confine::{
+    forget_grants, revoke_sandbox_paths, unconfinable, Confinement, Grants, Unconfined, DEVICES,
+};
 pub use console::{
     console_mouse, console_resized, console_size, take_console_resized, watch_console_resize,
     ConsoleMode, Typed,
@@ -46,6 +50,21 @@ pub use process::{
 pub use pty::{open_pty, Pty, PtySlave};
 pub use stdio::{read_stdin, read_stdin_timeout, wait_stdin, InputWaker};
 pub use time::local_time;
+
+/// Provision the local sandbox account and write its private credentials to `path`.
+pub fn setup_sandbox_account(path: &std::path::Path) -> Result<(), String> {
+    account::setup_account_at(path)
+}
+
+/// Remove the local sandbox account and its credentials under `home`.
+pub fn remove_sandbox_account(home: &std::path::Path) -> Result<(), String> {
+    account::remove(home)
+}
+
+/// Run the persistent sandbox-account runner connected to `pipe`.
+pub fn run_sandbox_runner(pipe: &std::ffi::OsStr) -> Result<(), String> {
+    runner::run_server(pipe).map_err(|e| e.to_string())
+}
 
 /// This build runs on Windows.
 pub const OS: Os = Os::Windows;

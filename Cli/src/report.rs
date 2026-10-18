@@ -100,6 +100,9 @@ pub fn session(
 /// taken back here. Landlock and Seatbelt leave nothing behind.
 pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
     use runeengine::platform::{self, Os};
+    if let SandboxCmd::AccountSetup { ref path } = what {
+        return platform::setup_sandbox_account(path);
+    }
     let kernel = match platform::OS {
         Os::Linux => Some("Landlock"),
         Os::MacOs => Some("Seatbelt"),
@@ -110,7 +113,7 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
             "Nothing to {}: {kernel} confines a command in the kernel and leaves nothing on disk.",
             match what {
                 SandboxCmd::List => "show",
-                SandboxCmd::Reset => "take back",
+                SandboxCmd::Reset | SandboxCmd::AccountSetup { .. } => "take back",
             }
         );
         return Ok(());
@@ -119,6 +122,9 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
     let ledger = runeengine::sandbox::grants_ledger(&home);
     let entries = |n: usize| if n == 1 { "entry" } else { "entries" };
     match what {
+        SandboxCmd::AccountSetup { ref path } => {
+            return platform::setup_sandbox_account(path);
+        }
         SandboxCmd::List => {
             let recorded = platform::recorded_grants(&ledger)
                 .map_err(|e| format!("{}: {e}", ledger.display()))?;
@@ -160,6 +166,9 @@ pub fn sandbox(what: SandboxCmd) -> Result<(), String> {
             }
             if !forgotten.kept.is_empty() {
                 println!("What was kept stays recorded; run the reset again to retry.");
+            }
+            if let Err(err) = platform::remove_sandbox_account(&home) {
+                eprintln!("warning: sandbox account cleanup: {err}");
             }
             println!("A Rune still running lets its commands in again at their next start.");
         }

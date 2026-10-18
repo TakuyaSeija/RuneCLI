@@ -35,6 +35,8 @@
 //! desktop of the logon session, the user's registry hive (RESTRICTED). Not
 //! the user's own files: a profile grants none of those SIDs.
 
+use std::collections::HashMap;
+use std::fs::File;
 use std::io;
 use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::path::{Path, PathBuf};
@@ -73,11 +75,19 @@ pub struct Confinement {
 struct Inner {
     /// What its commands start as: the restricted token; or, in an
     /// AppContainer, the token the container is made from (privileges
-    /// dropped, Administrators deny-only, no restricting SID).
-    token: OwnedHandle,
+    /// dropped, Administrators deny-only, no restricting SID). `None` when
+    /// commands start inside the sandbox-account runner.
+    token: Option<OwnedHandle>,
     mechanism: Mechanism,
     /// The AppContainer its commands run in, for [`Mechanism::AppContainer`].
     container: Option<Container>,
+    /// The dedicated local sandbox account and its staging folder, for
+    /// [`Mechanism::Account`].
+    account: Option<(super::account::SandboxAccount, PathBuf)>,
+    /// Unique per-session key (the session's canonical scratch folder) so
+    /// shared project and reach grants stay on disk while another open
+    /// session still holds them.
+    session_key: Option<PathBuf>,
     /// Each granted path, its SID, its access, and whether it is a folder;
     /// written on disk at the first start (`Grants written`).
     grants: Vec<Grant>,
@@ -97,12 +107,11 @@ struct Grant {
     folder: bool,
     /// The project: a confinement whose project cannot be granted is none.
     required: bool,
+    /// Revoked when the session ends (`project`, `scratch`, `reach`).
+    session_scoped: bool,
 }
 
-/// How a confined command is kept to its grants. Both check every object
-/// twice — as the user, then against the token's other identities — and
-/// differ in what those are and what a command shares with the user's other
-/// programs.
+/// How a confined command is kept to its grants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Mechanism {
     /// A restricted token whose restricting SIDs are the grants' and the
@@ -115,6 +124,10 @@ pub(super) enum Mechanism {
     /// this token's. For an account of Rune's own, whose grants are entries
     /// for that account.
     DenyOnlyToken,
+    /// A dedicated local user account (`rune-sbx-<8hex>`) running commands
+    /// through the persistent runner under a deny-only token, with ACL
+    /// grants naming that account's SID.
+    Account,
     /// An AppContainer: a package SID and the grants as capabilities. Named
     /// objects live in the container's own namespace; the user's pipes and
     /// local servers are out of reach unless granted. `profile`: whether its
@@ -133,13 +146,17 @@ struct Container {
     profile: bool,
 }
 
-/// What `CreateProcess` is given to start a confined command; what it points
-/// at is the confinement's own and outlives the call.
+/// What `CreateProcess` (or the sandbox-account runner) is given to start a
+/// confined command; what it points at is the confinement's own and outlives
+/// the call.
 pub(super) struct Start {
-    /// The token to start as; `None`: this process's own.
+    /// The token to start as; `None`: this process's own or the runner's.
     pub(super) token: Option<HANDLE>,
     /// The container to start in, for `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`.
     pub(super) container: Option<(SECURITY_CAPABILITIES, Vec<SID_AND_ATTRIBUTES>)>,
+    /// The sandbox account and staging home when the command runs through
+    /// the persistent runner.
+    pub(super) account: Option<(super::account::SandboxAccount, PathBuf)>,
 }
 
 /// What one confinement grants. Read and write are different questions: a
@@ -203,7 +220,9 @@ fn sid_for(mechanism: Mechanism, write: bool, path: &Path) -> Sid {
         path.as_os_str().to_string_lossy().to_uppercase()
     );
     match mechanism {
-        Mechanism::RestrictedToken | Mechanism::DenyOnlyToken => Sid::derived(&name),
+        Mechanism::RestrictedToken | Mechanism::DenyOnlyToken | Mechanism::Account => {
+            Sid::derived(&name)
+        }
         Mechanism::AppContainer { .. } => Sid::capability(&name),
     }
 }
@@ -264,12 +283,20 @@ fn within(path: &Path, folder: &Path) -> bool {
 }
 
 impl Confinement {
-    /// Build the confinement `grants` describe: the restricted token, and
-    /// what must be written on disk before its first command. Nothing is
-    /// written here. A path that does not exist is skipped — `~/.cargo` may
-    /// simply not be there yet — except the project, which every confined
-    /// command needs and whose ACL Rune must be able to change.
+    /// Build the confinement `grants` describe: using the dedicated local
+    /// sandbox account when available, or falling back to a restricted token
+    /// of the current user. Nothing is written on the granted paths until the
+    /// first command starts.
     pub fn build(grants: Grants<'_>) -> Result<Confinement, Unconfined> {
+        if let Some((account, staging_home)) =
+            super::account::resolve_for_confinement(grants.ledger)
+        {
+            return Confinement::build_with_account(
+                grants,
+                Mechanism::Account,
+                Some((account, staging_home)),
+            );
+        }
         Confinement::build_as(grants, Mechanism::RestrictedToken)
     }
 
@@ -277,6 +304,14 @@ impl Confinement {
     pub(super) fn build_as(
         grants: Grants<'_>,
         mechanism: Mechanism,
+    ) -> Result<Confinement, Unconfined> {
+        Confinement::build_with_account(grants, mechanism, None)
+    }
+
+    fn build_with_account(
+        grants: Grants<'_>,
+        mechanism: Mechanism,
+        account: Option<(super::account::SandboxAccount, PathBuf)>,
     ) -> Result<Confinement, Unconfined> {
         let unconfined = |reason: String| Unconfined { abi: 0, reason };
         let project = canonical(grants.project)
@@ -291,15 +326,27 @@ impl Confinement {
                 "the project directory could not be granted: Windows lets this user not change who may reach it ({e})"
             ))
         })?;
+        let session_key = grants
+            .writes
+            .first()
+            .and_then(|p| canonical(p))
+            .or_else(|| Some(project.clone()));
+        let grant_sid = |write: bool, path: &Path| -> Sid {
+            match &account {
+                Some((acct, _)) => acct.sid.clone(),
+                None => sid_for(mechanism, write, path),
+            }
+        };
         let mut planned = vec![Grant {
-            sid: sid_for(mechanism, true, &project),
+            sid: grant_sid(true, &project),
             path: project,
             access: FILE_ALL_ACCESS,
             write: true,
             folder: true,
             required: true,
+            session_scoped: true,
         }];
-        let add = |planned: &mut Vec<Grant>, path: &Path, write: bool| {
+        let add = |planned: &mut Vec<Grant>, path: &Path, write: bool, session_scoped: bool| {
             if path.as_os_str() == DEVICES {
                 return;
             }
@@ -309,10 +356,13 @@ impl Confinement {
             if windows_own(&path).is_some() {
                 return;
             }
-            let sid = sid_for(mechanism, write, &path);
-            if planned.iter().any(|grant: &Grant| grant.sid == sid) {
+            if planned
+                .iter()
+                .any(|grant: &Grant| grant.path == path && (grant.write || !write))
+            {
                 return;
             }
+            let sid = grant_sid(write, &path);
             planned.push(Grant {
                 sid,
                 folder: path.is_dir(),
@@ -324,19 +374,27 @@ impl Confinement {
                 },
                 write,
                 required: false,
+                session_scoped,
             });
         };
-        for path in grants.writes.iter().chain(grants.reach) {
-            add(&mut planned, path, true);
+        for (idx, path) in grants.writes.iter().enumerate() {
+            add(&mut planned, path, true, idx == 0);
+        }
+        for path in grants.reach {
+            add(&mut planned, path, true, true);
         }
         for path in grants.reads {
-            add(&mut planned, path, false);
+            add(&mut planned, path, false, false);
         }
         let sids: Vec<Sid> = planned.iter().map(|grant| grant.sid.clone()).collect();
         let (token, container) = match mechanism {
+            Mechanism::Account => (None, None),
             Mechanism::RestrictedToken | Mechanism::DenyOnlyToken => (
-                restricted_token(&sids, None, mechanism == Mechanism::DenyOnlyToken)
-                    .map_err(|e| unconfined(format!("Windows refused a restricted token: {e}")))?,
+                Some(
+                    restricted_token(&sids, None, mechanism == Mechanism::DenyOnlyToken).map_err(
+                        |e| unconfined(format!("Windows refused a restricted token: {e}")),
+                    )?,
+                ),
                 None,
             ),
             Mechanism::AppContainer { profile, filtered } => {
@@ -348,7 +406,7 @@ impl Confinement {
                     own_token()
                 }
                 .map_err(|e| unconfined(format!("Windows refused a token: {e}")))?;
-                (token, Some(container))
+                (Some(token), Some(container))
             }
         };
         Ok(Confinement {
@@ -356,6 +414,8 @@ impl Confinement {
                 token,
                 mechanism,
                 container,
+                account,
+                session_key,
                 grants: planned,
                 ledger: grants.ledger.map(Path::to_path_buf),
                 local_services: grants.local_services,
@@ -367,6 +427,7 @@ impl Confinement {
     /// The mechanism's name in the sandbox report.
     pub fn kind(&self) -> &'static str {
         match self.inner.mechanism {
+            Mechanism::Account => "sandbox-account",
             Mechanism::RestrictedToken => "restricted-token",
             Mechanism::DenyOnlyToken => "deny-only-token",
             Mechanism::AppContainer { .. } => "appcontainer",
@@ -378,13 +439,13 @@ impl Confinement {
         0
     }
 
-    /// What a restricted token leaves reachable (CI probe, 2026-10-18): its
-    /// restricting SIDs keep Users and Everyone, so what Windows lets every
-    /// user read stays readable, and ProgramData — where Users may create —
+    /// What the Windows confinement leaves reachable (CI probe, 2026-10-18):
+    /// `Users` and `Everyone` remain enabled, so what Windows lets every user
+    /// read stays readable, and `ProgramData` — where `Users` may create —
     /// writable.
     pub fn gaps(&self) -> Vec<crate::platform::Gap> {
         match self.inner.mechanism {
-            Mechanism::RestrictedToken => vec![crate::platform::Gap {
+            Mechanism::RestrictedToken | Mechanism::Account => vec![crate::platform::Gap {
                 id: "readable_by_every_user",
                 detail: "A confined command can still read what Windows lets every user \
                          read — folders at a drive's root, other drives, ProgramData — and \
@@ -403,18 +464,86 @@ impl Confinement {
         self.inner.local_services
     }
 
-    /// The token a confined command starts with — its grants written on disk
-    /// first, once: the project's must be, or nothing starts confined.
-    pub(super) fn token_for_start(&self) -> io::Result<HANDLE> {
+    /// Revoke the sandbox account's access entries on `paths` when a one-call
+    /// reach grant (`narrow`) ends, unless another open session still holds
+    /// the path.
+    pub fn revoke_paths(&self, paths: &[PathBuf]) {
+        let Some((acct, staging_home)) = &self.inner.account else {
+            return;
+        };
+        revoke_held_paths(
+            self.inner.session_key.as_deref(),
+            paths,
+            &acct.sid,
+            staging_home,
+        );
+    }
+
+    /// Revoke the session-scoped access entries (`project`, `scratch`,
+    /// `reach`) written for the sandbox account when a session closes,
+    /// keeping any entry still held by another open session.
+    pub fn revoke_session_grants(&self) {
+        let Some((acct, staging_home)) = &self.inner.account else {
+            return;
+        };
+        let paths: Vec<PathBuf> = self
+            .inner
+            .grants
+            .iter()
+            .filter(|g| g.session_scoped)
+            .map(|g| g.path.clone())
+            .collect();
+        release_session_holds(
+            self.inner.session_key.as_deref(),
+            &paths,
+            &acct.sid,
+            staging_home,
+        );
+    }
+
+    /// Ensure this confinement's grants are recorded and written on disk
+    /// before its first command starts (or restored if an external reset
+    /// removed the required project grant).
+    pub(super) fn ensure_grants_written(&self) -> io::Result<()> {
         let mut written = crate::panic::lock(&self.inner.written);
-        if !*written {
+        let needs_write = if !*written {
+            true
+        } else if self.inner.account.is_some() {
+            self.inner.grants.iter().any(|g| {
+                g.required
+                    && g.path.exists()
+                    && !Dacl::of(&g.path).is_ok_and(|dacl| dacl.grants(&g.sid, g.access))
+            })
+        } else {
+            false
+        };
+        if needs_write {
             if let Some(container) = self.inner.container.as_ref().filter(|c| c.profile) {
                 make_profile(container)?;
+            }
+            if let (Some(_), Some((acct, staging_home)), Some(session_key)) = (
+                &self.inner.ledger,
+                &self.inner.account,
+                &self.inner.session_key,
+            ) {
+                acquire_session_holds(session_key, &acct.sid, staging_home, &self.inner.grants);
             }
             self.write_grants()?;
             *written = true;
         }
-        Ok(self.inner.token.as_raw_handle())
+        Ok(())
+    }
+
+    /// The token a confined command starts with — its grants written on disk
+    /// first, once: the project's must be, or nothing starts confined.
+    #[cfg(test)]
+    pub(super) fn token_for_start(&self) -> io::Result<HANDLE> {
+        self.ensure_grants_written()?;
+        Ok(self
+            .inner
+            .token
+            .as_ref()
+            .map_or(std::ptr::null_mut(), OwnedHandle::as_raw_handle))
     }
 
     /// Take back the AppContainer profile [`Mechanism::AppContainer`] made,
@@ -430,13 +559,22 @@ impl Confinement {
     }
 
     /// What a confined command is started with ([`Start`]), its grants
-    /// written on disk first ([`Confinement::token_for_start`]).
+    /// written on disk first ([`Confinement::ensure_grants_written`]).
     pub(super) fn for_start(&self) -> io::Result<Start> {
-        let token = self.token_for_start()?;
+        self.ensure_grants_written()?;
+        if let Some(account) = &self.inner.account {
+            return Ok(Start {
+                token: None,
+                container: None,
+                account: Some(account.clone()),
+            });
+        }
+        let token = self.inner.token.as_ref().map(OwnedHandle::as_raw_handle);
         let Some(container) = &self.inner.container else {
             return Ok(Start {
-                token: Some(token),
+                token,
                 container: None,
+                account: None,
             });
         };
         let mut capabilities: Vec<SID_AND_ATTRIBUTES> = container
@@ -458,8 +596,9 @@ impl Confinement {
             Mechanism::AppContainer { filtered: true, .. }
         );
         Ok(Start {
-            token: filtered.then_some(token),
+            token: filtered.then_some(token).flatten(),
             container: Some((security, capabilities)),
+            account: None,
         })
     }
 
@@ -521,15 +660,23 @@ fn write_grant(planned: &Grant, ledger: Option<&mut io::Result<Ledger>>) -> io::
 
 /// The runtimes that give every process of theirs one shared memory section
 /// made by the first of them (MSYS2's, Git Bash's own; Cygwin's): a command
-/// whose program loads one cannot start under a restricted token once a
-/// process of the person's runs it (CI probe, 2026-10-18: `CreateFileMapping`
-/// refused, Git Bash exit 256).
+/// whose program loads one cannot start under a same-user restricted token
+/// once a process of the person's runs it (CI probe, 2026-10-18:
+/// `CreateFileMapping` refused, Git Bash exit 256). Under the dedicated
+/// sandbox account (`Mechanism::Account`), the command runs as another user
+/// with no restricting SIDs and starts normally.
 const SHARED_RUNTIMES: [&str; 2] = ["msys-2.0.dll", "cygwin1.dll"];
 
 /// Why a command started by `program` cannot run under this confinement, or
-/// `None` when it can: a program beside an MSYS2 or Cygwin runtime — in its
-/// own folder, or for Git's `bin\bash.exe` launcher in `..\usr\bin`.
+/// `None` when it can.
 pub fn unconfinable(program: &Path) -> Option<String> {
+    if super::account::is_active() {
+        return None;
+    }
+    shared_runtime_unconfinable(program)
+}
+
+fn shared_runtime_unconfinable(program: &Path) -> Option<String> {
     let folder = program.parent()?;
     let mut folders = vec![folder.to_path_buf()];
     if let Some(root) = folder.parent() {
@@ -553,9 +700,11 @@ pub fn unconfinable(program: &Path) -> Option<String> {
 /// on; what could not be taken back stays recorded, with why. A Rune still
 /// running writes again what its next command needs.
 pub fn forget_grants(ledger: &Path) -> io::Result<Forgotten> {
+    crate::panic::lock(session_holds()).clear();
     if !ledger.exists() {
         return Ok(Forgotten::default());
     }
+    let account_sid = super::account::owner_sandbox_sid();
     Ledger::hold(ledger)?.forget(|entry| {
         let dacl = Dacl::of(&entry.path)?;
         let mut taken = Taken::Absent;
@@ -572,8 +721,167 @@ pub fn forget_grants(ledger: &Path) -> io::Result<Forgotten> {
                 taken = Taken::Removed;
             }
         }
+        if let Some(ref acct_sid) = account_sid {
+            if dacl.names(acct_sid) {
+                revoke(&entry.path, acct_sid)?;
+                taken = Taken::Removed;
+            }
+        }
         Ok(taken)
     })
+}
+
+/// Per-session OS shared file locks held for each `session_scoped` grant so
+/// closing one session or ending a one-call grant never revokes an ACL entry
+/// on a project or reach path while another open session (in this process or
+/// in another Rune process) still holds it.
+struct SessionHold {
+    holds_dir: PathBuf,
+    paths: HashMap<PathBuf, File>,
+}
+
+static SESSION_HOLDS: OnceLock<Mutex<HashMap<PathBuf, SessionHold>>> = OnceLock::new();
+
+fn session_holds() -> &'static Mutex<HashMap<PathBuf, SessionHold>> {
+    SESSION_HOLDS.get_or_init(Default::default)
+}
+
+fn normalize_session_key(session_key: &Path) -> PathBuf {
+    canonical(session_key).unwrap_or_else(|| session_key.to_path_buf())
+}
+
+fn hold_lock_path(holds_dir: &Path, target: &Path) -> PathBuf {
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(
+        target
+            .as_os_str()
+            .to_string_lossy()
+            .to_uppercase()
+            .as_bytes(),
+    );
+    let hex: String = digest[..8].iter().map(|b| format!("{b:02x}")).collect();
+    holds_dir.join(format!("{hex}.lock"))
+}
+
+fn acquire_session_holds(session_key: &Path, _sid: &Sid, staging_home: &Path, grants: &[Grant]) {
+    let key = normalize_session_key(session_key);
+    let holds_dir = staging_home.join("sandbox").join("holds");
+    let _ = std::fs::create_dir_all(&holds_dir);
+    let mut map = crate::panic::lock(session_holds());
+    let hold = map.entry(key).or_insert_with(|| SessionHold {
+        holds_dir: holds_dir.clone(),
+        paths: HashMap::new(),
+    });
+    hold.holds_dir = holds_dir.clone();
+    for grant in grants {
+        if !grant.session_scoped || hold.paths.contains_key(&grant.path) {
+            continue;
+        }
+        let lock_path = hold_lock_path(&holds_dir, &grant.path);
+        if let Ok(file) = super::open_private(&lock_path, crate::platform::Private::Lock) {
+            if file.lock_shared().is_ok() {
+                hold.paths.insert(grant.path.clone(), file);
+            }
+        }
+    }
+}
+
+fn revoke_target_if_unheld(
+    map: &HashMap<PathBuf, SessionHold>,
+    holds_dir: &Path,
+    target: &Path,
+    sid: &Sid,
+) {
+    if windows_own(target).is_some() {
+        return;
+    }
+    if map.values().any(|h| h.paths.contains_key(target)) {
+        return;
+    }
+    let lock_path = hold_lock_path(holds_dir, target);
+    if lock_path.exists() {
+        let Ok(probe) = super::open_private(&lock_path, crate::platform::Private::Lock) else {
+            return;
+        };
+        if probe.try_lock().is_err() {
+            // Another Rune process still holds a shared lock on this path.
+            return;
+        }
+        if Dacl::of(target).is_ok_and(|dacl| dacl.names(sid)) {
+            let _ = revoke(target, sid);
+        }
+        // The lock file stays: a session of another process may have opened
+        // it already and lock it next; removed, a later release would find no
+        // file and take that session's entry back while it still holds it.
+        drop(probe);
+    } else if Dacl::of(target).is_ok_and(|dacl| dacl.names(sid)) {
+        let _ = revoke(target, sid);
+    }
+}
+
+fn revoke_held_paths(
+    session_key: Option<&Path>,
+    paths: &[PathBuf],
+    sid: &Sid,
+    staging_home: &Path,
+) {
+    let key = session_key.map(normalize_session_key);
+    let mut map = crate::panic::lock(session_holds());
+    let holds_dir = key
+        .as_ref()
+        .and_then(|k| map.get(k).map(|h| h.holds_dir.clone()))
+        .unwrap_or_else(|| staging_home.join("sandbox").join("holds"));
+    for path in paths {
+        let Some(target) = canonical(path) else {
+            continue;
+        };
+        if let Some(k) = &key {
+            if let Some(hold) = map.get_mut(k) {
+                hold.paths.remove(&target);
+            }
+        }
+        revoke_target_if_unheld(&map, &holds_dir, &target, sid);
+    }
+    if let Some(k) = &key {
+        if map.get(k).is_some_and(|h| h.paths.is_empty()) {
+            map.remove(k);
+        }
+    }
+}
+
+fn release_session_holds(
+    session_key: Option<&Path>,
+    paths: &[PathBuf],
+    sid: &Sid,
+    staging_home: &Path,
+) {
+    let key = session_key.map(normalize_session_key);
+    let mut map = crate::panic::lock(session_holds());
+    let mut all_targets: Vec<PathBuf> = paths.iter().filter_map(|p| canonical(p)).collect();
+    let mut holds_dir = staging_home.join("sandbox").join("holds");
+    if let Some(k) = &key {
+        if let Some(removed) = map.remove(k) {
+            holds_dir = removed.holds_dir;
+            for (held_path, lock_file) in removed.paths {
+                drop(lock_file);
+                if !all_targets.contains(&held_path) {
+                    all_targets.push(held_path);
+                }
+            }
+        }
+    }
+    for target in &all_targets {
+        revoke_target_if_unheld(&map, &holds_dir, target, sid);
+    }
+}
+
+/// Revoke the sandbox account's access entries on `paths` held by the session
+/// at `session_scratch`, keeping any entry still held by another open session.
+pub fn revoke_sandbox_paths(session_scratch: &Path, paths: &[PathBuf]) {
+    let Some((acct, staging_home)) = super::account::active_account() else {
+        return;
+    };
+    revoke_held_paths(Some(session_scratch), paths, &acct.sid, &staging_home);
 }
 
 /// Whether this user may change who reaches `path` (`WRITE_DAC`): asked by
@@ -669,6 +977,14 @@ fn own_token() -> io::Result<OwnedHandle> {
     Ok(Token::of_this_process(TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY)?.0)
 }
 
+/// A deny-only token for the sandbox-account runner: privileges dropped,
+/// Administrators and Authenticated Users deny-only, medium integrity at
+/// most, and `owner_sid` included in `TokenDefaultDacl` so the owner's Rune
+/// process can inspect or stop child processes created by the runner.
+pub(super) fn runner_deny_only_token(owner_sid: &Sid) -> io::Result<OwnedHandle> {
+    restricted_token_with_owner(&[], None, true, Some(owner_sid))
+}
+
 /// This process's token, restricted: no privilege but bypassing traverse
 /// checks, Administrators deny-only, checked against `grants` and the SIDs
 /// every program of the user needs; medium integrity at most; and a default
@@ -680,6 +996,15 @@ fn restricted_token(
     grants: &[Sid],
     package: Option<&Sid>,
     deny_only: bool,
+) -> io::Result<OwnedHandle> {
+    restricted_token_with_owner(grants, package, deny_only, None)
+}
+
+fn restricted_token_with_owner(
+    grants: &[Sid],
+    package: Option<&Sid>,
+    deny_only: bool,
+    extra_owner: Option<&Sid>,
 ) -> io::Result<OwnedHandle> {
     let own = Token::of_this_process(
         TOKEN_DUPLICATE | TOKEN_QUERY | TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_DEFAULT,
@@ -770,6 +1095,11 @@ fn restricted_token(
         Sid::well_known(WinRestrictedCodeSid)?,
     ];
     owners.extend(logon);
+    if let Some(owner) = extra_owner {
+        if !owners.contains(owner) {
+            owners.push(owner.clone());
+        }
+    }
     if let Some(package) = package {
         owners.push(package.clone());
         owners.push(Sid::well_known(WinBuiltinAnyPackageSid)?);
@@ -842,7 +1172,8 @@ mod tests {
     }
 
     /// A program beside an MSYS2 or Cygwin runtime — Git Bash's launcher
-    /// included — is said to be beyond the confinement; any other is not.
+    /// included — is said to be beyond a restricted-token confinement; any
+    /// other is not.
     #[test]
     fn a_program_on_a_shared_runtime_is_unconfinable() {
         let base = std::env::temp_dir().join(format!("rune-runtime-{}", std::process::id()));
@@ -852,16 +1183,21 @@ mod tests {
         }
         std::fs::write(base.join(r"Git\usr\bin\msys-2.0.dll"), "").unwrap();
         std::fs::write(base.join(r"cygwin\bin\cygwin1.dll"), "").unwrap();
-        let launcher = unconfinable(&base.join(r"Git\bin\bash.exe")).unwrap();
+        let launcher = shared_runtime_unconfinable(&base.join(r"Git\bin\bash.exe")).unwrap();
         assert!(
             launcher.contains("bash.exe runs on msys-2.0.dll"),
             "{launcher}"
         );
-        assert!(unconfinable(&base.join(r"Git\usr\bin\sh.exe")).is_some());
-        assert!(unconfinable(&base.join(r"cygwin\bin\bash.exe"))
-            .unwrap()
-            .contains("cygwin1.dll"));
-        assert_eq!(unconfinable(&base.join(r"plain\pwsh.exe")), None);
+        assert!(shared_runtime_unconfinable(&base.join(r"Git\usr\bin\sh.exe")).is_some());
+        assert!(
+            shared_runtime_unconfinable(&base.join(r"cygwin\bin\bash.exe"))
+                .unwrap()
+                .contains("cygwin1.dll")
+        );
+        assert_eq!(
+            shared_runtime_unconfinable(&base.join(r"plain\pwsh.exe")),
+            None
+        );
         let _ = std::fs::remove_dir_all(&base);
     }
 
@@ -876,16 +1212,19 @@ mod tests {
         let project = canonical(&base.join("project")).unwrap();
         let cache = canonical(&base.join("cache")).unwrap();
         let ledger = base.join("sandbox-grants.txt");
-        let confinement = Confinement::build(Grants {
-            project: &project,
-            ledger: Some(&ledger),
-            reads: &[],
-            writes: std::slice::from_ref(&cache),
-            reach: &[],
-            local_services: false,
-            sockets: &[],
-            ask_service: None,
-        })
+        let confinement = Confinement::build_as(
+            Grants {
+                project: &project,
+                ledger: Some(&ledger),
+                reads: &[],
+                writes: std::slice::from_ref(&cache),
+                reach: &[],
+                local_services: false,
+                sockets: &[],
+                ask_service: None,
+            },
+            Mechanism::RestrictedToken,
+        )
         .unwrap_or_else(|why| panic!("{}", why.reason));
         let sid = sid_for(Mechanism::RestrictedToken, true, &project);
         assert!(!Dacl::of(&project).unwrap().grants(&sid, FILE_ALL_ACCESS));
@@ -921,16 +1260,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(base.join("project")).unwrap();
         let project = canonical(&base.join("project")).unwrap();
-        let confinement = Confinement::build(Grants {
-            project: &project,
-            ledger: None,
-            reads: &[],
-            writes: &[],
-            reach: &[],
-            local_services: false,
-            sockets: &[],
-            ask_service: None,
-        })
+        let confinement = Confinement::build_as(
+            Grants {
+                project: &project,
+                ledger: None,
+                reads: &[],
+                writes: &[],
+                reach: &[],
+                local_services: false,
+                sockets: &[],
+                ask_service: None,
+            },
+            Mechanism::RestrictedToken,
+        )
         .unwrap_or_else(|why| panic!("{}", why.reason));
         assert!(confinement.token_for_start().is_err());
         assert!(!Dacl::of(&project).unwrap().names(&sid_for(
@@ -997,5 +1339,165 @@ mod tests {
             unconfined.reason,
             "the project directory could not be granted"
         );
+    }
+
+    /// A release that finds nobody holding a path keeps its lock file: a
+    /// session of another process that opened the file before that release
+    /// and locked it after still holds the path for every later release.
+    #[test]
+    fn a_hold_opened_before_a_release_keeps_its_entry_through_a_later_release() {
+        let base = std::env::temp_dir().join(format!("rune-hold-race-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let staging = base.join("home");
+        std::fs::create_dir_all(base.join("project")).unwrap();
+        let project = canonical(&base.join("project")).unwrap();
+        let sid = Sid::derived(&format!("hold-race:{}", project.display()));
+        let holds_dir = staging.join("sandbox").join("holds");
+        std::fs::create_dir_all(&holds_dir).unwrap();
+
+        // Another process's session opens the hold file, not yet locked.
+        let other = super::super::open_private(
+            &hold_lock_path(&holds_dir, &project),
+            crate::platform::Private::Lock,
+        )
+        .unwrap();
+        // A session that holds nothing ends: nobody is locked, so it takes
+        // the entry back.
+        grant(&project, &sid, FILE_GENERIC_READ, true).unwrap();
+        release_session_holds(
+            Some(&base.join("first")),
+            std::slice::from_ref(&project),
+            &sid,
+            &staging,
+        );
+        assert!(!Dacl::of(&project).unwrap().names(&sid));
+        // The other session locks and writes its entry.
+        other.lock_shared().unwrap();
+        grant(&project, &sid, FILE_GENERIC_READ, true).unwrap();
+        // A third session ending must see that hold.
+        release_session_holds(
+            Some(&base.join("third")),
+            std::slice::from_ref(&project),
+            &sid,
+            &staging,
+        );
+        assert!(
+            Dacl::of(&project).unwrap().names(&sid),
+            "an entry a live session holds is never taken back"
+        );
+        drop(other);
+        release_session_holds(
+            Some(&base.join("third")),
+            std::slice::from_ref(&project),
+            &sid,
+            &staging,
+        );
+        assert!(!Dacl::of(&project).unwrap().names(&sid));
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn closing_one_session_keeps_shared_project_grant_for_another_session_until_last_closes() {
+        let base = std::env::temp_dir().join(format!("rune-multi-sess-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        for dir in [
+            "project",
+            "scratch-a",
+            "scratch-b",
+            "reach-shared",
+            "reach-only-a",
+            "home",
+        ] {
+            std::fs::create_dir_all(base.join(dir)).unwrap();
+        }
+        let project = canonical(&base.join("project")).unwrap();
+        let scratch_a = canonical(&base.join("scratch-a")).unwrap();
+        let scratch_b = canonical(&base.join("scratch-b")).unwrap();
+        let reach_shared = canonical(&base.join("reach-shared")).unwrap();
+        let reach_only_a = canonical(&base.join("reach-only-a")).unwrap();
+        let staging_home = canonical(&base.join("home")).unwrap();
+        let ledger = staging_home.join("sandbox-grants.txt");
+
+        let sid = Sid::derived("test-multi-session-sandbox-account");
+        let acct = super::super::account::SandboxAccount {
+            name: "rune-sbx-test".into(),
+            password: "pw".into(),
+            sid: sid.clone(),
+        };
+
+        let reach_a = vec![reach_shared.clone(), reach_only_a.clone()];
+        let reach_b = vec![reach_shared.clone()];
+
+        let sess_a = Confinement::build_with_account(
+            Grants {
+                project: &project,
+                ledger: Some(&ledger),
+                reads: &[],
+                writes: std::slice::from_ref(&scratch_a),
+                reach: &reach_a,
+                local_services: false,
+                sockets: &[],
+                ask_service: None,
+            },
+            Mechanism::Account,
+            Some((acct.clone(), staging_home.clone())),
+        )
+        .unwrap_or_else(|why| panic!("{}", why.reason));
+
+        let sess_b = Confinement::build_with_account(
+            Grants {
+                project: &project,
+                ledger: Some(&ledger),
+                reads: &[],
+                writes: std::slice::from_ref(&scratch_b),
+                reach: &reach_b,
+                local_services: false,
+                sockets: &[],
+                ask_service: None,
+            },
+            Mechanism::Account,
+            Some((acct, staging_home)),
+        )
+        .unwrap_or_else(|why| panic!("{}", why.reason));
+
+        sess_a.ensure_grants_written().unwrap();
+        sess_b.ensure_grants_written().unwrap();
+
+        for path in [
+            &project,
+            &scratch_a,
+            &scratch_b,
+            &reach_shared,
+            &reach_only_a,
+        ] {
+            assert!(Dacl::of(path).unwrap().grants(&sid, FILE_ALL_ACCESS));
+        }
+
+        // Narrowing session A's reach revokes `reach_only_a` but keeps `reach_shared`.
+        sess_a.revoke_paths(&[reach_only_a.clone(), reach_shared.clone()]);
+        assert!(!Dacl::of(&reach_only_a).unwrap().names(&sid));
+        assert!(
+            Dacl::of(&reach_shared)
+                .unwrap()
+                .grants(&sid, FILE_ALL_ACCESS),
+            "reach_shared is still held by session B"
+        );
+
+        // Closing session A revokes `scratch_a` but keeps `project` for session B.
+        sess_a.revoke_session_grants();
+        assert!(!Dacl::of(&scratch_a).unwrap().names(&sid));
+        assert!(
+            Dacl::of(&project).unwrap().grants(&sid, FILE_ALL_ACCESS),
+            "project must remain granted while session B is open"
+        );
+        assert!(Dacl::of(&scratch_b).unwrap().grants(&sid, FILE_ALL_ACCESS));
+
+        // Closing session B revokes the remaining grants on `project`, `scratch_b`, and `reach_shared`.
+        sess_b.revoke_session_grants();
+        for path in [&project, &scratch_b, &reach_shared] {
+            assert!(!Dacl::of(path).unwrap().names(&sid));
+        }
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

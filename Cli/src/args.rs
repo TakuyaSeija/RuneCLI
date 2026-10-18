@@ -53,6 +53,11 @@ pub enum Cmd {
     Storage(Storage),
     /// What the sandbox left on disk, and taking it back.
     Sandbox(SandboxCmd),
+    /// Internal Windows helper: persistent runner process for the local
+    /// sandbox account.
+    SandboxRunner {
+        pipe: String,
+    },
     Provider(Provider),
     Model(Model),
     Settings(SettingsCmd),
@@ -91,8 +96,11 @@ pub enum Storage {
 pub enum SandboxCmd {
     /// Every access entry it recorded (Windows; nothing elsewhere).
     List,
-    /// Take every one back.
+    /// Take every one back (and remove the local sandbox account on Windows).
     Reset,
+    /// Internal elevated helper: provision the local sandbox account and write
+    /// its private credential file at `path`.
+    AccountSetup { path: PathBuf },
 }
 
 #[derive(Debug, PartialEq)]
@@ -302,6 +310,9 @@ pub fn parse(argv: &[String]) -> Result<Args, String> {
         Some("session" | "sessions") => Cmd::Session(session(&words)?),
         Some("storage") => Cmd::Storage(storage(&words)?),
         Some("sandbox") => Cmd::Sandbox(sandbox(&words)?),
+        Some("sandbox-runner") => Cmd::SandboxRunner {
+            pipe: need(&words, 0, "-sandbox-runner <pipe>")?.to_string(),
+        },
         Some("provider" | "providers") => Cmd::Provider(provider(&words, argv)?),
         Some("model" | "models") => Cmd::Model(model(&words)?),
         Some("set") => {
@@ -422,6 +433,10 @@ fn sandbox(words: &[&str]) -> Result<SandboxCmd, String> {
     match words {
         [] | ["list"] => Ok(SandboxCmd::List),
         ["reset"] => Ok(SandboxCmd::Reset),
+        ["account-setup", path] if !path.is_empty() => Ok(SandboxCmd::AccountSetup {
+            path: PathBuf::from(path),
+        }),
+        ["account-setup"] => Err("-sandbox account-setup <path>".into()),
         _ => Err(format!("unknown: -sandbox {}", words.join(" "))),
     }
 }

@@ -176,6 +176,13 @@ impl Confinement {
         self.local_services
     }
 
+    /// Seatbelt holds its rules in the kernel and writes no access entries on
+    /// disk: nothing to take back when a one-call grant or session ends.
+    pub fn revoke_paths(&self, _paths: &[PathBuf]) {}
+
+    /// See [`Confinement::revoke_paths`].
+    pub fn revoke_session_grants(&self) {}
+
     /// The whole profile for a command that may (`true`) or may not create
     /// and reach Unix sockets.
     fn full(&self, unix_sockets: bool) -> String {

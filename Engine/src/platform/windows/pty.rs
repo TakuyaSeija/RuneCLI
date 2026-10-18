@@ -28,20 +28,63 @@ use super::files::Handed;
 use super::wide::check;
 use crate::platform::InputWait;
 
+#[derive(Clone, Copy)]
+enum ConsoleHandle {
+    Local(HPCON),
+    Remote(u64),
+}
+
 /// A pseudoconsole, closed when the last of its terminal and its slave lets
 /// go of it.
 pub(super) struct PseudoConsole {
-    handle: HPCON,
+    handle: Mutex<ConsoleHandle>,
     size: Mutex<(u16, u16)>,
+    input: Mutex<File>,
+    shown: Arc<Shown>,
 }
 
-// SAFETY: an HPCON is a handle any thread may use.
+// SAFETY: an HPCON or remote console id is safe to guard behind a Mutex across threads.
 unsafe impl Send for PseudoConsole {}
 unsafe impl Sync for PseudoConsole {}
 
 impl PseudoConsole {
     pub(super) fn handle(&self) -> HPCON {
-        self.handle
+        match *crate::panic::lock(&self.handle) {
+            ConsoleHandle::Local(handle) => handle,
+            ConsoleHandle::Remote(_) => 0,
+        }
+    }
+
+    pub(super) fn size(&self) -> (u16, u16) {
+        *crate::panic::lock(&self.size)
+    }
+
+    /// Switch this pseudoconsole to one opened inside the sandbox-account
+    /// runner (`super::runner::spawn_in_runner`), closing the unused local
+    /// pseudoconsole and replacing its input writer and output reader.
+    pub(super) fn adopt_remote(
+        &self,
+        id: u64,
+        keys_write: OwnedHandle,
+        shown_read: OwnedHandle,
+    ) -> io::Result<()> {
+        let generation = {
+            let mut state = crate::panic::lock(&self.shown.state);
+            state.generation += 1;
+            state.bytes.clear();
+            state.ended = false;
+            state.generation
+        };
+        *crate::panic::lock(&self.input) = File::from(keys_write);
+        spawn_reader(File::from(shown_read), Arc::clone(&self.shown), generation)?;
+        let prev = std::mem::replace(
+            &mut *crate::panic::lock(&self.handle),
+            ConsoleHandle::Remote(id),
+        );
+        if let ConsoleHandle::Local(old) = prev {
+            unsafe { ClosePseudoConsole(old) };
+        }
+        Ok(())
     }
 }
 
@@ -51,7 +94,12 @@ impl Drop for PseudoConsole {
     /// drained meanwhile by its reader, which a Windows 10 console waits for
     /// before it closes.
     fn drop(&mut self) {
-        unsafe { ClosePseudoConsole(self.handle) };
+        match *crate::panic::lock(&self.handle) {
+            ConsoleHandle::Local(handle) => unsafe { ClosePseudoConsole(handle) },
+            ConsoleHandle::Remote(id) => {
+                let _ = super::runner::close_console(id);
+            }
+        }
     }
 }
 
@@ -67,6 +115,7 @@ struct ShownState {
     ended: bool,
     /// Whether a [`Pty`] still reads; once not, what arrives is let go.
     wanted: bool,
+    generation: u64,
 }
 
 /// How much shown output waits for a reader before the reader thread waits
@@ -76,8 +125,6 @@ const SHOWN_LIMIT: usize = 1 << 20;
 /// The terminal side Rune keeps: keys go in, what the console shows comes out.
 pub struct Pty {
     console: Arc<PseudoConsole>,
-    input: Mutex<File>,
-    shown: Arc<Shown>,
 }
 
 /// The console a command starts on ([`super::process::spawn_on_terminal`]),
@@ -139,24 +186,25 @@ pub fn open_pty(rows: u16, cols: u16) -> io::Result<(Pty, PtySlave)> {
     })?;
     // The console holds its own copies of its ends.
     drop((keys_read, shown_write));
-    let console = Arc::new(PseudoConsole {
-        handle,
-        size: Mutex::new((rows, cols)),
-    });
     let shown = Arc::new(Shown {
         state: Mutex::new(ShownState {
             bytes: VecDeque::new(),
             ended: false,
             wanted: true,
+            generation: 0,
         }),
         ready: Condvar::new(),
     });
-    spawn_reader(File::from(shown_read), Arc::clone(&shown))?;
+    spawn_reader(File::from(shown_read), Arc::clone(&shown), 0)?;
+    let console = Arc::new(PseudoConsole {
+        handle: Mutex::new(ConsoleHandle::Local(handle)),
+        size: Mutex::new((rows, cols)),
+        input: Mutex::new(File::from(keys_write)),
+        shown,
+    });
     Ok((
         Pty {
             console: Arc::clone(&console),
-            input: Mutex::new(File::from(keys_write)),
-            shown,
         },
         PtySlave(console),
     ))
@@ -165,7 +213,7 @@ pub fn open_pty(rows: u16, cols: u16) -> io::Result<(Pty, PtySlave)> {
 /// Read what the console shows until it closes — for as long as a [`Pty`]
 /// wants it, then only to let the console close (it waits for its output to
 /// be read).
-fn spawn_reader(mut output: File, shown: Arc<Shown>) -> io::Result<()> {
+fn spawn_reader(mut output: File, shown: Arc<Shown>, generation: u64) -> io::Result<()> {
     std::thread::Builder::new()
         .name("rune-conpty-output".into())
         .spawn(move || {
@@ -176,19 +224,28 @@ fn spawn_reader(mut output: File, shown: Arc<Shown>) -> io::Result<()> {
                     Ok(n) => n,
                 };
                 let mut state = crate::panic::lock(&shown.state);
-                while state.wanted && state.bytes.len() >= SHOWN_LIMIT {
+                if state.generation != generation {
+                    return;
+                }
+                while state.wanted
+                    && state.generation == generation
+                    && state.bytes.len() >= SHOWN_LIMIT
+                {
                     state = shown
                         .ready
                         .wait(state)
                         .unwrap_or_else(std::sync::PoisonError::into_inner);
                 }
-                if state.wanted {
+                if state.wanted && state.generation == generation {
                     state.bytes.extend(&chunk[..n]);
                     shown.ready.notify_all();
                 }
             }
-            crate::panic::lock(&shown.state).ended = true;
-            shown.ready.notify_all();
+            let mut state = crate::panic::lock(&shown.state);
+            if state.generation == generation {
+                state.ended = true;
+                shown.ready.notify_all();
+            }
         })
         .map(drop)
 }
@@ -202,14 +259,14 @@ impl Pty {
     pub fn read_timeout(&self, buf: &mut [u8], timeout_ms: i32) -> io::Result<Option<usize>> {
         let deadline =
             std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms.max(0) as u64);
-        let mut state = crate::panic::lock(&self.shown.state);
+        let mut state = crate::panic::lock(&self.console.shown.state);
         loop {
             if !state.bytes.is_empty() {
                 let n = buf.len().min(state.bytes.len());
                 for (slot, byte) in buf.iter_mut().zip(state.bytes.drain(..n)) {
                     *slot = byte;
                 }
-                self.shown.ready.notify_all();
+                self.console.shown.ready.notify_all();
                 return Ok(Some(n));
             }
             if state.ended {
@@ -220,6 +277,7 @@ impl Pty {
                 return Ok(None);
             }
             state = self
+                .console
                 .shown
                 .ready
                 .wait_timeout(state, deadline - now)
@@ -231,7 +289,7 @@ impl Pty {
     /// Send input to the running command, as keys: text, `\r` for Enter,
     /// `\x03` for Ctrl+C (the console sends the command its Ctrl+C).
     pub fn write_all(&self, bytes: &[u8]) -> io::Result<()> {
-        let mut input = crate::panic::lock(&self.input);
+        let mut input = crate::panic::lock(&self.console.input);
         input.write_all(bytes)?;
         input.flush()
     }
@@ -282,7 +340,14 @@ impl Pty {
     }
 
     pub fn resize(&self, rows: u16, cols: u16) -> io::Result<()> {
-        hresult(unsafe { ResizePseudoConsole(self.console.handle, coord(rows, cols)) })?;
+        match *crate::panic::lock(&self.console.handle) {
+            ConsoleHandle::Local(handle) => {
+                hresult(unsafe { ResizePseudoConsole(handle, coord(rows, cols)) })?;
+            }
+            ConsoleHandle::Remote(id) => {
+                super::runner::resize_console(id, rows, cols)?;
+            }
+        }
         *crate::panic::lock(&self.console.size) = (rows, cols);
         Ok(())
     }
@@ -291,10 +356,10 @@ impl Pty {
 impl Drop for Pty {
     fn drop(&mut self) {
         // What the console shows from now on is only drained.
-        let mut state = crate::panic::lock(&self.shown.state);
+        let mut state = crate::panic::lock(&self.console.shown.state);
         state.wanted = false;
         state.bytes.clear();
-        self.shown.ready.notify_all();
+        self.console.shown.ready.notify_all();
     }
 }
 

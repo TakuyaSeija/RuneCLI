@@ -321,7 +321,17 @@ fn confined_git(count: Option<&OsStr>) -> Vec<(String, String)> {
 /// then its own settings, then — `confined` — what a restricted token needs
 /// ([`confined_git`]), then the tree's mark — sorted by name without case,
 /// as `CreateProcess` requires.
+#[cfg(test)]
 fn environment(launch: &Launch, tree: Option<&str>, confined: bool) -> io::Result<Vec<u16>> {
+    environment_for(launch, tree, confined, false)
+}
+
+fn environment_for(
+    launch: &Launch,
+    tree: Option<&str>,
+    confined: bool,
+    sandbox_account: bool,
+) -> io::Result<Vec<u16>> {
     let mut vars: BTreeMap<String, (OsString, OsString)> = BTreeMap::new();
     let set = |vars: &mut BTreeMap<String, (OsString, OsString)>, key: &OsStr, value: &OsStr| {
         vars.insert(
@@ -336,6 +346,22 @@ fn environment(launch: &Launch, tree: Option<&str>, confined: bool) -> io::Resul
     }
     for (key, value) in &launch.env {
         set(&mut vars, key, value);
+    }
+    if sandbox_account && !launch.clear_env {
+        if let Some(home) = super::home::home_dir() {
+            for (name, subpath) in [
+                ("RUSTUP_HOME", ".rustup"),
+                ("CARGO_HOME", ".cargo"),
+                ("NPM_CONFIG_CACHE", r"AppData\Local\npm-cache"),
+            ] {
+                if !vars.contains_key(name) {
+                    let folder = home.join(subpath);
+                    if folder.is_dir() {
+                        set(&mut vars, OsStr::new(name), folder.as_os_str());
+                    }
+                }
+            }
+        }
     }
     if confined {
         let count = vars.get("GIT_CONFIG_COUNT").map(|(_, value)| value.clone());
@@ -493,7 +519,6 @@ fn start(
     let (application, mut line) =
         command_line(&program, &launch.args, launch.verbatim_tail.as_deref())?;
     let application = wide_path(&application)?;
-    let environment = environment(launch, placement.tree, placement.confinement.is_some())?;
     // The folder a process starts in as written: Windows keeps no verbatim
     // (`\\?\`) current folder, and cmd refuses to run in one.
     let folder = launch
@@ -502,11 +527,71 @@ fn start(
         .map(|dir| wide(dir.as_os_str()))
         .transpose()?;
 
-    // A confinement's token and container, its grants written first.
+    // A confinement's token, container or sandbox account, its grants written first.
     let confined = placement
         .confinement
         .map(|confinement| confinement.for_start())
         .transpose()?;
+    let sandbox_account = confined
+        .as_ref()
+        .and_then(|start| start.account.as_ref())
+        .is_some();
+    let environment = environment_for(
+        launch,
+        placement.tree,
+        placement.confinement.is_some(),
+        sandbox_account,
+    )?;
+
+    if let Some((account, staging_home)) =
+        confined.as_ref().and_then(|start| start.account.as_ref())
+    {
+        let job = new_job(
+            placement.tree,
+            kill_on_close,
+            placement.confinement.is_some(),
+        )?;
+        let (runner_streams, local_pipes) = match &streams {
+            Streams::Console(console) => {
+                let (rows, cols) = console.size();
+                (super::runner::SpawnStreams::Console { rows, cols }, None)
+            }
+            Streams::Pipes(handles) => (
+                super::runner::SpawnStreams::Pipes {
+                    stdin: 0,
+                    stdout: 0,
+                    stderr: 0,
+                },
+                Some(*handles),
+            ),
+        };
+        let spec = super::runner::SpawnSpec {
+            application,
+            command_line: line,
+            environment,
+            cwd: folder,
+            flags,
+            job_handle: 0,
+            streams: runner_streams,
+        };
+        let remote = super::runner::spawn_in_runner(
+            account,
+            staging_home,
+            spec,
+            job.as_raw_handle(),
+            local_pipes,
+        )?;
+        if let (Streams::Console(console), Some((id, keys_write, shown_read))) =
+            (&streams, remote.console)
+        {
+            console.adopt_remote(id, keys_write, shown_read)?;
+        }
+        return Ok(Started {
+            pid: remote.pid,
+            process: remote.process,
+            job,
+        });
+    }
     let container = confined.as_ref().and_then(|start| start.container.as_ref());
     let mut attributes = Attributes::new(1 + u32::from(container.is_some()))?;
     if let Some((security, _)) = container {
@@ -1207,6 +1292,7 @@ fn own() -> Option<&'static File> {
 /// What this process notes about itself first thing in `main`: the file it
 /// runs from, before a release can put another at its path.
 pub fn at_start() {
+    super::runner::maybe_run_from_args();
     let _ = own();
 }
 

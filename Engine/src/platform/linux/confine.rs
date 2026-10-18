@@ -184,6 +184,13 @@ impl Confinement {
         self.local_services
     }
 
+    /// Landlock holds its rules in the kernel and writes no access entries on
+    /// disk: nothing to take back when a one-call grant or session ends.
+    pub fn revoke_paths(&self, _paths: &[PathBuf]) {}
+
+    /// See [`Confinement::revoke_paths`].
+    pub fn revoke_session_grants(&self) {}
+
     /// Apply this confinement to the calling thread, permanently: in a
     /// child, between `fork` and `exec`. Bare syscalls only.
     pub(super) fn restrict_calling_thread(&self) -> io::Result<()> {

@@ -120,6 +120,39 @@ impl Sid {
         sid
     }
 
+    /// The SID of a local account named `name`.
+    pub(super) fn of_account(name: &str) -> io::Result<Sid> {
+        use windows_sys::Win32::Security::{LookupAccountNameW, SID_NAME_USE};
+        let wide = wide(std::ffi::OsStr::new(name))?;
+        let mut sid = vec![0u8; 256];
+        let mut sid_len = sid.len() as u32;
+        let mut domain = vec![0u16; 256];
+        let mut domain_len = domain.len() as u32;
+        let mut kind: SID_NAME_USE = 0;
+        check(unsafe {
+            LookupAccountNameW(
+                std::ptr::null(),
+                wide.as_ptr(),
+                sid.as_mut_ptr().cast(),
+                &mut sid_len,
+                domain.as_mut_ptr(),
+                &mut domain_len,
+                &mut kind,
+            )
+        })?;
+        Sid::copy(sid.as_mut_ptr().cast())
+    }
+
+    /// A SID parsed from its `S-1-…` spelling.
+    pub(super) fn from_string(text: &str) -> io::Result<Sid> {
+        use windows_sys::Win32::Security::Authorization::ConvertStringSidToSidW;
+        let wide = wide(std::ffi::OsStr::new(text))?;
+        let mut psid: PSID = std::ptr::null_mut();
+        check(unsafe { ConvertStringSidToSidW(wide.as_ptr(), &mut psid) })?;
+        let local = Local(psid);
+        Sid::copy(local.0)
+    }
+
     /// Its `S-1-…` spelling.
     pub(super) fn string(&self) -> io::Result<String> {
         let mut text: windows_sys::core::PWSTR = std::ptr::null_mut();

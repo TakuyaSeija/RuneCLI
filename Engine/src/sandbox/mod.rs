@@ -983,13 +983,16 @@ mod tests {
             daemons.len(),
             "every reachable daemon socket must be reported"
         );
-        if s.report().kind == "restricted-token" {
+        if matches!(
+            s.report().kind.as_str(),
+            "restricted-token" | "sandbox-account"
+        ) {
             assert!(
                 s.report()
                     .escapes
                     .iter()
                     .any(|e| e.id == "readable_by_every_user"),
-                "what a restricted token leaves readable is reported"
+                "what a Windows confinement leaves readable is reported"
             );
         }
         assert_eq!(
@@ -1018,12 +1021,16 @@ mod tests {
         ));
         let r = s.report();
         if r.enforced {
-            let (kind, abi) = match crate::platform::OS {
-                Os::Linux => ("landlock", 1),
-                Os::MacOs => ("seatbelt", 0),
-                Os::Windows => ("restricted-token", 0),
+            let (kinds, abi): (&[&str], i32) = match crate::platform::OS {
+                Os::Linux => (&["landlock"], 1),
+                Os::MacOs => (&["seatbelt"], 0),
+                Os::Windows => (&["restricted-token", "sandbox-account"], 0),
             };
-            assert_eq!(r.kind, kind);
+            assert!(
+                kinds.contains(&r.kind.as_str()),
+                "unexpected kind {}",
+                r.kind
+            );
             assert!(r.abi >= abi);
             assert!(r.reason.is_none());
         } else {

@@ -57,6 +57,12 @@ fn run(args: args::Args) -> Result<(), String> {
             println!("rune {}", runeengine::VERSION);
             return Ok(());
         }
+        Cmd::SandboxRunner { ref pipe } => {
+            return runeengine::platform::run_sandbox_runner(std::ffi::OsStr::new(pipe));
+        }
+        Cmd::Sandbox(args::SandboxCmd::AccountSetup { ref path }) => {
+            return runeengine::platform::setup_sandbox_account(path);
+        }
         _ => {}
     }
 
@@ -190,7 +196,9 @@ fn run(args: args::Args) -> Result<(), String> {
     };
 
     match args.cmd {
-        Cmd::Help | Cmd::Version | Cmd::UpgradeCheck => unreachable!("answered above"),
+        Cmd::Help | Cmd::Version | Cmd::UpgradeCheck | Cmd::SandboxRunner { .. } => {
+            unreachable!("answered above")
+        }
 
         Cmd::Host => {
             let project = args.project.map(|p| p.to_string_lossy().into_owned());

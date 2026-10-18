@@ -43,3 +43,22 @@ pub fn unconfinable(_program: &std::path::Path) -> Option<String> {
 pub fn forget_grants(_ledger: &std::path::Path) -> std::io::Result<crate::platform::Forgotten> {
     Ok(crate::platform::Forgotten::default())
 }
+
+/// Landlock and Seatbelt hold their rules in the kernel and leave nothing on
+/// disk to revoke.
+pub fn revoke_sandbox_paths(_session_scratch: &std::path::Path, _paths: &[std::path::PathBuf]) {}
+
+/// Only Windows uses a local sandbox account.
+pub fn setup_sandbox_account(_path: &std::path::Path) -> Result<(), String> {
+    Ok(())
+}
+
+/// Only Windows uses a local sandbox account.
+pub fn remove_sandbox_account(_home: &std::path::Path) -> Result<(), String> {
+    Ok(())
+}
+
+/// Only Windows uses a sandbox runner process.
+pub fn run_sandbox_runner(_pipe: &std::ffi::OsStr) -> Result<(), String> {
+    Ok(())
+}

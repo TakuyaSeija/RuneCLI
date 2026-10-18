@@ -527,6 +527,10 @@ impl SessionState {
         if paths.is_empty() {
             return;
         }
+        if let Some(confinement) = self.sandbox().confinement() {
+            confinement.revoke_paths(paths);
+        }
+        crate::platform::revoke_sandbox_paths(&self.scratch, paths);
         {
             let mut held = panic::lock(&self.reach);
             held.retain(|p| !paths.contains(p));
@@ -860,6 +864,12 @@ impl SessionState {
 impl Drop for SessionState {
     fn drop(&mut self) {
         self.background.stop_all();
+        if let Some(confinement) = self.sandbox().confinement() {
+            confinement.revoke_session_grants();
+        }
+        let mut session_paths = vec![self.base_jail.root().to_path_buf(), self.scratch.clone()];
+        session_paths.extend(self.reach());
+        crate::platform::revoke_sandbox_paths(&self.scratch, &session_paths);
     }
 }
 

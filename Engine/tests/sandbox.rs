@@ -184,12 +184,16 @@ fn the_engine_says_out_loud_whether_it_is_enforcing() {
     let r = sandbox.report();
     if r.enforced {
         use runeengine::platform::Os;
-        let (kind, abi) = match runeengine::platform::OS {
-            Os::Linux => ("landlock", 1),
-            Os::MacOs => ("seatbelt", 0),
-            Os::Windows => ("restricted-token", 0),
+        let (kinds, abi): (&[&str], i32) = match runeengine::platform::OS {
+            Os::Linux => (&["landlock"], 1),
+            Os::MacOs => (&["seatbelt"], 0),
+            Os::Windows => (&["restricted-token", "sandbox-account"], 0),
         };
-        assert_eq!(r.kind, kind);
+        assert!(
+            kinds.contains(&r.kind.as_str()),
+            "unexpected kind {}",
+            r.kind
+        );
         assert!(r.abi >= abi);
     } else {
         assert!(r.reason.is_some(), "a disabled sandbox must carry a reason");
@@ -299,7 +303,7 @@ fn a_command_cannot_write_outside_the_project() {
         &script(
             &format!("d=$HOME; echo escaped > \"$d/{name}\""),
             &format!(
-                "$d=[Environment]::GetFolderPath('UserProfile'); Set-Content -Path \"$d\\{name}\" -Value escaped"
+                "$d=[Environment]::GetEnvironmentVariable('USER' + 'PROFILE'); Set-Content -Path \"$d\\{name}\" -Value escaped"
             ),
         ),
     );
@@ -349,7 +353,7 @@ fn confinement_survives_a_child_of_the_command() {
         &script(
             &format!("d=$HOME; bash -c \"bash -c 'echo nested > $d/{name}'\""),
             &format!(
-                "$d=[Environment]::GetFolderPath('UserProfile'); powershell -NoProfile -Command \"cmd /c 'echo nested > $d\\{name}'\""
+                "$d=[Environment]::GetEnvironmentVariable('USER' + 'PROFILE'); powershell -NoProfile -Command \"cmd /c 'echo nested > $d\\{name}'\""
             ),
         ),
     );
@@ -1257,12 +1261,19 @@ fn a_shell_the_sandbox_cannot_hold_is_asked_in_auto_and_runs_with_full_access_on
             }
         }
     };
+    let kind = p
+        .engine
+        .sandbox_of(p.session)
+        .unwrap()
+        .report()
+        .kind
+        .clone();
     let written = p.project.join("lifted.txt");
 
     let (ok, out, asked) = invoke(&mut p, Decision::AllowOnce);
     assert!(ok, "{out}");
     assert!(written.is_file(), "the command did not run: {out}");
-    if !windows() {
+    if !windows() || kind == "sandbox-account" {
         assert!(
             asked.is_empty(),
             "a confinable shell was asked in Auto: {asked:?}"
