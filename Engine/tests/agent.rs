@@ -2078,17 +2078,32 @@ fn a_whole_filesystem_call_asks_in_confined_modes_and_restores_them_afterward() 
 /// and every status said Full meanwhile.
 #[test]
 fn a_mode_chosen_during_a_full_access_call_is_the_one_in_force_after_it() {
+    // Git Bash's `/` is Git's own folder: on Windows the root is the system
+    // drive's, named in the shell Windows runs commands in by default.
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let command = if windows {
+        format!(
+            "Start-Sleep -Seconds 1; Get-Item -Path {}\\",
+            std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into())
+        )
+    } else {
+        "sleep 1; find / -maxdepth 0 -print".to_string()
+    };
     let fixture = json!({
         "responses": [
             { "chunks": [
                 { "tool_call": { "id": "root", "name": "terminal_use",
                                  "args": { "action": "inspect the filesystem root slowly",
-                                           "command": "sleep 1; find / -maxdepth 0 -print" } } }
+                                           "command": command } } }
             ]},
             { "chunks": [ { "text": "inspected" } ]}
         ]
     });
-    let mut h = harness("modemidcall", fixture);
+    let mut h = if windows {
+        harness_with_config("modemidcall", "[terminal]\nshell = \"auto\"\n", fixture)
+    } else {
+        harness("modemidcall", fixture)
+    };
     h.engine.handle(Command::SessionMode {
         id: 40,
         session: h.session,
