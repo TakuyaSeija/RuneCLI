@@ -7434,6 +7434,72 @@ fn connect_fixture(project: &std::path::Path, state: &runeengine::session::Sessi
         .unwrap();
 }
 
+/// A stdio server that would not start is diagnosed by its own error stream:
+/// the failure names the file that keeps it (it used to say only "connection
+/// closed"), and the server's words stay in the file, out of the failure the
+/// model reads.
+#[test]
+fn a_stdio_server_that_would_not_start_names_where_its_error_output_is() {
+    let h = harness("mcp-would-not-start", json!({"responses":[]}));
+    let mut engine = h.engine;
+    let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
+    let server = h.project.join("Broken.py");
+    std::fs::write(
+        &server,
+        "import sys\nsys.stderr.write('broken-server-words\\n')\nsys.exit(3)\n",
+    )
+    .unwrap();
+    let add = runeengine::capabilities::manage::Request {
+        group: "mcp".into(),
+        operation: "add".into(),
+        arguments: vec![
+            "broken".into(),
+            runeengine::testing::python().to_string_lossy().into_owned(),
+            server.to_string_lossy().into_owned(),
+        ],
+    };
+    runeengine::capabilities::manage::execute(
+        &state.capabilities,
+        &state.registry,
+        &add,
+        &state.cancel,
+        &|_, _| Ok(()),
+    )
+    .unwrap();
+    let error = state
+        .capabilities
+        .connect("broken", &state.registry, &state.cancel, &|_, _| Ok(()))
+        .expect_err("the server exits before it answers")
+        .to_string();
+    let named = error
+        .split(" is kept in ")
+        .nth(1)
+        .and_then(|rest| rest.split("; ").next())
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| panic!("the failure names the error output's file: {error}"));
+    assert_eq!(
+        named.file_name(),
+        Some(std::ffi::OsStr::new(
+            runeengine::capabilities::mcp::STDERR_LOG
+        )),
+        "{error}"
+    );
+    assert!(!error.contains("broken-server-words"), "{error}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while !std::fs::read_to_string(&named)
+        .unwrap_or_default()
+        .contains("broken-server-words")
+    {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the named file keeps what the server wrote: {}",
+            named.display()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    engine.shutdown();
+}
+
 /// One direct tool call, every permission allowed once: whether it succeeded,
 /// what the model would read, and the previews the person was asked about.
 fn run_tool(
@@ -7542,20 +7608,21 @@ fn an_mcp_error_answer_keeps_the_server_and_tells_its_words() {
 fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
     let h = harness_with_config(
         "mcp-slow-answer",
-        "[capabilities]\ntimeout_seconds = 10\n",
+        "[capabilities]\ntimeout_seconds = 30\n",
         json!({"responses":[]}),
     );
     let mut engine = h.engine;
     let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
     connect_fixture(&h.project, &state, "slow");
     // Adding the server kept the owner's limit: the call below runs against
-    // 10 s — the limit also bounds connecting, and a cold interpreter on a
-    // CI macOS took more than 3 s (2026-10-18) — and the answer comes after it.
+    // 30 s — the limit also bounds connecting, and a cold interpreter took
+    // more than 3 s on a CI macOS (2026-10-18) and more than 10 s under the
+    // Windows sandbox account (2026-10-19) — and the answer comes after it.
     assert_eq!(
         runeengine::settings::configuration::Configuration::load(&state.capabilities.home)
             .unwrap()
             .get("capabilities")["timeout_seconds"],
-        10,
+        30,
         "{}",
         std::fs::read_to_string(state.capabilities.home.join("rune.toml")).unwrap()
     );
@@ -7580,7 +7647,7 @@ fn an_mcp_question_answered_after_the_server_limit_is_still_taken() {
                 });
             }
             Event::McpInputRequest { req, .. } => {
-                std::thread::sleep(std::time::Duration::from_millis(11_500));
+                std::thread::sleep(std::time::Duration::from_millis(31_500));
                 engine.handle(Command::McpInputReply {
                     id: 972,
                     session: h.session,

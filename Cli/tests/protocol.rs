@@ -342,8 +342,11 @@ fn detached_host_cancels_unwatched_tool_without_waiting_idle_lifetime() {
             }}}
         ]}]}),
     );
+    // How long the first output may take to come, not how fast the work
+    // stops (measured below): a confined start on a loaded CI runner took
+    // more than 5 s (2026-10-19).
     client
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(20)))
         .unwrap();
     writeln!(
         client,
@@ -1564,8 +1567,13 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     )
     .unwrap();
     let (mut stopped, mut woke, mut answered) = (None, None, Vec::new());
+    let mut wake_done = false;
     loop {
-        let e = event(&mut reader);
+        let mut line = String::new();
+        if let Err(error) = reader.read_line(&mut line) {
+            panic!("{error}: stopped {stopped:?}, woke {woke:?}, after it {answered:?}");
+        }
+        let e: Value = serde_json::from_str(&line).unwrap_or_else(|e| panic!("{line:?}: {e}"));
         if e["t"] == "permission_request" {
             writeln!(
                 client,
@@ -1582,12 +1590,15 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
             stopped = Some(e);
         } else if e["t"] == "turn_start" && e["notification"] == true && of_the_kill {
             woke = Some(e);
-        } else if woke.is_some() {
-            let done = e["t"] == "done";
+        } else if woke.is_some() && !wake_done {
+            wake_done = e["t"] == "done";
             answered.push(e);
-            if done && stopped.is_some() {
-                break;
-            }
+        }
+        // The wake's turn may end before the kill's own result is read
+        // (Linux CI, 2026-10-19: waiting on for a second `done` that never
+        // came timed the read out).
+        if wake_done && stopped.is_some() {
+            break;
         }
     }
     let stopped = stopped.unwrap();

@@ -83,6 +83,21 @@ impl Runtime {
     }
 }
 
+/// Why a server would not connect, and where to look next: a stdio server's
+/// own words are only ever in its [`STDERR_LOG`], so its path is named (the
+/// path alone — what the server wrote stays out of the model's context).
+fn connect_failure(error: &dyn std::fmt::Display, transport: &Transport, scratch: &Path) -> String {
+    match transport {
+        Transport::Stdio => format!(
+            "MCP connection failed ({error}); what the server wrote to its error stream is kept in {}; check its command and supported protocol",
+            scratch.join(STDERR_LOG).display()
+        ),
+        Transport::Http => format!(
+            "MCP connection failed ({error}); check the endpoint, credentials and supported protocol"
+        ),
+    }
+}
+
 /// What a stdio server wrote to its error stream, kept in its own folder —
 /// never told to the model, whose context a server's words have no business
 /// in — so a server that would not start can be diagnosed by the person (and
@@ -186,7 +201,7 @@ impl Connection {
                     }
                     info.serve_with_lifecycle(StreamableHttpClientTransport::with_client(client,options),lifecycle).await
                 }
-            }.map_err(|e|Error::tool(format!("MCP connection failed ({e}); check the endpoint, credentials and supported protocol")))?;
+            }.map_err(|e|Error::tool(connect_failure(&e,&definition.definition.transport,scratch)))?;
             Ok(service)
         });
         let service = match service {

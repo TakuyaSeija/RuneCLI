@@ -350,36 +350,7 @@ fn honour_gate(pending: &[u8]) {
 }
 
 fn send(key: Key) {
-    #[cfg(debug_assertions)]
-    trace(&format!("key {key:?}"));
     deliver(&mut runeengine::panic::lock(&ACTIVE_SENDER), key);
-}
-
-/// TEMPORARY diagnosis (Windows PTY `~` in the MCP form): what the reader
-/// read and decoded, to the file `RUNE_DEBUG_KEYS` names. Debug builds only;
-/// removed once the cause is known.
-#[cfg(debug_assertions)]
-fn trace(line: &str) {
-    use std::io::Write;
-    static FILE: std::sync::OnceLock<
-        Option<(std::time::Instant, std::sync::Mutex<std::fs::File>)>,
-    > = std::sync::OnceLock::new();
-    let Some((began, file)) = FILE
-        .get_or_init(|| {
-            let path = std::env::var_os("RUNE_DEBUG_KEYS")?;
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-                .ok()?;
-            Some((std::time::Instant::now(), std::sync::Mutex::new(file)))
-        })
-        .as_ref()
-    else {
-        return;
-    };
-    let ms = began.elapsed().as_millis();
-    let _ = writeln!(runeengine::panic::lock(file), "{ms} {line}");
 }
 
 /// Read stdin forever, decoding as it goes.
@@ -412,8 +383,6 @@ pub fn spawn(tx: Sender<Key>) {
                     && !waiting(super::runtime_configuration().number("ui.escape_timeout") as i32)
                 {
                     let escape = pending == [0x1b];
-                    #[cfg(debug_assertions)]
-                    trace("escape timeout");
                     pending.clear();
                     if escape {
                         send(Key::Esc);
@@ -430,8 +399,6 @@ pub fn spawn(tx: Sender<Key>) {
                 match runeengine::platform::read_stdin(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        #[cfg(debug_assertions)]
-                        trace(&format!("read {:?}", String::from_utf8_lossy(&buf[..n])));
                         pending.extend_from_slice(&buf[..n]);
                         // Decode by offset and drop the consumed bytes once: a
                         // burst of keys used to shift the whole buffer per key

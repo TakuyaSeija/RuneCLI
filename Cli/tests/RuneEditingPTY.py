@@ -146,6 +146,32 @@ def case_keys(window, case):
     return name, expected
 
 
+def quiet(window, still=0.3, timeout=15):
+    """Wait until the window's screen, less the rows a spinner animates, has
+    not changed for `still` seconds: it has read and applied every key sent.
+    Keys written faster than the window reads them back up in a Windows
+    pseudo console's input pipe, and Windows's own console host then cuts a
+    sequence where one of its reads ends and drops its start (`ESC [ 3` of a
+    Delete, leaving `~`; measured 2026-10-19 with every record the window
+    read; microsoft/terminal#16352). No terminal a person types into sends
+    70 KB without a pause."""
+    def screen():
+        rows = window.screen.text().split("\n")
+        return [row for row in rows if not any(ch in live.SPINNER for ch in row)]
+    end = live.time.monotonic() + timeout
+    window.drain()
+    seen, since = screen(), live.time.monotonic()
+    while live.time.monotonic() < end:
+        window.drain()
+        now = screen()
+        if now != seen:
+            seen, since = now, live.time.monotonic()
+        elif live.time.monotonic() - since >= still:
+            return
+        live.time.sleep(0.03)
+    raise AssertionError("the window never stopped changing\n" + window.screen.text())
+
+
 def field_value(window, prefix):
     for row in window.screen.text().splitlines():
         if prefix in row:
@@ -367,6 +393,7 @@ def run():
         for n,case in enumerate(CASES):
             name,expected=case_keys(window,case)
             expected_mcp[f"case_{n:02}"]=expected
+            quiet(window)
             window.send(b"\r")
         click_text(window, "Submit")
         live.until(lambda: window.shows("MCP edited answer accepted."), "MCP result", window)

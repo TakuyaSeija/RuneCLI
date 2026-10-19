@@ -104,8 +104,6 @@ fn window_origin() -> (i32, i32) {
 /// The bytes the records in `records` make, into `typed`.
 fn take_input(records: &[INPUT_RECORD], typed: &mut Typed) {
     let mouse = super::console::MOUSE.load(Ordering::Relaxed);
-    #[cfg(debug_assertions)]
-    trace::records(records);
     for record in records {
         match u32::from(record.EventType) {
             KEY_EVENT => {
@@ -143,56 +141,6 @@ fn take_input(records: &[INPUT_RECORD], typed: &mut Typed) {
             }
             _ => {}
         }
-    }
-}
-
-/// TEMPORARY diagnosis (Windows PTY `~` in the MCP form): every console
-/// record read, to the file `RUNE_DEBUG_CONSOLE_INPUT` names. Debug builds
-/// only; removed once the cause is known.
-#[cfg(debug_assertions)]
-mod trace {
-    use super::*;
-    use std::io::Write;
-    use std::sync::OnceLock;
-
-    static FILE: OnceLock<Option<(Instant, Mutex<std::fs::File>)>> = OnceLock::new();
-
-    pub(super) fn records(records: &[INPUT_RECORD]) {
-        let Some((began, file)) = FILE
-            .get_or_init(|| {
-                let path = std::env::var_os("RUNE_DEBUG_CONSOLE_INPUT")?;
-                let file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(path)
-                    .ok()?;
-                Some((Instant::now(), Mutex::new(file)))
-            })
-            .as_ref()
-        else {
-            return;
-        };
-        let ms = began.elapsed().as_millis();
-        let mut out = String::new();
-        for record in records {
-            match u32::from(record.EventType) {
-                KEY_EVENT => {
-                    let key = unsafe { record.Event.KeyEvent };
-                    out.push_str(&format!(
-                        "{ms} K {} c={:04x} vk={:02x} sc={:02x} r={} s={:x}\n",
-                        if key.bKeyDown != 0 { "d" } else { "u" },
-                        unsafe { key.uChar.UnicodeChar },
-                        key.wVirtualKeyCode,
-                        key.wVirtualScanCode,
-                        key.wRepeatCount,
-                        key.dwControlKeyState
-                    ));
-                }
-                other => out.push_str(&format!("{ms} E{other}\n")),
-            }
-        }
-        out.push_str(&format!("{ms} -- {} records\n", records.len()));
-        let _ = crate::panic::lock(file).write_all(out.as_bytes());
     }
 }
 
