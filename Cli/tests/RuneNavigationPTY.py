@@ -153,8 +153,7 @@ def run():
         if panel == "/logs":
             assert selected_log(w) == before, "palette keys moved the log selector"
         w.send(b"\x1b")
-        paint(w)
-        assert not w.shows("WHAT THE MODEL HOLDS") and not w.shows("LOGS\n"), w.screen.text()
+        live.until(lambda: not w.shows("WHAT THE MODEL HOLDS") and not w.shows("LOGS\n"), "Escape closes " + panel, w)
         ok("palette owns arrows and Escape before " + panel)
     command(w, "/logs")
     for key in [HOME, END, UP * 15, DOWN * 10, b"\x1b[5~", b"\x1b[6~"]:
@@ -170,11 +169,9 @@ def run():
     assert selected_log(w) and w.screen.text() != first
     ok("Logs wheel moves chevron and viewport together")
     w.send(b"\r")
-    paint(w)
-    assert w.shows("code "), w.screen.text()
+    live.until(lambda: w.shows("code "), "Enter opens the log's detail", w)
     w.send(b"\x1b")
-    paint(w)
-    assert not w.shows("LOGS\n"), "Esc did not close open-detail screen"
+    live.until(lambda: not w.shows("LOGS\n"), "Esc closes the open-detail screen", w)
     ok("Logs detail remains Enter-driven and one Escape closes its screen")
     # No waits between commands: delayed responses must not reopen the earlier screen.
     for sequence in [["/logs", "/context", "/help"], ["/context", "/logs", "/undo"],
@@ -236,23 +233,30 @@ def run():
     live.ask(w, provider, "QUESTION-NAVIGATION", live.tool("ask_user_questions", {
         "action":"Verify navigation", "questions":[question("First question"),question("Second question")]}),
         live.text("QUESTION-ACK"), expect="Write your own")
+    # Each step waits for its own effect, never for "the screen held still":
+    # keys sent together are drawn over several frames, and on a slow
+    # machine (macOS CI, 2026-10-20) the first frame held still long enough
+    # to be read before the paste and the arrows after it were drawn. Every
+    # step starts from the custom field focused (waited for where it did not),
+    # so leaving it is the effect.
+    left = lambda what: live.until(lambda: not custom_focus(w), what, w)
     click(w, "Write your own")
     w.send(UP)
-    paint(w)
-    assert not custom_focus(w)
+    left("empty custom Up")
     ok("empty custom Up leaves to preceding option")
     w.send(DOWN + DOWN)
-    paint(w)
-    assert not custom_focus(w)
+    left("empty custom Down")
     ok("empty custom Down leaves to lower controls")
     click(w, "Write your own")
+    live.until(lambda: custom_focus(w), "custom focused again", w)
     paste(w, "abc")
+    live.until(lambda: w.shows("abc"), "custom answer typed", w)
     w.send(HOME + UP)
-    paint(w)
-    assert not custom_focus(w)
-    w.send(DOWN + END + DOWN)
-    paint(w)
-    assert not custom_focus(w)
+    left("nonempty custom Up at its start")
+    w.send(DOWN)
+    live.until(lambda: custom_focus(w), "custom focused from above", w)
+    w.send(END + DOWN)
+    left("nonempty custom Down at its end")
     ok("nonempty custom exits only at input boundaries")
     click(w, "Write your own")
     w.send(ALTRIGHT)
@@ -279,8 +283,7 @@ def run():
     assert first != second, w.screen.text()
     ok("Settings wheel works while Ask User waits")
     live.press_escape(w, 2)
-    paint(w)
-    assert w.shows("Write your own")
+    live.until(lambda: w.shows("Write your own"), "the question is back", w)
     w.send(b"\x14")
     paint(w)
     # Active overlay gets its navigation without touching the question answer.
@@ -318,8 +321,7 @@ def run():
         alpha = next(r for r in w.screen.text().splitlines() if "Alpha" in r)
         assert "●" not in alpha, (panel, "overlay Enter selected an answer", w.screen.text())
         w.send(b"\x1b")
-        paint(w)
-        assert w.shows("Write your own"), "closing reader lost pending question"
+        live.until(lambda: w.shows("Write your own"), "closing reader keeps the pending question", w)
         click(w, "Alpha")
         click(w, "Submit answers")
         live.until(lambda: w.shows(expected), "foreground answer completed", w)
