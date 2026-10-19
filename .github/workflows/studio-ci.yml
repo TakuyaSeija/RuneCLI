@@ -158,6 +158,8 @@ jobs:
           path: |
             target/test-tmp/RuneLiveProvider.*/terminal-*.bin
             target/test-tmp/RuneLiveProvider.*/*.txt
+            target/test-tmp/RuneLiveProvider.*/Home/projects/*/sessions/*/*.jsonl
+            target/test-tmp/RuneLiveProvider.*/Home/projects/*/scratch/*/stderr.log
           if-no-files-found: ignore
           retention-days: 7
 
@@ -343,6 +345,8 @@ jobs:
           path: |
             target/test-tmp/RuneLiveProvider.*/terminal-*.bin
             target/test-tmp/RuneLiveProvider.*/*.txt
+            target/test-tmp/RuneLiveProvider.*/Home/projects/*/sessions/*/*.jsonl
+            target/test-tmp/RuneLiveProvider.*/Home/projects/*/scratch/*/stderr.log
           if-no-files-found: ignore
           retention-days: 7
 
