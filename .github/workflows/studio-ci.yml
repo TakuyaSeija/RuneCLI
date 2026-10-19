@@ -135,14 +135,15 @@ jobs:
         run: cargo test --workspace --locked --no-fail-fast
 
       - name: PTY fixtures (the windows in a real ConPTY)
-        # ConPTY is what Windows Terminal hosts a program in; pywinpty opens
-        # one for the fixtures and psutil finds the hosts they start. Test
-        # tools only, in a throwaway environment: nothing of Rune's.
+        # ConPTY is what Windows Terminal hosts a program in; the fixtures
+        # open one through the console API (RuneTerminal.py) and psutil finds
+        # the hosts they start. A test tool only, in a throwaway environment:
+        # nothing of Rune's.
         if: always()
         timeout-minutes: 40
         run: |
           python -m venv "$RUNNER_TEMP/pty"
-          "$RUNNER_TEMP/pty/Scripts/python" -m pip install --quiet pywinpty==2.0.15 psutil==7.0.0
+          "$RUNNER_TEMP/pty/Scripts/python" -m pip install --quiet psutil==7.0.0
           cargo build --locked -p runecli
           "$RUNNER_TEMP/pty/Scripts/python" -I Cli/tests/RunPTY.py target/debug/rune.exe
 
