@@ -532,12 +532,16 @@ class Window:
         self.pid = self.term.pid
         self.screen = Screen(rows, cols)
         self.tail = b""
+        # Every byte the window wrote, kept for a failed run: the screen model
+        # is read against the real stream (terminal-<pid>.bin in its home).
+        self.raw = bytearray()
 
     def drain(self):
         while True:
             data = self.term.read()
             if not data:
                 return
+            self.raw.extend(data)
             seen = self.tail + data
             # Answered as a terminal answers: a status request once read, the
             # background colour when asked.
@@ -566,7 +570,14 @@ class Window:
     def shows(self, needle):
         return needle in self.screen.text()
 
+    def dump(self):
+        try:
+            (ROOT / f"terminal-{self.pid}.bin").write_bytes(bytes(self.raw))
+        except OSError:
+            pass
+
     def close(self):
+        self.dump()
         if self.term.alive():
             self.send(b"\x03\x03")
             if not self.term.wait(5):
@@ -581,6 +592,8 @@ def until(predicate, description, window=None, timeout=40):
         if predicate():
             return
         time.sleep(0.03)
+    if window:
+        window.dump()
     raise AssertionError(description + ("\n--- screen ---\n" + window.screen.text() if window else ""))
 
 
@@ -1223,7 +1236,15 @@ def main():
             assert new != before
             until(lambda: RuneTerminal.running_image(picker.pid) == new,
                   "the picker never took the release over", picker, 20)
-            picker.screen = Screen(picker.screen.rows, picker.screen.cols)
+            # The new build may have drawn its first frame before the take-over
+            # was seen (lsof on macOS is slower than /proc): a size change makes
+            # it draw the whole screen again for a fresh screen model.
+            rows, cols = picker.screen.rows, picker.screen.cols
+            picker.resize(rows, cols - 1)
+            time.sleep(0.3)
+            picker.drain()
+            picker.screen = Screen(rows, cols)
+            picker.resize(rows, cols)
             until(lambda: picker.shows("Live provider test"), "the list after the take-over", picker, 20)
             assert picker.alive(), "the picker exited"
             # 16b. A window opened from the picker keeps what is typed while it

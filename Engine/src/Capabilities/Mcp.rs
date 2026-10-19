@@ -162,7 +162,7 @@ impl Connection {
                     let stdout=process.take_stdout().ok_or_else(||Error::tool("MCP stdout is unavailable"))?;
                     let stdin=process.take_stdin().ok_or_else(||Error::tool("MCP stdin is unavailable"))?;
                     if let Some(stderr)=process.take_stderr(){tokio::spawn(keep_stderr(stderr,scratch.join(STDERR_LOG)));}
-                    info.serve_with_lifecycle((BoundedReader{inner:stdout,seen:0,max:settings.max_message_bytes},stdin),lifecycle).await
+                    info.serve_with_lifecycle(Abandoned::new(rmcp::transport::IntoTransport::<RoleClient,_,_>::into_transport((BoundedReader{inner:stdout,seen:0,max:settings.max_message_bytes},stdin))),lifecycle).await
                 }
                 Transport::Http=>{
                     let endpoint=definition.definition.url.as_ref().ok_or_else(||Error::invalid("Missing MCP URL"))?;
@@ -492,6 +492,93 @@ fn answered<T>(result: std::result::Result<T, rmcp::service::ServiceError>) -> R
     }
 }
 
+/// rmcp's `Auto` lifecycle asks `server/discover` and, after a fixed ten
+/// seconds nobody can change, gives up and sends the legacy `initialize` on
+/// the same stream. A server that answers the discover late — a cold Python,
+/// a first `npx` download, a binary an antivirus scans first on Windows —
+/// then puts that answer before the initialize's, and the library refuses
+/// the connection (`ConflictInitResponseId`). The abandoned request's answer
+/// is for nobody: it is dropped here, so a slow start is bounded by
+/// `timeout_seconds` alone. Only a discover still unanswered when the
+/// initialize leaves is abandoned; nothing else is ever dropped.
+struct Abandoned<T> {
+    inner: T,
+    discover: Option<rmcp::model::RequestId>,
+    abandoned: Option<rmcp::model::RequestId>,
+}
+
+impl<T> Abandoned<T> {
+    fn new(inner: T) -> Self {
+        Self {
+            inner,
+            discover: None,
+            abandoned: None,
+        }
+    }
+}
+
+/// The same request id, spelt either way a server may echo it.
+fn same_request(sent: &rmcp::model::RequestId, echoed: &rmcp::model::RequestId) -> bool {
+    use rmcp::model::NumberOrString;
+    sent == echoed
+        || matches!((sent, echoed), (NumberOrString::Number(n), NumberOrString::String(s)) if s.parse::<i64>().ok() == Some(*n))
+}
+
+impl<T: rmcp::transport::Transport<RoleClient>> rmcp::transport::Transport<RoleClient>
+    for Abandoned<T>
+{
+    type Error = T::Error;
+
+    fn send(
+        &mut self,
+        item: rmcp::service::TxJsonRpcMessage<RoleClient>,
+    ) -> impl Future<Output = std::result::Result<(), Self::Error>> + Send + 'static {
+        use rmcp::model::{ClientRequest, JsonRpcMessage};
+        if let JsonRpcMessage::Request(request) = &item {
+            match &request.request {
+                ClientRequest::DiscoverRequest(_) => self.discover = Some(request.id.clone()),
+                ClientRequest::InitializeRequest(_) => self.abandoned = self.discover.take(),
+                _ => {}
+            }
+        }
+        self.inner.send(item)
+    }
+
+    async fn receive(&mut self) -> Option<rmcp::service::RxJsonRpcMessage<RoleClient>> {
+        use rmcp::model::JsonRpcMessage;
+        loop {
+            let message = self.inner.receive().await?;
+            let id = match &message {
+                JsonRpcMessage::Response(response) => Some(&response.id),
+                JsonRpcMessage::Error(error) => error.id.as_ref(),
+                _ => None,
+            };
+            if let Some(id) = id {
+                if self
+                    .abandoned
+                    .as_ref()
+                    .is_some_and(|gone| same_request(gone, id))
+                {
+                    self.abandoned = None;
+                    continue;
+                }
+                if self
+                    .discover
+                    .as_ref()
+                    .is_some_and(|asked| same_request(asked, id))
+                {
+                    self.discover = None;
+                }
+            }
+            return Some(message);
+        }
+    }
+
+    fn close(&mut self) -> impl Future<Output = std::result::Result<(), Self::Error>> + Send {
+        self.inner.close()
+    }
+}
+
 struct BoundedReader<R> {
     inner: R,
     seen: usize,
@@ -672,4 +759,105 @@ pub fn tool_prefix(id: &str) -> String {
         &id[..id.len().min(20)],
         &crate::checkpoint::objects::hash_of(id.as_bytes())[..8]
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+
+    /// A legacy server that answers `server/discover` only after rmcp's ten
+    /// seconds have passed, then answers the `initialize` sent meanwhile.
+    async fn slow_legacy_server(stream: tokio::io::DuplexStream) {
+        let (read, mut write) = tokio::io::split(stream);
+        let mut lines = BufReader::new(read).lines();
+        let discover: Value =
+            serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+        assert_eq!(discover["method"], "server/discover");
+        tokio::time::sleep(Duration::from_millis(10_500)).await;
+        let late = json!({"jsonrpc": "2.0", "id": discover["id"],
+            "error": {"code": -32601, "message": "Method not found"}});
+        write
+            .write_all(format!("{late}\n").as_bytes())
+            .await
+            .unwrap();
+        let initialize: Value =
+            serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
+        assert_eq!(initialize["method"], "initialize");
+        let answer = json!({"jsonrpc": "2.0", "id": initialize["id"], "result": {
+            "protocolVersion": "2025-11-25", "capabilities": {},
+            "serverInfo": {"name": "slow", "version": "1"}}});
+        write
+            .write_all(format!("{answer}\n").as_bytes())
+            .await
+            .unwrap();
+        while let Ok(Some(_)) = lines.next_line().await {}
+    }
+
+    fn lifecycle() -> ClientLifecycleMode {
+        ClientLifecycleMode::Auto {
+            preferred_versions: vec![ProtocolVersion::V_2026_07_28],
+            legacy_version: Some(ProtocolVersion::V_2025_11_25),
+        }
+    }
+
+    /// The bug (Windows CI, 2026-10-19): a server slower than rmcp's fixed
+    /// ten-second discover wait was refused — `ConflictInitResponseId` for a
+    /// late result, `UncorrelatedErrorResponse` for a late error.
+    /// The raw stream still is — the control — and Rune's connects.
+    #[test]
+    fn a_server_that_answers_discover_late_still_connects() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let (raw_client, raw_server) = tokio::io::duplex(1 << 16);
+            let (client, server) = tokio::io::duplex(1 << 16);
+            tokio::spawn(slow_legacy_server(raw_server));
+            tokio::spawn(slow_legacy_server(server));
+            let raw = async {
+                let (read, write) = tokio::io::split(raw_client);
+                ().serve_with_lifecycle((read, write), lifecycle()).await
+            };
+            let wrapped = async {
+                let (read, write) = tokio::io::split(client);
+                let transport = rmcp::transport::IntoTransport::<RoleClient, _, _>::into_transport(
+                    (read, write),
+                );
+                ().serve_with_lifecycle(Abandoned::new(transport), lifecycle())
+                    .await
+            };
+            let (raw, wrapped) = tokio::join!(raw, wrapped);
+            assert!(
+                matches!(
+                    raw,
+                    Err(
+                        rmcp::service::ClientInitializeError::ConflictInitResponseId(..)
+                            | rmcp::service::ClientInitializeError::UncorrelatedErrorResponse { .. }
+                    )
+                ),
+                "the library no longer refuses a late discover answer: {:?}",
+                raw.map(|_| ())
+            );
+            let service = wrapped.expect("a slow legacy server connects");
+            assert_eq!(
+                service
+                    .peer_info()
+                    .and_then(|info| info.server_info.as_ref().map(|s| s.name.clone())),
+                Some("slow".into())
+            );
+        });
+    }
+
+    /// A discover answered in time is the answer: nothing is dropped.
+    #[test]
+    fn only_an_abandoned_request_is_dropped() {
+        use rmcp::model::NumberOrString;
+        let zero = NumberOrString::Number(0);
+        assert!(same_request(&zero, &NumberOrString::String("0".into())));
+        assert!(same_request(&zero, &NumberOrString::Number(0)));
+        assert!(!same_request(&zero, &NumberOrString::Number(1)));
+        assert!(!same_request(&zero, &NumberOrString::String("x".into())));
+    }
 }

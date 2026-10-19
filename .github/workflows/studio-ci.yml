@@ -146,6 +146,20 @@ jobs:
           cargo build --locked -p runecli
           "$RUNNER_TEMP/pty/Scripts/python" -I Cli/tests/RunPTY.py target/debug/rune.exe
 
+      - name: Keep failed PTY evidence
+        # The windows' raw output and the homes of a failed fixture run: the
+        # screen model is checked against what the terminal really sent.
+        if: failure()
+        # actions/upload-artifact v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: pty-evidence-windows
+          path: |
+            target/test-tmp/RuneLiveProvider.*/terminal-*.bin
+            target/test-tmp/RuneLiveProvider.*/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build release (x64)
         if: always()
         run: cargo build --release --locked -p runecli
@@ -316,6 +330,20 @@ jobs:
           "$RUNNER_TEMP/pty/bin/python" -m pip install --quiet psutil==7.0.0
           cargo build --locked -p runecli
           "$RUNNER_TEMP/pty/bin/python" -I Cli/tests/RunPTY.py target/debug/rune
+
+      - name: Keep failed PTY evidence
+        # The windows' raw output and the homes of a failed fixture run: the
+        # screen model is checked against what the terminal really sent.
+        if: failure()
+        # actions/upload-artifact v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: pty-evidence-macos
+          path: |
+            target/test-tmp/RuneLiveProvider.*/terminal-*.bin
+            target/test-tmp/RuneLiveProvider.*/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build release (arm64, x64)
         if: always()

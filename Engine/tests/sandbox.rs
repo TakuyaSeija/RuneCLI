@@ -1202,13 +1202,9 @@ while True:
     let ((_, confined), asked) = run(&mut p, &open, Decision::AllowOnce);
     std::thread::sleep(std::time::Duration::from_millis(500));
     let served_confined = served();
-    let kind = p
-        .engine
-        .sandbox_of(p.session)
-        .unwrap()
-        .report()
-        .kind
-        .clone();
+    // The confinement's own report, before Full lifts it.
+    let report = p.engine.sandbox_of(p.session).unwrap().report().clone();
+    let kind = report.kind.clone();
     eprintln!("MEASURED ({kind}) confined:\n{confined}\nserved {served_confined}");
 
     p.engine.handle(Command::SessionMode {
@@ -1239,10 +1235,7 @@ while True:
         "the read Windows grants every user changed — revisit the reported gap:\n{confined}\nserved {served_confined}"
     );
     assert!(
-        p.engine
-            .sandbox_of(p.session)
-            .unwrap()
-            .report()
+        report
             .escapes
             .iter()
             .any(|e| e.id == "pipes_readable_by_every_user"),
