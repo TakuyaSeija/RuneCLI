@@ -127,8 +127,14 @@ def position(window, text, at):
 
 def clear(window):
     window.send(END + b"\x1b[1;6H")  # unsupported chord must do nothing
-    # Home is the whole buffer start, not Ctrl+A's logical-line start.
-    window.send(HOME + DELETE * 600)
+    # Home is the whole buffer start, not Ctrl+A's logical-line start. The
+    # deletes go in small writes: a ConPTY turns 2400 bytes at once into key
+    # records in bursts, and a pause after one sequence's ESC longer than the
+    # escape timeout reads as Esc (no key held down ever sends that much).
+    window.send(HOME)
+    for _ in range(30):
+        window.send(DELETE * 20)
+        window.drain()
 
 
 def case_keys(window, case):
