@@ -1568,12 +1568,14 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     .unwrap();
     let (mut stopped, mut woke, mut answered) = (None, None, Vec::new());
     let mut wake_done = false;
+    let mut seen = Vec::new();
     loop {
         let mut line = String::new();
         if let Err(error) = reader.read_line(&mut line) {
-            panic!("{error}: stopped {stopped:?}, woke {woke:?}, after it {answered:?}");
+            panic!("{error}: stopped {stopped:?}, woke {woke:?}, after it {answered:?}, every event {seen:?}");
         }
         let e: Value = serde_json::from_str(&line).unwrap_or_else(|e| panic!("{line:?}: {e}"));
+        seen.push(e.clone());
         if e["t"] == "permission_request" {
             writeln!(
                 client,

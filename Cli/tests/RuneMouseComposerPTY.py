@@ -26,6 +26,18 @@ def row_with(window, text):
     return row
 
 
+def composer_row(window, lines):
+    """The screen row the composer's first line is drawn on once it shows
+    exactly `lines`, one a row; `None` before. Waiting on a substring such as
+    `› 1` was answered by the earlier `› 12X34` still on screen, and the click
+    landed on that frame's geometry (macOS CI, 2026-10-19)."""
+    rows = [row.strip("│ ").rstrip() for row in window.screen.text().split("\n")]
+    for y in range(len(rows) - len(lines) + 1):
+        if rows[y] == "› " + lines[0] and [r.strip() for r in rows[y + 1:y + len(lines)]] == lines[1:]:
+            return y
+    return None
+
+
 def click_text(window, text):
     row = row_with(window, text)
     col = live.column_of(window, row, text)
@@ -95,9 +107,10 @@ def main():
         live.until(lambda: draft().get("text") == "12X34", "insert at clicked caret", window)
         window.send(b"\x05\x15")  # End, kill to line start
         paste(window, "1\n2\n3\n")
-        live.until(lambda: draft().get("text") == "1\n2\n3\n" and window.shows("› 1"),
+        live.until(lambda: draft().get("text") == "1\n2\n3\n"
+                   and composer_row(window, ["1", "2", "3", ""]) is not None,
                    "multiline draft", window)
-        row = row_with(window, "› 1")
+        row = composer_row(window, ["1", "2", "3", ""])
         live.click(window, row + 1, 80)
         live.until(lambda: window.screen.y == row and window.screen.x == 5,
                    "blank on row one goes to row end", window)
