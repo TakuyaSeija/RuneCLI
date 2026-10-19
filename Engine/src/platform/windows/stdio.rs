@@ -5,8 +5,9 @@
 //! characters of its VT sequence; a mouse record, while the program has the
 //! mouse (`console::MOUSE`), becomes the SGR report a VT terminal sends for
 //! it (`ESC [ < b ; x ; y M`, press, release, motion with a button held, the
-//! wheel — what `?1002h ?1006h` asks for); everything else — focus, the
-//! window's size, a key released — is let go. A console handle is signalled
+//! wheel — what `?1002h ?1006h` asks for); a release that carries a
+//! character no press did (text pasted, Alt+numpad) is typed; everything
+//! else — focus, the window's size, a key released — is let go. A console handle is signalled
 //! for any record, so a wait reads what is there, never waiting, and says
 //! input waits only when those records made bytes: a read that found only
 //! records that make none would block the reader with nothing typed. A pipe
@@ -75,13 +76,20 @@ struct Typed {
     bytes: VecDeque<u8>,
     high: Option<u16>,
     buttons: u32,
+    /// Characters whose key went down and has not come up: their release
+    /// says nothing more.
+    held: Vec<u16>,
 }
 
 static TYPED: Mutex<Typed> = Mutex::new(Typed {
     bytes: VecDeque::new(),
     high: None,
     buttons: 0,
+    held: Vec::new(),
 });
+
+/// How many pressed keys are remembered until they are let go.
+const HELD: usize = 32;
 
 /// Where the console's window starts in its buffer: a mouse record names a
 /// cell of the buffer, a VT report a cell of the window.
@@ -100,16 +108,32 @@ fn take_input(records: &[INPUT_RECORD], typed: &mut Typed) {
         match u32::from(record.EventType) {
             KEY_EVENT => {
                 let key = unsafe { record.Event.KeyEvent };
-                if key.bKeyDown == 0 {
-                    continue;
-                }
                 let unit = unsafe { key.uChar.UnicodeChar };
                 if unit == 0 {
+                    continue;
+                }
+                if key.bKeyDown == 0 {
+                    // A character pasted, or entered as Alt+numpad, comes on
+                    // its key's release alone: the console sends a press
+                    // with no character (Alt) and puts the character on the
+                    // release — emoji, CJK, many accented letters (`less`
+                    // and busybox-w32 met the same). A release of a key
+                    // already taken is nothing; one of an ASCII key never
+                    // pressed here is the Enter that started this program.
+                    if let Some(at) = typed.held.iter().position(|&held| held == unit) {
+                        typed.held.remove(at);
+                    } else if unit >= 0x80 {
+                        take_unit(unit, typed);
+                    }
                     continue;
                 }
                 for _ in 0..key.wRepeatCount.max(1) {
                     take_unit(unit, typed);
                 }
+                if typed.held.len() == HELD {
+                    typed.held.remove(0);
+                }
+                typed.held.push(unit);
             }
             MOUSE_EVENT if mouse => {
                 let event = unsafe { record.Event.MouseEvent };
@@ -380,6 +404,7 @@ mod tests {
             bytes: VecDeque::new(),
             high: None,
             buttons: 0,
+            held: Vec::new(),
         }
     }
 
@@ -430,6 +455,34 @@ mod tests {
         ];
         take_input(&records, &mut typed);
         assert_eq!(text(typed), "\x1b[A\u{1F600}xxx");
+    }
+
+    /// What a console sends for pasted text it cannot type as keys: a press
+    /// with no character, the character on the release (Windows CI, 2026-10-19:
+    /// a pasted `👩‍💻x` never reached the field). Taken from the release —
+    /// emoji as its surrogate pair — once; a key pressed and released is one
+    /// character, typed fast or overlapping; an ASCII release with no press
+    /// (the Enter that started the program) is nothing.
+    #[test]
+    fn a_character_only_its_release_carries_is_typed_once() {
+        let mut typed = typed();
+        let records = [
+            key(false, u16::from(b'\r'), 1),
+            key(true, 0, 1),
+            key(false, 0x00E9, 1),
+            key(true, 0, 1),
+            key(false, 0xD83D, 1),
+            key(true, 0, 1),
+            key(false, 0xDC69, 1),
+            key(true, u16::from(b'a'), 1),
+            key(true, u16::from(b'b'), 1),
+            key(false, u16::from(b'a'), 1),
+            key(false, u16::from(b'b'), 1),
+            key(true, 0x00FC, 1),
+            key(false, 0x00FC, 1),
+        ];
+        take_input(&records, &mut typed);
+        assert_eq!(text(typed), "\u{e9}\u{1F469}ab\u{fc}");
     }
 
     /// A click, a drag and a release become the SGR reports a VT terminal
