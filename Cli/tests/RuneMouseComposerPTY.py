@@ -48,7 +48,7 @@ def draft():
     path = live.HOME / "drafts.json"
     if not path.exists():
         return {}
-    for project in json.loads(path.read_text()).get("projects", {}).values():
+    for project in json.loads(live.RuneTerminal.read_document(path)).get("projects", {}).values():
         for entry in project.get("entries", []):
             return entry["composer"]
     return {}

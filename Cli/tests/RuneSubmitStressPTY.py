@@ -78,7 +78,7 @@ def main():
             state={}
             def cleared():
                 nonlocal state
-                state=json.loads(composer.read_text())
+                state=json.loads(live.RuneTerminal.read_document(composer))
                 return state.get('text') in ('','/context')
             try:
                 live.until(cleared,'composer cleared',w,timeout=5)

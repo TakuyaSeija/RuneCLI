@@ -159,8 +159,42 @@ pub fn sync_dir(_dir: &Path) -> io::Result<()> {
 /// returns: the file is flushed under its new name, NTFS's log and the
 /// rename in it with it.
 pub fn replace(from: &Path, to: &Path) -> io::Result<()> {
-    std::fs::rename(from, to)?;
-    std::fs::OpenOptions::new().write(true).open(to)?.sync_all()
+    let deadline = std::time::Instant::now() + REPLACE_PATIENCE;
+    while_held(deadline, || std::fs::rename(from, to))?;
+    // Replaced: what follows only makes it last, and is tried as long.
+    while_held(deadline, || {
+        std::fs::OpenOptions::new().write(true).open(to)?.sync_all()
+    })
+}
+
+/// How long a replace waits for another program to let go of the file it
+/// replaces. Windows refuses to replace a file another program has open
+/// without letting it be deleted — an antivirus scanning what was just
+/// written, the search indexer, a backup tool, a script reading it — for
+/// as long as that program holds it, usually milliseconds: a save of the
+/// configuration, the credential store or a composer must not fail on that.
+const REPLACE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// `step` again, shortly after, while another program holds the file
+/// (`ERROR_ACCESS_DENIED`, `ERROR_SHARING_VIOLATION`, `ERROR_LOCK_VIOLATION`)
+/// and `deadline` has not passed; any other answer at once.
+fn while_held(
+    deadline: std::time::Instant,
+    mut step: impl FnMut() -> io::Result<()>,
+) -> io::Result<()> {
+    let mut pause = std::time::Duration::from_millis(5);
+    loop {
+        match step() {
+            Err(error)
+                if matches!(error.raw_os_error(), Some(5 | 32 | 33))
+                    && std::time::Instant::now() + pause < deadline =>
+            {
+                std::thread::sleep(pause);
+                pause = (pause * 2).min(std::time::Duration::from_millis(100));
+            }
+            other => return other,
+        }
+    }
 }
 
 /// Whether nobody but this user may reach `path`: a protected ACL that
@@ -524,6 +558,47 @@ pub fn take_handed_file(handed: Handed, expected: &Path) -> Option<File> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file another program holds without letting it be deleted — Python's
+    /// `open`, an antivirus scan — cannot be renamed over (the control), and
+    /// a replace waits for it to be let go instead of failing the save.
+    #[test]
+    fn a_replace_waits_for_a_program_holding_the_file() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let dir = std::env::temp_dir().join(format!("rune-replace-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let to = dir.join("composer.json");
+        std::fs::write(&to, "old").unwrap();
+        let hold = || {
+            std::fs::OpenOptions::new()
+                .read(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+                .open(&to)
+                .unwrap()
+        };
+
+        let held = hold();
+        let early = dir.join("early.tmp");
+        std::fs::write(&early, "early").unwrap();
+        assert!(
+            std::fs::rename(&early, &to).is_err(),
+            "Windows refused the rename"
+        );
+        drop(held);
+
+        let held = hold();
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            drop(held);
+        });
+        let from = dir.join("new.tmp");
+        std::fs::write(&from, "new").unwrap();
+        replace(&from, &to).unwrap();
+        release.join().unwrap();
+        assert_eq!(std::fs::read_to_string(&to).unwrap(), "new");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A path past `MAX_PATH` — a project deep in folders — is opened by
     /// Rune's own calls as by the standard library's: made private, its ACL

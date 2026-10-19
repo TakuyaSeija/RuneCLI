@@ -226,6 +226,21 @@ class _ConPty:
         self._k32.ClosePseudoConsole(self._console)
 
 
+def read_document(path):
+    """The text of a file Rune replaces whole (a composer, the drafts). On
+    Windows a file being replaced cannot be opened for a moment — Python's
+    `open` is refused, as an antivirus or an indexer would be — so a refusal
+    is read again, briefly; any other error is raised at once."""
+    deadline = time.monotonic() + 3
+    while True:
+        try:
+            return path.read_text(encoding="utf-8")
+        except PermissionError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.02)
+
+
 def processes():
     """Every process of this user that can be read: (pid, argv bytes, environ bytes)."""
     if LINUX:

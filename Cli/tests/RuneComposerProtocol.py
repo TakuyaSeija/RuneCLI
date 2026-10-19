@@ -54,7 +54,7 @@ try:
  (folder/'project.json').write_text(json.dumps({'project':first['project']}))
  blocked=folder/'sessions/1';blocked.write_text('injected file commit failure')
  failed=h.command({'cmd':'draft.promote','draft':first});assert not failed['ok']
- registry=json.loads((HOME/'drafts.json').read_text());assert any(e['composer']['text']=='first message' for p in registry['projects'].values() for e in p['entries'])
+ registry=json.loads(RuneTerminal.read_document(HOME/'drafts.json'));assert any(e['composer']['text']=='first message' for p in registry['projects'].values() for e in p['entries'])
  h.close();HOST=None;blocked.unlink()
  h=Host();HOST=h
  committed=h.command({'cmd':'draft.promote','draft':first});assert committed['ok'];session=committed['data']['session'];assert session==1

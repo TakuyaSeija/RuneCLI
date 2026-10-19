@@ -50,7 +50,7 @@ def holds(window, needle, seconds, description):
 
 
 def drafted_model():
-    drafts = json.loads((live.HOME / "drafts.json").read_text())
+    drafts = json.loads(live.RuneTerminal.read_document(live.HOME / "drafts.json"))
     for project in drafts["projects"].values():
         for entry in project["entries"]:
             return entry["composer"]["settings"]["model"]

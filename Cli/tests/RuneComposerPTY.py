@@ -34,11 +34,11 @@ def until(predicate,description,timeout=15):
 def session_dir(n):return next(HOME.glob(f'projects/*/sessions/{n}'),HOME/'projects'/'(unfiled)'/'sessions'/str(n))
 def registry():
  p=HOME/'drafts.json'
- return json.loads(p.read_text()) if p.exists() else {'projects':{}}
+ return json.loads(RuneTerminal.read_document(p)) if p.exists() else {'projects':{}}
 def entries():return next(iter(registry()['projects'].values()))['entries'] if registry()['projects'] else []
 def session_count():
  with sqlite3.connect(HOME/'rune.db') as db:return db.execute('select count(*) from sessions').fetchone()[0]
-def composer(session):return json.loads((session_dir(session)/'composer.json').read_text())
+def composer(session):return json.loads(RuneTerminal.read_document(session_dir(session)/'composer.json'))
 try:
  a=Window();until(lambda:(HOME/'rune.db').exists(),'startup database');until(lambda:b'Select Models' in a.output or b'test' in a.output,'first paint')
  assert session_count()==0 and not list(HOME.glob('projects/*/sessions/[0-9]*'))

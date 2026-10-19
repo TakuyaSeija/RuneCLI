@@ -761,8 +761,9 @@ impl Configuration {
 /// another only after something there happened to reload — a draft window's
 /// Settings never did, nor a host with no window (owner, 2026-10-14). So a read
 /// compares the documents' stamp with disk at most every [`FOLLOW_EVERY`]
-/// (`stat`, three files) and swaps in what changed; a file that does not load
-/// is kept out, and looked at again only once it changes. What must happen when
+/// (`stat`, three files) and swaps in what changed; a document that does not
+/// load is kept out, and looked at again only once it changes — one that
+/// could not be read just now is read again at the next look. What must happen when
 /// the configuration changed (providers re-read, capabilities refreshed, a
 /// theme repainted) is keyed to [`Shared::generation`], never to which reader
 /// noticed first.
@@ -850,8 +851,11 @@ impl Shared {
     }
 
     /// Re-read the configuration from disk if any document it is built from was
-    /// modified since loaded (see [`document_stamp`]). A file that does not
-    /// load is this call's error.
+    /// modified since loaded (see [`document_stamp`]). A document that does
+    /// not load is this call's error; one that could not be read just now —
+    /// another program holding it a moment on Windows (an antivirus, an
+    /// indexer, a replace in progress) — keeps what is loaded, and the next
+    /// call reads it again: the stamp still differs.
     pub fn reload_if_changed(&self) -> Result<bool> {
         let current = self.0.current.load_full();
         if current.home.as_os_str().is_empty() {
@@ -863,8 +867,14 @@ impl Shared {
         if document_stamp(&current.home) == current.document_stamp {
             return Ok(false);
         }
-        self.store(Configuration::load(&current.home)?);
-        Ok(true)
+        match Configuration::load(&current.home) {
+            Ok(config) => {
+                self.store(config);
+                Ok(true)
+            }
+            Err(Error::Io(_)) => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     /// Take in what another process saved, at most once per [`FOLLOW_EVERY`]
@@ -899,6 +909,10 @@ impl Shared {
                 *refused = None;
                 self.store(config);
             }
+            // Not read just now (see `reload_if_changed`): tried again at the
+            // next look, never kept out as if it did not load — a window
+            // would follow the file no more until it changed again.
+            Err(Error::Io(_)) => {}
             Err(_) => *refused = Some(stamp),
         }
     }
@@ -1734,6 +1748,43 @@ mod tests {
     }
 
     use super::*;
+
+    /// A save another process made is followed even when the first read of
+    /// it failed: on Windows a program holding the file a moment (an
+    /// antivirus, an indexer, a replace in progress) fails one read, and that
+    /// version was kept out as if it did not load — the window stayed on the
+    /// old values until the file changed again. Made unreadable here instead,
+    /// its stamp untouched; a document that does not load is still kept out.
+    #[test]
+    fn a_save_read_too_soon_is_still_followed() {
+        let home = std::env::temp_dir().join(format!("rune-follow-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        let file = home.join(FILE);
+        std::fs::write(&file, "[ui]\nscroll_lines = 3\n").unwrap();
+        let shared = Shared::load(&home).unwrap();
+        assert_eq!(shared.number("ui.scroll_lines"), 3);
+        let next_look = || std::thread::sleep(FOLLOW_EVERY + std::time::Duration::from_millis(50));
+
+        // Another process saves; this one's first read of it fails.
+        next_look();
+        std::fs::write(&file, "[ui]\nscroll_lines = 5\n").unwrap();
+        crate::platform::set_file_mode(&file, 0o000).unwrap();
+        next_look();
+        let _ = shared.number("ui.scroll_lines");
+        crate::platform::set_file_mode(&file, 0o600).unwrap();
+        next_look();
+        assert_eq!(shared.number("ui.scroll_lines"), 5, "the save was followed");
+        assert!(!shared.reload_if_changed().unwrap());
+
+        // A document that does not load stays out until it changes.
+        next_look();
+        std::fs::write(&file, "[ui\nscroll_lines = 7\n").unwrap();
+        next_look();
+        assert_eq!(shared.number("ui.scroll_lines"), 5);
+        assert!(shared.reload_if_changed().is_err());
+        let _ = std::fs::remove_dir_all(&home);
+    }
 
     /// Owner, 2026-10-16: the shell is found on the machine unless chosen.
     #[test]

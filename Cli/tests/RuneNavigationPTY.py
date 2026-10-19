@@ -52,7 +52,7 @@ def paint(window, seconds=0.2, grace=1.5):
 def composer():
     folder = live.session_dir(1)
     path = folder / "composer.json" if folder else None
-    return json.loads(path.read_text()) if path and path.exists() else {}
+    return json.loads(live.RuneTerminal.read_document(path)) if path and path.exists() else {}
 
 
 def paste(window, text):
