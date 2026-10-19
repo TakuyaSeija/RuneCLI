@@ -270,7 +270,11 @@ def cells(ch):
 class Screen:
     """What a terminal shows after the bytes so far: cursor moves, erases,
     margins and scrolls, wide characters, and each cell's foreground colour
-    (`ink`) — enough to tell a red bullet from a grey one."""
+    (`ink`) — enough to tell a red bullet from a grey one. It writes past the
+    last column as xterm does (the wrap waits for the next character) and
+    knows the sequences a ConPTY redraws with (erase/insert/delete
+    characters and lines, absolute rows, a saved cursor): Windows's console
+    host passes a program's frames on in its own words, not the program's."""
 
     def __init__(self, rows, cols):
         self.rows, self.cols = rows, cols
@@ -279,6 +283,8 @@ class Screen:
         self.fg = None
         self.y = self.x = 0
         self.top, self.bottom = 0, rows
+        self.wrap = False
+        self.saved = (0, 0)
         self.pending = ""
         self.decode = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
@@ -298,10 +304,13 @@ class Screen:
                 continue
             if c == "\r":
                 self.x = 0
+                self.wrap = False
             elif c == "\n":
                 self.line_feed()
+                self.wrap = False
             elif c == "\b":
                 self.x = max(0, self.x - 1)
+                self.wrap = False
             elif ord(c) >= 0x20:
                 self.put(c)
             i += 1
@@ -329,7 +338,24 @@ class Screen:
 
     def escape(self, seq):
         if not seq.startswith("\x1b["):
+            kind = seq[1:2]
+            if kind == "7":
+                self.saved = (self.y, self.x)
+            elif kind == "8":
+                self.y, self.x = self.saved
+            elif kind == "M":
+                if self.y == self.top:
+                    self.scroll(-1)
+                else:
+                    self.y = max(0, self.y - 1)
+            elif kind == "D":
+                self.line_feed()
+            elif kind == "E":
+                self.x = 0
+                self.line_feed()
+            self.wrap = False
             return
+        self.wrap = False
         body, final = seq[2:-1], seq[-1]
         private = body.startswith("?")
         nums = [int(p) if p.isdigit() else 0 for p in body.lstrip("?").split(";")] if body else []
@@ -342,8 +368,47 @@ class Screen:
         if final in "Hf":
             self.y = min(self.rows - 1, max(first, 1) - 1)
             self.x = min(self.cols - 1, max(nums[1] if len(nums) > 1 else 1, 1) - 1)
-        elif final == "G":
+        elif final in "G`":
             self.x = min(self.cols - 1, max(first, 1) - 1)
+        elif final == "d":
+            self.y = min(self.rows - 1, max(first, 1) - 1)
+        elif final == "X":
+            for c in range(self.x, min(self.cols, self.x + max(first, 1))):
+                self.grid[self.y][c] = " "
+                self.inks[self.y][c] = None
+        elif final in "@P":
+            by = max(first, 1)
+            for grid, blank in ((self.grid, " "), (self.inks, None)):
+                row = grid[self.y]
+                if final == "@":
+                    row[self.x:self.x] = [blank] * by
+                    del row[self.cols:]
+                else:
+                    del row[self.x:self.x + by]
+                    row.extend([blank] * (self.cols - len(row)))
+        elif final in "LM" and self.top <= self.y < self.bottom:
+            by = max(first, 1)
+            for grid, blank in ((self.grid, " "), (self.inks, None)):
+                band = grid[self.y:self.bottom]
+                for _ in range(min(by, len(band))):
+                    if final == "L":
+                        band.pop()
+                        band.insert(0, [blank] * self.cols)
+                    else:
+                        band.pop(0)
+                        band.append([blank] * self.cols)
+                grid[self.y:self.bottom] = band
+            self.x = 0
+        elif final == "E":
+            self.y = min(self.rows - 1, self.y + max(first, 1))
+            self.x = 0
+        elif final == "F":
+            self.y = max(0, self.y - max(first, 1))
+            self.x = 0
+        elif final == "s":
+            self.saved = (self.y, self.x)
+        elif final == "u":
+            self.y, self.x = self.saved
         elif final == "K":
             row = self.grid[self.y]
             span = range(self.x, self.cols) if first == 0 else range(0, self.x + 1) if first == 1 else range(self.cols)
@@ -419,12 +484,27 @@ class Screen:
         else:
             self.y += 1
 
+    def scroll(self, by):
+        """Scroll the margins up `by` rows (down when negative)."""
+        for grid, blank in ((self.grid, " "), (self.inks, None)):
+            band = grid[self.top:self.bottom]
+            for _ in range(min(abs(by), len(band))):
+                if by > 0:
+                    band.pop(0)
+                    band.append([blank] * self.cols)
+                else:
+                    band.pop()
+                    band.insert(0, [blank] * self.cols)
+            grid[self.top:self.bottom] = band
+
     def put(self, ch):
         w = cells(ch)
         if w == 0:
             return
-        if self.x + w > self.cols:
-            return
+        if self.wrap or self.x + w > self.cols:
+            self.x = 0
+            self.line_feed()
+            self.wrap = False
         row = self.grid[self.y]
         for c in (self.x, self.x + w - 1):
             if row[c] == "\0" and c > 0:
@@ -435,7 +515,11 @@ class Screen:
         self.inks[self.y][self.x] = self.fg
         if w == 2:
             row[self.x + 1] = "\0"
-        self.x += w
+        if self.x + w >= self.cols:
+            self.x = self.cols - 1
+            self.wrap = True
+        else:
+            self.x += w
 
     def text(self):
         return "\n".join("".join(ch for ch in row if ch != "\0").rstrip() for row in self.grid)

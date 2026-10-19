@@ -72,9 +72,17 @@ def main():
             live.until(lambda:w.shows('UNDO') and w.shows('a.txt') and w.shows('b.txt'),f'undo after probe {n}',w,timeout=8)
             w.send(b'\x1b')
             live.until(lambda:w.shows(answer) and not w.shows('alt+s show diff'),'undo closes',w)
+            # The window's clearing edit reaches the host's composer.json a
+            # moment later on a slow machine; what was sent must not stay.
             composer=list(live.HOME.glob('projects/*/sessions/1/composer.json'))[0]
-            state=json.loads(composer.read_text())
-            if state.get('text') not in ('','/context'):
+            state={}
+            def cleared():
+                nonlocal state
+                state=json.loads(composer.read_text())
+                return state.get('text') in ('','/context')
+            try:
+                live.until(cleared,'composer cleared',w,timeout=5)
+            except AssertionError:
                 raise AssertionError(f'probe {n}: old prompt resurrected in composer: {state}')
             print('ok probe',n,flush=True)
         rows=live.transcript()

@@ -1231,6 +1231,10 @@ while True:
         confined.contains("InOut refused:"),
         "a confined command opened another program's pipe to write:\n{confined}"
     );
+    assert!(
+        confined.contains("In refused:") && served_confined == 0,
+        "MEASURED ({kind}): a confined command read another program's pipe:\n{confined}\nserved {served_confined}"
+    );
 }
 
 /// A datagram stand-in, run as a program of its own outside the sandbox: a

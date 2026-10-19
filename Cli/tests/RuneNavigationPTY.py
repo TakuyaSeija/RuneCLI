@@ -11,7 +11,7 @@ sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("live", Path(__file__).with_name("RuneLiveProviderPTY.py"))
 live = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(live)
-BINARY = live.ROOT / "rune-navigation-test"
+BINARY = live.ROOT / ("rune-navigation-test.exe" if live.WINDOWS else "rune-navigation-test")
 shutil.copy2(live.BIN, BINARY)
 live.BIN = str(BINARY)
 os.environ["HOME"] = str(live.HOME)
