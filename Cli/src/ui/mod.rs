@@ -3649,6 +3649,12 @@ impl App {
             if let Awaiting::Mode { previous, .. } = &what {
                 self.mode = previous.clone();
             }
+            // The capabilities panel is open and waiting for this answer: a
+            // failure (a server that would not connect) is said there, where
+            // the person looks, not only on the status row that fades.
+            if matches!(what, Awaiting::Capabilities) {
+                self.capability_view = serde_json::json!({ "status": error.clone() });
+            }
             // A refused restore or diff is said in the undo panel.
             if matches!(what, Awaiting::Restored { .. } | Awaiting::UndoDiff { .. }) {
                 if matches!(what, Awaiting::Restored { .. }) {
@@ -4444,6 +4450,32 @@ mod animation_tests {
         start(&mut joiner);
         assert_eq!(users(&joiner), 1, "drawn once");
         assert!(joiner.busy, "and the turn runs");
+    }
+
+    /// A server that would not connect left the capabilities panel blank:
+    /// the reason was only on the status row, gone after a few seconds.
+    #[test]
+    fn a_refused_capability_request_is_said_in_the_open_panel() {
+        let mut app = App::for_test();
+        app.capability_view = serde_json::json!({ "servers": [] });
+        app.awaiting.insert(1, Awaiting::Capabilities);
+        app.on_ack(
+            1,
+            false,
+            Some("MCP connection failed (connection closed)".into()),
+            None,
+        );
+        app.panel = Panel::Capabilities;
+        let drawn = panels::render(&app, 80)
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            drawn.contains("MCP connection failed (connection closed)"),
+            "{drawn}"
+        );
     }
 
     /// Audit R14: the footer showed Ask while the engine still enforced Full

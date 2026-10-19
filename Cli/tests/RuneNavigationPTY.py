@@ -29,8 +29,18 @@ def ok(name):
 
 
 def paint(window, seconds=0.2):
-    end = live.time.monotonic() + seconds
-    live.until(lambda: live.time.monotonic() >= end, "drain frames", window, seconds + 3)
+    """Wait until the screen above the status row has held still for
+    `seconds`: a fixed pause read half a frame on a slow machine (macOS CI)
+    and compared it as a result."""
+    last, still = None, live.time.monotonic()
+    def settled():
+        nonlocal last, still
+        # The status row's spinner and clock tick while work waits.
+        now = window.screen.text().rsplit("\n", 1)[0]
+        if now != last:
+            last, still = now, live.time.monotonic()
+        return live.time.monotonic() - still >= seconds
+    live.until(settled, "frames never settled", window, seconds + 10)
 
 
 def composer():

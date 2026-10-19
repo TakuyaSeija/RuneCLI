@@ -1140,10 +1140,12 @@ def serve(h):
         note("told " + data.decode(errors="replace").strip())
     except OSError:
         pass
+# PIPE_ACCESS_DUPLEX, FILE_FLAG_FIRST_PIPE_INSTANCE; a byte pipe that
+# waits (PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT = 0).
 first = True
 while True:
-    mode = _winapi.PIPE_ACCESS_DUPLEX | (_winapi.FILE_FLAG_FIRST_PIPE_INSTANCE if first else 0)
-    h = _winapi.CreateNamedPipe(name, mode, _winapi.PIPE_TYPE_BYTE | _winapi.PIPE_READMODE_BYTE | _winapi.PIPE_WAIT, 255, 4096, 4096, 0, _winapi.NULL)
+    mode = 0x3 | (0x80000 if first else 0)
+    h = _winapi.CreateNamedPipe(name, mode, 0, 255, 4096, 4096, 0, _winapi.NULL)
     if first:
         note("ready")
         first = False
@@ -1158,10 +1160,12 @@ while True:
     )
     .unwrap();
     let name = format!("rune-gap-{}", std::process::id());
+    let errors = dir.join("server-errors.txt");
     let mut service = std::process::Command::new(runeengine::testing::python())
         .arg(&server)
         .arg(format!(r"\\.\pipe\{name}"))
         .arg(&marker)
+        .stderr(std::fs::File::create(&errors).unwrap())
         .spawn()
         .unwrap();
     let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
@@ -1172,6 +1176,13 @@ while True:
     {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    assert!(
+        std::fs::read_to_string(&marker)
+            .unwrap_or_default()
+            .contains("ready"),
+        "the stand-in service never made its pipe: {}",
+        std::fs::read_to_string(&errors).unwrap_or_default()
+    );
     let codes: Vec<String> = name.encode_utf16().map(|c| c.to_string()).collect();
     let open = format!(
         "$n = [string]::new([char[]]@({})); foreach ($d in 'In','InOut') {{ $c = [System.IO.Pipes.NamedPipeClientStream]::new('.', $n, [System.IO.Pipes.PipeDirection]$d); try {{ $c.Connect(5000); $r = [System.IO.StreamReader]::new($c); \"$d opened: \" + $r.ReadLine(); if ($d -eq 'InOut') {{ $w = [System.IO.StreamWriter]::new($c); $w.WriteLine('hi'); $w.Flush(); 'InOut wrote' }} }} catch {{ \"$d refused: \" + $_.Exception.Message }} finally {{ $c.Dispose() }} }}",

@@ -9,6 +9,8 @@ DBus on the owner's desktop and are not run here.
 import subprocess, sys, time
 from pathlib import Path
 
+# A Windows console's own code page cannot print what the windows draw.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import RuneTerminal
@@ -24,7 +26,7 @@ for fixture in sorted(HERE.glob("Rune*.py")):
         continue
     began = time.monotonic()
     try:
-        run = subprocess.run([sys.executable, "-I", str(fixture), BIN], capture_output=True,
+        run = subprocess.run([sys.executable, "-I", "-X", "utf8", str(fixture), BIN], capture_output=True,
                              text=True, encoding="utf-8", errors="replace", timeout=DEADLINE)
         code, out = run.returncode, run.stdout + run.stderr
     except subprocess.TimeoutExpired as e:

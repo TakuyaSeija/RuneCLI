@@ -16,7 +16,7 @@ sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("live", Path(__file__).with_name("RuneLiveProviderPTY.py"))
 live = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(live)
-BINARY = live.ROOT / "rune-editing-test"
+BINARY = live.ROOT / ("rune-editing-test.exe" if live.WINDOWS else "rune-editing-test")
 shutil.copy2(live.BIN, BINARY)
 live.BIN = str(BINARY)
 os.environ["HOME"] = str(live.HOME)
@@ -329,7 +329,11 @@ def run():
         fixture_source=fixture_source.replace(old,'"properties":'+json.dumps(fields)+', "required":'+json.dumps(list(fields)))
         fixture_source=fixture_source.replace('payload["user_name"] = request["params"]["inputResponses"]["details"].get("content", {}).get("name")','payload["user_fields"] = request["params"]["inputResponses"]["details"].get("content", {})')
         fixture.write_text(fixture_source)
-        args = [str(BINARY), "-project", str(live.PROJECT), "-mcp", "add", "editing", sys.executable, str(fixture)]
+        # The interpreter itself, not a virtual environment's (CI runs the
+        # fixtures from one): a server reads only what its confinement grants,
+        # and a venv's own folder is a `read_roots` choice of the person's.
+        python = getattr(sys, "_base_executable", None) or sys.executable
+        args = [str(BINARY), "-project", str(live.PROJECT), "-mcp", "add", "editing", python, str(fixture)]
         added = subprocess.run(args, env=ENV, capture_output=True, text=True, timeout=20)
         assert added.returncode == 0, added.stderr + added.stdout
         clear(window)

@@ -89,18 +89,22 @@ def main():
         "[host]\nidle_lifetime = \"3s\"\n"
     )
 
-    # 1. A terminal standing in a deleted folder.
-    gone = live.ROOT / "Testing"
-    gone.mkdir()
-    shell = subprocess.run(
-        ["/bin/sh", "-c", f'cd "{gone}" && rm -rf "{gone}" && mkdir "{gone}" && exec "$0" -p hello', os.path.abspath(live.BIN)],
-        env=dict(os.environ, RUNE_HOME=str(live.HOME), PWD=str(gone)),
-        capture_output=True, text=True, timeout=30)
-    said = shell.stdout + shell.stderr
-    assert shell.returncode != 0, said
-    assert "is now a different folder" in said and f"cd {gone}" in said, said
-    assert "os error" not in said, said
-    passed.append("a deleted working folder is named with the cd that enters the new one")
+    # 1. A terminal standing in a deleted folder. Windows refuses to delete a
+    #    folder a process stands in, so it never meets one.
+    if live.WINDOWS:
+        print("skip a deleted working folder: Windows deletes no folder in use")
+    else:
+        gone = live.ROOT / "Testing"
+        gone.mkdir()
+        shell = subprocess.run(
+            ["/bin/sh", "-c", f'cd "{gone}" && rm -rf "{gone}" && mkdir "{gone}" && exec "$0" -p hello', os.path.abspath(live.BIN)],
+            env=dict(os.environ, RUNE_HOME=str(live.HOME), PWD=str(gone)),
+            capture_output=True, text=True, timeout=30)
+        said = shell.stdout + shell.stderr
+        assert shell.returncode != 0, said
+        assert "is now a different folder" in said and f"cd {gone}" in said, said
+        assert "os error" not in said, said
+        passed.append("a deleted working folder is named with the cd that enters the new one")
 
     window = live.Window(["-project", str(live.PROJECT)])
     try:
