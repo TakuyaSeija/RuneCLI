@@ -482,6 +482,17 @@ impl Handed {
     }
 }
 
+/// A file no child may hold ([`keep_from_children`]).
+#[derive(Debug)]
+pub struct KeptFromChildren;
+
+/// A child of Rune's on Windows gets the handles its start lists and no
+/// other (`PROC_THREAD_ATTRIBUTE_HANDLE_LIST`), so a lock is never one of
+/// them: nothing to note.
+pub fn keep_from_children(_file: &File) -> KeptFromChildren {
+    KeptFromChildren
+}
+
 /// Mark `file` to be handed on, under the number the returned [`Handed`]
 /// names.
 pub fn hand_on(file: File) -> io::Result<Handed> {

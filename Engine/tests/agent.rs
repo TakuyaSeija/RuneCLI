@@ -7407,6 +7407,69 @@ fn mcp_elicitation_uses_real_validated_user_input_and_cancel_stops_the_server() 
     engine.shutdown();
 }
 
+/// A server's form the person closes (Esc: `cancel`) or turns down
+/// (`decline`) ends the call it belongs to, answered by the server, and the
+/// connection stays: no answer that is not `accept` was ever tried, and a
+/// Windows run showed a call still running 40 s after its form closed.
+#[test]
+fn an_mcp_form_closed_or_turned_down_ends_its_call() {
+    let h = harness("mcp-form-closed", json!({"responses":[]}));
+    let mut engine = h.engine;
+    let state = engine.open(h.project.to_str().unwrap()).unwrap().state;
+    connect_fixture(&h.project, &state, "closed");
+    for (n, action) in ["cancel", "decline"].into_iter().enumerate() {
+        let id = 980 + 10 * n as u64;
+        engine.handle(Command::ToolInvoke {
+            id,
+            session: h.session,
+            name: "call_mcp_tool".into(),
+            args: json!({"action":"ask the user","server_id":"closed","tool":"echo",
+                         "arguments":{"action":"ask","items":[]}}),
+        });
+        let mut asked = false;
+        loop {
+            let event = h
+                .events
+                .recv_timeout(std::time::Duration::from_secs(15))
+                .unwrap_or_else(|_| panic!("{action}: the call never ended"));
+            match event {
+                Event::PermissionRequest { req, .. } => {
+                    engine.handle(Command::PermissionReply {
+                        id: id + 1,
+                        req,
+                        decision: Decision::AllowOnce,
+                    });
+                }
+                Event::McpInputRequest { req, .. } => {
+                    engine.handle(Command::McpInputReply {
+                        id: id + 2,
+                        session: h.session,
+                        req,
+                        reply: runeengine::capabilities::input::Reply {
+                            action: action.into(),
+                            content: None,
+                        },
+                    });
+                    asked = true;
+                }
+                Event::ToolResult { content, .. } => {
+                    assert!(asked, "{action}: {content}");
+                    break;
+                }
+                _ => {}
+            }
+        }
+        while state.is_busy() {
+            std::thread::yield_now();
+        }
+        assert!(
+            state.capabilities.connection("closed").unwrap().ready(),
+            "{action}: the server answered; it is not stopped"
+        );
+    }
+    engine.shutdown();
+}
+
 /// Adds the fixture as MCP server `id` of `h`'s project and connects it.
 fn connect_fixture(project: &std::path::Path, state: &runeengine::session::SessionState, id: &str) {
     let fixture = project.join("McpFixture.py");

@@ -613,7 +613,7 @@ fn write_marker(store: &Path, version: u32) -> Result<()> {
 
 /// Take `path` exclusively, however long another process holds it — an
 /// upgrade in another process is worth waiting for.
-fn hold(path: &Path) -> Result<std::fs::File> {
+fn hold(path: &Path) -> Result<crate::lock::Lock> {
     loop {
         match crate::lock::exclusive(path, crate::lock::Wait::No) {
             Ok(file) => return Ok(file),

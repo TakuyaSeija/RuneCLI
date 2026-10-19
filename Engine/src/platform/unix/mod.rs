@@ -6,6 +6,7 @@
 mod console;
 mod files;
 mod home;
+pub(in crate::platform) mod kept;
 mod process;
 pub(in crate::platform) mod pty;
 mod socket;
@@ -22,6 +23,7 @@ pub use files::{
     writable, FileIdentity, Handed, LinkFreeDir,
 };
 pub use home::{default_shell, find_program, home_dir};
+pub use kept::{keep_from_children, KeptFromChildren};
 pub use process::{
     at_start, exit_code, group_alive, new_tree_mark, reap, reap_exited, replace_process,
     running_elevated, spawn_detached, spawn_on_terminal, spawn_piped, terminate_group,

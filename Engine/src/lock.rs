@@ -9,6 +9,10 @@
 //! The standard library's file locks (`flock` on Linux — the lock every
 //! earlier build took, so two builds side by side during a handover exclude
 //! each other).
+//!
+//! A lock is a [`Lock`], never a bare file: a child of this process must not
+//! hold it while it starts (`platform::keep_from_children`), and only the
+//! type knows to take that note back before the file closes.
 
 use std::fs::{File, TryLockError};
 use std::path::Path;
@@ -31,13 +35,53 @@ pub enum Wait {
 /// an error.
 pub const PATIENCE: Duration = Duration::from_secs(10);
 
+/// A lock held: the open file it belongs to, kept from every child this
+/// process starts. Let go when dropped.
+#[derive(Debug)]
+pub struct Lock {
+    // Declared first, so dropped first: the note goes before the descriptor
+    // it names closes, and a child never closes a number reused meanwhile.
+    _kept: crate::platform::KeptFromChildren,
+    file: File,
+}
+
+impl Lock {
+    fn noted(file: File) -> Lock {
+        Lock {
+            _kept: crate::platform::keep_from_children(&file),
+            file,
+        }
+    }
+
+    /// A lock the build before this one handed on across its `exec`.
+    pub fn adopt(file: File) -> Lock {
+        Lock::noted(file)
+    }
+
+    /// The file, for handing on across an `exec` (`platform::hand_on`), no
+    /// longer kept from children: done last before the `exec`.
+    pub fn into_file(self) -> File {
+        // The note goes with the destructuring, before the file is returned.
+        let Lock { file, .. } = self;
+        file
+    }
+}
+
+impl std::ops::Deref for Lock {
+    type Target = File;
+
+    fn deref(&self) -> &File {
+        &self.file
+    }
+}
+
 /// `path` held alone: no other holder, shared or exclusive.
-pub fn exclusive(path: &Path, wait: Wait) -> Result<File> {
+pub fn exclusive(path: &Path, wait: Wait) -> Result<Lock> {
     take(path, wait, Kind::Exclusive, PATIENCE)
 }
 
 /// `path` held beside other shared holders, never beside an exclusive one.
-pub fn shared(path: &Path, wait: Wait) -> Result<File> {
+pub fn shared(path: &Path, wait: Wait) -> Result<Lock> {
     take(path, wait, Kind::Shared, PATIENCE)
 }
 
@@ -54,12 +98,15 @@ fn try_lock(file: &File, kind: Kind) -> std::result::Result<(), TryLockError> {
     }
 }
 
-fn take(path: &Path, wait: Wait, kind: Kind, patience: Duration) -> Result<File> {
+fn take(path: &Path, wait: Wait, kind: Kind, patience: Duration) -> Result<Lock> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    let file = crate::platform::open_private(path, crate::platform::Private::Lock)?;
-    match try_lock(&file, kind) {
+    let file = Lock::noted(crate::platform::open_private(
+        path,
+        crate::platform::Private::Lock,
+    )?);
+    match try_lock(&file.file, kind) {
         Ok(()) => return Ok(file),
         Err(TryLockError::Error(error)) => return Err(error.into()),
         Err(TryLockError::WouldBlock) if wait == Wait::No => {
@@ -79,15 +126,15 @@ fn take(path: &Path, wait: Wait, kind: Kind, patience: Duration) -> Result<File>
     // on, the waiter's copy is its last one: the thread takes the lock when it
     // is released, finds no one to hand it to, and closing the copy frees it
     // again.
-    let waiter = file.try_clone()?;
+    let waiter = Lock::noted(file.file.try_clone()?);
     let (taken, answer) = std::sync::mpsc::channel();
     std::thread::Builder::new()
         .name("lock-wait".into())
         .spawn(move || {
             let outcome = loop {
                 let held = match kind {
-                    Kind::Shared => waiter.lock_shared(),
-                    Kind::Exclusive => waiter.lock(),
+                    Kind::Shared => waiter.file.lock_shared(),
+                    Kind::Exclusive => waiter.file.lock(),
                 };
                 match held {
                     Ok(()) => break Ok(()),

@@ -373,6 +373,22 @@ def run():
         window.send(b"\r")
         live.until(lambda: window.shows("ready"), "MCP connects", window)
         window.send(b"\x1b")
+        # A form closed with Esc ends its call: the server is told `cancel`,
+        # answers, and the turn goes on (a Windows run once showed the call
+        # still running 40 s after its form went).
+        provider.queue(live.tool("call_mcp_tool", {"action": "Close the form", "server_id": "editing", "tool": "echo", "arguments": {"action": "ask", "items": []}}), live.text("MCP form closed answered."))
+        clear(window)
+        paste(window, "Close the MCP form")
+        window.send(b"\r")
+        live.until(lambda: window.shows("Allow once") or window.shows("Enter the name to use."), "MCP permission/form to close", window)
+        if window.shows("Allow once"):
+            click_text(window, "Allow once")
+        live.until(lambda: window.shows("Enter the name to use."), "MCP form to close", window)
+        live.press_escape(window)
+        live.until(lambda: window.shows("MCP form closed answered."), "a closed form ends its call", window)
+        assert not window.shows("Enter the name to use."), window.screen.text()
+        live.settled(window)
+        ok("MCP form closed with Esc ends its call")
         provider.queue(live.tool("call_mcp_tool", {"action": "Test input", "server_id": "editing", "tool": "echo", "arguments": {"action": "ask", "items": []}}), live.text("MCP edited answer accepted."))
         clear(window)
         paste(window, "Ask the local MCP server")

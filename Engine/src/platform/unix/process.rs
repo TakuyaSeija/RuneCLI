@@ -53,6 +53,9 @@ fn in_child(
     let (mut steps, watch) = os::ChildSteps::new(placement)?;
     unsafe {
         command.pre_exec(move || {
+            // First: no lock of Rune's stays taken by a command still
+            // starting (`kept.rs`).
+            super::kept::close_in_child();
             leave_session()?;
             // The terminal is the child's stdin by now (std sets up stdio
             // before running this): it becomes its controlling terminal, so

@@ -96,6 +96,8 @@ pub fn recorded_grants(path: &Path) -> io::Result<Vec<RecordedGrant>> {
 /// A ledger held: no other process records in it or takes from it until it
 /// is let go.
 pub(in crate::platform) struct Ledger {
+    // Before `file`, so dropped before it closes (`keep_from_children`).
+    _kept: super::KeptFromChildren,
     file: File,
     listed: Option<HashSet<RecordedGrant>>,
 }
@@ -104,8 +106,13 @@ impl Ledger {
     /// The ledger at `path` — made, this user's alone, when missing — held.
     pub(in crate::platform) fn hold(path: &Path) -> io::Result<Ledger> {
         let file = super::open_private(path, super::Private::Lock)?;
+        let _kept = super::keep_from_children(&file);
         file.lock()?;
-        Ok(Ledger { file, listed: None })
+        Ok(Ledger {
+            _kept,
+            file,
+            listed: None,
+        })
     }
 
     fn text(&mut self) -> io::Result<String> {

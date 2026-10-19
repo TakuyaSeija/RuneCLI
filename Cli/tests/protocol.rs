@@ -1316,14 +1316,25 @@ fn manage(
     id: u64,
     args: Value,
 ) -> Value {
-    writeln!(
-        client,
-        "{}",
-        json!({"cmd":"tool.invoke","id":id,"session":session,"name":"manage_process","args":args})
-    )
-    .unwrap();
+    let invoke =
+        json!({"cmd":"tool.invoke","id":id,"session":session,"name":"manage_process","args":args});
+    writeln!(client, "{invoke}").unwrap();
+    let mut refused = false;
     loop {
         let e = event(reader);
+        // Refused while a turn still holds the session: sent again at its
+        // `done`, as a frontend does.
+        if e["t"] == "ack" && e["id"] == id && e["ok"] == false {
+            let error = e["error"].as_str().unwrap_or_default();
+            assert!(error.contains("already running a turn"), "{e}");
+            refused = true;
+            continue;
+        }
+        if refused && e["t"] == "done" {
+            refused = false;
+            writeln!(client, "{invoke}").unwrap();
+            continue;
+        }
         if e["t"] == "permission_request" {
             writeln!(
                 client,
@@ -1559,13 +1570,10 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     // would hear when its server ends, and it does: the wake is answered by a
     // turn of its own once the call lets the session go — never stored for
     // nobody. Which of the two is said first is the threads' business.
-    writeln!(
-        client,
-        "{}",
-        json!({"cmd":"tool.invoke","id":5,"session":session,"name":"manage_process",
-               "args":{"action":"stop the server","process_id":serve["task_id"],"kill":true}})
-    )
-    .unwrap();
+    let kill = json!({"cmd":"tool.invoke","id":5,"session":session,"name":"manage_process",
+                      "args":{"action":"stop the server","process_id":serve["task_id"],"kill":true}});
+    writeln!(client, "{kill}").unwrap();
+    let mut refused = false;
     let (mut stopped, mut woke, mut answered) = (None, None, Vec::new());
     let mut wake_done = false;
     let mut seen = Vec::new();
@@ -1576,6 +1584,21 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
         }
         let e: Value = serde_json::from_str(&line).unwrap_or_else(|e| panic!("{line:?}: {e}"));
         seen.push(e.clone());
+        // The wake's answer is in the transcript before its turn lets the
+        // session go (`done` comes after): a direct call sent in between is
+        // refused, as for any frontend, and sent again once it is done
+        // (Linux CI, 2026-10-19: no kill, so no result and no wake).
+        if e["t"] == "ack" && e["id"] == 5 && e["ok"] == false {
+            let error = e["error"].as_str().unwrap_or_default();
+            assert!(error.contains("already running a turn"), "{e}");
+            refused = true;
+            continue;
+        }
+        if refused && e["t"] == "done" {
+            refused = false;
+            writeln!(client, "{kill}").unwrap();
+            continue;
+        }
         if e["t"] == "permission_request" {
             writeln!(
                 client,

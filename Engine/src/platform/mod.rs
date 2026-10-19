@@ -113,6 +113,9 @@
 //!   LinkFreeDir::open(path).open_file(relative)  no symbolic link anywhere on the way
 //!   Handed, hand_on(File), take_handed_file(Handed, expected)
 //!                                                kept open across an exec, named by number
+//!   keep_from_children(&File) -> KeptFromChildren  no child holds it, not even before its
+//!                                                exec (a lock); dropped before the file
+//!                                                closes
 //!
 //! Local sockets
 //!   LocalListener: bind(path), accept, incoming, try_clone, wake

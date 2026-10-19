@@ -93,6 +93,7 @@ fn probe() -> io::Result<bool> {
         return Err(io::Error::last_os_error());
     }
     if child == 0 {
+        crate::platform::unix::kept::close_in_child();
         let sent = filter.install().and_then(|listener| handoff.send(listener));
         unsafe { libc::_exit(if sent.is_ok() { 0 } else { 1 }) }
     }

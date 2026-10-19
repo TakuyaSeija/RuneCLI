@@ -96,7 +96,7 @@ pub struct Memory {
 pub struct Hold {
     /// The memory's canonical directory and its lock, when the file is one of
     /// the memory's.
-    memory: Option<(PathBuf, std::fs::File)>,
+    memory: Option<(PathBuf, crate::lock::Lock)>,
 }
 
 impl Hold {

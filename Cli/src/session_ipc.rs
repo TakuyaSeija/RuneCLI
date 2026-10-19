@@ -48,7 +48,8 @@ impl From<String> for NotStarted {
 /// Ownership locks the program this process was before handed on across its
 /// exec (`handover::Handover::owners`), each waiting for its session's host
 /// to start — and when it was taken, so one nobody takes is let go.
-static ADOPTED: Mutex<Vec<(i64, std::fs::File, std::time::Instant)>> = Mutex::new(Vec::new());
+static ADOPTED: Mutex<Vec<(i64, runeengine::lock::Lock, std::time::Instant)>> =
+    Mutex::new(Vec::new());
 
 /// Take over the ownership locks handed across the exec. A descriptor is taken
 /// only when it is the lock file of the session it names; any other number is
@@ -63,7 +64,7 @@ pub(crate) fn adopt_ownership(owners: &[crate::handover::Owner]) {
         if let Some(file) = runeengine::platform::take_handed_file(owner.fd, &lock) {
             runeengine::panic::lock(&ADOPTED).push((
                 owner.session,
-                file,
+                runeengine::lock::Lock::adopt(file),
                 std::time::Instant::now(),
             ));
         }
@@ -72,7 +73,7 @@ pub(crate) fn adopt_ownership(owners: &[crate::handover::Owner]) {
 
 /// The ownership lock handed on for `session`, if one waits — still holding the
 /// lock, or it is let go and `None` is answered.
-fn adopted(session: i64) -> Option<std::fs::File> {
+fn adopted(session: i64) -> Option<runeengine::lock::Lock> {
     let file = {
         let mut waiting = runeengine::panic::lock(&ADOPTED);
         let at = waiting.iter().position(|(id, ..)| *id == session)?;
@@ -308,7 +309,7 @@ pub(crate) struct SessionHost {
     /// and moves out of the way ([`SessionHost::retire`]).
     socket_path: Mutex<PathBuf>,
     socket_identity: FileIdentity,
-    ownership: Option<std::fs::File>,
+    ownership: Option<runeengine::lock::Lock>,
     /// The listening socket, for waking the accept loop on the way out — by
     /// the socket, never by its path, which may be gone (`LocalListener::wake`).
     waker: LocalListener,
@@ -398,7 +399,7 @@ impl SessionHost {
     /// Take the ownership locks out of this host and its children, for the
     /// build it `exec`s into: the sessions stay owned through the exec, and
     /// dropping the host afterwards releases none of them.
-    pub(crate) fn hand_over_ownership(&mut self) -> Vec<(i64, std::fs::File)> {
+    pub(crate) fn hand_over_ownership(&mut self) -> Vec<(i64, runeengine::lock::Lock)> {
         let mut owned: Vec<_> = self
             .ownership
             .take()
@@ -1398,7 +1399,7 @@ mod tests {
         let (_, held) = handed.into_iter().next().unwrap();
         adopt_ownership(&[crate::handover::Owner {
             session,
-            fd: hand_on(held).unwrap(),
+            fd: hand_on(held.into_file()).unwrap(),
         }]);
         let (next, _ui) = start().unwrap();
         assert!(matches!(start(), Err(NotStarted::Owned)));
@@ -1409,7 +1410,7 @@ mod tests {
         let waiting = exclusive(&lock, Wait::No).unwrap();
         adopt_ownership(&[crate::handover::Owner {
             session,
-            fd: hand_on(waiting).unwrap(),
+            fd: hand_on(waiting.into_file()).unwrap(),
         }]);
         assert!(exclusive(&lock, Wait::No).is_err(), "held while it waits");
         expire_adopted(Duration::ZERO);

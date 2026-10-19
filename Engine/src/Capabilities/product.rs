@@ -150,7 +150,7 @@ fn parent(home: &Path) -> Result<PathBuf> {
     Ok(parent)
 }
 
-fn lock(parent: &Path) -> Result<std::fs::File> {
+fn lock(parent: &Path) -> Result<crate::lock::Lock> {
     crate::lock::exclusive(&parent.join(LOCK), crate::lock::Wait::Yes)
 }
 
@@ -224,7 +224,7 @@ fn publish(parent: &Path, destination: &Path) -> Result<()> {
 /// revision. Taken under [`LOCK`], so a prune cannot remove the revision
 /// between its check and this hold.
 fn hold_in_use(parent: &Path) -> Result<()> {
-    static HELD: std::sync::Mutex<BTreeMap<PathBuf, std::fs::File>> =
+    static HELD: std::sync::Mutex<BTreeMap<PathBuf, crate::lock::Lock>> =
         std::sync::Mutex::new(BTreeMap::new());
     let mut held = HELD.lock().unwrap_or_else(|e| e.into_inner());
     if held.contains_key(parent) {

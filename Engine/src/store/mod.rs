@@ -54,7 +54,7 @@ pub(crate) struct PendingCall {
 pub struct Db {
     conn: Connection,
     pub jsonl: jsonl::JsonlStore,
-    pub(crate) session_leases: std::sync::Mutex<std::collections::HashMap<i64, std::fs::File>>,
+    pub(crate) session_leases: std::sync::Mutex<std::collections::HashMap<i64, crate::lock::Lock>>,
     /// In-flight tool calls keyed by (session_id, wire_id). The wire id can repeat
     /// across rounds, so a newer begin replaces an older pending entry for the same
     /// key — matching the old "most recent open row" semantics of end_toolcall.

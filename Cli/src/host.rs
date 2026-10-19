@@ -603,7 +603,7 @@ impl Installed {
     fn exec(
         &self,
         mut record: crate::handover::Handover,
-        owners: Vec<(i64, std::fs::File)>,
+        owners: Vec<(i64, runeengine::lock::Lock)>,
     ) -> String {
         if crate::build::readiness(&self.executable, self.database.as_deref()).adopts_owners {
             for (session, lock) in owners {
@@ -611,7 +611,7 @@ impl Installed {
                 // inherit it, and the successor closes it on exec again. One
                 // that cannot be kept open is let go here: the successor's
                 // host locks its session anew, as for a build that adopts none.
-                if let Ok(fd) = runeengine::platform::hand_on(lock) {
+                if let Ok(fd) = runeengine::platform::hand_on(lock.into_file()) {
                     record.owners.push(crate::handover::Owner { session, fd });
                 }
             }
