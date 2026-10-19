@@ -528,6 +528,16 @@ class Screen:
 class Window:
     def __init__(self, args, rows=46, cols=160, bin=None):
         env = dict(os.environ, RUNE_HOME=str(HOME), TERM="xterm-256color", COLORTERM="truecolor")
+        # TEMPORARY diagnosis (Windows `~` in the MCP form): what the window
+        # was sent, the console records it read and the keys it decoded,
+        # kept with a failed run's evidence. Debug builds only read these.
+        self.sent_log = None
+        if WINDOWS:
+            n = len(list(ROOT.glob("sent-*.txt")))
+            env["RUNE_DEBUG_CONSOLE_INPUT"] = str(ROOT / f"console-input-{n}.txt")
+            env["RUNE_DEBUG_KEYS"] = str(ROOT / f"keys-{n}.txt")
+            self.sent_log = open(ROOT / f"sent-{n}.txt", "a", encoding="utf-8")
+            self.began = time.monotonic()
         self.term = RuneTerminal.Terminal([bin or BIN, *args], env, rows, cols)
         self.pid = self.term.pid
         self.screen = Screen(rows, cols)
@@ -547,13 +557,16 @@ class Window:
             # background colour when asked.
             asked = seen.count(b"\x1b[5n") - self.tail.count(b"\x1b[5n")
             if asked > 0:
-                self.term.write(b"\x1b[0n" * asked)
+                self.send(b"\x1b[0n" * asked)
             if b"\x1b]11;?" in seen and b"\x1b]11;?" not in self.tail:
-                self.term.write(b"\x1b]11;rgb:1010/1010/1010\x1b\\")
+                self.send(b"\x1b]11;rgb:1010/1010/1010\x1b\\")
             self.tail = seen[-8:]
             self.screen.feed(data)
 
     def send(self, data):
+        if self.sent_log:
+            self.sent_log.write(f"{(time.monotonic() - self.began) * 1000:.0f} {data!r}\n")
+            self.sent_log.flush()
         self.term.write(data)
 
     def alive(self):
