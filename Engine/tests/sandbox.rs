@@ -1114,8 +1114,11 @@ fn a_service_of_the_persons_is_out_of_a_confined_commands_reach_off_linux() {
 
 /// A pipe another program of the person's makes with Windows's default
 /// security (no descriptor of its own: most programs) — measured, not read
-/// from documentation: what a confined command gets when it opens one to
-/// read, and to read and write. Full is the control.
+/// from documentation (CI, 2026-10-19, under the sandbox account): a
+/// confined command opens one to read and receives what the program sends;
+/// writing is refused. Windows admits `Everyone` to read such a pipe, so
+/// the confinement reports it (`pipes_readable_by_every_user`). Full is the
+/// control.
 #[test]
 fn a_default_secured_pipe_of_the_persons_as_a_confined_command_meets_it() {
     let mut p = probe("pipe-gap");
@@ -1232,8 +1235,18 @@ while True:
         "a confined command opened another program's pipe to write:\n{confined}"
     );
     assert!(
-        confined.contains("In refused:") && served_confined == 0,
-        "MEASURED ({kind}): a confined command read another program's pipe:\n{confined}\nserved {served_confined}"
+        confined.contains("In opened: from the service") && served_confined == 1,
+        "the read Windows grants every user changed — revisit the reported gap:\n{confined}\nserved {served_confined}"
+    );
+    assert!(
+        p.engine
+            .sandbox_of(p.session)
+            .unwrap()
+            .report()
+            .escapes
+            .iter()
+            .any(|e| e.id == "pipes_readable_by_every_user"),
+        "the confinement does not say what it leaves readable"
     );
 }
 

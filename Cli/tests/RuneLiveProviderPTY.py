@@ -679,6 +679,22 @@ def reddish(ink):
             and ink[0] > 140 and ink[0] > ink[1] + 40 and ink[0] > ink[2] + 40)
 
 
+def command(posix, powershell):
+    """A command line in the shell Rune runs commands in here: POSIX, or
+    PowerShell on Windows."""
+    return powershell if WINDOWS else posix
+
+
+def press_escape(window, times=1):
+    """Esc pressed `times` times, as a hand presses it: one at a time. Two
+    ESC bytes in one write are Alt+Esc to a ConPTY (and to Rune's own
+    reader once its escape timeout has not passed), never two presses."""
+    for _ in range(times):
+        window.send(b"\x1b")
+        time.sleep(0.15)
+        window.drain()
+
+
 def wheel(window, up, row, col, ctrl=False, alt=False):
     button = (64 if up else 65) + (16 if ctrl else 0) + (8 if alt else 0)
     window.send(f"\x1b[<{button};{col};{row}M".encode())
@@ -941,7 +957,8 @@ def main():
         #    screen, and the model got the line whole.
         calls = ask(window, provider, "print a long line",
                     tool("terminal_use", {"action": "print a long line",
-                                          "command": "printf 'x%.0s' $(seq 1 300); echo"}),
+                                          "command": command("printf 'x%.0s' $(seq 1 300); echo",
+                                                             "Write-Output ('x' * 300)")}),
                     text("Printed."), expect="Printed.")
         told = "\n".join(messages_of(calls[-1]))
         assert "x" * 300 in told, "the model got the line cut into rows"
@@ -1111,7 +1128,9 @@ def main():
         # 14 (first half). A command's temporary file lands in the session's
         # own scratch.
         ask(window, provider, "make a temp file",
-            tool("terminal_use", {"action": "write a temp file", "command": "echo kept > \"$TMPDIR/probe.txt\""}),
+            tool("terminal_use", {"action": "write a temp file", "command": command(
+                "echo kept > \"$TMPDIR/probe.txt\"",
+                "Set-Content -Path (Join-Path $env:TMPDIR 'probe.txt') -Value kept")}),
             text("Temp file written."), expect="Temp file written.")
         scratch = next(HOME.glob("projects/*/scratch/1"), None)
         assert scratch and (scratch / "probe.txt").read_text() == "kept\n", scratch

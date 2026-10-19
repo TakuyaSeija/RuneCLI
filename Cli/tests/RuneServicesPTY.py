@@ -298,8 +298,7 @@ def main():
         live.until(lambda: a.shows("its check passed"), "real check succeeds", a)
         live.until(lambda: live.row_with(a, "searxng", "In use · default") is not None, "first search default", a)
         gateway(a, router)
-        for _ in range(4):
-            a.send(b"\x1b")
+        live.press_escape(a, 4)
         live.until(lambda: a.shows("ask, or / for commands"), "conversation", a)
         calls = live.ask(a, provider, "Search for landlock",
                          live.tool("web_search", {"action":"Look it up", "query":"landlock"}),

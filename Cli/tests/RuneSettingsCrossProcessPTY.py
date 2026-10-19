@@ -47,7 +47,7 @@ def open_generation(window):
 
 
 def close_settings(window):
-    window.send(b"\x1b\x1b")
+    live.press_escape(window, 2)
     live.until(lambda: window.shows("for commands"), "back to the conversation", window)
 
 
@@ -68,12 +68,17 @@ def save_in_settings(window, value):
     live.until(lambda: window.shows("Apply"), "field editor", window)
     window.send(b"\x15")
     window.type(value)
-    for _ in range(4):
-        window.send(b"\r")
-        time.sleep(0.8)
-        window.drain()
-        if not window.shows("Apply") and value in shown(window):
-            return
+    # A sensitive field asks for a second Enter within three seconds: each
+    # step waits for what the screen says, never a fixed pause (a slow
+    # machine draws later than one).
+    window.send(b"\r")
+    live.until(lambda: window.shows("Press again to confirm"), "the second confirmation asked", window, 10)
+    window.send(b"\r")
+    try:
+        live.until(lambda: not window.shows("Apply") and value in shown(window), "applied", window, 10)
+        return
+    except AssertionError:
+        pass
     raise AssertionError("the window's own save did not apply\n" + window.screen.text())
 
 

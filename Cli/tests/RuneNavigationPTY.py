@@ -28,19 +28,25 @@ def ok(name):
     print(f"PASS {COUNT:03} {name}", flush=True)
 
 
-def paint(window, seconds=0.2):
-    """Wait until the screen above the status row has held still for
-    `seconds`: a fixed pause read half a frame on a slow machine (macOS CI)
-    and compared it as a result."""
-    last, still = None, live.time.monotonic()
-    def settled():
-        nonlocal last, still
-        # The status row's spinner and clock tick while work waits.
-        now = window.screen.text().rsplit("\n", 1)[0]
+def paint(window, seconds=0.2, grace=1.5):
+    """Wait for what was just sent to be drawn: the screen above the status
+    row changes, then holds still for `seconds`; nothing changing within
+    `grace` means it changed nothing. A pause alone, fixed or `still for
+    0.2 s`, read the screen from before the keys on a slow machine (macOS
+    CI), where the first frame after them can take longer than that."""
+    view = lambda: window.screen.text().rsplit("\n", 1)[0]
+    window.drain()
+    began = live.time.monotonic()
+    last, still, changed = view(), began, False
+    def drawn():
+        nonlocal last, still, changed
+        now = view()
         if now != last:
-            last, still = now, live.time.monotonic()
-        return live.time.monotonic() - still >= seconds
-    live.until(settled, "frames never settled", window, seconds + 10)
+            last, still, changed = now, live.time.monotonic(), True
+        if changed:
+            return live.time.monotonic() - still >= seconds
+        return live.time.monotonic() - began >= grace
+    live.until(drawn, "frames never settled", window, grace + seconds + 10)
 
 
 def composer():
@@ -223,7 +229,7 @@ def run():
         paint(w)
         assert chosen_setting() == plain, (alt, chosen_setting(), plain)
         ok(("Alt" if alt else "Ctrl") + "+wheel accelerates Settings without entering tabs")
-    w.send(b"\x1b\x1b")
+    live.press_escape(w, 2)
     paint(w)
     question = lambda title: {"title":title,"question":title+" body","type":"single",
         "options":[{"label":"Alpha","description":"First"},{"label":"Beta","description":"Second"}]}
@@ -272,7 +278,7 @@ def run():
     second = next(r for r in w.screen.text().splitlines() if "❯" in r)
     assert first != second, w.screen.text()
     ok("Settings wheel works while Ask User waits")
-    w.send(b"\x1b\x1b")
+    live.press_escape(w, 2)
     paint(w)
     assert w.shows("Write your own")
     w.send(b"\x14")
@@ -330,5 +336,14 @@ finally:
     for window in reversed(WINDOWS):
         (live.ROOT / "last-screen.txt").write_text(window.screen.text())
         window.close()
-    BINARY.unlink(missing_ok=True)
+    # The session hosts this run started run the copy too, and Windows
+    # deletes no program that is running.
+    for pid in live.RuneTerminal.holding(live.HOME, live.PROJECT):
+        live.RuneTerminal.stop(pid)
+    for _ in range(50):
+        try:
+            BINARY.unlink(missing_ok=True)
+            break
+        except PermissionError:
+            live.time.sleep(0.1)
     print("ARTIFACTS", live.ROOT, flush=True)

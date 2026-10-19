@@ -441,6 +441,10 @@ impl Confinement {
     /// `Users` and `Everyone` remain enabled, so what Windows lets every user
     /// read stays readable, and `ProgramData` — where `Users` may create —
     /// writable.
+    /// A pipe another program made with Windows's default security admits
+    /// `Everyone` to read (CI measurement, 2026-10-19: a confined command
+    /// opened one to read and was refused to write) — no restricting SID
+    /// can take that away without breaking Git Bash and Windows's HTTPS.
     /// Under the restricted token, also why Rune's own account is not in
     /// use: never a silent fallback.
     pub fn gaps(&self) -> Vec<crate::platform::Gap> {
@@ -454,10 +458,20 @@ impl Confinement {
             fix: "Keep what no command may read inside your profile folder, or give \
                   such a folder an access list that names only you.",
         };
+        let pipes = crate::platform::Gap {
+            id: "pipes_readable_by_every_user",
+            detail: "A confined command can open, to read only, a named pipe another \
+                     program made with Windows's default security, and receive what that \
+                     program sends on it. Writing to such a pipe is refused, and Rune's own \
+                     pipes admit only you."
+                .into(),
+            fix: "A program whose pipe must stay private gives it an access list that \
+                  names only its user.",
+        };
         match self.inner.mechanism {
-            Mechanism::Account => vec![readable],
+            Mechanism::Account => vec![readable, pipes],
             Mechanism::RestrictedToken => {
-                let mut gaps = vec![readable];
+                let mut gaps = vec![readable, pipes];
                 if let Some(why) = super::account::not_in_use() {
                     gaps.push(crate::platform::Gap {
                         id: "sandbox_account_not_in_use",

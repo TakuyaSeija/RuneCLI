@@ -994,6 +994,13 @@ mod tests {
                     .any(|e| e.id == "readable_by_every_user"),
                 "what a Windows confinement leaves readable is reported"
             );
+            assert!(
+                s.report()
+                    .escapes
+                    .iter()
+                    .any(|e| e.id == "pipes_readable_by_every_user"),
+                "the pipes a Windows confinement leaves readable are reported"
+            );
         }
         assert_eq!(
             s.report().escapes.iter().any(|e| e.id == "elevated"),

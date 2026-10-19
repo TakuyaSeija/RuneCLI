@@ -235,7 +235,7 @@ def run():
         live.until(lambda:field_value(window,"› ")=="•••••••","masked redo and yank",window)
         assert not window.shows("abcTAIL"),window.screen.text()
         click_text(window,"Cancel")
-        window.send(b"\x1b\x1b\x1b")
+        live.press_escape(window, 3)
         live.until(lambda: window.shows("ask, or / for commands"), "Settings closed", window)
         window.send(b"\x19X")
         live.until(lambda:draft().get("text")=="composer-localX","secret kill ring never enters composer",window)
@@ -396,7 +396,7 @@ def run():
         drag_text(window,"abcdef",2,4);window.send(b"X")
         wait_field(window,"abXef","New title: ")
         ok("picker rename mouse drag edits source without saving")
-        window.send(b"\x1b\x1b")
+        live.press_escape(window, 2)
         print(f"PASS ALL {COUNT} end-to-end editing checks", flush=True)
     except BaseException:
         (live.ROOT / "FailedScreen.txt").write_text(window.screen.text())

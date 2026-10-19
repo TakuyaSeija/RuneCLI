@@ -62,7 +62,7 @@ def main():
         live.click(a, row + 1, 8)  # after the first source character
         live.until(lambda: a.screen.y == row and a.screen.x == 7, "Settings mouse caret", a)
         click_text(a, "Cancel")
-        a.send(b"\x1b\x1b")
+        live.press_escape(a, 2)
         live.until(lambda: a.shows("ask, or / for commands"), "return to conversation", a)
         print("ok Appearance removed preview, Runtime no tool duplicates, Settings text caret")
 

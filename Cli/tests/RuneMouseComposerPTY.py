@@ -80,7 +80,7 @@ def main():
         live.until(lambda: window.shows("Cancel") and window.shows("Apply"), "mouse opens editor", window)
         click_text(window, "Cancel")
         live.until(lambda: not window.shows("Cancel"), "mouse cancels editor", window)
-        window.send(b"\x1b\x1b")
+        live.press_escape(window, 2)
         live.until(lambda: window.shows("ask, or / for commands"), "Settings closes", window)
         print("ok Settings card/tab/editor/Cancel clicks")
 
