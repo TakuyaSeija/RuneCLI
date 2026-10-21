@@ -953,9 +953,17 @@ fn web_fetch_is_a_separate_tool_in_the_real_host_without_search_credentials() {
     props.sort();
     assert_eq!(props, ["action", "count", "query"]);
     assert_eq!(fetch["parameters"]["required"], json!(["action", "url"]));
+    // Owner, 2026-10-21: `cookies` is optional, kept for one call's redirects.
+    let mut props: Vec<&String> = fetch["parameters"]["properties"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .collect();
+    props.sort();
+    assert_eq!(props, ["action", "cookies", "url"]);
     assert_eq!(
-        fetch["parameters"]["properties"].as_object().unwrap().len(),
-        2
+        fetch["parameters"]["properties"]["cookies"]["type"],
+        "boolean"
     );
     assert_eq!(fetch["mutates"], false);
     h.send(json!({"cmd":"session.open", "id":1, "project":h.project}));

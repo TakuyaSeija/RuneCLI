@@ -8,7 +8,12 @@ use crate::platform::LocalTime;
 /// and a window shows the hour on the person's clock. `localtime_r` reads the
 /// zone the user configured; nothing here assumes a distro layout.
 pub fn local_time(epoch_secs: i64) -> Option<LocalTime> {
-    let secs = libc::time_t::try_from(epoch_secs).ok()?;
+    // The C library's own time type, as `localtime_r` takes it: named by
+    // that use, since the `libc` crate marks the alias deprecated on musl
+    // (its width changed in musl 1.2). 64 bits on most targets, where the
+    // conversion is a no-op; 32 on some, where it can fail.
+    #[allow(clippy::useless_conversion)]
+    let secs = epoch_secs.try_into().ok()?;
     let mut tm = std::mem::MaybeUninit::<libc::tm>::uninit();
     // SAFETY: `localtime_r` fills the struct it is given and reads only `secs`.
     let filled = unsafe { libc::localtime_r(&secs, tm.as_mut_ptr()) };

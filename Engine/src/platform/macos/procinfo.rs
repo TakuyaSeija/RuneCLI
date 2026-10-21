@@ -323,6 +323,12 @@ pub fn installed_program() -> io::Result<PathBuf> {
     std::env::current_exe()
 }
 
+/// How to start the Rune program at `program` the way this one was started:
+/// by its path — a macOS program names its loader inside itself, and no other is started on it.
+pub fn program_launch(program: &std::path::Path) -> crate::platform::Launch {
+    crate::platform::Launch::new(program)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

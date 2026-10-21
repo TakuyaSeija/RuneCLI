@@ -153,6 +153,13 @@ impl FileIdentity {
         }
     }
 
+    /// The file a device and inode name — as `/proc/self/maps` names a
+    /// mapped file.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    pub(in crate::platform) fn of_device(device: u64, inode: u64) -> FileIdentity {
+        FileIdentity { device, inode }
+    }
+
     /// The file `path` reaches, links followed.
     pub fn of_path(path: &Path) -> io::Result<FileIdentity> {
         std::fs::metadata(path).map(|meta| Self::of(&meta))

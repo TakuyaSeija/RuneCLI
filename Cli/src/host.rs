@@ -618,7 +618,7 @@ impl Installed {
         } else {
             drop(owners);
         }
-        let mut successor = std::process::Command::new(&self.executable);
+        let mut successor = runeengine::platform::program_command(&self.executable);
         successor.args(std::env::args_os().skip(1));
         let error = crate::handover::exec(record, &mut successor);
         format!("could not activate the installed Rune: {error}")

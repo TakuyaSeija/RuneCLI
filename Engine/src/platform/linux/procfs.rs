@@ -79,9 +79,20 @@ pub fn process_started(pid: u32) -> Option<u64> {
 /// A descriptor on the program this process runs, open across `exec`: the
 /// way back to this build for a successor that cannot take the home over —
 /// still there once a release has replaced the file it was started from, and
-/// on any machine, with no copy of the program kept anywhere.
+/// on any machine, with no copy of the program kept anywhere. Started
+/// through a loader, the program is the file opened as it started — the
+/// kernel's `exe` is the loader then ([`super::started`]).
 pub fn own_program() -> io::Result<Handed> {
-    hand_on(std::fs::File::open("/proc/self/exe")?)
+    match super::started::through() {
+        Some(through) => match &through.file {
+            Some(file) => hand_on(file.try_clone()?),
+            None => Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "this program's file was replaced before it could be opened",
+            )),
+        },
+        None => hand_on(std::fs::File::open("/proc/self/exe")?),
+    }
 }
 
 /// The path that runs the program `handed` holds ([`own_program`]), when it
@@ -108,13 +119,19 @@ pub fn program_at(handed: Handed) -> io::Result<PathBuf> {
 /// path now — compared with [`FileIdentity::of_path`] of the installed path,
 /// it tells that a release replaced it.
 pub fn running_program() -> io::Result<FileIdentity> {
-    FileIdentity::of_path(std::path::Path::new("/proc/self/exe"))
+    match super::started::through() {
+        Some(through) => Ok(through.identity),
+        None => FileIdentity::of_path(std::path::Path::new("/proc/self/exe")),
+    }
 }
 
 /// The path this process's program is installed at — where a release puts
 /// the next build — as the kernel names it, without the " (deleted)" it
 /// gains once that file was replaced.
 pub fn installed_program() -> io::Result<PathBuf> {
+    if let Some(through) = super::started::through() {
+        return Ok(through.program.clone());
+    }
     let exe = std::env::current_exe()?;
     Ok(PathBuf::from(
         exe.as_os_str()

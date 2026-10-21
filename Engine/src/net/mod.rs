@@ -30,6 +30,7 @@
 //!   is actually wrong ("model not found", "insufficient balance") and the user
 //!   needs to read it, so it is parsed rather than thrown away.
 
+pub mod cookies;
 #[path = "Interrupt.rs"]
 mod interrupt;
 pub mod redact;
@@ -82,6 +83,9 @@ pub struct Response {
     /// Where a redirect points. Only an [`Http::public`] client sees one: it
     /// follows nothing on its own, so every hop can be checked first.
     pub location: Option<String>,
+    /// Every `Set-Cookie` header, as sent. Read only by a fetch that asked to
+    /// keep cookies ([`cookies::Jar`]); no client here keeps any on its own.
+    pub set_cookies: Vec<String>,
 }
 
 impl Response {
@@ -203,6 +207,13 @@ impl Http {
             .get("location")
             .and_then(|v| v.to_str().ok())
             .map(str::to_string);
+        let set_cookies = resp
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .filter_map(|v| v.to_str().ok())
+            .map(str::to_string)
+            .collect();
         let text = resp
             .body_mut()
             .with_config()
@@ -216,6 +227,7 @@ impl Http {
             text,
             content_type,
             location,
+            set_cookies,
         })
     }
 

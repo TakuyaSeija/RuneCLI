@@ -127,6 +127,7 @@ mod tests {
                 .into(),
             content_type: None,
             location: None,
+            set_cookies: Vec::new(),
         };
         let p = page(&text).unwrap();
         assert_eq!(p.title.as_deref(), Some("Example"));

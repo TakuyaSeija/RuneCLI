@@ -17,6 +17,7 @@ pub(crate) fn reply(body: Value) -> Response {
         body,
         content_type: None,
         location: None,
+        set_cookies: Vec::new(),
     }
 }
 

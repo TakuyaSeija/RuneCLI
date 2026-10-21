@@ -68,6 +68,54 @@ jobs:
           cargo build --locked -p runecli
           python3 -I Cli/tests/RunPTY.py target/debug/rune
 
+  # The Linux release, as people get it: built for glibc 2.17 (every glibc
+  # distribution since 2012) and as one static musl file (Alpine, any Linux
+  # without glibc), on x86_64 and aarch64 — then checked for what it asks of
+  # the system and run on old and other distributions. Kept as artifacts of
+  # the run, never published.
+  linux-release:
+    name: Linux release (${{ matrix.libc }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04, libc: gnu }
+          - { arch: x86_64, runner: ubuntu-24.04, libc: musl }
+          - { arch: aarch64, runner: ubuntu-24.04-arm, libc: gnu }
+          - { arch: aarch64, runner: ubuntu-24.04-arm, libc: musl }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        # actions/checkout v6.1.0; immutable revision, no saved Git credential.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Build in the release image
+        run: scripts/build_linux_release.sh ${{ matrix.libc }}
+
+      - name: Run on old and other distributions
+        run: scripts/smoke_linux_release.sh target/linux-release/${{ matrix.libc }}-${{ matrix.arch }}/release/rune ${{ matrix.libc }}
+
+      - name: Started through the dynamic loader
+        if: matrix.libc == 'gnu'
+        run: |
+          mkdir -p target/test-tmp
+          python3 -I Cli/tests/RuneLoaderPTY.py target/linux-release/gnu-${{ matrix.arch }}/release/rune
+
+      - name: Keep the binary
+        # actions/upload-artifact v7.0.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: rune-linux-${{ matrix.libc }}-${{ matrix.arch }}
+          path: target/linux-release/${{ matrix.libc }}-${{ matrix.arch }}/release/rune
+          if-no-files-found: error
+          retention-days: 14
+
   # The same gate on a real Windows: Windows Server 2025 (Windows 11's
   # kernel), x64. Its binaries — x64 tested, arm64 built — are kept as
   # artifacts of the run, never published.

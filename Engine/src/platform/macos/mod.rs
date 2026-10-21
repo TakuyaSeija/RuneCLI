@@ -23,7 +23,8 @@ pub(in crate::platform) use input::input_wait;
 pub use input::INPUT_WAIT_DETECTION;
 pub(in crate::platform) use procinfo::tree_members;
 pub use procinfo::{
-    boot_time, installed_program, own_program, process_started, program_at, running_program,
+    boot_time, installed_program, own_program, process_started, program_at, program_launch,
+    running_program,
 };
 pub(in crate::platform) use socket::{bind, connect, peer_uid, ListenerWake};
 

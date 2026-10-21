@@ -35,6 +35,7 @@ pub mod highlight;
 pub mod input;
 mod keys;
 pub mod markdown;
+mod multiplexer;
 mod panel_view;
 pub mod panels;
 #[cfg(test)]
@@ -1187,14 +1188,9 @@ pub(crate) fn perform_cli_handover(
             return false;
         }
 
-        let Ok(exe) = std::env::current_exe() else {
+        let Ok(exe) = crate::build::installed() else {
             return false;
         };
-        let exe = std::path::PathBuf::from(
-            exe.as_os_str()
-                .to_string_lossy()
-                .trim_end_matches(" (deleted)"),
-        );
 
         if !is_cli_outdated(&exe, &app.host_version) {
             return false;
@@ -1243,7 +1239,7 @@ pub(crate) fn perform_cli_handover(
             term.hand_over();
         }
 
-        let mut cmd = std::process::Command::new(&exe);
+        let mut cmd = runeengine::platform::program_command(&exe);
         cmd.arg("-project").arg(&app.project);
         if let Some(session) = app.session {
             cmd.arg("-resume").arg(session.to_string());

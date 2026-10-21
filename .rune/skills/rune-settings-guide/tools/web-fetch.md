@@ -1,6 +1,6 @@
 # Read a web page
 
-web_fetch reads a public http(s) page. Private/internal page targets are not supported. Search for pages with [web_search](web-search.md), not this tool. Built-in reading is not a full interactive browser; a script-dependent/login page may not yield the desired content.
+web_fetch reads a public http(s) page. Private/internal page targets are not supported. Search for pages with [web_search](web-search.md), not this tool. Built-in reading is not a full interactive browser; a script-dependent/login page may not yield the desired content. A page that redirects through a sign-in check can be read with cookies kept for that one read only; the assistant asks for that itself, and nothing is saved.
 
 Location: Settings → Tools → WEB FETCH. Scope: global.
 

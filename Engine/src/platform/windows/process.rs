@@ -1335,6 +1335,12 @@ pub fn installed_program() -> io::Result<PathBuf> {
     std::env::current_exe()
 }
 
+/// How to start the Rune program at `program` the way this one was started:
+/// by its path — Windows loads a program itself, with no loader one could name.
+pub fn program_launch(program: &std::path::Path) -> crate::platform::Launch {
+    crate::platform::Launch::new(program)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

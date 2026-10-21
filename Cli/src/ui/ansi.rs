@@ -78,7 +78,9 @@ static DEPTH: std::sync::RwLock<Option<Depth>> = std::sync::RwLock::new(None);
 /// Order matters and is the settled convention: a refusal beats a capability,
 /// an explicit `COLORTERM` beats an inferred `TERM`, and the floor is sixteen
 /// rather than none — a terminal that says nothing is far more likely to be a
-/// normal one than a teletype.
+/// normal one than a teletype. Inside tmux the terminals attached to it bound
+/// what the environment says (`multiplexer.rs`); an explicit `ui.color` is the
+/// person's word and is taken as said.
 pub fn depth() -> Depth {
     if let Ok(guard) = DEPTH.read() {
         if let Some(d) = *guard {
@@ -102,12 +104,24 @@ pub fn depth() -> Depth {
                 "ansi256" => Depth::Ansi256,
                 _ => Depth::True,
             }
-        } else if matches!(var("COLORTERM").as_str(), "truecolor" | "24bit") {
-            Depth::True
-        } else if term.contains("256color") || term.contains("direct") {
-            Depth::Ansi256
         } else {
-            Depth::Ansi16
+            let own = if matches!(var("COLORTERM").as_str(), "truecolor" | "24bit") {
+                Depth::True
+            } else if term.contains("256color") || term.contains("direct") {
+                Depth::Ansi256
+            } else {
+                Depth::Ansi16
+            };
+            // Inside tmux, `TERM` is tmux's screen; what reaches the person is
+            // bounded by the terminals attached to it (`multiplexer.rs`).
+            match super::multiplexer::ceiling() {
+                Some(ceiling)
+                    if super::multiplexer::rank(ceiling) < super::multiplexer::rank(own) =>
+                {
+                    ceiling
+                }
+                _ => own,
+            }
         }
     };
     if let Ok(mut guard) = DEPTH.write() {

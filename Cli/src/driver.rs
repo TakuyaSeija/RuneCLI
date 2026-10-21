@@ -546,7 +546,7 @@ impl HostLauncher {
         let log =
             runeengine::platform::open_private(&log_path, runeengine::platform::Private::Append)
                 .map_err(|error| error.to_string())?;
-        let mut launch = runeengine::platform::Launch::new(&self.exe)
+        let mut launch = runeengine::platform::program_launch(&self.exe)
             .arg("-detached-host")
             .arg(self.session.to_string())
             .arg("-project")

@@ -11,6 +11,7 @@ mod procfs;
 mod seccomp;
 mod services;
 mod socket;
+mod started;
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod fixture;
@@ -30,6 +31,7 @@ pub use procfs::{
     boot_time, installed_program, own_program, process_started, program_at, running_program,
 };
 pub(in crate::platform) use socket::{bind, connect, peer_uid, ListenerWake};
+pub use started::program_launch;
 
 /// This build runs on Linux.
 pub const OS: Os = Os::Linux;
@@ -38,9 +40,11 @@ pub const OS: Os = Os::Linux;
 /// and what it hands on stay.
 pub const REPLACES_IN_PLACE: bool = true;
 
-/// Nothing to take at start on Linux: `/proc/self/exe` names the running
-/// program for as long as it runs.
-pub(in crate::platform) fn at_start() {}
+/// Read how this program was started — by its path, or through a loader
+/// (`started.rs`) — before a release can put another file at its path.
+pub(in crate::platform) fn at_start() {
+    started::remember();
+}
 
 /// No folder of the system's own keeps this user's tool caches on Linux:
 /// they live under the home (`~/.cache`), which the sandbox names.

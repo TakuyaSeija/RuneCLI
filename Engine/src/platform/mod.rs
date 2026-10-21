@@ -47,6 +47,10 @@
 //!   own_program() -> Handed, program_at(Handed)  the way back to the build that handed over
 //!   running_program() -> FileIdentity            the file this process was started from
 //!   installed_program() -> PathBuf               where a release puts the next build
+//!   program_launch(path) -> Launch, program_command(path) -> Command
+//!                                                start Rune again as this process was started:
+//!                                                through the same loader and its options when
+//!                                                it was (Linux `ld-linux … ./rune`)
 //!   exit_code(ExitStatus) -> i32
 //!   at_start()                                   first in main: a broken pipe ends quietly;
 //!                                                what the OS must note before anything changes
@@ -170,7 +174,7 @@ mod ledger;
 pub use ledger::{recorded_grants, Forgotten, RecordedGrant};
 
 use std::ffi::{OsStr, OsString};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The operating systems Rune runs on. Decisions above the platform that
 /// name an OS's paths keep one table per OS and read the one in force
@@ -387,6 +391,15 @@ pub struct LocalTime {
     pub second: u32,
 }
 
+/// [`program_launch`] as a command of the standard library's, for the
+/// places that `exec` or wait on a Rune build themselves.
+pub fn program_command(program: &Path) -> std::process::Command {
+    let launch = program_launch(program);
+    let mut command = std::process::Command::new(&launch.program);
+    command.args(&launch.args);
+    command
+}
+
 /// Today's civil date in the user's own time zone, as `YYYY-MM-DD`.
 pub fn local_date() -> Option<String> {
     let now = std::time::SystemTime::now()
@@ -416,9 +429,9 @@ use macos as os;
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 pub use os::{
-    boot_time, installed_program, own_program, process_started, program_at, running_program,
-    set_clipboard, system_caches, Confinement, Grants, Unconfined, DEVICES, INPUT_WAIT_DETECTION,
-    OS, REPLACES_IN_PLACE,
+    boot_time, installed_program, own_program, process_started, program_at, program_launch,
+    running_program, set_clipboard, system_caches, Confinement, Grants, Unconfined, DEVICES,
+    INPUT_WAIT_DETECTION, OS, REPLACES_IN_PLACE,
 };
 
 /// What a confinement leaves reachable that its grants do not say, named so

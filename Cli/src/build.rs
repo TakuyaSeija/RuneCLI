@@ -123,7 +123,7 @@ fn go_back(program: runeengine::platform::Handed, why: &runeengine::Error) -> St
     eprintln!("rune: {why}. Staying on the previous build for now; this one is tried again later.");
     let mut args = std::env::args_os();
     let name = args.next();
-    let mut command = std::process::Command::new(program);
+    let mut command = runeengine::platform::program_command(&program);
     command.args(args);
     let error = runeengine::platform::replace_process(&mut command, name.as_deref());
     format!("{why}; the previous build could not be resumed: {error}")
@@ -225,7 +225,7 @@ const ASK_AGAIN: std::time::Duration = std::time::Duration::from_secs(60);
 pub(crate) fn readiness(path: &Path, db: Option<&Path>) -> Readiness {
     use runeengine::platform::FileIdentity;
     use std::io::Read;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     /// The installed file asked about, its answer, and when.
     type Verdict = (FileIdentity, Readiness, std::time::Instant);
     static VERDICT: std::sync::Mutex<Option<Verdict>> = std::sync::Mutex::new(None);
@@ -242,7 +242,7 @@ pub(crate) fn readiness(path: &Path, db: Option<&Path>) -> Readiness {
         }
     }
     let verdict = (|| {
-        let mut probe = Command::new(path);
+        let mut probe = runeengine::platform::program_command(path);
         probe.arg("-upgrade-check");
         if let Some(db) = db {
             probe.arg("-db").arg(db);

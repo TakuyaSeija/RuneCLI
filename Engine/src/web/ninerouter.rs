@@ -176,6 +176,7 @@ mod tests {
             body,
             content_type: None,
             location: None,
+            set_cookies: Vec::new(),
         }
     }
 

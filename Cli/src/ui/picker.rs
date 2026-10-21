@@ -822,7 +822,7 @@ fn activate(term: term::Term, exe: &std::path::Path) -> Result<term::Term, Strin
     #[cfg(not(test))]
     {
         term.hand_over();
-        let mut command = std::process::Command::new(exe);
+        let mut command = runeengine::platform::program_command(exe);
         command.args(std::env::args_os().skip(1));
         let _ = crate::handover::exec(crate::handover::Handover::default(), &mut command);
         term::enter_or_report(true)
