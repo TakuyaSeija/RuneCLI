@@ -275,6 +275,7 @@ pub enum Field {
     Timeout(String),
     SetupKeyName,
     SetupKey,
+    SetupName,
     RemoveKey(String, usize),
     /// Set the unreadable credential store aside and start a new one.
     NewCredentialStore,
@@ -756,6 +757,7 @@ pub enum Kind {
     Refresh(String),
     Default(String),
     AddPreset(String),
+    ConnectModel,
     /// Start a search/fetch connection with this vendor.
     AddService(String),
     /// A route a connection keeps for one service: the one in use, or one to
@@ -946,40 +948,132 @@ pub fn rows(app: &App) -> Vec<Row> {
             }
             out
         }
-        Page::Setup(name) => {
+        Page::Setup(_) => {
             let Some(d) = &app.preferences.setup else {
                 return Vec::new();
             };
             if d.service {
                 return service_setup_rows(app, d);
             }
-            let hint = runeengine::settings::providers::preset(name)
-                .map(|p| p.key_hint)
-                .unwrap_or("API key for this provider");
-            vec![
-                Row::new(
-                    Kind::Edit(Field::SetupKeyName),
-                    "Key name",
-                    if d.key_name.is_empty() {
-                        "[ Primary ↵ ]".into()
-                    } else {
-                        format!("[ {} ↵ ]", d.key_name)
-                    },
-                )
-                .help("Label to distinguish this key in the provider's key ring (e.g. Primary, Work)."),
-                Row::new(
-                    Kind::Edit(Field::SetupKey),
-                    "API key",
-                    if d.key.is_empty() {
-                        "[ Set API key ↵ ]".into()
-                    } else {
-                        "••••••••  [ edit ↵ ]".into()
-                    },
-                )
-                .help(hint),
-            ]
+            model_setup_rows(app, d)
         }
     }
+}
+
+fn model_setup_rows(app: &App, draft: &ProviderDraft) -> Vec<Row> {
+    let preset = app.providers["presets"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|p| p["name"].as_str() == Some(&draft.preset));
+    // A preset with no address of its own is one whose address is the account's.
+    let required = preset.is_some_and(|p| p["base_url"].as_str() == Some(""));
+    let url = if draft.url.is_empty() {
+        preset.and_then(|p| p["base_url"].as_str()).unwrap_or("")
+    } else {
+        &draft.url
+    };
+    let hint = preset
+        .and_then(|p| p["key_hint"].as_str())
+        .unwrap_or("API key for this endpoint");
+    let endpoint_help = preset
+        .and_then(|p| p["url_hint"].as_str())
+        .filter(|hint| !hint.is_empty())
+        .unwrap_or("Use this account's API base URL without /chat/completions. HTTPS is required outside this machine. Saving access does not change generation settings.");
+    vec![
+        Row::new(Kind::Edit(Field::SetupName), "Connection name", format!("[ {} ↵ ]", draft.name)).help("Local account name saved in rune.toml. It does not change the adapter identity."),
+        Row::new(Kind::Edit(Field::SetupUrl), "API base URL", if url.is_empty() { "[ Required ↵ ]".into() } else { format!("[ {url} ↵ ]") }).help(endpoint_help).note(if required { "This provider needs an account-specific endpoint." } else { "Empty uses the provider's preset endpoint." }),
+        Row::new(Kind::Edit(Field::SetupKeyName), "Key name", format!("[ {} ↵ ]", draft.key_name)).help("Label for this credential in the encrypted vault."),
+        Row::new(Kind::Edit(Field::SetupKey), "API key", if draft.key.is_empty() { "[ Set API key ↵ ]".into() } else { "••••••••  [ edit ↵ ]".into() }).help(hint),
+        Row::new(Kind::ConnectModel, "Connect", "Connect →".into()).help("Check account access and save the connection. This contacts your endpoint; it does not prove every model or capability. Non-secret choices go to rune.toml; credentials stay in the vault."),
+    ]
+}
+
+/// Whether this model preset has no address of its own, so the account's
+/// must be entered before anything is sent.
+fn model_url_missing(app: &App, draft: &ProviderDraft) -> bool {
+    draft.url.trim().is_empty()
+        && app.providers["presets"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|p| {
+                p["name"].as_str() == Some(&draft.preset) && p["base_url"].as_str() == Some("")
+            })
+}
+
+/// Open the one field a model connection still lacks — its address where it
+/// has none, else its key — so a preset with an address of its own asks for
+/// the key alone. Returns false when nothing is missing.
+fn ask_model_field(app: &mut App) -> bool {
+    let Some(draft) = app.preferences.setup.as_ref().filter(|p| !p.service) else {
+        return false;
+    };
+    if model_url_missing(app, draft) {
+        edit_now(app, Field::SetupUrl, "API base URL", "");
+        true
+    } else if draft.key.is_empty() {
+        edit_now(app, Field::SetupKey, "API key", "");
+        true
+    } else {
+        false
+    }
+}
+
+fn connect_model(app: &mut App, driver: &mut Driver) {
+    let Some(draft) = app.preferences.setup.as_ref() else {
+        return;
+    };
+    if draft.service {
+        return;
+    }
+    let preset = app.providers["presets"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|p| p["name"].as_str() == Some(&draft.preset));
+    if draft.name.trim().is_empty()
+        || (preset.is_some_and(|p| p["base_url"].as_str() == Some(""))
+            && draft.url.trim().is_empty())
+    {
+        notice(
+            app,
+            "Enter a connection name and the required API base URL.",
+            Tone::Error,
+        );
+        return;
+    }
+    if preset.is_none_or(|p| p["needs_key"] != false) && draft.key.trim().is_empty() {
+        notice(
+            app,
+            "API key cannot be empty for this provider.",
+            Tone::Error,
+        );
+        return;
+    }
+    let (name, preset, base_url, key_name, key, model) = (
+        draft.name.trim().to_string(),
+        Some(draft.preset.clone()),
+        (!draft.url.trim().is_empty()).then(|| draft.url.trim().to_string()),
+        Some(draft.key_name.clone()),
+        Some(draft.key.trim().to_string()),
+        (!draft.model.is_empty()).then(|| draft.model.clone()),
+    );
+    send(
+        app,
+        driver,
+        Operation::Added(name.clone()),
+        "Checking provider account access…",
+        |id| Command::ProviderAdd {
+            id,
+            name,
+            preset,
+            base_url,
+            key_name,
+            key,
+            model,
+        },
+    );
 }
 
 fn provider_list(app: &App) -> Vec<&Value> {
@@ -5233,16 +5327,11 @@ pub fn open(app: &mut App, row: &Row, d: &mut Driver) {
                 |id| Command::ProviderDefault { id, name },
             );
         }
+        Kind::ConnectModel => connect_model(app, d),
         Kind::AddPreset(name) => {
             app.preferences.navigate(Page::Setup(name.clone()));
             app.preferences.setup = Some(ProviderDraft::model(name));
-            let r_list = rows(app);
-            if let Some(r) = r_list
-                .iter()
-                .find(|r| matches!(&r.kind, Kind::Edit(Field::SetupKeyName)))
-            {
-                open_editor(app, Field::SetupKeyName, r);
-            }
+            ask_model_field(app);
         }
         Kind::AddService(id)
             if provider_list(app)
@@ -5496,6 +5585,12 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
                 .map(|n| n.to_string())
                 .unwrap_or_default()
         }
+        Field::SetupName => app
+            .preferences
+            .setup
+            .as_ref()
+            .map(|p| p.name.clone())
+            .unwrap_or_default(),
         Field::SetupKeyName => app
             .preferences
             .setup
@@ -5703,6 +5798,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
     app.preferences.editor = Some(Editor {
         id: editor_id,
         title: match &field {
+            Field::SetupName => "Connection name".into(),
             Field::SetupKeyName => format!(
                 "Key name / {}",
                 app.preferences
@@ -6339,11 +6435,23 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                 |id| Command::ServiceRemove { id, name },
             );
         }
+        Field::SetupName => {
+            if let Some(p) = app.preferences.setup.as_mut() {
+                p.name = text.trim().to_string();
+            }
+            app.preferences.editor = None;
+        }
         Field::SetupUrl => {
             if let Some(p) = app.preferences.setup.as_mut() {
                 p.url = text.clone();
             }
             app.preferences.editor = None;
+            if app.preferences.setup.as_ref().is_some_and(|p| !p.service) {
+                if !ask_model_field(app) {
+                    connect_model(app, d);
+                }
+                return;
+            }
             let needs_key = app
                 .preferences
                 .setup
@@ -6388,37 +6496,15 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                     return;
                 }
                 connect_service(app, d);
-                return;
-            }
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                notice(app, "API key cannot be empty.", Tone::Error);
-                return;
-            }
-            if let Some(p) = &app.preferences.setup {
-                let (name, preset, base_url, key_name, key, model) = (
-                    p.name.clone(),
-                    Some(p.preset.clone()),
-                    (!p.url.is_empty()).then(|| p.url.clone()),
-                    (!p.key_name.is_empty()).then(|| p.key_name.clone()),
-                    Some(trimmed.to_string()),
-                    (!p.model.is_empty()).then(|| p.model.clone()),
-                );
-                send(
-                    app,
-                    d,
-                    Operation::Added(name.clone()),
-                    "Verifying API key with provider…",
-                    |id| Command::ProviderAdd {
-                        id,
-                        name,
-                        preset,
-                        base_url,
-                        key_name,
-                        key,
-                        model,
-                    },
-                );
+            } else if let Some(draft) = app.preferences.setup.as_ref() {
+                // A model connection goes out with its key, once the address
+                // it is sent to is known; an empty key is the preset's
+                // choice to allow (`connect_model`).
+                if model_url_missing(app, draft) {
+                    ask_model_field(app);
+                } else {
+                    connect_model(app, d);
+                }
             }
         }
         Field::ModelContext {
@@ -7854,6 +7940,104 @@ mod tests {
         );
         assert!(service_of(&app, "tavily").is_some());
         d.engine.shutdown();
+    }
+
+    #[test]
+    fn model_connection_form_keeps_endpoint_and_credentials_local_until_explicit_connect() {
+        let mut app = app();
+        let mut driver = super::super::test_driver("model-account-form");
+        app.providers["presets"] = json!([{"name":"cloudflare","needs_key":true,"base_url":"","url_hint":"Your account's Workers AI URL","key_hint":"Workers AI token"}]);
+        app.preferences.navigate(Page::Setup("cloudflare".into()));
+        app.preferences.setup = Some(ProviderDraft::model("cloudflare"));
+        let labels: Vec<_> = rows(&app).into_iter().map(|r| r.label).collect();
+        assert_eq!(
+            labels,
+            [
+                "Connection name",
+                "API base URL",
+                "Key name",
+                "API key",
+                "Connect"
+            ]
+        );
+        let key = rows(&app)
+            .into_iter()
+            .find(|r| matches!(r.kind, Kind::Edit(Field::SetupKey)))
+            .unwrap();
+        open_editor(&mut app, Field::SetupKey, &key);
+        app.preferences.editor.as_mut().unwrap().text = "private-test-token".into();
+        save_editor(&mut app, &mut driver);
+        assert!(app.preferences.pending.is_none());
+        assert_eq!(
+            app.preferences.setup.as_ref().unwrap().key,
+            "private-test-token"
+        );
+        // The address the account must give is asked for next, not guessed.
+        assert_eq!(
+            app.preferences.editor.as_ref().map(|e| e.field.clone()),
+            Some(Field::SetupUrl)
+        );
+        app.preferences.editor = None;
+        let connect = rows(&app)
+            .into_iter()
+            .find(|r| r.kind == Kind::ConnectModel)
+            .unwrap();
+        open(&mut app, &connect, &mut driver);
+        assert!(
+            app.preferences.pending.is_none(),
+            "a missing account URL must not send credentials"
+        );
+        let shown = ansi::plain(&render(&app, 120, 40).0.lines.join("\n"));
+        assert!(!shown.contains("private-test-token"));
+        driver.engine.shutdown();
+    }
+
+    /// A preset with an address of its own asks for the key alone, and the
+    /// key's Enter connects; one whose address is the account's asks for it
+    /// first and sends nothing until it is given (owner, 2026-10-22).
+    #[test]
+    fn a_preset_with_its_own_address_asks_only_for_the_key() {
+        let mut app = app();
+        let mut driver = super::super::test_driver("model-key-only");
+        app.providers["presets"] = json!([
+            {"name":"moonshot","needs_key":true,"base_url":"https://api.moonshot.ai/v1","url_hint":"","key_hint":"key"},
+            {"name":"cloudflare","needs_key":true,"base_url":"","url_hint":"Your account's URL","key_hint":"token"}
+        ]);
+        let open_preset = |app: &mut App, driver: &mut Driver, name: &str| {
+            let row = Row::new(Kind::AddPreset(name.into()), name, String::new());
+            open(app, &row, driver);
+            app.preferences.editor.as_ref().map(|e| e.field.clone())
+        };
+        assert_eq!(
+            open_preset(&mut app, &mut driver, "moonshot"),
+            Some(Field::SetupKey)
+        );
+        app.preferences.editor.as_mut().unwrap().text = "test-key".into();
+        save_editor(&mut app, &mut driver);
+        assert!(
+            app.preferences.pending.is_some(),
+            "the key's Enter connects"
+        );
+        app.preferences.pending = None;
+        assert_eq!(
+            open_preset(&mut app, &mut driver, "cloudflare"),
+            Some(Field::SetupUrl)
+        );
+        app.preferences.editor.as_mut().unwrap().text =
+            "https://api.cloudflare.com/client/v4/accounts/a/ai/v1".into();
+        save_editor(&mut app, &mut driver);
+        assert!(
+            app.preferences.pending.is_none(),
+            "nothing sent before the key"
+        );
+        assert_eq!(
+            app.preferences.editor.as_ref().map(|e| e.field.clone()),
+            Some(Field::SetupKey)
+        );
+        app.preferences.editor.as_mut().unwrap().text = "test-token".into();
+        save_editor(&mut app, &mut driver);
+        assert!(app.preferences.pending.is_some());
+        driver.engine.shutdown();
     }
 
     #[test]

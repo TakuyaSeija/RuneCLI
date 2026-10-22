@@ -175,6 +175,7 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
             "/completion_tokens",
             "/prompt_tokens_details/cached_tokens",
             "/prompt_cache_hit_tokens",
+            "/cached_tokens",
             "/cache_write_tokens",
             "/prompt_tokens_details/cache_creation_tokens",
         ] {
@@ -625,6 +626,8 @@ fn usage_of(value: &Value) -> Option<Chunk> {
         .and_then(|d| d.get("cached_tokens"))
         .and_then(|v| v.as_u64())
         .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(Value::as_u64))
+        // Flat, as StepFun's chat completion reference writes it.
+        .or_else(|| usage.get("cached_tokens").and_then(Value::as_u64))
         .unwrap_or(0);
     if !usage.contains_key("prompt_tokens") && !usage.contains_key("completion_tokens") {
         return None;
@@ -761,6 +764,17 @@ mod tests {
             tools: Vec::new(),
             settings: ModelSettings::for_provider(&cfg),
         }
+    }
+
+    /// StepFun writes cached prompt tokens flat beside the counts.
+    #[test]
+    fn flat_cached_tokens_are_cached_input() {
+        let Some(Chunk::Usage { input, cached, .. }) = usage_of(
+            &json!({"usage":{"prompt_tokens":100,"completion_tokens":4,"cached_tokens":60}}),
+        ) else {
+            panic!("usage")
+        };
+        assert_eq!((input, cached), (100, 60));
     }
 
     /// A job whose answer is one call names it; the endpoint is told to make

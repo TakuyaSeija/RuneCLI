@@ -252,6 +252,22 @@ pub fn smart_max_output(context: Option<u64>, provider_max: Option<u64>) -> u64 
     }
 }
 
+/// Adapters whose chat completion reference names only `max_tokens` for the
+/// output ceiling (read 2026-10-22), so the reasoning-model default
+/// `max_completion_tokens` is not sent to them.
+const MAX_TOKENS_ONLY: &[&str] = &[
+    "moonshot",
+    "alibaba",
+    "zai",
+    "stepfun",
+    "siliconflow",
+    "novita",
+    "together",
+    "deepinfra",
+    "inference",
+    "inclusionai",
+];
+
 impl ModelSettings {
     /// The settings a new session starts with for `provider`.
     pub fn for_provider(p: &ProviderConfig) -> ModelSettings {
@@ -795,6 +811,7 @@ impl ModelSettings {
         {
             None
         } else if p.dialect == Dialect::OpenAi
+            && !MAX_TOKENS_ONLY.contains(&p.api_kind())
             && (m.is_some_and(|m| m.thinking_required || m.thinking)
                 || p.thinking != Thinking::None)
         {
@@ -807,6 +824,18 @@ impl ModelSettings {
         }
         if !self.stop.is_empty() && !self.is_suppressed(p, "stop") {
             out.insert("stop".into(), json!(self.stop));
+        }
+        // Thinking these APIs would otherwise write into the answer as
+        // `<think>…</think>` is asked for in its own field (MiniMax OpenAI API
+        // and Novita chat completion references, read 2026-10-22).
+        match p.api_kind() {
+            "minimax" => {
+                out.insert("reasoning_split".into(), json!(true));
+            }
+            "novita" => {
+                out.insert("separate_reasoning".into(), json!(true));
+            }
+            _ => {}
         }
         let model_thinks = m
             .and_then(ModelInfo::reasoning_support)
@@ -827,7 +856,23 @@ impl ModelSettings {
                         .filter(|e| m.efforts.is_empty() || m.efforts.iter().any(|x| x == *e))
                 })
             })
-            .or_else(|| m.and_then(|m| m.efforts.first().map(|s| s.as_str())));
+            .or_else(|| {
+                m.filter(|m| !m.route_default_level(p.api_kind()))
+                    .and_then(|m| m.efforts.first().map(|s| s.as_str()))
+            });
+        if matches!(p.api_kind(), "alibaba" | "siliconflow" | "novita") {
+            // Thinking is one switch, `enable_thinking`, at the top level of
+            // the JSON (Model Studio deep-thinking guide, SiliconFlow and
+            // Novita chat completion references, read 2026-10-22); none of
+            // them takes a level. Off only where the model is known to stop,
+            // as on `Effort` (owner, 2026-10-22).
+            if enabled {
+                out.insert("enable_thinking".into(), json!(true));
+            } else if m.is_some_and(ModelInfo::turns_off) {
+                out.insert("enable_thinking".into(), json!(false));
+            }
+            return out;
+        }
         if p.api_kind() == "google" {
             // Wire encoding only; accepted levels come from model metadata.
             // Official OpenAI compatibility docs, checked 2026-10-03: omitting
@@ -884,10 +929,16 @@ impl ModelSettings {
         }
         match p.thinking {
             Thinking::Object => {
-                out.insert(
-                    "thinking".into(),
-                    json!({"type": if enabled { "enabled" } else { "disabled" }}),
-                );
+                // MiMo sends Off to every model, as before; an adapter added
+                // later sends it only where the model is known to stop, as
+                // on `Effort` (owner, 2026-10-22): a model that must think
+                // refuses `disabled`.
+                if enabled || p.api_kind() == "mimo" || m.is_some_and(ModelInfo::turns_off) {
+                    out.insert(
+                        "thinking".into(),
+                        json!({"type": if enabled { "enabled" } else { "disabled" }}),
+                    );
+                }
                 if enabled {
                     if let Some(e) = effort {
                         out.insert("reasoning_effort".into(), json!(e));
@@ -925,12 +976,7 @@ impl ModelSettings {
                     if let Some(e) = effort {
                         out.insert("reasoning_effort".into(), json!(e));
                     }
-                } else if m.is_some_and(|m| {
-                    m.metadata
-                        .pointer("/reasoning/can_disable")
-                        .and_then(Value::as_bool)
-                        == Some(true)
-                }) {
+                } else if m.is_some_and(ModelInfo::turns_off) {
                     out.insert("reasoning_effort".into(), json!("none"));
                 }
             }
@@ -995,6 +1041,100 @@ mod tests {
             },
         ];
         p
+    }
+
+    /// Each added adapter's thinking reaches its API in the field that API
+    /// documents, through the same Thinking kinds the older presets use.
+    #[test]
+    fn added_adapters_send_the_thinking_and_output_fields_their_apis_document() {
+        let body = |api: &str, model: ModelInfo, thinking: bool, effort: Option<&str>| {
+            let mut cfg = preset(api).unwrap().build("k");
+            if cfg.base_url.is_empty() {
+                cfg.base_url = "https://account.example/v1".into();
+            }
+            let id = model.id.clone();
+            cfg.models = vec![model];
+            cfg.settle_thinking();
+            let mut s = ModelSettings::for_provider(&cfg);
+            s.model = id;
+            s.thinking = thinking;
+            s.effort = effort.map(String::from);
+            s.body(&cfg)
+        };
+        // Off is sent only to a model known to stop (Alt+C › Reasoning offers
+        // Off, or its catalogue says so); one that must think refuses it.
+        let stops = || ModelInfo {
+            reasoning_options: Some(vec!["off".into(), "on".into()]),
+            ..ModelInfo::named("m", true)
+        };
+        // One switch, no level: Model Studio, SiliconFlow, Novita.
+        for api in ["alibaba", "siliconflow", "novita"] {
+            let unknown = body(api, ModelInfo::named("m", true), false, None);
+            assert!(unknown.get("enable_thinking").is_none(), "{api}");
+            let off = body(api, stops(), false, None);
+            assert_eq!(off["enable_thinking"], false, "{api}");
+            let on = body(api, ModelInfo::named("m", true), true, Some("high"));
+            assert_eq!(on["enable_thinking"], true, "{api}");
+            assert!(on.get("reasoning_effort").is_none(), "{api}");
+            assert!(on.contains_key("max_tokens"), "{api}");
+            assert!(!on.contains_key("max_completion_tokens"), "{api}");
+        }
+        // Thinking asked apart from the answer, on every request.
+        let novita = body("novita", ModelInfo::named("m", false), false, None);
+        assert_eq!(novita["separate_reasoning"], true);
+        let minimax = body("minimax", ModelInfo::named("m", false), false, None);
+        assert_eq!(minimax["reasoning_split"], true);
+        // Z.ai, TokenHub and the Ant Ling API: a thinking object, its level
+        // only when chosen.
+        for api in ["zai", "tencent", "inclusionai"] {
+            let open = body(api, ModelInfo::named("m", true), true, None);
+            assert_eq!(
+                open["thinking"],
+                serde_json::json!({"type":"enabled"}),
+                "{api}"
+            );
+            assert!(open.get("reasoning_effort").is_none(), "{api}");
+            let chosen = body(api, ModelInfo::named("m", true), true, Some("low"));
+            assert_eq!(chosen["reasoning_effort"], "low", "{api}");
+            let unknown = body(api, ModelInfo::named("m", true), false, None);
+            assert!(unknown.get("thinking").is_none(), "{api}");
+            let off = body(api, stops(), false, None);
+            assert_eq!(
+                off["thinking"],
+                serde_json::json!({"type":"disabled"}),
+                "{api}"
+            );
+        }
+        // MiMo, the older Object adapter, keeps sending Off as before.
+        let mimo = body("mimo", ModelInfo::named("m", true), false, None);
+        assert_eq!(mimo["thinking"], serde_json::json!({"type":"disabled"}));
+        // On Effort, an Off the person offered in Alt+C now reaches the API.
+        let fireworks = body("fireworks", stops(), false, None);
+        assert_eq!(fireworks["reasoning_effort"], "none");
+        let fireworks = body("fireworks", ModelInfo::named("m", true), false, None);
+        assert!(fireworks.get("reasoning_effort").is_none());
+        // A table adapter on Effort: no level chosen sends none.
+        let fireworks = body("fireworks", ModelInfo::named("m", true), true, None);
+        assert!(fireworks.get("reasoning_effort").is_none());
+        assert!(fireworks.contains_key("max_completion_tokens"));
+        let fireworks = body(
+            "fireworks",
+            ModelInfo::named("m", true),
+            true,
+            Some("xhigh"),
+        );
+        assert_eq!(fireworks["reasoning_effort"], "xhigh");
+        // A catalogue's own levels keep the older rule: its least to start.
+        let listed = ModelInfo {
+            efforts: vec!["low".into(), "high".into()],
+            known: vec!["thinking".into(), "efforts".into()],
+            ..ModelInfo::named("m", true)
+        };
+        let ling = body("inclusionai", ModelInfo::named("m", true), true, None);
+        assert!(ling.contains_key("max_tokens"));
+        let inference = body("inference", listed, true, None);
+        assert_eq!(inference["reasoning_effort"], "low");
+        assert!(inference.contains_key("max_tokens"));
     }
 
     #[test]

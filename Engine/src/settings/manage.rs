@@ -192,11 +192,19 @@ pub fn list(settings: &Shared) -> Value {
         "providers": configured,
         "presets": PRESETS
             .iter()
-            .map(|p| json!({
-                "name": p.name,
-                "key_hint": p.key_hint,
-                "needs_key": !p.key_prefixes.is_empty(),
-            }))
+            .map(|p| {
+                // Read off what the preset builds, as for a configured
+                // provider: a key prefix says nothing about whether a key is
+                // needed (Mistral has none and needs one).
+                let built = p.build("");
+                json!({
+                    "name": p.name,
+                    "key_hint": p.key_hint,
+                    "needs_key": built.secret.is_some(),
+                    "base_url": built.base_url,
+                    "url_hint": p.url_hint,
+                })
+            })
             .collect::<Vec<_>>(),
     });
     // The connections that serve the tools are drawn on the same screen: one
@@ -677,6 +685,13 @@ fn fetch_catalogue(
         "google" => format!("{}/models", base.strip_suffix("/openai").unwrap_or(base)),
         "xai" => format!("{base}/language-models"),
         "ollama" => format!("{}/api/tags", base.strip_suffix("/v1").unwrap_or(base)),
+        // Workers AI lists models under the account, beside its `/ai/v1`, and
+        // in OpenRouter's shape when asked (Cloudflare API reference, models
+        // search, `format=openrouter`).
+        "cloudflare" => format!(
+            "{}/models/search?format=openrouter&per_page=100",
+            base.strip_suffix("/v1").unwrap_or(base)
+        ),
         _ => format!("{base}/models"),
     };
     let http = Http::configured(
@@ -773,6 +788,7 @@ fn fetch_catalogue(
                     row["context_length"] = json!(context);
                 }
             }
+            vendor_row(api, &mut row);
             if let Some(pricing) = row.get("pricing").and_then(Value::as_object) {
                 for key in [
                     "prompt",
@@ -892,6 +908,89 @@ fn fetch_catalogue(
 /// and `pricing` **per token as strings**. Everything is optional because for
 /// OpenAI, Groq and a local gateway all of it is missing, and a missing number
 /// must stay missing — that is the difference between "not priced" and "$0.00".
+/// A catalogue whose prices or kinds are written its own way, rewritten into
+/// the common reader's shape (per-token USD strings under `pricing`). Each
+/// vendor's unit is its own; nothing here is applied to another adapter.
+fn vendor_row(api: &str, row: &mut Value) {
+    let per_token = |per_million: f64| {
+        (per_million.is_finite() && per_million >= 0.0)
+            .then(|| json!((per_million / 1_000_000.0).to_string()))
+    };
+    let number = |v: &Value| v.as_f64().or_else(|| v.as_str()?.parse().ok());
+    let mut prices = serde_json::Map::new();
+    match api {
+        // Together's model list: USD per million tokens under `input` and
+        // `output`; `type` names what a model is for.
+        "together" => {
+            if let Some(kind) = row.get("type").and_then(Value::as_str) {
+                row["capabilities"] = json!({"completion_chat": kind == "chat"});
+            }
+            for (from, to) in [("input", "prompt"), ("output", "completion")] {
+                if let Some(rate) = row.pointer(&format!("/pricing/{from}")).and_then(number) {
+                    prices.extend(per_token(rate).map(|rate| (to.to_string(), rate)));
+                }
+            }
+        }
+        // DeepInfra's model list: USD per million tokens in `metadata.pricing`,
+        // and its capability tags, `reasoning` among them.
+        "deepinfra" => {
+            for (from, to) in [
+                ("input_tokens", "prompt"),
+                ("output_tokens", "completion"),
+                ("cache_read_tokens", "input_cache_read"),
+            ] {
+                if let Some(rate) = row
+                    .pointer(&format!("/metadata/pricing/{from}"))
+                    .and_then(number)
+                {
+                    prices.extend(per_token(rate).map(|rate| (to.to_string(), rate)));
+                }
+            }
+            if let Some(tags) = row.pointer("/metadata/tags").and_then(Value::as_array) {
+                if tags.iter().any(|tag| tag == "reasoning") {
+                    row["reasoning"] = json!(true);
+                }
+            }
+        }
+        // Novita's model list: each price an object whose `price_per_m_decimal`
+        // is USD per million tokens; `features` names `reasoning`.
+        "novita" => {
+            for key in ["prompt", "completion", "input_cache_read"] {
+                if let Some(rate) = row
+                    .pointer(&format!("/pricing/{key}/price_per_m_decimal"))
+                    .and_then(number)
+                {
+                    prices.extend(per_token(rate).map(|rate| (key.to_string(), rate)));
+                }
+            }
+            if let Some(features) = row.get("features").and_then(Value::as_array) {
+                if features.iter().any(|feature| feature == "reasoning") {
+                    row["reasoning"] = json!(true);
+                }
+            }
+        }
+        // Inference.net's model list names each model's levels; `none` among
+        // them is its Off (reasoning guide, read 2026-10-22). Its prices are
+        // already per-token strings.
+        "inference" => {
+            let stops = row
+                .get("reasoning_efforts")
+                .and_then(Value::as_array)
+                .is_some_and(|levels| levels.iter().any(|level| level == "none"));
+            if stops && row.get("reasoning").is_none_or(Value::is_object) {
+                row["reasoning"]["can_disable"] = json!(true);
+            }
+            return;
+        }
+        _ => return,
+    }
+    if prices.contains_key("prompt") && prices.contains_key("completion") {
+        row["pricing"] = Value::Object(prices);
+    } else if let Some(row) = row.as_object_mut() {
+        row.remove("pricing");
+    }
+}
+
 fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
     let id = row.get("id")?.as_str()?.to_string();
     let supported_parameters: Vec<String> = row
@@ -920,6 +1019,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
         .or_else(|| row.pointer("/capabilities/thinking_efforts"))
         .or_else(|| row.pointer("/reasoning/efforts"))
         .or_else(|| row.get("supported_efforts"))
+        .or_else(|| row.get("reasoning_efforts"))
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
@@ -950,7 +1050,8 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
                 .and_then(Value::as_bool)
         })
         .or_else(|| row.get("thinking").and_then(Value::as_bool))
-        .or_else(|| row.get("reasoning").and_then(Value::as_bool));
+        .or_else(|| row.get("reasoning").and_then(Value::as_bool))
+        .or_else(|| row.get("supports_reasoning").and_then(Value::as_bool));
     // 9router's `capabilities.thinkingCanDisable: false` is not mandatory
     // thinking: the router reads `none` for such a route as its least level
     // (`ModelInfo::thinking_off_asks_least`), so Off stays a request it takes.
@@ -1013,6 +1114,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
                 "/capabilities/thinking",
                 "/reasoning",
                 "/thinking",
+                "/supports_reasoning",
                 "/supported_parameters",
             ],
         ),
@@ -1023,6 +1125,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
                 "/capabilities/supported_efforts",
                 "/capabilities/effort",
                 "/supported_efforts",
+                "/reasoning_efforts",
                 "/capabilities/thinkingEffortSupported",
             ],
         ),
@@ -1566,6 +1669,109 @@ pub fn describe(settings: &Shared, current: &ModelSettings, catalogue: bool) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Rows as these vendors' model lists write them (read 2026-10-22), read
+    /// into per-token USD and thinking support; another adapter's row is left
+    /// as it came.
+    #[test]
+    fn vendor_model_lists_are_read_in_their_own_units() {
+        let read = |api: &str, mut row: Value| {
+            vendor_row(api, &mut row);
+            catalogue_entry(&row).unwrap()
+        };
+        let together = read(
+            "together",
+            json!({"id":"t","type":"chat","pricing":{"input":0.88,"output":0.88,"hourly":0}}),
+        );
+        let price = together.price.clone().unwrap();
+        assert!((price.input - 0.88).abs() < 1e-9 && (price.output - 0.88).abs() < 1e-9);
+        assert_eq!(together.chat, Some(true));
+        let deepinfra = read(
+            "deepinfra",
+            json!({"id":"d","metadata":{"pricing":{"input_tokens":3.0,"output_tokens":15.0,
+                "cache_read_tokens":0.3},"tags":["chat","reasoning_effort","reasoning"]}}),
+        );
+        let price = deepinfra.price.clone().unwrap();
+        assert!((price.input - 3.0).abs() < 1e-9 && (price.cached - 0.3).abs() < 1e-9);
+        assert_eq!(deepinfra.reasoning_support(), Some(true));
+        let novita = read(
+            "novita",
+            json!({"id":"n","features":["function-calling","reasoning"],"pricing":{
+                "prompt":{"price_per_m":3000,"price_per_m_decimal":"0.3"},
+                "completion":{"price_per_m":12000,"price_per_m_decimal":"1.2"}}}),
+        );
+        let price = novita.price.clone().unwrap();
+        assert!((price.input - 0.3).abs() < 1e-9 && (price.output - 1.2).abs() < 1e-9);
+        assert_eq!(novita.reasoning_support(), Some(true));
+        // The same numbers under another adapter are not guessed at.
+        let other = read(
+            "openai",
+            json!({"id":"o","pricing":{"input":0.88,"output":0.88}}),
+        );
+        assert!(other.price.is_none());
+        // Inference.net names each model's levels; Moonshot says whether it thinks.
+        let listed = read(
+            "inference",
+            json!({"id":"glm-5.3","reasoning_efforts":["low","high","max"]}),
+        );
+        assert_eq!(listed.efforts, ["low", "high", "max"]);
+        assert!(listed.known.iter().any(|f| f == "efforts"));
+        assert!(!listed.turns_off(), "no `none` listed: it must think");
+        let stops = read(
+            "inference",
+            json!({"id":"kimi-k3","reasoning_efforts":["none","low","high","max"]}),
+        );
+        assert_eq!(stops.efforts, ["low", "high", "max"]);
+        assert!(stops.turns_off());
+        assert_eq!(stops.reasoning_support(), Some(true));
+        let silent = read("moonshot", json!({"id":"k","supports_reasoning":false}));
+        assert_eq!(silent.reasoning_support(), Some(false));
+        let thinks = read("moonshot", json!({"id":"k","supports_reasoning":true}));
+        assert_eq!(thinks.reasoning_support(), Some(true));
+    }
+
+    /// Whether a preset needs a key is what it builds, not whether its keys
+    /// have a known prefix; an account address is asked for, never invented.
+    #[test]
+    fn the_preset_list_says_what_each_preset_needs() {
+        let l = list(&shared());
+        let preset = |name: &str| {
+            l["presets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|p| p["name"] == name)
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(preset("mistral")["needs_key"], true);
+        assert_eq!(preset("ollama")["needs_key"], false);
+        assert_eq!(preset("compatible")["needs_key"], false);
+        assert_eq!(preset("cloudflare")["base_url"], "");
+        assert!(!preset("cloudflare")["url_hint"]
+            .as_str()
+            .unwrap()
+            .is_empty());
+        assert_eq!(preset("moonshot")["base_url"], "https://api.moonshot.ai/v1");
+        // One address for everyone: carried, so only the key is asked for.
+        assert_eq!(
+            preset("tokenrouter")["base_url"],
+            "https://api.tokenrouter.com/v1"
+        );
+        assert_eq!(
+            preset("inclusionai")["base_url"],
+            "https://api.ant-ling.com/v1"
+        );
+        assert_eq!(preset("inclusionai")["needs_key"], true);
+        // An address that names the account, region or site is the person's.
+        for name in ["alibaba", "tencent", "cloudflare", "compatible"] {
+            assert_eq!(preset(name)["base_url"], "", "{name}");
+            assert!(
+                !preset(name)["url_hint"].as_str().unwrap().is_empty(),
+                "{name}"
+            );
+        }
+    }
 
     fn shared() -> Shared {
         Arc::new(Mutex::new(Settings::empty()))

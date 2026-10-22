@@ -1,6 +1,6 @@
 # Model provider accounts
 
-Use Settings → Connections for endpoint and API-key access. Models selects a model; Runtime controls its request timeout. Adding/testing an account makes a real request and may cost money. A successful save/test applies to the account tested, not a guarantee every model works.
+Use Settings → Connections for endpoint and API-key access. Add connection asks for what the account needs: a preset with an address of its own asks for the API key alone, and Enter connects. A preset whose address depends on your account or region (Alibaba, Tencent TokenHub, Cloudflare, Custom) asks for that address first; Rune never guesses it, and you can change it on the same form. Connection name and Key name are filled in and can be changed before Connect. Nonsecret account choices are saved in rune.toml; API keys remain in the encrypted vault. Models selects a model; Runtime controls its request timeout. Connecting/testing an account makes a real request and may cost money. A successful save/test applies to the account tested, not a guarantee every model works.
 
 ## Main account choices
 | Property | Purpose and risk |
@@ -47,3 +47,23 @@ A local Ollama model account and Ollama's web service need not use the same addr
 - [groq](presets/groq.md)
 - [mistral](presets/mistral.md)
 - [9router](presets/9router.md)
+- [moonshot](presets/moonshot.md)
+- [alibaba](presets/alibaba.md)
+- [minimax](presets/minimax.md)
+- [tencent](presets/tencent.md)
+- [zai](presets/zai.md)
+- [meta](presets/meta.md)
+- [stepfun](presets/stepfun.md)
+- [inclusionai](presets/inclusionai.md)
+- [nvidia](presets/nvidia.md)
+- [inference](presets/inference.md)
+- [cloudflare](presets/cloudflare.md)
+- [fireworks](presets/fireworks.md)
+- [together](presets/together.md)
+- [siliconflow](presets/siliconflow.md)
+- [deepinfra](presets/deepinfra.md)
+- [novita](presets/novita.md)
+- [tokenrouter](presets/tokenrouter.md)
+- [cerebras](presets/cerebras.md)
+- [huggingface](presets/huggingface.md)
+- [compatible](presets/compatible.md)

@@ -807,7 +807,8 @@
       "ServiceZone",
       "RemoveService",
       "SetupUrl",
-      "NewCredentialStore"
+      "NewCredentialStore",
+      "SetupName"
     ],
     "Kind": [
       "Fact",
@@ -825,7 +826,8 @@
       "Connect",
       "Sidebar",
       "ReloadClassifier",
-      "Theme"
+      "Theme",
+      "ConnectModel"
     ]
   },
   "knobs": [

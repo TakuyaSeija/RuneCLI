@@ -100,8 +100,9 @@ class NineRouter(http.server.BaseHTTPRequestHandler):
 
 
 def scroll_to(window, text):
-    """Move down the list until `text` is on the screen."""
-    for _ in range(80):
+    """Move down the list until `text` is on the screen; search vendors sit
+    below every model preset."""
+    for _ in range(160):
         # Each step drawn before the next is sent: a row passed unseen is a
         # row the test never finds.
         time.sleep(0.12)
@@ -174,7 +175,7 @@ def gateway(a, router):
     click_text(a, "Connections")
     live.until(lambda: a.shows("CONNECTIONS") and a.shows("Add connection"), "Connections", a)
     click_text(a, "Add connection")
-    live.until(lambda: a.shows("SEARCH & FETCH"), "vendors", a)
+    live.until(lambda: a.shows("MODEL PROVIDERS"), "vendors", a)
     scroll_to(a, "9router · Search · Fetch")
     select(a, "9router · Search · Fetch")
     a.send(b"\r")
@@ -278,7 +279,7 @@ def main():
         click_text(a, "Connections")
         live.until(lambda: a.shows("CONNECTIONS") and a.shows("Add connection"), "Connections", a)
         click_text(a, "Add connection")
-        live.until(lambda: a.shows("SEARCH & FETCH"), "vendors listed", a)
+        live.until(lambda: a.shows("MODEL PROVIDERS"), "vendors listed", a)
         scroll_to(a, "SearXNG · Search")
         SearXNG.json_enabled = False
         click_text(a, "SearXNG · Search")

@@ -196,8 +196,18 @@ impl ModelInfo {
     /// (`…-high`) included: "Route default". The router does this for every
     /// model it serves — a row with a thinking format of its own and one
     /// without alike — so it is the provider's fact, never the row's.
+    ///
+    /// The same holds where the levels are an adapter's table rather than the
+    /// model's own ([`adapter_levels`]): a level Rune filled in would be one
+    /// the model never published, so no level asks for the API's default.
     pub fn route_default_level(&self, api: &str) -> bool {
-        api == "9router" && self.reasoning_support() == Some(true)
+        (api == "9router" || (adapter_levels(api).is_some() && !self.publishes_levels()))
+            && self.reasoning_support() == Some(true)
+    }
+
+    /// Whether this model's levels are its catalogue's, not an adapter's table.
+    fn publishes_levels(&self) -> bool {
+        self.known.iter().any(|field| field == "efforts")
     }
 
     /// Whether a session on this model starts thinking when the person has
@@ -289,6 +299,32 @@ impl ModelInfo {
         if !default_effort {
             self.default_effort = None;
         }
+    }
+
+    /// Settle a model on an adapter with a level table ([`adapter_levels`]):
+    /// the levels its catalogue lists, else the ones the person configured
+    /// (`reasoning_options`), else the table — derived again each time, so a
+    /// corrected table reaches models stored by an earlier build.
+    pub fn settle_adapter_levels(&mut self, levels: &[&str]) {
+        if self.manual_fields.iter().any(|f| f == "efforts")
+            || self.publishes_levels()
+            || self.reasoning_support() != Some(true)
+        {
+            return;
+        }
+        let configured: Vec<String> = self
+            .reasoning_options
+            .iter()
+            .flatten()
+            .filter(|level| !matches!(level.as_str(), "off" | "on" | "none" | "auto"))
+            .cloned()
+            .collect();
+        self.efforts = if configured.is_empty() {
+            levels.iter().map(|level| level.to_string()).collect()
+        } else {
+            configured
+        };
+        sort_efforts(&mut self.efforts);
     }
 
     /// This model as its catalogue published it, without what the person set
@@ -400,6 +436,21 @@ impl ModelInfo {
         }
     }
 
+    /// Whether Off is known to stop this model's thinking: its catalogue says
+    /// it can be disabled, or the person offered Off for it (Alt+C ›
+    /// Reasoning). Only then is Off sent; elsewhere the model keeps its own
+    /// default, since one that must think refuses being switched off.
+    pub fn turns_off(&self) -> bool {
+        self.metadata
+            .pointer("/reasoning/can_disable")
+            .and_then(Value::as_bool)
+            == Some(true)
+            || self
+                .reasoning_options
+                .as_ref()
+                .is_some_and(|options| options.iter().any(|o| o == "off"))
+    }
+
     pub fn supports_parameter(&self, key: &str) -> Option<bool> {
         if key == "tools" && self.tools.is_some() {
             return self.tools;
@@ -456,6 +507,37 @@ pub const ROUTER_LEVELS: [&str; 6] = ["minimal", "low", "medium", "high", "xhigh
 /// level table for the format leaves it out; hidden until a published range
 /// says otherwise (owner, 2026-10-15). A format, never a model.
 const ROUTER_REFUSED: &[(&str, &str)] = &[("claude-budget", "minimal")];
+
+/// Thinking levels an adapter's API takes in `reasoning_effort` for every
+/// model, where its catalogue publishes none per model: Rune's second source
+/// of levels, like [`ROUTER_LEVELS`] for 9router, read from each API's own
+/// reference on 2026-10-22. A level a model does not take is the person's to
+/// remove (Settings › Models › Alt+C); a catalogue that lists a model's own
+/// levels always wins. `none` is how these APIs say Off, never a level.
+///
+/// - `zai`: chat completion reference, `reasoning_effort` enum.
+/// - `fireworks`: chat completions reference (`adaptive` is one model's).
+/// - `deepinfra`: reasoning guide, `reasoning_effort`.
+/// - `meta`: Chat Completions protocol (`none` is refused by Muse Spark).
+/// - `stepfun`: chat completion reference, three-tier models.
+/// - `tencent`: TokenHub OpenAI-compatible reference.
+const ADAPTER_LEVELS: &[(&str, &[&str])] = &[
+    ("zai", &["minimal", "low", "medium", "high", "xhigh", "max"]),
+    ("fireworks", &["low", "medium", "high", "xhigh", "max"]),
+    ("deepinfra", &["low", "medium", "high"]),
+    ("meta", &["minimal", "low", "medium", "high", "xhigh"]),
+    ("stepfun", &["low", "medium", "high"]),
+    ("tencent", &["low", "medium", "high"]),
+];
+
+/// The levels an adapter offers every model whose catalogue lists none
+/// ([`ADAPTER_LEVELS`]).
+pub fn adapter_levels(api: &str) -> Option<&'static [&'static str]> {
+    ADAPTER_LEVELS
+        .iter()
+        .find(|(adapter, _)| *adapter == api)
+        .map(|(_, levels)| *levels)
+}
 
 /// The effort choice that asks for no level, so the route applies its own
 /// ([`ModelInfo::route_default_level`]); a session holds it as thinking on
@@ -711,13 +793,18 @@ impl ProviderConfig {
     }
 
     /// Settle what this provider's adapter decides about its models' thinking
-    /// ([`ModelInfo::settle_router_thinking`] for 9router), wherever models
-    /// enter it — loaded, fetched or configured — so every reader sees one
-    /// answer.
+    /// ([`ModelInfo::settle_router_thinking`] for 9router,
+    /// [`ModelInfo::settle_adapter_levels`] for an adapter level table),
+    /// wherever models enter it — loaded, fetched or configured — so every
+    /// reader sees one answer.
     pub fn settle_thinking(&mut self) {
         if self.api_kind() == "9router" {
             for model in &mut self.models {
                 model.settle_router_thinking();
+            }
+        } else if let Some(levels) = adapter_levels(self.api_kind()) {
+            for model in &mut self.models {
+                model.settle_adapter_levels(levels);
             }
         }
     }
@@ -911,6 +998,9 @@ pub struct Preset {
     /// Every prefix a valid key for this provider may start with. Empty means
     /// no prefix is known, so nothing can be rejected on shape alone.
     pub key_prefixes: &'static [&'static str],
+    /// Where an account-specific base URL comes from, shown beside the URL
+    /// field. Empty for a preset whose address is the same for everyone.
+    pub url_hint: &'static str,
     build: fn(&str) -> ProviderConfig,
 }
 
@@ -962,6 +1052,7 @@ pub const PRESETS: &[Preset] = &[
         name: "mimo",
         key_hint: "Xiaomi MiMo key — sk-… for pay-as-you-go, tp-… for a Token Plan",
         key_prefixes: &["sk-", "tp-"],
+        url_hint: "",
         build: |key| ProviderConfig {
             api: None,
             max_payload_size: "30MiB".into(),
@@ -981,6 +1072,7 @@ pub const PRESETS: &[Preset] = &[
         name: "openai",
         key_hint: "OpenAI key — sk-…",
         key_prefixes: &["sk-"],
+        url_hint: "",
         build: |_| ProviderConfig {
             api: None,
             max_payload_size: "50MiB".into(),
@@ -1000,6 +1092,7 @@ pub const PRESETS: &[Preset] = &[
         name: "openrouter",
         key_hint: "OpenRouter key — sk-or-…",
         key_prefixes: &["sk-or-", "sk-"],
+        url_hint: "",
         build: |_| ProviderConfig {
             api: None,
             max_payload_size: "30MiB".into(),
@@ -1019,6 +1112,7 @@ pub const PRESETS: &[Preset] = &[
         name: "ollama",
         key_hint: "no key needed — Ollama runs on this machine",
         key_prefixes: &[],
+        url_hint: "",
         build: |key| ProviderConfig {
             api: None,
             max_payload_size: "30MiB".into(),
@@ -1041,6 +1135,7 @@ pub const PRESETS: &[Preset] = &[
         name: "anthropic",
         key_hint: "Anthropic key — sk-ant-…",
         key_prefixes: &["sk-ant-"],
+        url_hint: "",
         build: |_| ProviderConfig {
             api: None,
             max_payload_size: "32MiB".into(),
@@ -1067,6 +1162,7 @@ pub const PRESETS: &[Preset] = &[
         name: "google",
         key_hint: "Google AI Studio key — AIza…",
         key_prefixes: &["AIza", "AQ."],
+        url_hint: "",
         build: |_| ProviderConfig {
             api: None,
             max_payload_size: "100MiB".into(),
@@ -1086,6 +1182,7 @@ pub const PRESETS: &[Preset] = &[
         name: "xai",
         key_hint: "xAI key — xai-…",
         key_prefixes: &["xai-"],
+        url_hint: "",
         build: |_| {
             let mut c = openai_compatible("xai", "https://api.x.ai/v1", Thinking::Effort);
             c.max_payload_size = "30MiB".into();
@@ -1097,6 +1194,7 @@ pub const PRESETS: &[Preset] = &[
         name: "deepseek",
         key_hint: "DeepSeek key — sk-…",
         key_prefixes: &["sk-"],
+        url_hint: "",
         build: |_| {
             let mut c =
                 openai_compatible("deepseek", "https://api.deepseek.com/v1", Thinking::Effort);
@@ -1109,6 +1207,7 @@ pub const PRESETS: &[Preset] = &[
         name: "groq",
         key_hint: "Groq key — gsk_…",
         key_prefixes: &["gsk_"],
+        url_hint: "",
         build: |_| {
             let mut c =
                 openai_compatible("groq", "https://api.groq.com/openai/v1", Thinking::Effort);
@@ -1121,6 +1220,7 @@ pub const PRESETS: &[Preset] = &[
         name: "mistral",
         key_hint: "Mistral key",
         key_prefixes: &[],
+        url_hint: "",
         build: |_| {
             let mut c = openai_compatible("mistral", "https://api.mistral.ai/v1", Thinking::None);
             c.max_payload_size = "30MiB".into();
@@ -1134,6 +1234,7 @@ pub const PRESETS: &[Preset] = &[
         name: "9router",
         key_hint: "9Router API key — press enter if no key is configured",
         key_prefixes: &[],
+        url_hint: "",
         build: |key| ProviderConfig {
             api: None,
             max_payload_size: "30MiB".into(),
@@ -1147,6 +1248,159 @@ pub const PRESETS: &[Preset] = &[
             secret: (!key.is_empty()).then(|| "9router".into()),
             timeout: None,
             headers: BTreeMap::new(),
+        },
+    },    Preset {
+        name: "moonshot",
+        key_hint: "Moonshot AI / Kimi API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("moonshot", "https://api.moonshot.ai/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "alibaba",
+        key_hint: "Model Studio API key from the same region as the URL",
+        key_prefixes: &[],
+        // A key is bound to the region it was made in, and the address names
+        // the region (and workspace): the person's to enter, never a guess
+        // (owner, 2026-10-22; compatibility guide read the same day).
+        url_hint: "Your region's compatible-mode URL from the Model Studio console, e.g. https://dashscope-intl.aliyuncs.com/compatible-mode/v1 (Singapore) or https://dashscope.aliyuncs.com/compatible-mode/v1 (Beijing). The key must come from the same region.",
+        build: |_| openai_compatible("alibaba", "", Thinking::Effort),
+    },
+    Preset {
+        name: "minimax",
+        key_hint: "MiniMax API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("minimax", "https://api.minimax.io/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "tencent",
+        key_hint: "Tencent TokenHub API key from the same site as the URL",
+        key_prefixes: &[],
+        // Keys do not work across TokenHub's sites, and the site is the
+        // person's to choose (owner, 2026-10-22; API guide read the same day).
+        url_hint: "Your TokenHub site: https://tokenhub-intl.tencentcloudmaas.com/v1 (Singapore), https://tokenhub.tencentcloudmaas.com/v1 (Guangzhou) or https://tokenhub-us.tencentcloudmaas.tech/v1 (Silicon Valley). Keys do not work across sites.",
+        build: |_| openai_compatible("tencent", "", Thinking::Object),
+    },
+    Preset {
+        name: "zai",
+        key_hint: "Z.ai API key (standard API, not a Coding Plan key)",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("zai", "https://api.z.ai/api/paas/v4", Thinking::Object),
+    },
+    Preset {
+        name: "meta",
+        key_hint: "Meta Model API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("meta", "https://api.meta.ai/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "stepfun",
+        key_hint: "StepFun API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("stepfun", "https://api.stepfun.ai/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "inclusionai",
+        key_hint: "Ant Ling API key (developer.ant-ling.com)",
+        key_prefixes: &[],
+        // Ant Group's own Ling API, which serves InclusionAI's models
+        // (quickstart and OpenAI-compatible reference, read 2026-10-22): a
+        // `thinking` object switches the 3.x models.
+        url_hint: "",
+        build: |_| openai_compatible("inclusionai", "https://api.ant-ling.com/v1", Thinking::Object),
+    },
+    Preset {
+        name: "nvidia",
+        key_hint: "NVIDIA API key — nvapi-…",
+        key_prefixes: &["nvapi-"],
+        url_hint: "",
+        build: |_| openai_compatible("nvidia", "https://integrate.api.nvidia.com/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "inference",
+        key_hint: "Inference.net API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("inference", "https://api.inference.net/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "cloudflare",
+        key_hint: "Cloudflare API token with Workers AI access",
+        key_prefixes: &[],
+        url_hint: "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/v1 with your account ID.",
+        build: |_| openai_compatible("cloudflare", "", Thinking::Effort),
+    },
+    Preset {
+        name: "fireworks",
+        key_hint: "Fireworks AI API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("fireworks", "https://api.fireworks.ai/inference/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "together",
+        key_hint: "Together AI API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("together", "https://api.together.ai/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "siliconflow",
+        key_hint: "SiliconFlow API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("siliconflow", "https://api.siliconflow.com/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "deepinfra",
+        key_hint: "DeepInfra API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("deepinfra", "https://api.deepinfra.com/v1/openai", Thinking::Effort),
+    },
+    Preset {
+        name: "novita",
+        key_hint: "Novita AI API key",
+        key_prefixes: &[],
+        url_hint: "",
+        build: |_| openai_compatible("novita", "https://api.novita.ai/openai", Thinking::Effort),
+    },
+    Preset {
+        name: "tokenrouter",
+        key_hint: "TokenRouter API key (tokenrouter.com)",
+        key_prefixes: &[],
+        // The address tokenrouter.com's own console publishes
+        // (`server_address` in its status, read 2026-10-22).
+        url_hint: "",
+        build: |_| openai_compatible("tokenrouter", "https://api.tokenrouter.com/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "cerebras",
+        key_hint: "Cerebras API key — csk-…",
+        key_prefixes: &["csk-"],
+        url_hint: "",
+        build: |_| openai_compatible("cerebras", "https://api.cerebras.ai/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "huggingface",
+        key_hint: "Hugging Face token — hf_…",
+        key_prefixes: &["hf_"],
+        url_hint: "",
+        build: |_| openai_compatible("huggingface", "https://router.huggingface.co/v1", Thinking::Effort),
+    },
+    Preset {
+        name: "compatible",
+        key_hint: "Key for this endpoint — press enter if it needs none",
+        key_prefixes: &[],
+        url_hint: "The endpoint's API base URL, without /chat/completions.",
+        build: |key| {
+            let mut c = openai_compatible("compatible", "", Thinking::Effort);
+            c.secret = (!key.is_empty()).then(|| "compatible".into());
+            c
         },
     },
 ];
@@ -1539,6 +1793,8 @@ impl Providers {
         });
         if config.api_kind() == "9router" {
             model.settle_router_thinking();
+        } else if let Some(levels) = adapter_levels(config.api_kind()) {
+            model.settle_adapter_levels(levels);
         }
         updated.models.push(model.clone());
         let previous = self.clone();
@@ -2568,7 +2824,13 @@ mod tests {
         let h = home("presets");
         let mut p = load(&h).unwrap();
         for preset in PRESETS {
-            let config = preset.build("sk-probe-000000000001");
+            let mut config = preset.build("sk-probe-000000000001");
+            if config.base_url.is_empty() {
+                // An account's own address: nothing is sent until it is given.
+                assert!(config.check().is_err(), "{}", preset.name);
+                assert!(!preset.url_hint.is_empty(), "{}", preset.name);
+                config.base_url = "https://account.example/v1".into();
+            }
             assert_eq!(config.name, preset.name);
             let local = is_loopback(&config.base_url);
             assert!(
@@ -2684,7 +2946,10 @@ mod tests {
         let mut p = load(&h).unwrap();
         const SECRET: &str = "sk-secret-must-not-land-here";
         for preset in PRESETS {
-            let config = preset.build(SECRET);
+            let mut config = preset.build(SECRET);
+            if config.base_url.is_empty() {
+                config.base_url = "https://account.example/v1".into();
+            }
             assert!(
                 !config.headers.values().any(|v| v.contains(SECRET)),
                 "{} put the key in a header",
@@ -2695,6 +2960,50 @@ mod tests {
         let text = std::fs::read_to_string(h.join(crate::settings::configuration::FILE)).unwrap();
         assert!(!text.contains(SECRET), "a key reached providers.json");
     }
+    /// An adapter's level table is Rune's second source, like the router's:
+    /// a model's own published levels and the person's choice come first,
+    /// and a table derived by an earlier build is derived again.
+    #[test]
+    fn an_adapter_level_table_fills_only_what_no_catalogue_or_person_gave() {
+        let mut cfg = preset("zai").unwrap().build("k");
+        cfg.models = vec![
+            ModelInfo::named("thinks", true),
+            ModelInfo {
+                efforts: vec!["low".into(), "high".into()],
+                known: vec!["thinking".into(), "efforts".into()],
+                ..ModelInfo::named("published", true)
+            },
+            ModelInfo::named("plain", false),
+            ModelInfo {
+                efforts: vec!["minimal".into(), "low".into()],
+                ..ModelInfo::named("stale", true)
+            },
+            ModelInfo {
+                efforts: vec!["high".into()],
+                manual_fields: vec!["efforts".into()],
+                ..ModelInfo::named("chosen", true)
+            },
+        ];
+        cfg.settle_thinking();
+        let levels = |id: &str| cfg.model(id).unwrap().efforts.clone();
+        let table = ["minimal", "low", "medium", "high", "xhigh", "max"];
+        assert_eq!(levels("thinks"), table);
+        assert_eq!(levels("published"), ["low", "high"]);
+        assert!(levels("plain").is_empty());
+        assert_eq!(levels("stale"), table);
+        assert_eq!(levels("chosen"), ["high"]);
+        // A table level was never the model's: no level asks for the API's own.
+        assert!(cfg.model("thinks").unwrap().route_default_level("zai"));
+        assert_eq!(cfg.model("thinks").unwrap().starting_effort("zai"), None);
+        assert!(!cfg.model("published").unwrap().route_default_level("zai"));
+        // An adapter without a table keeps the catalogue's answer alone.
+        let mut other = preset("moonshot").unwrap().build("k");
+        other.models = vec![ModelInfo::named("thinks", true)];
+        other.settle_thinking();
+        assert!(other.models[0].efforts.is_empty());
+        assert!(!other.models[0].route_default_level("moonshot"));
+    }
+
     #[test]
     fn reasoning_selection_is_separate_from_api_capability_and_effort_list() {
         let mut model = ModelInfo::named("fixture", true);

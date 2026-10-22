@@ -16,6 +16,10 @@ The visible slash palette owns its choice/confirm keys before a reader behind it
 
 How a frame is paced follows from measurements of real terminals (`ui/draw.rs` `Screen`, CLAUDE.md CLI UI): Konsole 25.04 answers no DEC 2026, draws 10 ms after data arrives or 40 ms into a stream, and takes 35–80 ms for a 169×50 page with its event loop shut. Sending it one frame at a time, then `Screen::QUIET` with nothing new, then a lone `ESC [ 5 n` it answers only once done drawing (`Screen::next_at`), was measured under gdb in a real Konsole: torn repaints 8/736 → 0/711, about 1–1.5 frames a second fewer.
 
+## Model provider presets
+
+Added presets follow the older ones — address, key, one `Thinking` kind, adapter branches only where an API's wire differs, levels from the catalogue first and an adapter table second (`ADAPTER_LEVELS`, like `ROUTER_LEVELS`). Sources and the per-adapter facts: [provider_contracts.md](provider_contracts.md).
+
 ## Architecture — single gates that must not be bypassed
 
 ```
