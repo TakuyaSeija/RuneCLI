@@ -16,6 +16,7 @@ foldernya bisa bernama `RuneCLI` atau nama lain tanpa mengubah struktur repo.
 | `rust-toolchain.toml`, `.editorconfig`, `.gitattributes` | Toolchain bersama dan aturan format lintas editor/platform |
 | `.github/workflows/studio-ci.yml` | Quality gate Linux di GitHub Actions |
 | `scripts/` | Pemeriksaan dan tes kebijakan Git |
+| `Website/` | Website publik RuneAgent: BE Go (`Server/`, stdlib saja) dan UI tertanam (`UI/`); tanpa detail host |
 | `docs/git.md` | Kebijakan berkas repositori dan panduan commit/push |
 
 Target desain Rune adalah Linux, Windows, dan macOS. **Implementasi saat ini

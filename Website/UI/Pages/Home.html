@@ -1,0 +1,153 @@
+{{define "content"}}
+<section class="hero">
+  <div class="shell hero-grid">
+    <div class="hero-copy">
+      <span class="eyebrow">Atoryn Studio presents RuneAgent</span>
+      <h1 class="display">Your code. Your machine. <em>Your rules.</em></h1>
+      <p class="lead">RuneAgent is a coding agent for your terminal that plans, reads, edits, builds and tests with you, while your code never leaves your computer and nothing happens without the permission you chose.</p>
+      <div class="command" role="group" aria-label="Install command">
+        <span class="prompt" aria-hidden="true">$</span>
+        <code id="install-cmd">{{.InstallCmd}}</code>
+        <button class="copy" type="button" data-copy="install-cmd">Copy</button>
+      </div>
+      <div class="hero-actions">
+        <a class="button gold" href="{{url "install"}}">Install RuneAgent <span class="arrow" aria-hidden="true">&rarr;</span></a>
+        <a class="button" href="{{url "security"}}">How it keeps you safe</a>
+      </div>
+      <div class="hero-meta">
+        {{- if .Latest}}
+        <span>Version {{.Latest.Version}}</span>
+        {{- else}}
+        <span>First public release coming soon</span>
+        {{- end}}
+        <span>Linux, x86_64</span>
+        <span>One self-contained binary</span>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <div class="ring"></div>
+      <div class="ring two"></div>
+      <img src="{{asset "Images/RuneCrystal.webp"}}" width="720" height="720" alt="">
+    </div>
+  </div>
+</section>
+
+<section aria-label="Promises">
+  <div class="shell">
+    <div class="strip reveal">
+      <div><strong>No telemetry</strong><span>Nothing is reported back. Ever.</span></div>
+      <div><strong>Your models, your keys</strong><span>Talks only to the provider you choose.</span></div>
+      <div><strong>Undo for every change</strong><span>Any edit can be reverted, file by file.</span></div>
+      <div><strong>Enforced, not requested</strong><span>Limits the agent cannot talk its way out of.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="section-head">
+      <span class="eyebrow">Why RuneAgent</span>
+      <h2 class="title">An agent you can <em>let work</em>.</h2>
+      <p class="lead">Most assistants ask a model to behave. RuneAgent does not have to ask: what the agent may touch is decided by RuneAgent itself, on your machine, before anything runs.</p>
+    </div>
+    <div class="grid three">
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">I</div>
+        <h3>Local-first by design</h3>
+        <p>Your repository, history and settings stay on your computer. There is no Atoryn server in between: the only traffic is the request to the model provider you configured.</p>
+      </article>
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">II</div>
+        <h3>Guardrails that hold</h3>
+        <p>Commands run in an isolated sandbox enforced by the operating system. The project folder is the boundary; reaching beyond it needs your explicit approval.</p>
+      </article>
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">III</div>
+        <h3>No write without an undo</h3>
+        <p>Before a file is changed, its original is kept. Review what changed, see the diff, and roll back one file or a whole session in a keystroke.</p>
+      </article>
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">IV</div>
+        <h3>Bring any model</h3>
+        <p>Use Anthropic, any OpenAI-compatible endpoint, a local model or one of more than twenty ready-made provider presets. Switch models without switching tools.</p>
+      </article>
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">V</div>
+        <h3>Made for long sessions</h3>
+        <p>Builds and servers keep running in the background, interactive prompts are recognised, and new versions take over without closing your work.</p>
+      </article>
+      <article class="card reveal">
+        <div class="glyph" aria-hidden="true">VI</div>
+        <h3>Extensible when you need it</h3>
+        <p>Connect tools over the Model Context Protocol, add project skills, and give the agent web search and page reading through services you choose.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section class="section">
+  <div class="shell">
+    <div class="section-head">
+      <span class="eyebrow">Three steps</span>
+      <h2 class="title">From install to <em>first change</em>.</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <h3>Install</h3>
+        <p>One command places a single, signed binary in your home folder. No root, no system changes.</p>
+      </div>
+      <div class="step reveal">
+        <h3>Connect a model</h3>
+        <p>Start <code>rune</code> in your project and add the provider you want. Your API key is stored encrypted on your machine.</p>
+      </div>
+      <div class="step reveal">
+        <h3>Choose the freedom</h3>
+        <p>Pick how much the agent may do on its own, describe the work, and watch every step as it happens.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="modes-title">
+  <div class="shell">
+    <div class="section-head">
+      <span class="eyebrow">Permission modes</span>
+      <h2 class="title" id="modes-title">You decide <em>how far</em> it goes.</h2>
+    </div>
+    <div class="grid three">
+      <article class="card mode ask reveal">
+        <span class="tag">Ask</span>
+        <h3>Every action, approved</h3>
+        <p>Reading your project is free. Every edit and every command waits for your yes. The default.</p>
+      </article>
+      <article class="card mode reveal">
+        <span class="tag">Auto</span>
+        <h3>Trusted inside the project</h3>
+        <p>Edits and sandboxed commands in the project run on their own, still undoable. Anything beyond the project still asks.</p>
+      </article>
+      <article class="card mode full reveal">
+        <span class="tag">Full</span>
+        <h3>Unrestricted, by choice</h3>
+        <p>For the moments you deliberately want no limits. Never the default, always one switch away from Ask.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="closing reveal">
+      <span class="eyebrow">Ready</span>
+      <h2 class="title">Put an agent to work, <em>on your terms</em>.</h2>
+      <div class="command" role="group" aria-label="Install command">
+        <span class="prompt" aria-hidden="true">$</span>
+        <code id="install-cmd-2">{{.InstallCmd}}</code>
+        <button class="copy" type="button" data-copy="install-cmd-2">Copy</button>
+      </div>
+      <a href="{{url "install"}}">Other ways to install, and how to verify the download &rarr;</a>
+    </div>
+  </div>
+</section>
+{{end}}

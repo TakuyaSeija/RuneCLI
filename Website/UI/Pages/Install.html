@@ -1,0 +1,85 @@
+{{define "content"}}
+<section class="page-hero">
+  <div class="shell">
+    <span class="eyebrow">Install</span>
+    <h1 class="display">One command. <em>Verified</em> before it lands.</h1>
+    <p class="lead">The installer picks the right build for your system, checks its signature and checksum, and places a single binary in your home folder. It never asks for root.</p>
+    <div class="command" role="group" aria-label="Install command">
+      <span class="prompt" aria-hidden="true">$</span>
+      <code id="install-cmd">{{.InstallCmd}}</code>
+      <button class="copy" type="button" data-copy="install-cmd">Copy</button>
+    </div>
+    {{- if not .Latest}}
+    <p class="note"><strong>Not yet available.</strong> The first public release has not been published. This page lists it the moment it is.</p>
+    {{- end}}
+  </div>
+</section>
+
+<section class="section tight">
+  <div class="shell prose">
+    <h2>What the installer does</h2>
+    <ol>
+      <li>Detects your processor and C library, and chooses the matching build.</li>
+      <li>Downloads it together with the signed checksum list, over HTTPS only.</li>
+      <li>Checks the signature against the RuneAgent release key built into the installer, then the file's checksum against that list.</li>
+      <li>Installs <code>rune</code> into <code>~/.local/bin</code> in one atomic step, so a running RuneAgent switches to the new version when it is idle.</li>
+    </ol>
+    <p>If any check fails, nothing is installed and the installer says why.</p>
+
+    <h2>Requirements</h2>
+    <ul>
+      <li>Linux on x86_64. The standard build runs on any distribution from the last decade; a fully static build covers systems without glibc, such as Alpine.</li>
+      <li><code>curl</code>, <code>tar</code> and OpenSSL 3, which the installer uses to check the signature.</li>
+      <li>An API key for the model provider you want to use, or a local model server.</li>
+    </ul>
+    <p class="muted">macOS and Windows are in development.</p>
+
+    <h2>Options</h2>
+    <p>Set these before <code>sh</code> in the command above:</p>
+    <ul>
+      <li><code>RUNE_VERSION=X.Y.Z</code> installs a specific release instead of the newest.</li>
+      <li><code>RUNE_INSTALL_DIR=/some/dir</code> installs somewhere other than <code>~/.local/bin</code>.</li>
+    </ul>
+    <pre class="block">curl -fsSL {{.Origin}}{{url "install.sh"}} | RUNE_VERSION=X.Y.Z sh</pre>
+
+    <h2>Update and uninstall</h2>
+    <p>To update, run the install command again. To uninstall, delete the <code>rune</code> binary. Your sessions and settings stay in a data folder in your home directory until you remove that too.</p>
+  </div>
+</section>
+
+<hr class="divider">
+
+<section class="section">
+  <div class="shell prose">
+    <h2>Downloads</h2>
+    {{- with .Latest}}
+    <p>Release <strong>{{.Version}}</strong>, published {{.Date}}.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>System</th><th>Size</th><th>SHA-256</th></tr></thead>
+        <tbody>
+          {{- range .Files}}
+          <tr>
+            <td><a href="{{url "download"}}/{{$.Latest.Version}}/{{.Name}}">{{.Name}}</a></td>
+            <td>{{.OS}} {{.Arch}}, {{if eq .Libc "musl"}}static{{else}}glibc{{end}}</td>
+            <td>{{printf "%.1f" (mb .Size)}} MB</td>
+            <td class="hash">{{.SHA256}}</td>
+          </tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+    <p><a href="{{url "download"}}/{{.Version}}/SHA256SUMS">SHA256SUMS</a> &middot; <a href="{{url "download"}}/{{.Version}}/SHA256SUMS.sig">SHA256SUMS.sig</a> &middot; <a href="{{url "signing-key.pem"}}">signing-key.pem</a></p>
+    {{- else}}
+    <div class="empty">No release has been published yet.</div>
+    {{- end}}
+
+    <h2>Verify by hand</h2>
+    <p>Check that the key's fingerprint matches the one published on the <a href="{{url "security"}}">security page</a>, then:</p>
+    <pre class="block">openssl pkeyutl -verify -pubin -inkey signing-key.pem -rawin \
+  -in SHA256SUMS -sigfile SHA256SUMS.sig
+sha256sum --check --ignore-missing SHA256SUMS</pre>
+    <p>Both must succeed: the first proves the list was signed by RuneAgent's release key, the second that your file matches the list.</p>
+  </div>
+</section>
+{{end}}

@@ -71,3 +71,9 @@ id_ed25519
 ._*
 Thumbs.db
 Desktop.ini
+
+# Host operations of this machine (deploy config, systemd units, backup
+# service) and runtime logs: never published with the source.
+/Ops/
+/Logs/
+/Website/build/

@@ -1,0 +1,31 @@
+{{define "content"}}
+<section class="page-hero">
+  <div class="shell">
+    <span class="eyebrow">Changelog</span>
+    <h1 class="display">Every <em>release</em>.</h1>
+    <p class="lead">Each version listed here is signed and verified. The newest is what the installer gives you.</p>
+  </div>
+</section>
+
+<section class="section tight">
+  <div class="shell prose">
+    {{- range $i, $r := .Catalog.Releases}}
+    <article class="release">
+      <div>{{if eq $i 0}}<span class="badge">Latest</span>{{end}}</div>
+      <h2>{{$r.Version}}</h2>
+      <span class="date">{{$r.Date}}</span>
+      {{- if $r.Notes}}
+      <ul>
+        {{- range $r.Notes}}
+        <li>{{.}}</li>
+        {{- end}}
+      </ul>
+      {{- end}}
+      <p class="muted">{{range $j, $f := $r.Files}}{{if $j}} &middot; {{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{$f.Arch}} {{if eq $f.Libc "musl"}}static{{else}}glibc{{end}}</a>{{end}}</p>
+    </article>
+    {{- else}}
+    <div class="empty">The first release will appear here.</div>
+    {{- end}}
+  </div>
+</section>
+{{end}}

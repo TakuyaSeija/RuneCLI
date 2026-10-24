@@ -26,6 +26,10 @@ REQUIRED = (
 INSTRUCTION_BUDGET = 32768
 
 IGNORED = (
+    "Ops/Backup/Config.json",
+    "Ops/Backup/build/atoryn-studio-backup",
+    "Logs/System/Backup/2026_10_24.logs",
+    "Website/build/atoryn-studio-web",
     "target/debug/rune",
     "target/test-tmp/fixture/session.jsonl",
     "target/tmp/provider-request-audit/history.json",
@@ -171,7 +175,7 @@ def main():
             errors.append("AGENTS.md exceeds the 32768-character opening-context budget")
     source = set(KEPT) | set(REQUIRED)
     for folder in ("Engine/src", "Engine/tests", "Cli/src", "Cli/tests", "Cli/Assets",
-                   ".github", "docs", "scripts"):
+                   ".github", "docs", "scripts", "Website/Server", "Website/UI"):
         for path in (ROOT / folder).rglob("*"):
             if (path.is_file() and "__pycache__" not in path.parts
                     and path.suffix not in {".pyc", ".pyo", ".swp", ".swo", ".bk"}
