@@ -27,10 +27,6 @@ type Config struct {
 
 var basePathRe = regexp.MustCompile(`^/[A-Za-z][A-Za-z0-9]{0,31}$`)
 
-// tailnet is the CGNAT range Tailscale assigns: a DEV listener may sit there
-// (WireGuard-encrypted, never routed from the internet), PROD never.
-var tailnet = netip.MustParsePrefix("100.64.0.0/10")
-
 func loadConfig(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -90,9 +86,10 @@ func (c *Config) validate() error {
 	return nil
 }
 
-// checkListen accepts loopback only — and, for DEV, a tailnet address. The
-// public reaches PROD exclusively through nginx and the tunnel.
-func checkListen(addr string, allowTailnet bool) error {
+// checkListen accepts loopback only — and, for DEV, a private LAN address
+// (RFC 1918), never one routed from the internet. The public reaches PROD
+// exclusively through nginx and the tunnel.
+func checkListen(addr string, allowLAN bool) error {
 	ap, err := netip.ParseAddrPort(addr)
 	if err != nil {
 		host, _, serr := net.SplitHostPort(addr)
@@ -102,7 +99,7 @@ func checkListen(addr string, allowTailnet bool) error {
 		return fmt.Errorf("listen %q: %v", addr, err)
 	}
 	ip := ap.Addr().Unmap()
-	if ip.IsLoopback() || allowTailnet && tailnet.Contains(ip) {
+	if ip.IsLoopback() || allowLAN && ip.Is4() && ip.IsPrivate() {
 		return nil
 	}
 	return fmt.Errorf("listen %q is not loopback", addr)

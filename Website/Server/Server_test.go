@@ -388,11 +388,12 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 		"sqlite", "jsonl", "ledger", "arc-swap", "aes-256", "aes256", "gcm", "pbkdf", "argon",
 		".rune", "rune.toml", "rune.db", "master.key", "secrets.vault", "classifier.md", "agents.md", "claude.md",
 		"rune_home", "upgrade/v", "protocol ", "schema", "/home/", "noire", "deploy/", "project/", "ops/",
-		"127.0.0.1", "localhost", "tail2501", "100.75.", "192.168.", ":3401", ":3501", "3403", "3503",
+		"localhost", ":3401", ":3501", "3403", "3503",
 		"nginx", "cloudflared", "systemd", "seadrive", "9router", "github", "takuya",
 		"innerhtml", "eval(", "document.write", "style=", "onclick", "onload=", "javascript:",
 	}
 	external := regexp.MustCompile(`(?i)(?:href|src)\s*=\s*"(?:https?:)?//`)
+	ipAddress := regexp.MustCompile(`\b\d{1,3}(?:\.\d{1,3}){3}\b`) // no machine address of any network
 	inlineScript := regexp.MustCompile(`(?i)<script(?:\s[^>]*)?>\s*[^<\s]`)
 	err := fs.WalkDir(ui.Files, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".html") && !strings.HasSuffix(p, ".css") && !strings.HasSuffix(p, ".js") && !strings.HasSuffix(p, ".sh") {
@@ -408,6 +409,9 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 			if strings.Contains(low, term) {
 				t.Errorf("%s reveals %q", p, term)
 			}
+		}
+		if ip := ipAddress.FindString(string(raw)); ip != "" {
+			t.Errorf("%s reveals an address: %s", p, ip)
 		}
 		if external.MatchString(string(raw)) {
 			t.Errorf("%s loads an outside resource", p)
@@ -426,11 +430,12 @@ func TestConfigRefusesPublicListeners(t *testing.T) {
 	cases := map[string]func(c *Config){
 		"all interfaces": func(c *Config) { c.Listen = []string{":3501"} },
 		"any address":    func(c *Config) { c.Listen = []string{"0.0.0.0:3501"} },
-		"lan address":    func(c *Config) { c.Listen = []string{"192.168.18.10:3501"} },
-		"tailnet in prod": func(c *Config) {
-			c.Env, c.Origin, c.Listen = "Prod", "https://atoryn.com", []string{"100.75.32.70:3401"}
+		"lan in prod": func(c *Config) {
+			c.Env, c.Origin, c.Listen = "Prod", "https://atoryn.com", []string{"192.168.18.10:3401"}
 		},
-		"health on tailnet":     func(c *Config) { c.Health = "100.75.32.70:3503" },
+		"health on lan":         func(c *Config) { c.Health = "192.168.18.10:3503" },
+		"shared address in dev": func(c *Config) { c.Listen = []string{"100.64.0.1:3501"} },
+		"public address in dev": func(c *Config) { c.Listen = []string{"8.8.8.8:3501"} },
 		"http prod":             func(c *Config) { c.Env, c.Origin = "Prod", "http://atoryn.com" },
 		"origin with path":      func(c *Config) { c.Origin = "https://atoryn.com/x" },
 		"dev indexed":           func(c *Config) { c.Indexing = true },
@@ -446,8 +451,8 @@ func TestConfigRefusesPublicListeners(t *testing.T) {
 		}
 	}
 	ok := testConfig("/tmp")
-	ok.Listen = []string{"127.0.0.1:3501", "100.75.32.70:3501"}
+	ok.Listen = []string{"127.0.0.1:3501", "192.168.18.10:3501"}
 	if err := ok.validate(); err != nil {
-		t.Errorf("dev on loopback + tailnet refused: %v", err)
+		t.Errorf("dev on loopback + LAN refused: %v", err)
 	}
 }

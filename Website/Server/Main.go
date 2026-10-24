@@ -1,7 +1,7 @@
 // atoryn-studio-web — the RuneAgent website at <origin>/Studio/.
 //
 // One binary per release, the pages and assets embedded. It binds loopback
-// only (DEV may add a tailnet address); the public reaches PROD through the
+// only (DEV may add a private LAN address); the public reaches PROD through the
 // parent nginx and the tunnel. It holds no secret and opens no outbound
 // connection: the only things it reads at run time are its config and the
 // signed releases folder.
