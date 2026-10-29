@@ -30,10 +30,12 @@ pub mod composer;
 pub mod draw;
 mod editing;
 mod editor;
+mod footer;
 #[path = "Highlight.rs"]
 pub mod highlight;
 pub mod input;
 mod keys;
+mod links;
 pub mod markdown;
 mod multiplexer;
 mod panel_view;
@@ -46,11 +48,16 @@ pub mod picker;
 pub mod pulse;
 #[path = "Questions.rs"]
 mod questions;
+mod selection;
+#[cfg(test)]
+mod selection_tests;
 pub mod settings;
 mod sgr;
 pub mod steps;
 pub mod term;
+mod terminal_preview;
 pub mod theme;
+mod thinking_count;
 mod undo;
 mod viewport;
 
@@ -103,6 +110,7 @@ pub(crate) enum Msg {
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Panel {
     None,
+    Link,
     Settings,
     Tasks,
     Undo,
@@ -133,6 +141,7 @@ pub enum Awaiting {
         serial: u64,
     },
     DraftOpened,
+    LinkOpened,
     DraftSaved,
     ComposerEdit,
     Promoted,
@@ -274,6 +283,8 @@ pub struct App {
     /// become that build in place (`platform::REPLACES_IN_PLACE`): said once.
     pub told_newer_build: bool,
     pub queued_prompt: Option<QueuedPrompt>,
+    /// A summary can be working while no inference turn runs.
+    pub compacting: Option<Instant>,
     pending_model_selection: Option<(Option<i64>, String, String)>,
     pub mcp_input: Option<mcp_input::Form>,
     pub capability_view: Value,
@@ -400,6 +411,8 @@ pub struct App {
     /// What each row of the last frame was, so a click can be answered from the
     /// layout that produced it rather than from a second guess at it.
     pub hits: Vec<draw::Hit>,
+    pub links: Vec<links::Link>,
+    pub link_target: Option<String>,
     /// Terminal screen coordinate (row, col) for the hardware cursor (1-indexed).
     /// When `Some`, the terminal displays a steady bar cursor at that cell.
     /// When `None` (e.g. during permission question or idle), hardware cursor is hidden.
@@ -408,7 +421,9 @@ pub struct App {
     /// from the exact frame prevents a second renderer from guessing what was
     /// under a coordinate.
     pub selection: Option<draw::Selection>,
-    pub selection_rows: Vec<String>,
+    pub selection_rows: Vec<selection::Row>,
+    pub selection_size: Option<(u16, u16)>,
+    pub selection_cancelled: bool,
     /// Which command the `/` palette has under its cursor. Reset by every
     /// keystroke that changes what is being searched for.
     pub palette_row: usize,
@@ -454,6 +469,14 @@ pub struct App {
     /// What this session has cost so far, in US dollars — accumulated per call.
     pub cost: f64,
     pub unpriced_calls: u64,
+    /// Requests with a price, from the engine's [`Event::Spend`].
+    pub priced_calls: u64,
+    /// The model's request now streaming, counted in this window: one more
+    /// after each request's usage. A thinking keeps the one it came with
+    /// (`Block::Thinking::round`), so its count finds it by that and never by
+    /// a position — blocks come and go around it (a session switched, another
+    /// window's message drawn, a waiting message inserted after it).
+    pub round: u64,
     /// Whether the terminal is reporting the pointer to us. Read from
     /// `~/.rune/rune.toml` at start-up and switchable from the settings
     /// screen. When on, Rune owns selection and copies it on release; when off,
@@ -522,7 +545,8 @@ pub struct App {
     pub file_changes: Vec<Value>,
     pub status: Option<String>,
     pub status_at: Option<Instant>,
-    /// Backoff owns the footer until the retry announces API calling (wait=0).
+    footer: footer::State,
+    /// Latest live backoff value; confirmations and readable notices may cover it.
     pub retry_status: Option<String>,
     pub sandbox: String,
     pub sandbox_ok: bool,
@@ -612,9 +636,7 @@ impl App {
                 )
             });
             if saved.is_err() {
-                self.status = Some(
-                    "Could not save the theme. Check configuration access and try again.".into(),
-                );
+                self.note("Could not save the theme. Check configuration access and try again.");
                 return;
             }
         }
@@ -623,7 +645,7 @@ impl App {
         self.transcript_cache = None;
         self.transcript_dirty = true;
         self.resync = true;
-        self.status = Some(format!("Theme: {}", next.label()));
+        self.note(format!("Theme: {}", next.label()));
     }
 
     pub fn set_sidebar(&mut self, enabled: bool) {
@@ -923,7 +945,7 @@ pub fn run(
                 let changed = app.tick();
                 if !app.quit
                     && !app.quit_armed
-                    && !app.busy
+                    && !app.working()
                     && app.queued_prompt.is_none()
                     && !d.reconnecting
                     && app.frame.is_multiple_of(60)
@@ -1288,7 +1310,7 @@ impl App {
     pub(crate) fn handover_waits(&self) -> bool {
         self.quit
             || self.quit_armed
-            || self.busy
+            || self.working()
             || self.queued_prompt.is_some()
             || self.pending.is_some()
             || self.questions.is_some()
@@ -1298,6 +1320,7 @@ impl App {
                     .last_key
                     .is_some_and(|at| at.elapsed() < HANDOVER_IDLE)
             || self.composition.flight.is_some()
+            || !self.composition.submits.is_empty()
             || self.composition.dirty_since.is_some()
             || self.composition.promote_pending
             // A draft's first message is stored (`DraftPromote`) but not yet
@@ -1572,6 +1595,7 @@ impl App {
             host_version: runeengine::VERSION.to_string(),
             told_newer_build: false,
             queued_prompt: None,
+            compacting: None,
             pending_model_selection: None,
             blocks: Vec::new(),
             input: String::new(),
@@ -1605,9 +1629,13 @@ impl App {
             panel_row: 0,
             preferences: settings::State::default(),
             hits: Vec::new(),
+            links: Vec::new(),
+            link_target: None,
             cursor_terminal: None,
             selection: None,
             selection_rows: Vec::new(),
+            selection_size: None,
+            selection_cancelled: false,
             palette_row: 0,
             palette_scroll: 0,
             ask_choice: 0,
@@ -1637,6 +1665,8 @@ impl App {
             cache_in: 0,
             cost: 0.0,
             unpriced_calls: 0,
+            priced_calls: 0,
+            round: 0,
             // Read from `~/.rune/rune.toml`, which the sandbox does not grant
             // — so nothing the agent runs can raise its own ceiling.
             warn_spend: limits.warn_spend_usd(),
@@ -1665,6 +1695,7 @@ impl App {
             file_changes: Vec::new(),
             status: None,
             status_at: None,
+            footer: footer::State::default(),
             retry_status: None,
             sandbox: if report.enforced {
                 format!("landlock abi {}", report.abi)
@@ -1904,12 +1935,149 @@ impl App {
         self.resync = true;
     }
 
-    /// What the session has cost, or nothing at all when the model has no
-    /// published price. A zero would be a claim, and the wrong one.
+    /// What the session has cost, or nothing at all when no request of it
+    /// has a price yet. A zero would be a claim, and the wrong one. Requests
+    /// that still have none are said beside the total
+    /// ([`Self::unpriced_requests`]), never counted as free in silence.
     pub fn spend(&self) -> Option<f64> {
-        (self.unpriced_calls == 0
-            && (self.settings["price"].is_object() || self.cost > 0.0 || self.input_tokens > 0))
-            .then_some(self.cost)
+        let priced = if self.unpriced_calls == 0 {
+            self.settings["price"].is_object() || self.cost > 0.0 || self.input_tokens > 0
+        } else {
+            self.priced_calls > 0
+        };
+        priced.then_some(self.cost)
+    }
+
+    /// Where the stream's blocks end: before a message waiting for the turn,
+    /// which is drawn after them.
+    fn stream_end(&self) -> usize {
+        self.queued_prompt
+            .as_ref()
+            .map_or(self.blocks.len(), |queued| queued.first_user_block)
+            .min(self.blocks.len())
+    }
+
+    /// The thinking of the request now streaming, if it has one.
+    fn round_thinking(&self) -> Option<usize> {
+        let round = Some(self.round);
+        self.blocks
+            .iter()
+            .position(|b| matches!(b, Block::Thinking { round: r, .. } if *r == round))
+    }
+
+    /// Anthropic's count of the round's thinking, as it reported it: the sum
+    /// so far, then the billed one (owner, 2026-10-23: only what the provider
+    /// reported, never an estimate). It belongs to the thinking the round
+    /// began with; a thinking the stream never opened is begun here.
+    fn count_thinking(&mut self, tokens: u64) {
+        let at = self.round_thinking();
+        // The number on screen climbs to each report from where it stands,
+        // from nothing at the first.
+        let now = Instant::now();
+        match at {
+            Some(at) => {
+                if let Block::Thinking {
+                    tokens: counted,
+                    chase,
+                    ..
+                } = &mut self.blocks[at]
+                {
+                    *counted = Some(tokens);
+                    chase.get_or_insert_with(|| thinking_count::Chase::start(now));
+                }
+                self.transcript_dirty = true;
+            }
+            None => self.push_block(Block::Thinking {
+                text: String::new(),
+                open: false,
+                tokens: Some(tokens),
+                chase: Some(thinking_count::Chase::start(now)),
+                round: Some(self.round),
+            }),
+        }
+    }
+
+    /// The round's thinking ended — it goes on to write its answer or a
+    /// tool's arguments: its count stops climbing at its own pace and reaches
+    /// what is reported within a moment ([`thinking_count::Chase::settle`]).
+    fn thinking_ended(&mut self) {
+        if let Some(at) = self.round_thinking() {
+            if let Block::Thinking {
+                chase: Some(chase), ..
+            } = &mut self.blocks[at]
+            {
+                chase.settle();
+            }
+        }
+    }
+
+    /// The round's request ended with its usage: a thinking it opened that
+    /// said nothing and was counted by nobody goes, rather than stand empty,
+    /// and what streams next is the next round's.
+    fn close_round(&mut self) {
+        self.thinking_ended();
+        let round = Some(self.round);
+        let end = self.stream_end();
+        let before = self.blocks.len();
+        let mut at = 0;
+        let mut removed_before_end = 0;
+        self.blocks.retain(|b| {
+            let i = at;
+            at += 1;
+            let empty = matches!(b, Block::Thinking { text, tokens: None, round: r, .. }
+                if *r == round && text.trim().is_empty());
+            if empty && i < end {
+                removed_before_end += 1;
+            }
+            !empty
+        });
+        if self.blocks.len() != before {
+            if let Some(queued) = self.queued_prompt.as_mut() {
+                queued.first_user_block =
+                    queued.first_user_block.saturating_sub(removed_before_end);
+            }
+            self.transcript_dirty = true;
+        }
+        self.round += 1;
+    }
+
+    /// One frame of every thinking count still climbing to Anthropic's
+    /// report ([`thinking_count::Chase`]). Whether a number on screen moved.
+    fn chase_thinking(&mut self, now: Instant) -> bool {
+        let mut moved = false;
+        for block in &mut self.blocks {
+            if let Block::Thinking {
+                tokens: Some(target),
+                chase: Some(chase),
+                ..
+            } = block
+            {
+                moved |= chase.advance(*target, now);
+            }
+        }
+        moved
+    }
+
+    /// A window that opened while a thinking was counted shows each count as
+    /// it stands, as Claude Code's counter starts at what it finds.
+    fn settle_thinking(&mut self) {
+        let now = Instant::now();
+        for block in &mut self.blocks {
+            if let Block::Thinking {
+                tokens: Some(target),
+                chase: chase @ Some(_),
+                ..
+            } = block
+            {
+                *chase = Some(thinking_count::Chase::at(*target, now));
+            }
+        }
+    }
+
+    /// Requests of this session left out of the shown spend: their model had
+    /// no price when they ran and has none now. Said only beside a total.
+    pub fn unpriced_requests(&self) -> Option<u64> {
+        (self.unpriced_calls > 0 && self.spend().is_some()).then_some(self.unpriced_calls)
     }
 
     pub fn is_suppressed(&self, key: &str) -> bool {
@@ -2042,6 +2210,10 @@ impl App {
         }
         self.unpriced_calls = usage
             .get("unpriced_calls")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        self.priced_calls = usage
+            .get("priced_calls")
             .and_then(Value::as_u64)
             .unwrap_or(0);
         if let Some(s) = usage.get("spend").and_then(|v| v.as_f64()) {
@@ -2193,6 +2365,7 @@ impl App {
         self.context_used = 0;
         self.cost = 0.0;
         self.unpriced_calls = 0;
+        self.priced_calls = 0;
         if !view["usage"].is_null() {
             self.restore_usage(&view["usage"]);
         }
@@ -2204,6 +2377,7 @@ impl App {
         self.input_editor.reset();
         self.history_index = None;
         self.queued_prompt = None;
+        self.compacting = None;
         self.busy = false;
         self.turn_started = None;
         self.label.clear();
@@ -2211,6 +2385,8 @@ impl App {
         self.questions = None;
         self.mcp_input = None;
         self.retry_status = None;
+        self.clear_status();
+        self.footer = footer::State::default();
         self.tasks.clear();
         let empty = Vec::new();
         self.load_history(
@@ -2223,6 +2399,10 @@ impl App {
                 self.on_event(event);
             }
         }
+        if let Ok(event) = serde_json::from_value::<Event>(view["compacting"].clone()) {
+            self.on_event(event);
+        }
+        self.settle_thinking();
         // Messages waiting for the running turn, as the window that sent them
         // shows them. One the turn has already taken — its start is among the
         // events above, the composer not yet told — is a message on screen
@@ -2323,6 +2503,32 @@ impl App {
                     let name = m["context"]["name"].as_str().unwrap_or("");
                     let kind = m["context"]["kind"].as_str().unwrap_or("");
                     match kind {
+                        "manual_shell" => {
+                            if let Some(note) = m["context"]["note"]
+                                .as_str()
+                                .and_then(|note| serde_json::from_str::<Value>(note).ok())
+                            {
+                                let id = note["id"].as_str().unwrap_or_default().to_string();
+                                let mut tool = Tool::new(
+                                    id,
+                                    "terminal_use".into(),
+                                    "Running your manual shell command".into(),
+                                );
+                                tool.settle(&note["args"]);
+                                tool.shell = serde_json::from_value(note["shell"].clone()).ok();
+                                tool.state = if note["detail"]["status"] == "backgrounded" {
+                                    ToolState::Backgrounded
+                                } else if note["ok"] == true {
+                                    ToolState::Ok
+                                } else {
+                                    ToolState::Failed
+                                };
+                                tool.summary = note["summary"].as_str().unwrap_or_default().into();
+                                tool.content = note["content"].as_str().unwrap_or_default().into();
+                                tool.detail = Some(note["detail"].clone());
+                                self.blocks.push(Block::of(tool));
+                            }
+                        }
                         "notification" => self.blocks.push(Block::Notification {
                             text,
                             time: m["created_at"]
@@ -2344,12 +2550,17 @@ impl App {
                     }
                 }
                 "assistant" => {
-                    if let Some(reasoning) =
-                        m["reasoning"].as_str().filter(|r| !r.trim().is_empty())
-                    {
+                    let reasoning = m["reasoning"].as_str().filter(|r| !r.trim().is_empty());
+                    // Anthropic's billed count, where it counted (Claude Code's
+                    // models leave no text): the same line the live one drew.
+                    let tokens = m["thinking_tokens"].as_u64().filter(|n| *n > 0);
+                    if reasoning.is_some() || tokens.is_some() {
                         self.blocks.push(Block::Thinking {
-                            text: reasoning.to_string(),
+                            text: reasoning.unwrap_or_default().to_string(),
                             open: false,
+                            tokens,
+                            chase: None,
+                            round: None,
                         });
                     }
                     if !text.trim().is_empty() {
@@ -2363,6 +2574,12 @@ impl App {
                         let id = call["id"].as_str().unwrap_or_default().to_string();
                         let name = call["name"].as_str().unwrap_or_default().to_string();
                         let mut tool = Tool::new(id.clone(), name, String::new());
+                        tool.shell = toolcalls
+                            .iter()
+                            .find(|item| {
+                                item["id"].as_str() == Some(&id) && item["turn"] == m["turn"]
+                            })
+                            .and_then(|item| serde_json::from_value(item["shell"].clone()).ok());
                         if let Some(raw) = call["args"].as_str() {
                             tool.absorb(raw);
                             if let Ok(parsed) = serde_json::from_str::<Value>(raw) {
@@ -2521,11 +2738,6 @@ impl App {
         }
     }
 
-    pub fn note(&mut self, text: impl Into<String>) {
-        self.status = Some(text.into());
-        self.status_at = Some(Instant::now());
-    }
-
     /// Say that a newer build is installed which this process cannot become
     /// in place (`platform::REPLACES_IN_PLACE`) — once per window, as it
     /// stays true until Rune is opened again.
@@ -2536,9 +2748,8 @@ impl App {
         }
     }
 
-    pub fn clear_status(&mut self) {
-        self.status = None;
-        self.status_at = None;
+    pub fn working(&self) -> bool {
+        self.busy || self.compacting.is_some()
     }
 
     /// Adjusts `palette_scroll` maintaining a 1-item scroll margin:
@@ -2799,7 +3010,7 @@ impl App {
         let before = self.frame;
         self.frame = self.frame.wrapping_add(1);
         let mut changed = glided
-            || ((self.busy
+            || ((self.working()
                 || (self.panel == Panel::Settings && self.preferences.pending.is_some()))
                 && (before / 6 != self.frame / 6 || before / 38 != self.frame / 38));
         if self.sidebar && (before / 60 != self.frame / 60) {
@@ -2825,17 +3036,14 @@ impl App {
         if self.busy && changed {
             self.transcript_dirty = true;
         }
-
-        if let Some(at) = self.status_at {
-            if now.duration_since(at) >= runtime_configuration().duration("ui.status_lifetime") {
-                self.status = None;
-                self.status_at = None;
-                changed = true;
-            }
-        } else if self.status.is_some() {
-            // Started by direct field assignment: measure TTL from now
-            self.status_at = Some(now);
+        // A thinking's count climbing to Anthropic's report goes on climbing
+        // after the turn ended, until it is there.
+        if self.chase_thinking(now) {
+            changed = true;
+            self.transcript_dirty = true;
         }
+
+        changed |= self.tick_footer(now);
 
         if let Some(at) = self.quit_armed_at {
             if now.duration_since(at) >= runtime_configuration().duration("ui.quit_lifetime") {
@@ -2846,20 +3054,18 @@ impl App {
         }
 
         if let Some(at) = self.stop_armed_at {
-            if now.duration_since(at) >= runtime_configuration().duration("ui.quit_lifetime") {
+            if now.duration_since(at) >= runtime_configuration().duration("ui.stop_lifetime") {
                 self.stop_armed = false;
                 self.stop_armed_at = None;
+                changed = true;
             }
         }
 
         if let Some(q) = &mut self.questions {
             if let Some(at) = q.esc_armed_at {
-                if now.duration_since(at) >= Duration::from_secs(3) {
+                if now.duration_since(at) >= runtime_configuration().duration("ui.stop_lifetime") {
                     q.esc_armed = false;
                     q.esc_armed_at = None;
-                    if self.status.as_deref() == Some("press esc again to close") {
-                        self.clear_status();
-                    }
                     changed = true;
                 }
             }
@@ -3188,7 +3394,6 @@ impl App {
                     self.run_started_at = if at > 0 { at } else { now };
                 }
                 self.label.clear();
-                self.clear_status();
                 let time = if at > 0 {
                     term::epoch_hm(at)
                 } else {
@@ -3216,20 +3421,29 @@ impl App {
                 }
             }
             Event::Text { delta, .. } => {
-                self.retry_status = None;
-                self.clear_status();
+                self.set_retry_status(None);
+                self.thinking_ended();
                 self.append_text(&delta);
                 self.label = "Writing".into();
             }
+            Event::ThinkingTokens { tokens, .. } => self.count_thinking(tokens),
             Event::Thinking { delta, .. } => {
-                self.retry_status = None;
-                self.clear_status();
+                self.set_retry_status(None);
+                // A second thinking the stream opens without text in the same
+                // round is the one already shown: Anthropic counts the
+                // message's thinking whole.
+                if delta.is_empty() && self.round_thinking().is_some() {
+                    return;
+                }
+                let round = Some(self.round);
                 if self.label.is_empty() {
                     self.label = "Thinking".into();
                 }
                 if let Some(queued) = &self.queued_prompt {
                     let limit = queued.first_user_block.min(self.blocks.len());
-                    if limit > 0 && matches!(self.blocks[limit - 1], Block::Thinking { .. }) {
+                    if limit > 0
+                        && matches!(self.blocks[limit - 1], Block::Thinking { round: r, .. } if r == round)
+                    {
                         if let Block::Thinking { text, .. } = &mut self.blocks[limit - 1] {
                             text.push_str(&delta);
                             self.transcript_dirty = true;
@@ -3239,14 +3453,18 @@ impl App {
                     self.push_block(Block::Thinking {
                         text: delta,
                         open: false,
+                        tokens: None,
+                        chase: None,
+                        round,
                     });
                     return;
                 }
                 // A delta is new text, always: appended verbatim, never compared
                 // with what is shown — one that happens to equal the tail ("\n",
-                // ".", a repeated word) is real.
+                // ".", a repeated word) is real. Another request's thinking
+                // is another thinking.
                 match self.blocks.last_mut() {
-                    Some(Block::Thinking { text, .. }) => {
+                    Some(Block::Thinking { text, round: r, .. }) if *r == round => {
                         text.push_str(&delta);
                         self.transcript_dirty = true;
                     }
@@ -3254,20 +3472,33 @@ impl App {
                         self.push_block(Block::Thinking {
                             text: delta,
                             open: false,
+                            tokens: None,
+                            chase: None,
+                            round,
                         });
                     }
                 }
             }
             Event::ToolArgs {
-                id, name, delta, ..
+                id,
+                name,
+                delta,
+                shell,
+                ..
             } => {
-                self.retry_status = None;
-                self.clear_status();
+                self.set_retry_status(None);
+                self.thinking_ended();
                 self.label = steps::label(&name).to_string();
                 match self.tool_by_id(&id) {
-                    Some(tool) => tool.absorb(&delta),
+                    Some(tool) => {
+                        if shell.is_some() {
+                            tool.shell = shell;
+                        }
+                        tool.absorb(&delta);
+                    }
                     None => {
                         let mut tool = Tool::new(id, name, String::new());
+                        tool.shell = shell;
                         tool.absorb(&delta);
                         self.push_block(Block::of(tool));
                     }
@@ -3281,7 +3512,7 @@ impl App {
                 at,
                 ..
             } => {
-                self.clear_status();
+                self.thinking_ended();
                 self.label = steps::label(&name).to_string();
                 match self.tool_by_id(&id) {
                     Some(tool) => {
@@ -3297,6 +3528,12 @@ impl App {
                         self.push_block(Block::of(tool));
                     }
                 }
+            }
+            Event::ToolShell { id, shell, .. } => {
+                if let Some(tool) = self.tool_by_id(&id) {
+                    tool.shell = Some(shell);
+                }
+                self.transcript_dirty = true;
             }
             Event::ToolOutput {
                 id,
@@ -3338,6 +3575,12 @@ impl App {
                     };
                     tool.summary = summary;
                     tool.content = content;
+                    if let Some(shell) = detail
+                        .as_ref()
+                        .and_then(|detail| serde_json::from_value(detail["shell"].clone()).ok())
+                    {
+                        tool.shell = Some(shell);
+                    }
                     tool.detail = detail;
                     tool.ended = Some(Self::instant_at(at));
                     tool.ask = None;
@@ -3396,7 +3639,6 @@ impl App {
                 input,
                 output,
                 cached,
-                cost,
                 ..
             } => {
                 self.tok_in += input;
@@ -3405,30 +3647,18 @@ impl App {
                 self.input_tokens += input;
                 self.output_tokens += output;
                 self.cached_tokens += cached;
-                self.cost += cost.unwrap_or(0.0);
-                if cost.is_none() {
-                    self.unpriced_calls += 1;
-                }
             }
+            // What it cost is the engine's [`Event::Spend`], sent right after:
+            // a request priced later, when its model's price is filled in,
+            // is a total only the store can work out.
             Event::Usage {
                 input,
                 output,
                 cached,
-                cost,
                 details,
                 ..
             } => {
-                self.cost += cost.unwrap_or(0.0);
-                // Only a request the provider actually measured can be a
-                // pricing gap. One that reported no usage failed or was
-                // cancelled, and nothing was billed for it — counting it would
-                // blank out a real spend for the rest of the session over a
-                // request that cost nothing. Mirrors `session_usage`.
-                if cost.is_none()
-                    && (input > 0 || output > 0 || details.input_known || details.output_known)
-                {
-                    self.unpriced_calls += 1;
-                }
+                self.close_round();
                 if details.input_known || details.native.is_null() && input > 0 {
                     self.context_used = input;
                 }
@@ -3438,6 +3668,16 @@ impl App {
                 self.input_tokens += input;
                 self.output_tokens += output;
                 self.cached_tokens += cached;
+            }
+            Event::Spend {
+                spend,
+                priced,
+                unpriced,
+                ..
+            } => {
+                self.cost = spend;
+                self.priced_calls = priced;
+                self.unpriced_calls = unpriced;
                 self.check_spend();
             }
             Event::Completion { .. } => {}
@@ -3458,9 +3698,9 @@ impl App {
                     format!("{reason} — retrying in {secs}s ({attempt} of {of})")
                 };
                 if wait_ms > 0 {
-                    self.retry_status = Some(text);
+                    self.set_retry_status(Some(text));
                 } else {
-                    self.retry_status = None;
+                    self.set_retry_status(None);
                     self.note(text);
                 }
             }
@@ -3475,6 +3715,12 @@ impl App {
                     .iter()
                     .map(|c| serde_json::to_value(c).unwrap_or(Value::Null))
                     .collect();
+            }
+            Event::Compacting { active, at, .. } => {
+                self.compacting = active.then(|| Self::instant_at(at));
+                if !active {
+                    self.retry_status = None;
+                }
             }
             // One thin line where the summary took over; what it summarised and
             // what it cost are in the log.
@@ -3509,15 +3755,17 @@ impl App {
                         tool.snap_counters();
                     }
                 }
-                self.status = match stop {
+                self.stop_armed = false;
+                self.stop_armed_at = None;
+                match stop {
                     runeengine::proto::StopReason::Refused => {
-                        Some("The model declined the request.".into())
+                        self.note_control("The model declined the request.");
                     }
                     runeengine::proto::StopReason::Cancelled if self.queued_prompt.is_none() => {
-                        Some("stopped".into())
+                        self.note_control("stopped");
                     }
-                    _ => None,
-                };
+                    _ => self.clear_status(),
+                }
                 // How long the session worked is counted by the engine, which adds
                 // this run's time to the session before it says `done`: this
                 // window adds the same, rounded the same way, and stops its clock.
@@ -3630,7 +3878,9 @@ impl App {
         if matches!(what, Awaiting::DraftSaved | Awaiting::ComposerEdit) {
             self.composer_ack(id, ok, &data.clone().unwrap_or(Value::Null));
             if !ok {
-                self.status = error;
+                if let Some(error) = error {
+                    self.note(error);
+                }
             }
             return;
         }
@@ -3654,7 +3904,7 @@ impl App {
             // A refused restore or diff is said in the undo panel.
             if matches!(what, Awaiting::Restored { .. } | Awaiting::UndoDiff { .. }) {
                 if matches!(what, Awaiting::Restored { .. }) {
-                    self.status = None;
+                    self.clear_status();
                 }
                 undo::refused(self, error.as_deref());
             }
@@ -3676,7 +3926,9 @@ impl App {
                     }
                 }
             }
-            self.status = error;
+            if let Some(error) = error {
+                self.note(error);
+            }
             return;
         }
         let data = data.unwrap_or(Value::Null);
@@ -3766,7 +4018,7 @@ impl App {
             Awaiting::Catalogue(provider) => {
                 if provider == self.provider() {
                     self.settings["models"] = data["configured"].clone();
-                    self.status = Some("Attachment support checked".into());
+                    self.note("Attachment support checked");
                 }
             }
             Awaiting::Resumed => {
@@ -3816,8 +4068,11 @@ impl App {
                     self.attached.clear();
                     self.cursor = 0;
                     self.retry_status = None;
+                    self.clear_status();
+                    self.footer = footer::State::default();
                     self.mode = data["mode"].as_str().unwrap_or("ask").to_string();
                     self.busy = false;
+                    self.compacting = None;
                     self.label.clear();
                     self.queued_prompt = None;
                     self.pending_model_selection = None;
@@ -3861,6 +4116,7 @@ impl App {
                     self.cache_in = 0;
                     self.cost = 0.0;
                     self.unpriced_calls = 0;
+                    self.priced_calls = 0;
                     self.title = data.get("title").and_then(|v| v.as_str()).map(String::from);
                     self.started_at = 0;
                     self.run_started_at = 0;
@@ -3921,6 +4177,7 @@ impl App {
                 self.panel_view.reset();
                 self.transcript_dirty = true;
             }
+            Awaiting::LinkOpened => self.note("The URL is handed to your system browser."),
             Awaiting::Compact => {
                 let status = data.get("status").and_then(|v| v.as_str()).unwrap_or("");
                 match status {
@@ -4224,6 +4481,9 @@ mod animation_tests {
         app.blocks.push(Block::Thinking {
             text: "half a thought".into(),
             open: false,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         app.blocks.push(Block::Text {
             text: "half an ans".into(),
@@ -4764,7 +5024,7 @@ mod animation_tests {
         state.esc_armed = true;
         state.esc_armed_at = Some(Instant::now() - Duration::from_secs(4));
         app.questions = Some(state);
-        app.note("press esc again to close");
+        app.note("ordinary notice remains available");
 
         let repainted = app.tick();
         assert!(repainted, "expiring esc_armed must trigger repaint");
@@ -4773,7 +5033,11 @@ mod animation_tests {
             "esc_armed must be false after 3s"
         );
         assert!(app.questions.as_ref().unwrap().esc_armed_at.is_none());
-        assert_eq!(app.status, None, "status must be cleared after 3s");
+        assert!(app.confirmation_status(Instant::now()).is_none());
+        assert_eq!(
+            app.status.as_deref(),
+            Some("ordinary notice remains available")
+        );
     }
 }
 

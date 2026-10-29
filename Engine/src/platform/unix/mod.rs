@@ -3,6 +3,8 @@
 //! its own folder (`platform/linux/`, `platform/macos/`), reached here as
 //! `os`: one implementation of what is common, never two copies drifting.
 
+mod browser;
+pub use browser::open_browser;
 mod console;
 mod files;
 mod home;

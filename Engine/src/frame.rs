@@ -47,6 +47,7 @@ pub const TAGS: &[&str] = &[
     "system_notification",
     "skill_activation",
     "mcp_prompt",
+    "manual_shell",
     "file_attachment",
     // Tool results.
     "tool_notice",

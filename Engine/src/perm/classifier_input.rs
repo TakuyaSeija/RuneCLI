@@ -38,11 +38,7 @@ pub(crate) fn field(out: &mut String, label: &str, body: &str) {
 }
 
 pub(crate) fn arguments(out: &mut String, name: &str, args: &Value) {
-    field(
-        out,
-        "Agent intent (not authorization)",
-        crate::tools::action_of(args),
-    );
+    field(out, "Agent intent", crate::tools::action_of(args));
     if let Some(map) = args.as_object() {
         for (key, value) in map {
             if key == "action" {

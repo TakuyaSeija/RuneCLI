@@ -188,19 +188,17 @@ pub fn click(app: &mut App, field: usize, col: u16) {
     }
 }
 
-pub(super) fn select(app: &mut App, field: usize, first: u16, last: u16) -> bool {
-    let Some(form) = app.mcp_input.as_mut().filter(|f| f.sending.is_none()) else {
-        return false;
-    };
-    let Some((index, row)) = form.text_row.as_ref() else {
-        return false;
-    };
+pub(super) fn copy_input(app: &App, field: usize, first: u16, last: u16) -> Option<String> {
+    let form = app.mcp_input.as_ref().filter(|f| f.sending.is_none())?;
+    let (index, row) = form.text_row.as_ref()?;
     if *index != field {
-        return false;
+        return Some(String::new());
     }
-    let (start, end) = (row.caret_at(first), row.caret_at(last));
-    form.editors[field].select(&form.values[field], &mut form.cursors[field], start, end);
-    true
+    Some(super::selection::source(
+        &form.values[field],
+        row.caret_at(first),
+        row.caret_at(last),
+    ))
 }
 
 pub fn render(form: &mut Form, width: usize, height: usize) -> (Sink, Option<(usize, usize)>) {
@@ -270,6 +268,12 @@ pub fn render(form: &mut Form, width: usize, height: usize) -> (Sink, Option<(us
             ),
             super::draw::Hit::McpText(form.selected),
         );
+        let first = geometry.first_col.saturating_sub(1);
+        *out.copy.last_mut().unwrap() = vec![super::selection::Span {
+            columns: first..first + ansi::width(&geometry.text).max(1),
+            region: super::selection::Region::Input,
+            source: None,
+        }];
         form.text_row = Some((form.selected, geometry));
     }
     out.push_at(
@@ -300,9 +304,35 @@ pub fn render(form: &mut Form, width: usize, height: usize) -> (Sink, Option<(us
     if out.lines.len() > height {
         out.lines.truncate(height);
         out.owner.truncate(height);
+        out.copy.truncate(height);
         cursor = cursor.filter(|(row, _)| *row < height);
     }
     (out, cursor)
+}
+
+#[cfg(test)]
+#[test]
+fn mouse_copy_reads_mcp_source_without_mutating_field_or_submitting() {
+    let mut app = App::for_test();
+    app.mcp_input = Some(Form::new(
+        "copy".into(),
+        "fixture".into(),
+        json!({"requestedSchema":{"type":"object", "properties":{"answer":{"type":"string", "default":"aé界tail"}}}}),
+    ));
+    let form = app.mcp_input.as_mut().unwrap();
+    render(form, 120, 24);
+    let first = form.text_row.as_ref().unwrap().1.first_col as u16;
+    assert_eq!(
+        copy_input(&app, 0, first, first + 4).as_deref(),
+        Some("aé界")
+    );
+    let form = app.mcp_input.as_ref().unwrap();
+    assert_eq!(form.values[0], "aé界tail");
+    assert_eq!(form.cursors[0], "aé界tail".len());
+    assert!(form.editors[0]
+        .selected(&form.values[0], form.cursors[0])
+        .is_none());
+    assert!(form.sending.is_none());
 }
 
 #[cfg(test)]

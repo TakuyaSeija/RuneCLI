@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">Add a provider</h2>
+<p>A provider is the account that answers Rune's model requests. Rune brings no account and no API credit of its own: each request is sent to, and billed by, the provider you connect.</p>
+<ol>
+<li>Press <kbd>Ctrl+G</kbd>, open <strong>Connections</strong> and choose <strong>Add connection</strong>.</li>
+<li>Under <strong>MODEL PROVIDERS</strong>, pick the preset for your provider, or <strong>compatible</strong> for any other OpenAI-compatible endpoint.</li>
+<li>If the preset has no fixed address, enter your address first. Then paste the API key into the masked field and press <kbd>Enter</kbd>.</li>
+<li>Rune sends one real request to check the account before it saves the connection. That request can be billed and sends test text to the provider.</li>
+<li>Open <strong>Models</strong>, choose the provider and select a model with <kbd>Enter</kbd>.</li>
+</ol>
+<p>Saving a connection proves the account answered once. It does not prove every model in the provider's list is available to you. Keys are stored encrypted on your computer; see <a href="{{url "docs/credentials"}}">Credentials</a>.</p>
+
+<h2 id="presets">Every preset</h2>
+<p>Rune knows 31 providers. A preset fills in the provider's address and the way its requests are written; you supply only the key. Where a key has a known shape, Rune checks that shape before sending anything.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Preset</th><th>Key</th><th>Address</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>OpenAI key, <code>sk-…</code></td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>Anthropic key, <code>sk-ant-…</code></td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>Google AI Studio key, <code>AIza…</code> or <code>AQ.…</code></td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>xAI key, <code>xai-…</code></td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>DeepSeek key, <code>sk-…</code></td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>Mistral key</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>Groq key, <code>gsk_…</code></td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>OpenRouter key, <code>sk-or-…</code></td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>Moonshot AI (Kimi) key</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>MiniMax key</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>Z.ai standard API key, not a Coding Plan key</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>Meta Model API key</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>StepFun key</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>Ant Ling API key</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>Xiaomi MiMo key: <code>sk-…</code> for pay-as-you-go, <code>tp-…</code> for a Token Plan</td><td>Chosen from the kind of key</td></tr>
+<tr><td><code>nvidia</code></td><td>NVIDIA key, <code>nvapi-…</code></td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>Cerebras key, <code>csk-…</code></td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>Hugging Face token, <code>hf_…</code></td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>Fireworks AI key</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>Together AI key</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>SiliconFlow key</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>DeepInfra key</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>Novita AI key</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>Inference.net key</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>TokenRouter key from tokenrouter.com</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>Model Studio key from the same region as the address</td><td>Your workspace's compatible-mode address</td></tr>
+<tr><td><code>tencent</code></td><td>TokenHub key from the same site as the address</td><td>Your region's TokenHub address</td></tr>
+<tr><td><code>cloudflare</code></td><td>API token with Workers AI access</td><td>An address that contains your account ID</td></tr>
+<tr><td><code>ollama</code></td><td>None: Ollama runs on this computer</td><td>This computer, port 11434</td></tr>
+<tr><td><code>9router</code></td><td>9router key, or none when 9router asks for none</td><td>The 9router app on this computer, port 20128</td></tr>
+<tr><td><code>compatible</code></td><td>The endpoint's key, or none when it needs none</td><td>Any OpenAI-compatible address you enter</td></tr>
+</tbody>
+</table></div>
+<p>The address column shows the host each preset uses unless you change it. Use default on the address field restores the preset's own. Do not guess another address after a failure; read the error first.</p>
+
+<h2 id="provider-notes">Notes by provider</h2>
+<p>Reasoning controls differ by provider and by model. These notes describe what Rune sends; the provider can still change what a model does with it. Set a model's reasoning choices with <kbd>Alt+C</kbd> in Models, as described in <a href="{{url "docs/generation"}}">Generation &amp; reasoning</a>.</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>Use the compatible-mode address of your Model Studio workspace and region, with a key from that region. Thinking is on or off, with no levels. Never offer Off for a model that always thinks: it refuses the request. GLM models on Model Studio return tool calls only with an option Rune does not send, so use them through Z.ai.</dd></div>
+<div><dt>cerebras</dt><dd>Reasoning levels differ by model and are not listed by the service. <code>gpt-oss-120b</code> and <code>qwen-3.8-27b</code> take Low, Medium and High; add them with <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>cloudflare</dt><dd>Workers AI. The address contains your account ID, and the key is an API token with Workers AI access, not a Tunnel token. Models are read from your account's model list.</dd></div>
+<div><dt>compatible</dt><dd>Any OpenAI-compatible endpoint. Nothing about its models is assumed: set context, output and reasoning with <kbd>Alt+C</kbd> from the endpoint's own documentation.</dd></div>
+<div><dt>deepinfra</dt><dd>Its model list gives prices and marks which models reason. Levels are Low, Medium and High; without a chosen level the model's own default applies.</dd></div>
+<div><dt>fireworks</dt><dd>Levels run from Low to Max. A model that takes fewer levels is set with <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>huggingface</dt><dd>The Inference Providers router, with a token allowed to call Inference Providers. Which provider serves a model, and what it supports, depends on that pair.</dd></div>
+<div><dt>inclusionai</dt><dd>InclusionAI's Ling models through Ant Group's Ling API. The 3.0 and 3.1 models switch thinking on or off, with no levels. A Ling server you host yourself is added with <code>compatible</code>.</dd></div>
+<div><dt>inference</dt><dd>Its model list names each model's thinking levels, and Rune offers exactly those.</dd></div>
+<div><dt>meta</dt><dd>The Meta Model API, not a Meta AI chatbot login. Levels run from Minimal to Extra high. Muse Spark always reasons and refuses Off and stop words, so leave Stop empty in Generation.</dd></div>
+<div><dt>mimo</dt><dd>Pay-as-you-go keys and Token Plan keys reach different addresses; Rune picks the address from the key you enter.</dd></div>
+<div><dt>minimax</dt><dd>Rune asks for thinking apart from the answer. Only <code>MiniMax-M3.1-Flash</code> takes levels (Low to Max): add them with <kbd>Alt+C</kbd>. Do not offer Off for MiniMax models.</dd></div>
+<div><dt>moonshot</dt><dd>Kimi. <code>kimi-k3</code> takes Low, High and Max; add them with <kbd>Alt+C</kbd>. The <code>kimi-k2</code> models take no level. Do not offer Off for Kimi models.</dd></div>
+<div><dt>novita</dt><dd>Thinking is on or off on models that offer both, with no levels. Prices come from its model list.</dd></div>
+<div><dt>nvidia</dt><dd>The hosted NIM API. Thinking controls differ by model and are not listed by the service; set them per model from that model's card. A self-hosted NIM uses its own address.</dd></div>
+<div><dt>openrouter</dt><dd>One account offers many models with different prices and limits. Select the exact model and check its current price.</dd></div>
+<div><dt>siliconflow</dt><dd>The global address; a .cn account uses its own address and key. Thinking is on or off on the models SiliconFlow lists for it. <code>deepseek-ai/DeepSeek-V3.1</code> calls tools only with thinking off.</dd></div>
+<div><dt>stepfun</dt><dd>Levels are Low, Medium and High. <code>step-3.5-flash-2603</code> takes only Low and High: remove Medium for it with <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tencent</dt><dd>Hunyuan is moving to TokenHub: enter your region's TokenHub address, shown beside the address field, with a key from that region. Thinking is on or off, with levels Low, Medium and High. Some models TokenHub serves for other vendors refuse Off.</dd></div>
+<div><dt>together</dt><dd>Its model list gives prices but no thinking levels: add a model's documented levels with <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tokenrouter</dt><dd>TokenRouter at tokenrouter.com. Services with similar names on other domains are different companies with their own addresses.</dd></div>
+<div><dt>zai</dt><dd>The Z.ai standard API. A Coding Plan has its own keys, addresses and list of eligible tools. Levels run from Minimal to Max; without a chosen level the service's default (Max) applies. <code>glm-5.3</code> always thinks and takes only Low, High and Max. Only one stop word is accepted.</dd></div>
+</dl>
+
+<h2 id="on-this-computer">Models on this computer</h2>
+<p><strong>Ollama</strong> serves local models from this computer on port 11434, with no key. This is a different service from Ollama's cloud web search. A local model keeps prompts on your machine, but web tools, auxiliary jobs and commands can still contact other services.</p>
+<p><strong>9router</strong> is a router app that runs on your computer, on port 20128 by default, and forwards requests to the upstream accounts you set up in it. One connection serves every model it offers. For Claude Code's models (<code>cc/…</code>), Rune uses 9router's Anthropic-style door by itself, so their cache and thinking counts arrive; there is nothing to set up. Off is a request: when a route reports that thinking cannot be disabled, Off asks for Low instead.</p>
+<p>A preset's local address is a default, not proof that the service runs on your machine. Start the service first; Rune's test request tells you whether it answered.</p>
+
+<h2 id="keys">Keys and accounts</h2>
+<p>A connection can hold several keys. <code>rune -provider keys &lt;name&gt;</code> lists them masked, and Connections manages them without showing their values. When a key reports insufficient balance, Rune rests it for 15 minutes and uses another key if the connection has one; see <a href="{{url "docs/runtime"}}">Runtime &amp; retries</a>.</p>
+<p>Removing a connection removes its configuration. Its keys can stay in the encrypted store for reuse; delete a key explicitly when you mean to. A key never travels over plain HTTP to another machine.</p>
+
+<h2 id="choose-a-model">Choose a model</h2>
+<p>Settings → Models lists the models your connected providers return, and can refresh that list. Select one with <kbd>Enter</kbd>, or type <code>/model provider:id</code> in the conversation. <kbd>Alt+C</kbd> on a model edits what Rune knows about it: context size, output limit, reasoning choices and price. A price you enter is used for the spend shown in the side panel, which is not the provider's invoice.</p>
+<p>Models → New-session fallback chooses the provider a new session starts with. It does not switch open conversations; use <code>/provider</code> or <code>/model</code> in a session for that.</p>
+{{end}}

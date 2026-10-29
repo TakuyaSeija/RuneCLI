@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">Run a command yourself</h2>
+<p>Type <code>!</code> as the very first character in the composer, followed by a command, and press <kbd>Enter</kbd>. Rune runs that script for you, not the AI. Before you press <kbd>Enter</kbd>, the composer shows <strong>Shell · full access once</strong>, so you can see that this input is a command and not a message.</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>The example above is one script of two lines: both run. Only the first line carries the <code>!</code>; a second <code>!</code> would be read by the shell itself, which in bash and sh turns the next command's failure into success. Use it for a quick check, a build you want to watch, or a step the AI was not allowed to take. The command and its result then become part of the conversation, and the AI answers after it ends.</p>
+
+<h2 id="what-counts">What counts as a command</h2>
+<ul>
+<li>Only a <code>!</code> in the first position starts a command. <code>hello ! echo test</code>, a <code>!</code> after a space, or a <code>!</code> on a later line of an ordinary message is plain text.</li>
+<li>Once the input starts with <code>!</code>, every line belongs to the same script. A later <code>!</code> is shell syntax, not a second Rune command.</li>
+<li>Pasting never runs anything. <kbd>Enter</kbd> runs the whole current script, including every pasted line.</li>
+<li>A lone <code>!</code> runs nothing. Delete the leading <code>!</code> to turn the input back into a message.</li>
+</ul>
+
+<h2 id="access">What access it has</h2>
+<p><kbd>Enter</kbd> is the permission. The script runs once with the full access of your operating-system account: outside the workspace boundary and the command sandbox, without classifier or sanitizer review and without another permission question.</p>
+<p>It does not run as Administrator or root, does not change the session's mode, and does not approve any later action by the AI. Read the whole script before you press <kbd>Enter</kbd>, especially one you pasted.</p>
+
+<h2 id="while-the-ai-works">While the AI is working</h2>
+<p>A command you send during a turn waits for that turn to finish, then runs in the order you sent it. Its live output appears as it runs. When it ends, or when it moves to the background because it is still running at the configured wait or is waiting for typed input, Rune adds the command and what it printed to the conversation, and the AI responds. That response is a normal model request and can cost money.</p>
+<p>If a window reconnects, Rune sends the same submission again without running it twice. After a crash, Rune never replays a command that may already have run.</p>
+
+<h2 id="when-the-ai-was-refused">When the AI was refused</h2>
+<p>When a command the AI proposed is refused, the refusal can mention this manual option. Rune never submits a <code>!</code> command for you and never retries a refused action by itself. Other tools gain no such bypass.</p>
+
+<h2 id="which-shell">Which shell runs it</h2>
+<p>The shell is set by <code>terminal.shell</code>. With the factory value <code>auto</code>, Rune uses bash where the computer has it and <code>/bin/sh</code> otherwise; on Windows it uses PowerShell 7, then Windows PowerShell, then Command Prompt. Each shell reads commands in its own language.</p>
+<p>The command's box shows the shell that actually ran it: <code>$</code> for bash and zsh, <code>PS&gt;</code> for PowerShell and <code>&gt;</code> for Command Prompt. A collapsed box shows the first row of the script; click it to open the whole script with its original lines.</p>
+
+<h2 id="privacy">Privacy</h2>
+<p>The command and everything it prints are sent to the AI with the next request. Do not print secrets, keys or private files you would not paste into a message. Rune redacts the keys it knows about, which is not a guarantee for every private value.</p>
+{{end}}

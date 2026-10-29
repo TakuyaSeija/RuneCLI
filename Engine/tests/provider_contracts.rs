@@ -34,7 +34,7 @@ const APIS: &[&str] = &[
     "compatible",
 ];
 
-fn read_request(socket: &mut TcpStream) -> Value {
+fn read_request(socket: &mut TcpStream, endpoint: &str) -> Value {
     socket
         .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
@@ -45,7 +45,10 @@ fn read_request(socket: &mut TcpStream) -> Value {
         header.push(byte[0]);
     }
     let header = String::from_utf8(header).unwrap();
-    assert!(header.starts_with("POST /v1/chat/completions HTTP/1.1"));
+    assert!(
+        header.starts_with(&format!("POST {endpoint} HTTP/1.1")),
+        "{header}"
+    );
     let len: usize = header
         .lines()
         .find_map(|line| {
@@ -89,6 +92,114 @@ fn answer(socket: &mut TcpStream, round: usize) {
 }
 
 #[test]
+fn router_off_and_route_default_reach_both_http_doors_as_requests() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}/v1", listener.local_addr().unwrap());
+    let server = std::thread::spawn(move || {
+        let mut requests = Vec::new();
+        for anthropic in [false, true] {
+            for _ in 0..6 {
+                let (mut socket, _) = listener.accept().unwrap();
+                requests.push(read_request(
+                    &mut socket,
+                    if anthropic {
+                        "/v1/messages"
+                    } else {
+                        "/v1/chat/completions"
+                    },
+                ));
+                if anthropic {
+                    let response = concat!(
+                        "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"complete\"}}\n\n",
+                        "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+                        "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n",
+                        "data: {\"type\":\"message_stop\"}\n\n"
+                    );
+                    write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{response}",response.len()).unwrap();
+                } else {
+                    answer(&mut socket, 1);
+                }
+            }
+        }
+        requests
+    });
+    for anthropic in [false, true] {
+        for capability in [Some(false), Some(true), None] {
+            let mut config = preset("9router").unwrap().build("");
+            config.base_url = base.clone();
+            config.secret = None;
+            let mut model = ModelInfo::named("route-without-name-hints", true);
+            model.metadata = json!({"owned_by":if anthropic {"cc"} else {"other"},
+                "capabilities":{"reasoning":true,"thinkingFormat":"claude-adaptive","thinkingCanDisable":capability}});
+            model.reasoning_options = Some(vec!["off".into(), "max".into()]);
+            config.models = vec![model];
+            config.settle_thinking();
+            let mut settings = Settings::empty();
+            settings.providers.list = vec![config.clone()];
+            let live = Live::new(Arc::new(Mutex::new(settings)));
+            for on in [false, true] {
+                let mut chosen = ModelSettings::for_provider(&config);
+                chosen.thinking = on;
+                chosen.effort = None;
+                let request = Request {
+                    control: Default::default(),
+                    system: "fixture".into(),
+                    messages: vec![Message::user("reply complete")],
+                    tools: vec![],
+                    settings: chosen,
+                };
+                let mut text = String::new();
+                live.stream(&request, &mut |chunk| {
+                    if let Chunk::Text(part) = chunk {
+                        text.push_str(&part);
+                    }
+                    Flow::Continue
+                })
+                .unwrap();
+                assert_eq!(text, "complete");
+            }
+        }
+    }
+    let requests = server.join().unwrap();
+    for (door, group) in requests.chunks_exact(6).enumerate() {
+        for (capability, pair) in [Some(false), Some(true), None]
+            .into_iter()
+            .zip(group.chunks_exact(2))
+        {
+            let off = &pair[0];
+            let default = &pair[1];
+            if door == 0 {
+                assert_eq!(
+                    off["reasoning_effort"],
+                    if capability == Some(false) {
+                        "low"
+                    } else {
+                        "none"
+                    }
+                );
+                assert!(off.get("reasoning").is_none());
+                assert!(default.get("reasoning_effort").is_none());
+            } else {
+                assert_eq!(
+                    off["thinking"]["type"],
+                    if capability == Some(false) {
+                        "adaptive"
+                    } else {
+                        "disabled"
+                    }
+                );
+                if capability == Some(false) {
+                    assert_eq!(off["output_config"]["effort"], "low");
+                } else {
+                    assert!(off.get("output_config").is_none());
+                }
+                assert!(default.get("thinking").is_none());
+            }
+        }
+    }
+}
+
+#[test]
 fn added_adapters_complete_two_http_tool_rounds_and_preserve_usage_and_history() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let base = format!("http://{}/v1", listener.local_addr().unwrap());
@@ -97,7 +208,7 @@ fn added_adapters_complete_two_http_tool_rounds_and_preserve_usage_and_history()
         for _ in APIS {
             for round in 0..2 {
                 let (mut socket, _) = listener.accept().unwrap();
-                requests.push(read_request(&mut socket));
+                requests.push(read_request(&mut socket, "/v1/chat/completions"));
                 answer(&mut socket, round);
             }
         }

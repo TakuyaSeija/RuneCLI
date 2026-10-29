@@ -1,0 +1,30 @@
+{{define "article"}}
+<h2 id="different-limits">Three different kinds of limit</h2>
+<p>A display fold controls what you see initially. A returned-output cap controls how much text the AI receives. A capture/work limit can stop a command or end a search. Increasing one does not increase the others, and none grants file or network access.</p>
+<p>Open Settings → Tools, choose the relevant group, edit and Apply. Use default removes the global override. The factory values below describe Rune {{.DocVersion}}, not your saved choices; inspect one with <code>rune -config explain &lt;key&gt;</code>.</p>
+<h2 id="file-tools">File tools</h2>
+<dl class="ref">
+<div><dt>inspect_file</dt><dd>One file, with inclusive line ranges for text. Factory maximum file size 16 MiB and returned text 30,000 characters. A supported non-text file can be attached to a capable model.</dd></div>
+<div><dt>find_files</dt><dd>Glob search for paths. Factory maximum 200 returned paths and 20,000 characters. A smaller per-call limit can reduce, not raise, that maximum.</dd></div>
+<div><dt>search_text</dt><dd>Content search. Factory maximum 100 matching lines, 2,000 characters per line and 30,000 total characters. It shares the individual-file size limit with inspect_file.</dd></div>
+<div><dt>create_file</dt><dd>Create a file, overwriting an existing one if present. The action must still pass permissions and file protection.</dd></div>
+<div><dt>patch_file</dt><dd>Replace one exact piece of text. The old text must occur exactly once; an ambiguous match is not an instruction to replace every occurrence.</dd></div>
+</dl>
+<p>Path and text searches include hidden and ignored names but skip <code>.git</code> and <code>.rune</code>. Shared scan limits are 200,000 entries, depth 32 and 200,000 regex-work steps per line. A stopped or shortened search can have more results. Narrow the path or pattern before raising a limit.</p>
+<h2 id="terminal-and-process">Terminal and process tools</h2>
+<p><code>terminal_use</code> runs a command in a fresh shell. Factory foreground wait is 120 seconds, returned text 30,000 characters and per-background log 100 MiB. The wait normally hands work to background; exceeding an output/log capture limit can stop it. <code>manage_process</code> reports status/new output, with 30,000 returned characters by default. <code>terminal_send_input</code> types a response rather than waiting for its result.</p>
+<p>Read <a href="{{url "docs/terminal"}}">Terminal &amp; background work</a> for launch intent, platform input detection and task lifetime.</p>
+<h2 id="web-and-extensions">Web and extension tools</h2>
+<dl class="ref">
+<div><dt>web_search</dt><dd>Search with a query and optional lower result count. Factory maximum eight results, 60-second request timeout and 100,000 output characters.</dd></div>
+<div><dt>web_fetch</dt><dd>Read one public page. Factory timeout 60 seconds and 100,000 returned characters. Separate provider selection belongs to this tool.</dd></div>
+<div><dt>discover_capabilities</dt><dd>Find skills, MCP tools and resources not already listed. Factory returned-text allowance 30,000 characters.</dd></div>
+<div><dt>call_mcp_tool</dt><dd>Call a discovered external tool using that server's exact declared inputs; the server's operations and risks are its own.</dd></div>
+<div><dt>read_mcp_resource</dt><dd>Read a discovered resource. Factory returned-text allowance 50,000 characters.</dd></div>
+</dl>
+<h2 id="orchestration">Plans, questions and orchestration</h2>
+<p><code>track_tasks</code> replaces the task list, up to 20 tasks with 120 characters each by default. <code>ask_user_questions</code> requests decisions in an explicit form. Question waits are unlimited by default; permission waits expire after 10 minutes. Unlimited means no expiry, not automatic approval.</p>
+<p><code>tools.max_actions_per_response</code> defaults to 20 proposed tool calls in one model response. It is not a total task budget, worker count or promise that calls run in parallel. Each call still has its own permission and validation.</p>
+<h2 id="change-responsibly">Change responsibly</h2>
+<p>Not every tool has a dedicated numeric editor. Higher limits can expose more content and consume more time, disk, memory or model context. Lower limits can omit needed evidence or stop work. Read notices about incomplete output instead of claiming a truncated result is complete.</p>
+{{end}}

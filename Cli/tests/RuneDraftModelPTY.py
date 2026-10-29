@@ -8,9 +8,9 @@
   2. A model chosen in a draft stays chosen: from the Models page (arrows +
      Enter) and from `/model <id>`. It said "Settings saved. Active: B" and
      the screen went back to A, every time.
-  3. A 9router route starts Off (owner, 2026-10-15): no effort beside its
-     name, `reasoning_effort: none` in the request — on a route the router
-     cannot stop thinking too; `/thinking on` is the route default (none sent),
+  3. A 9router route starts Off: no chosen effort beside its name. On an
+     explicitly cannot-disable route Off requests `low` (owner, 2026-10-25),
+     not zero thinking; `/thinking on` is the route default (nothing sent),
      `/thinking low` sends `low`, `/thinking max` (a level three levels left
      out) sends `max`, `/thinking default` sends none again.
 
@@ -156,12 +156,12 @@ def main():
         assert f"{ROUTE} ·" in title.replace("\x1b", ""), f"a level is shown beside the route: {title!r}"
         calls = live.ask(window, provider, "first question", live.text("Answer one."), expect="Answer one.")
         body = calls[-1]["body"]
-        assert body.get("reasoning_effort") == "none" and "reasoning" not in body, body
-        passed.append("a 9router route starts Off: no level shown, none asked for")
+        assert body.get("reasoning_effort") == "low" and "reasoning" not in body, body
+        passed.append("a cannot-disable 9router route starts Off: no chosen level shown, Low requested")
 
         window.type("/thinking on")
         window.send(b"\r")
-        live.until(lambda: "Route default — /thinking minimal|low|medium|high|xhigh|max" in window.screen.text(),
+        live.until(lambda: "Route default — /thinking low|medium|high|xhigh|max" in window.screen.text(),
                    "the route default and the router's levels said", window, 10)
         calls = live.ask(window, provider, "on question", live.text("Answer on."), expect="Answer on.")
         assert "reasoning_effort" not in calls[-1]["body"], calls[-1]["body"]

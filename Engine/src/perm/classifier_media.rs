@@ -24,7 +24,9 @@ pub(crate) fn prepare(
         .get(&route.settings.provider)
         .cloned();
     let fallback = crate::settings::providers::Dialect::OpenAi;
-    let dialect = cfg.as_ref().map_or(fallback, |p| p.dialect);
+    let dialect = cfg
+        .as_ref()
+        .map_or(fallback, |p| p.dialect_for(&route.settings.model));
     let limits = cfg
         .as_ref()
         .map(|p| p.media_limits(Some(config.number("attachments.max_text_chars") as usize)))

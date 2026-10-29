@@ -2,9 +2,11 @@ package main
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
-	"crypto/ed25519"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -21,6 +23,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -31,13 +35,13 @@ import (
 
 type releaseFixture struct {
 	dir  string
-	priv ed25519.PrivateKey
+	priv *ecdsa.PrivateKey
 }
 
 func newDownloads(t *testing.T) *releaseFixture {
 	t.Helper()
-	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
-	der, _ := x509.MarshalPKIXPublicKey(pub)
+	priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	der, _ := x509.MarshalPKIXPublicKey(&priv.PublicKey)
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, keyFile), pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), 0o644)
 	return &releaseFixture{dir: dir, priv: priv}
@@ -57,23 +61,56 @@ func tarball(t *testing.T, files map[string]string) []byte {
 	return b.Bytes()
 }
 
-// publish writes a correctly signed release, as PublishRune.sh does.
+// sign is what PublishRune.sh's signer writes: ECDSA P-256 over the SHA-256
+// of the bytes, DER-encoded.
+func (f *releaseFixture) sign(data []byte) []byte {
+	digest := sha256.Sum256(data)
+	sig, err := ecdsa.SignASN1(rand.Reader, f.priv, digest[:])
+	if err != nil {
+		panic(err)
+	}
+	return sig
+}
+
+// publish writes a correctly signed release with one Linux archive, as PublishRune.sh does.
 func (f *releaseFixture) publish(t *testing.T, version string, tarFiles map[string]string) string {
+	t.Helper()
+	name := "rune-" + version + "-linux-x86_64-gnu.tar.gz"
+	f.publishArchives(t, version, map[string][]byte{name: tarball(t, tarFiles)})
+	return name
+}
+
+// publishArchives writes a correctly signed release holding exactly these
+// archives; each one's system, processor and C library come from its name.
+func (f *releaseFixture) publishArchives(t *testing.T, version string, archives map[string][]byte) {
 	t.Helper()
 	dir := filepath.Join(f.dir, version)
 	os.MkdirAll(dir, 0o755)
-	name := "rune-" + version + "-linux-x86_64-gnu.tar.gz"
-	art := tarball(t, tarFiles)
-	os.WriteFile(filepath.Join(dir, name), art, 0o644)
-	sum := sha256.Sum256(art)
-	meta, _ := json.Marshal(Release{Version: version, Date: "2026-10-24", Notes: []string{"First release."},
-		Files: []Artifact{{Name: name, OS: "linux", Arch: "x86_64", Libc: "gnu", Size: int64(len(art)), SHA256: hex.EncodeToString(sum[:])}}})
+	var files []Artifact
+	var sums strings.Builder
+	names := make([]string, 0, len(archives))
+	for name := range archives {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		art := archives[name]
+		m := artifactRe.FindStringSubmatch(name)
+		if m == nil {
+			t.Fatalf("not an archive name: %s", name)
+		}
+		os.WriteFile(filepath.Join(dir, name), art, 0o644)
+		sum := sha256.Sum256(art)
+		files = append(files, Artifact{Name: name, OS: m[2] + m[5] + m[7], Arch: m[3] + m[6] + m[8], Libc: m[4],
+			Size: int64(len(art)), SHA256: hex.EncodeToString(sum[:])})
+		fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(sum[:]), name)
+	}
+	meta, _ := json.Marshal(Release{Version: version, Date: "2026-10-24", Notes: []string{"First release."}, Files: files})
 	os.WriteFile(filepath.Join(dir, metaFile), meta, 0o644)
 	msum := sha256.Sum256(meta)
-	sums := fmt.Sprintf("%s  %s\n%s  %s\n", hex.EncodeToString(sum[:]), name, hex.EncodeToString(msum[:]), metaFile)
-	os.WriteFile(filepath.Join(dir, sumsFile), []byte(sums), 0o644)
-	os.WriteFile(filepath.Join(dir, sigFile), ed25519.Sign(f.priv, []byte(sums)), 0o644)
-	return name
+	fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(msum[:]), metaFile)
+	os.WriteFile(filepath.Join(dir, sumsFile), []byte(sums.String()), 0o644)
+	os.WriteFile(filepath.Join(dir, sigFile), f.sign([]byte(sums.String())), 0o644)
 }
 
 func fakeRune(version string) map[string]string {
@@ -213,7 +250,7 @@ func TestProdAddsHSTSAndIndexingOnlyWhenAsked(t *testing.T) {
 		strings.Contains(w.Body.String(), "noindex") || strings.Contains(w.Body.String(), "Development build") {
 		t.Fatal("prod headers or body wrong")
 	}
-	if w := get(t, h, "GET", "/Studio/sitemap.xml"); w.Code != 200 || !strings.Contains(w.Body.String(), "https://atoryn.com/Studio/security") {
+	if w := get(t, h, "GET", "/Studio/sitemap.xml"); w.Code != 200 || !strings.Contains(w.Body.String(), "https://atoryn.com/Studio/docs/security") || strings.Contains(w.Body.String(), "<loc>https://atoryn.com/Studio/security</loc>") {
 		t.Fatalf("sitemap: %d", w.Code)
 	}
 }
@@ -320,30 +357,94 @@ func TestInstallerIsValidShellAndQuotesItsValues(t *testing.T) {
 	}
 }
 
-// The real installer against a real server: installs a signed release, and
-// installs nothing when the archive or the signature was tampered with.
+// The Windows installer is served the same way, carries the key in the form
+// Windows imports (the point of the same published key), stays ASCII so
+// Windows PowerShell reads it the same under any code page, and runs nothing
+// until its last line.
+func TestWindowsInstallerCarriesTheReleaseKey(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.9.0", fakeRune("0.9.0"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	w := get(t, h, "GET", "/Studio/install.ps1")
+	body := w.Body.String()
+	want := fmt.Sprintf("$KeyX = '%064x'", f.priv.PublicKey.X)
+	if w.Code != 200 || !strings.Contains(body, "$Latest = '0.9.0'") || !strings.Contains(body, want) ||
+		!strings.Contains(body, fmt.Sprintf("$KeyY = '%064x'", f.priv.PublicKey.Y)) {
+		t.Fatalf("install.ps1: %d\n%s", w.Code, body)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/plain; charset=utf-8" {
+		t.Fatalf("content type %q", ct)
+	}
+	for i, r := range body {
+		if r > 127 {
+			t.Fatalf("non-ASCII character %q at byte %d", r, i)
+		}
+	}
+	if !strings.HasPrefix(strings.TrimSpace(body[strings.Index(body, "\n& {"):]), "& {") || !strings.HasSuffix(strings.TrimSpace(body), "}") {
+		t.Fatal("the script is not one block run at its end")
+	}
+	if got := powershellQuote(`it's $(x)`); got != `'it''s $(x)'` {
+		t.Fatalf("powershellQuote = %s", got)
+	}
+	// Without a release, both installers say so and carry no key.
+	empty := newTestServer(t, testConfig(newDownloads(t).dir)).routes()
+	if b := get(t, empty, "GET", "/Studio/install.ps1").Body.String(); !strings.Contains(b, "$KeyX = ''") || !strings.Contains(b, "$Latest = ''") {
+		t.Fatalf("unpublished install.ps1:\n%s", b)
+	}
+}
+
+// installerServer serves the downloads folder through the real routes on a
+// real port, as an installer reaches it.
+func installerServer(t *testing.T, downloads string) (*httptest.Server, string) {
+	t.Helper()
+	cfg := testConfig(downloads)
+	ts := httptest.NewUnstartedServer(nil)
+	ts.Start()
+	t.Cleanup(ts.Close)
+	u, _ := url.Parse(ts.URL)
+	cfg.Origin, cfg.Hosts = ts.URL, []string{u.Host}
+	ts.Config.Handler = newTestServer(t, cfg).routes()
+	return ts, u.Host
+}
+
+// unixArchive is the archive install.sh picks on this machine.
+func unixArchive(version string) string {
+	if runtime.GOOS == "darwin" {
+		return "rune-" + version + "-macos-" + map[string]string{"arm64": "aarch64", "amd64": "x86_64"}[runtime.GOARCH] + ".tar.gz"
+	}
+	return "rune-" + version + "-linux-x86_64-gnu.tar.gz"
+}
+
+// The real installer against a real server, on Linux and on macOS (with
+// LibreSSL there): installs a signed release, and installs nothing when the
+// archive or the signature was tampered with.
 func TestInstallerEndToEnd(t *testing.T) {
+	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" || runtime.GOOS == "linux" && runtime.GOARCH != "amd64" {
+		t.Skip("install.sh runs on Linux x86_64 and macOS here")
+	}
 	if _, err := exec.LookPath("openssl"); err != nil {
 		t.Skip("openssl not available")
 	}
+	publish := func(f *releaseFixture, files map[string]string) {
+		tar := tarball(t, files)
+		f.publishArchives(t, "0.9.0", map[string][]byte{
+			"rune-0.9.0-linux-x86_64-gnu.tar.gz": tar, "rune-0.9.0-macos-aarch64.tar.gz": tar, "rune-0.9.0-macos-x86_64.tar.gz": tar,
+		})
+	}
 	f := newDownloads(t)
-	name := f.publish(t, "0.9.0", fakeRune("0.9.0"))
-	cfg := testConfig(f.dir)
-	ts := httptest.NewUnstartedServer(nil)
-	ts.Start()
-	defer ts.Close()
-	u, _ := url.Parse(ts.URL)
-	cfg.Origin, cfg.Hosts = ts.URL, []string{u.Host}
-	srv := newTestServer(t, cfg)
-	ts.Config.Handler = srv.routes()
+	publish(f, fakeRune("0.9.0"))
+	ts, host := installerServer(t, f.dir)
 
 	run := func() (string, string, error) {
-		script := get(t, ts.Config.Handler, "GET", "/Studio/install.sh", func(r *http.Request) { r.Host = u.Host }).Body.String()
+		script := get(t, ts.Config.Handler, "GET", "/Studio/install.sh", func(r *http.Request) { r.Host = host }).Body.String()
 		home := t.TempDir()
 		dir := filepath.Join(home, "bin")
 		cmd := exec.Command("sh")
 		cmd.Stdin = strings.NewReader(script)
-		cmd.Env = []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "RUNE_INSTALL_DIR=" + dir, "RUNE_LIBC=gnu"}
+		cmd.Env = []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "RUNE_INSTALL_DIR=" + dir}
+		if runtime.GOOS == "linux" {
+			cmd.Env = append(cmd.Env, "RUNE_LIBC=gnu")
+		}
 		out, err := cmd.CombinedOutput()
 		return string(out), dir, err
 	}
@@ -352,12 +453,12 @@ func TestInstallerEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("install failed: %v\n%s", err, out)
 	}
-	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") {
+	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") || !strings.Contains(out, "signature verified") {
 		t.Fatalf("not installed:\n%s", out)
 	}
 
 	// Tampered archive (the server still lists the old hash: cached catalog).
-	os.WriteFile(filepath.Join(f.dir, "0.9.0", name), tarball(t, fakeRune("6.6.6")), 0o644)
+	os.WriteFile(filepath.Join(f.dir, "0.9.0", unixArchive("0.9.0")), tarball(t, fakeRune("6.6.6")), 0o644)
 	out, dir, err = run()
 	if err == nil || !strings.Contains(out, "CHECKSUM MISMATCH") {
 		t.Fatalf("tampered archive installed: %v\n%s", err, out)
@@ -369,8 +470,117 @@ func TestInstallerEndToEnd(t *testing.T) {
 	// Re-signed by a different key: the signature check refuses.
 	other := newDownloads(t)
 	other.dir = f.dir
-	other.publish(t, "0.9.0", fakeRune("0.9.0"))
+	publish(other, fakeRune("0.9.0"))
 	out, _, err = run()
+	if err == nil || !strings.Contains(out, "SIGNATURE CHECK FAILED") {
+		t.Fatalf("foreign signature accepted: %v\n%s", err, out)
+	}
+}
+
+// The Windows installer against a real server, in Windows PowerShell 5.1 and
+// in PowerShell 7 where present: installs a signed release whose signature
+// exercises both DER integer edge cases, and installs nothing when the
+// archive or the signature was tampered with.
+func TestWindowsInstallerEndToEnd(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("install.ps1 runs on Windows")
+	}
+	goTool, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go is needed to build a stand-in rune.exe")
+	}
+	work := t.TempDir()
+	os.WriteFile(filepath.Join(work, "go.mod"), []byte("module fakerune\n\ngo 1.24\n"), 0o644)
+	os.WriteFile(filepath.Join(work, "main.go"), []byte("package main\n\nimport \"fmt\"\n\nvar version string\n\nfunc main() { fmt.Println(\"rune \" + version) }\n"), 0o644)
+	exe := func(version string) []byte {
+		out := filepath.Join(work, "rune-"+version+".exe")
+		build := exec.Command(goTool, "build", "-ldflags", "-X main.version="+version, "-o", out, ".")
+		build.Dir = work
+		build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOFLAGS=-mod=mod")
+		if b, err := build.CombinedOutput(); err != nil {
+			t.Fatalf("build stand-in: %v %s", err, b)
+		}
+		b, _ := os.ReadFile(out)
+		return b
+	}
+	zipOf := func(program []byte) []byte {
+		var b bytes.Buffer
+		z := zip.NewWriter(&b)
+		for name, body := range map[string][]byte{"rune.exe": program, "LICENSE.txt": []byte("license\n"), "THIRD-PARTY-NOTICES.txt": []byte("notices\n")} {
+			w, _ := z.Create(name)
+			w.Write(body)
+		}
+		z.Close()
+		return b.Bytes()
+	}
+	good, bad := zipOf(exe("0.9.0")), zipOf(exe("6.6.6"))
+	machine := map[string]string{"amd64": "x86_64", "arm64": "aarch64"}[runtime.GOARCH]
+	name := "rune-0.9.0-windows-" + machine + ".zip"
+
+	f := newDownloads(t)
+	f.publishArchives(t, "0.9.0", map[string][]byte{"rune-0.9.0-windows-x86_64.zip": good, "rune-0.9.0-windows-aarch64.zip": good})
+	ts, _ := installerServer(t, f.dir)
+
+	shells := []string{"powershell"}
+	if _, err := exec.LookPath("pwsh"); err == nil {
+		shells = append(shells, "pwsh")
+	}
+	run := func(shell string) (string, string, error) {
+		home := t.TempDir()
+		dir := filepath.Join(home, "bin")
+		cmd := exec.Command(shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+			"irm '"+ts.URL+"/Studio/install.ps1' | iex; exit $LASTEXITCODE")
+		cmd.Env = append(os.Environ(), "RUNE_INSTALL_DIR="+dir, "LOCALAPPDATA="+filepath.Join(home, "local"))
+		out, err := cmd.CombinedOutput()
+		return string(out), dir, err
+	}
+	resign := func(f *releaseFixture, wantDER func([]byte) bool) {
+		sums, _ := os.ReadFile(filepath.Join(f.dir, "0.9.0", sumsFile))
+		for i := 0; i < 20000; i++ {
+			if sig := f.sign(sums); wantDER(sig) {
+				os.WriteFile(filepath.Join(f.dir, "0.9.0", sigFile), sig, 0o644)
+				return
+			}
+		}
+		t.Fatal("no signature of the wanted shape")
+	}
+	// r with a leading zero byte (its top bit set), and an integer shorter than 32 bytes.
+	shapes := map[string]func([]byte) bool{
+		"leading zero": func(der []byte) bool { return der[3] == 33 },
+		"short integer": func(der []byte) bool {
+			return der[3] < 32 || der[4+int(der[3])+1] < 32
+		},
+	}
+	for _, shell := range shells {
+		for shape, want := range shapes {
+			resign(f, want)
+			out, dir, err := run(shell)
+			if err != nil || !strings.Contains(out, "signature verified") {
+				t.Fatalf("%s (%s signature): install failed: %v\n%s", shell, shape, err, out)
+			}
+			got, err := exec.Command(filepath.Join(dir, "rune.exe"), "--version").Output()
+			if err != nil || strings.TrimSpace(string(got)) != "rune 0.9.0" {
+				t.Fatalf("%s: installed program says %q (%v)\n%s", shell, got, err, out)
+			}
+		}
+	}
+
+	// Tampered archive (the catalog still lists the signed hash).
+	os.WriteFile(filepath.Join(f.dir, "0.9.0", name), bad, 0o644)
+	out, dir, err := run(shells[0])
+	if err == nil || !strings.Contains(out, "CHECKSUM MISMATCH") {
+		t.Fatalf("tampered archive installed: %v\n%s", err, out)
+	}
+	if _, serr := os.Stat(filepath.Join(dir, "rune.exe")); serr == nil {
+		t.Fatal("a program was installed after a failed check")
+	}
+	os.WriteFile(filepath.Join(f.dir, "0.9.0", name), good, 0o644)
+
+	// Re-signed by a different key: the signature check refuses.
+	other := newDownloads(t)
+	other.dir = f.dir
+	other.publishArchives(t, "0.9.0", map[string][]byte{"rune-0.9.0-windows-x86_64.zip": good, "rune-0.9.0-windows-aarch64.zip": good})
+	out, _, err = run(shells[0])
 	if err == nil || !strings.Contains(out, "SIGNATURE CHECK FAILED") {
 		t.Fatalf("foreign signature accepted: %v\n%s", err, out)
 	}
@@ -378,18 +588,19 @@ func TestInstallerEndToEnd(t *testing.T) {
 
 // ── leak gate ───────────────────────────────────────────────────────────────
 
-// The site must tell people what RuneAgent does for them, never how it is
-// built: no internal names, paths, settings, storage formats, hosts or ports.
+// The site tells people what RuneAgent does for them. It may name the
+// mechanisms that make it trustworthy (sandbox, vault cipher, config file),
+// but never how it is built: no internal names, paths, settings, storage formats, hosts or ports.
 // Also no inline code or style (the CSP forbids it) and no outside resource.
 func TestPublicContentRevealsNoInternals(t *testing.T) {
 	deny := []string{
 		"perm::", "write_guard", "toolctx", "net::", "proto::", "engine/", "cli/", "crate", "cargo", "tokio",
-		"landlock", "seccomp", "seatbelt", "job object", "sandbox-exec", "apparmor",
-		"sqlite", "jsonl", "ledger", "arc-swap", "aes-256", "aes256", "gcm", "pbkdf", "argon",
-		".rune", "rune.toml", "rune.db", "master.key", "secrets.vault", "classifier.md", "agents.md", "claude.md",
-		"rune_home", "upgrade/v", "protocol ", "schema", "/home/", "noire", "deploy/", "project/", "ops/",
+		"apparmor",
+		"sqlite", "jsonl", "ledger", "arc-swap", "pbkdf", "argon",
+		"rune.db", "master.key", "secrets.vault", "claude.md",
+		"upgrade/v", "protocol ", "schema", "/home/", "noire", "deploy/", "ops/",
 		"localhost", ":3401", ":3501", "3403", "3503",
-		"nginx", "cloudflared", "systemd", "seadrive", "9router", "github", "takuya",
+		"nginx", "cloudflared", "systemd", "seadrive", "github", "takuya",
 		"innerhtml", "eval(", "document.write", "style=", "onclick", "onload=", "javascript:",
 	}
 	external := regexp.MustCompile(`(?i)(?:href|src)\s*=\s*"(?:https?:)?//`)
@@ -410,6 +621,15 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 				t.Errorf("%s reveals %q", p, term)
 			}
 		}
+		// Public product interfaces are necessary in the manual, not private
+		// deployment details and not marketing copy elsewhere on the site.
+		if !strings.HasPrefix(p, "Pages/Docs/") {
+			for _, term := range []string{".rune", "rune_home", "classifier.md", "agents.md", "9router"} {
+				if strings.Contains(low, term) {
+					t.Errorf("%s exposes manual-only term %q", p, term)
+				}
+			}
+		}
 		if ip := ipAddress.FindString(string(raw)); ip != "" {
 			t.Errorf("%s reveals an address: %s", p, ip)
 		}
@@ -423,6 +643,73 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// One job per page: exactly one h1, one main landmark, the install command on
+// the install page only, and every page reachable from the header without a
+// second copy of the same action. The site is a manual, so structure is a
+// contract like any other.
+func TestEveryPageHasOneJobAndNoRepeatedAction(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.9.0", fakeRune("0.9.0"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	for _, p := range pages {
+		w := get(t, h, "GET", "/Studio/"+p.Route)
+		body := w.Body.String()
+		if n := strings.Count(body, "<h1"); n != 1 {
+			t.Errorf("%s: %d h1 headings", p.Route, n)
+		}
+		if n := strings.Count(body, `id="main"`); n != 1 {
+			t.Errorf("%s: %d main landmarks", p.Route, n)
+		}
+		if p.Route == "" {
+			continue // overview owns the site's single install command
+		}
+		if n := strings.Count(body, `class="cmd"`); n != 0 {
+			t.Errorf("%s: %d install command blocks", p.Route, n)
+		}
+		if n := strings.Count(body, `data-copy`); n != 0 {
+			t.Errorf("%s: %d copy buttons", p.Route, n)
+		}
+		for _, id := range []string{"install", "docs", "security"} {
+			if n := strings.Count(body, `href="/Studio/`+id+`"`); n > 3 {
+				t.Errorf("%s: %d links to %s", p.Route, n, id)
+			}
+		}
+	}
+	// One install box, one command per system; every other code block may carry its own copy control.
+	w := get(t, h, "GET", "/Studio/")
+	if body := w.Body.String(); strings.Count(body, `codeblock cmd"`) != 3 || strings.Count(body, `data-copy="install-cmd"`) != 1 || strings.Count(body, "curl -fsSL") != 2 {
+		t.Error("overview: install commands or their copy controls missing or repeated")
+	}
+	for _, route := range []string{"/Studio/install", "/Studio/install/"} {
+		redirect := get(t, h, "GET", route)
+		if redirect.Code != 301 || redirect.Header().Get("Location") != "/Studio/#install" {
+			t.Errorf("install route not merged: %s %d %s", route, redirect.Code, redirect.Header().Get("Location"))
+		}
+	}
+}
+
+// The index on a manual page must point at sections that exist, so a
+// renamed section cannot leave a dead link behind.
+func TestEveryIndexEntryResolvesToASection(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.9.0", fakeRune("0.9.0"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	link := regexp.MustCompile(`class="index"[\s\S]*?</nav>`)
+	entry := regexp.MustCompile(`href="#([^"]+)"`)
+	for _, p := range pages {
+		body := get(t, h, "GET", "/Studio/"+p.Route).Body.String()
+		block := link.FindString(body)
+		if block == "" {
+			continue
+		}
+		for _, m := range entry.FindAllStringSubmatch(block, -1) {
+			if !strings.Contains(body, `id="`+m[1]+`"`) {
+				t.Errorf("%s: index entry #%s has no section", p.Route, m[1])
+			}
+		}
 	}
 }
 

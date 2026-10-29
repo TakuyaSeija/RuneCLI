@@ -4,7 +4,7 @@ AGENTS.md at the workspace root supplies project guidance to Rune. It is not an 
 
 Key: `instructions.max_chars`. Location: Settings → Tools → PROJECT INSTRUCTIONS. Scope: global. Factory 32768, range 100–1000000 characters.
 
-Purpose: limit how much project instruction text is included automatically. When instructions exceed it, Rune can report truncation; the AI must not assume the rest does not exist.
+Purpose: limit how much project instruction text is included automatically. When instructions exceed it, Rune reports the omitted part and the AI must read the remainder before relying on those rules. `/context` separates the general agent instructions, tool descriptions and supplied context. File-change and background notifications identify what changed; they do not grant permission or replace your project rules. Rune's built-in guidance avoids repeating the same behavioral rule across those sections, without removing required tool arguments or access checks.
 
 Change the row and Apply; Use default/`rune -config reset instructions.max_chars` resets. Explain inspects. Current conversation context is not rewritten as if earlier instructions had never existed; use the indicated update/re-read when instructions change.
 

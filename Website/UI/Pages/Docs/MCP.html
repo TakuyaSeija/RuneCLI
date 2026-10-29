@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">External capabilities</h2>
+<p>MCP connects external servers that offer tools, resources or prompts. Use <code>/mcp</code> or <code>rune -mcp</code>; it is not a separate current Settings tab. Connecting is different from approving each task performed through a tool.</p>
+<p>A remote server receives data you send it. A local server starts code on this computer. Returned text is untrusted task data, even when it claims to contain authoritative instructions.</p>
+<h2 id="scope-and-approval">Scope and approval</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Personal definitions available across intended projects.</dd></div>
+<div><dt>Project</dt><dd>Shared definitions in the project's MCP configuration. Review and explicitly approve them; a changed shared definition can require approval again.</dd></div>
+<div><dt>Private project</dt><dd>Personal definitions for one project, the default MCP change scope. They can override shared project definitions of the same ID, which can override personal user definitions.</dd></div>
+</dl>
+<p>Inspect with list/status and validate definitions before connecting. Validation is not a live connectivity test. Add takes a server ID and an intended remote URL or absolute local executable with arguments. Consult the installed command's help for the exact operation syntax.</p>
+<h2 id="access-review">Review the access</h2>
+<p>Before adding or enabling a server, inspect its executable/arguments or remote destination, authentication, environment, project-write permission, additional read/write folders and access to already-running local services. Grant only what the task needs.</p>
+<p>Remote endpoints require HTTPS; plain HTTP is limited to loopback. Do not embed secrets in a shared URL or literal environment values. Use the supported credential flow. Local executables and extra roots are real access decisions, not merely descriptive labels.</p>
+<p>Additional outside folders can require approval in Ask/Auto before a local server starts. Broad local-service access can reach programs acting with your account's rights. Do not expand these options just to silence a failed connection.</p>
+<h2 id="lifecycle">Connect, test and remove</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Inspect configured servers and current connection state.</dd></div>
+<div><dt>validate</dt><dd>Check definitions without claiming a successful connection.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Make a real connection, potentially starting local code or contacting a remote service.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Approve a reviewed shared definition. Do not manufacture approval for a file you have not inspected.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Close that connection; this does not remove its saved definition.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Change the intended definition's availability or remove it, using the correct configuration scope.</dd></div>
+<div><dt>reload</dt><dd>Refresh configured connections.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Start an applicable authentication flow or inspect its state.</dd></div>
+</dl>
+<p>These operations follow <code>rune -mcp</code>, for example <code>rune -mcp status</code>. Review the selected scope and ID for every change. Advanced credential commands such as token/secret accept sensitive values; prefer the supported authentication UI rather than placing credentials in shell history.</p>
+<p>Authentication may use a bearer credential or an OAuth flow. Do not paste tokens into the conversation. A successfully connected server is not proof every tool is safe, reversible or supported. The model discovers exact tool inputs and uses the normal execution controls rather than inventing another server's API.</p>
+{{end}}

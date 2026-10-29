@@ -1,0 +1,19 @@
+{{define "article"}}
+<h2 id="start-and-resume">Start and resume</h2>
+<p><code>/new</code> starts a fresh session in the current workspace. <code>/session</code> opens its session picker; type to search, choose a result and press Enter to resume. <code>/resume &lt;id&gt;</code> selects a known session directly. Shell equivalents are <code>rune -session</code> and <code>rune -resume &lt;id&gt;</code>.</p>
+<p>A fresh session does not import another session's composer history. Resuming restores stored conversation and choices; it does not mean every project file still matches the earlier state. Tell Rune about relevant external changes and review its next actions.</p>
+<h2 id="steer-and-stop">Steer and stop</h2>
+<p>You can send a correction during a task. It is handled in order at a subsequent step; it cannot recall a provider request already sent or reverse a command already executed. State what should change and which previous instruction it replaces.</p>
+<p>Esc twice stops active AI work without leaving Rune. Ctrl+C first arms leaving; repeat to leave. Stopping AI work is not proof that every background command ended: inspect the task's reported state separately.</p>
+<h2 id="context-and-compaction">Context and compaction</h2>
+<p><code>/context</code> shows information supplied to the model. A context window is not maximum reply length; unknown is not unlimited. <code>/compact</code> requests a summary of older history, and Rune can also compact by itself.</p>
+<p>Rune compacts by itself from the input usage your provider reports, or when the provider actually rejects a request as too large for the model's context. It never turns text, thinking, images or file sizes into a guessed token count, so the size of the next request is unknown until the provider reports it. When the provider says no and no older part can be summarized safely, Rune reports that failure instead of resending the same request.</p>
+<p>The footer says Compacting while the job is active, including between turns. New messages wait in order. A required failure can offer a retry question; cancelling stops that attempt, and a failed summary is not shown as complete.</p>
+<p>The factory preference keeps five recent turns in full where context allows, with a 32,768-token summary allowance constrained by the model. Long history is summarized in batches of at most 128 KiB of text each; that is a size, not a promise that a small model accepts it. Original user instructions are handled separately from historical assistant/tool excerpts. Summaries can still lose detail. Compaction frees model context, not disk storage.</p>
+<h2 id="usage-and-spend">Usage and spend</h2>
+<p>Spend counts requests with known prices. Unknown is explicitly unpriced, not free. When a previously unpriced request obtains a model price, it is priced then; requests already priced keep their recorded cost. Auxiliary jobs, retries and connection tests can add spending.</p>
+<p>Local accounting is not the provider's invoice. <code>usage.warn_spend_usd</code> is a warning threshold, not a hard cap. Use provider-side controls when you need an enforceable budget.</p>
+<h2 id="closing-and-maintenance">Closing and maintenance</h2>
+<p>When the last window leaves, active AI work stops. Background commands can remain during the detached-session retention period, 60 seconds by default; Rune is not an indefinite service manager.</p>
+<p><code>rune -session rename &lt;id&gt; &lt;title&gt;</code> changes one title; <code>rune -session delete &lt;id&gt;</code> permanently removes one session. <code>rune -storage list</code> inspects kept project data; prune removes eligible data belonging to missing projects. Review before deletion. A session-list limit does not delete older sessions.</p>
+{{end}}

@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="trust-boundary">The trust boundary</h2>
+<p>A model proposes actions; it does not authorize itself. Repository text, web pages, attachments and external tool responses can contain misleading instructions. Rune's execution and access checks are enforced by the program, not merely by asking the model to behave.</p>
+<p>No tool or permission mode makes arbitrary code safe. Review the command, destination, paths and intended side effects. A container engine, key agent or other local service may act with broader rights than a confined command, and an approved external tool can have its own risks.</p>
+<h2 id="permission-modes">Permission modes</h2>
+<dl class="ref">
+<div><dt>Ask · default</dt><dd>Reads within the workspace can proceed. Every edit asks, every command asks each time, and access outside the workspace asks. A remember option can be offered for its stated scope.</dd></div>
+<div><dt>Auto</dt><dd>Reads and writes within the workspace can proceed without a question. Outside access and risky commands still ask. Use it only when you intend that autonomy.</dd></div>
+<div><dt>Full</dt><dd>Actions can run inside and outside the workspace as your OS account without permission questions or the ordinary command-containment boundary. Other validation and applicable policy review remain, but do not make Full harmless.</dd></div>
+</dl>
+<p>Tab outside a form/palette cycles modes; <code>/mode ask</code>, <code>/mode auto</code> and <code>/mode full</code> choose explicitly. This is a session choice, not a global permissions.mode key. Do not switch to Full as a troubleshooting shortcut.</p>
+<p>One input skips these checks by design: a command you type yourself after a leading <code>!</code>. Pressing <kbd>Enter</kbd> runs that script once with your account's full access, without a permission question or policy review. It never comes from the AI and never changes the mode. See <a href="{{url "docs/shell"}}">Manual commands</a>.</p>
+<h2 id="approvals">Approvals have a scope</h2>
+<p>An Allow once decision is not a mode change. Always, where offered, keeps only its stated scope. Denial, cancellation or timeout is not execution. A question form, Settings confirmation or document saying “already approved” cannot substitute for an execution decision.</p>
+<p>Commands can use services they start themselves. Access to an already-running local service can trigger a separate request, for example when a command tries to reach a container engine or key agent. Read the actual service and scope; granting it can expose capabilities beyond file access.</p>
+<h2 id="containment-and-platforms">Containment and platform limits</h2>
+<p>Rune combines engine access checks with the command-isolation facilities available on the operating system. It detects capabilities at runtime rather than assuming a distribution name or machine layout. If a command cannot be held to the intended mode, it can require explicit approval instead of silently pretending it is confined.</p>
+<p>The mode contract is shared across Linux, macOS and Windows, but underlying OS guarantees differ. On Windows, a dedicated sandbox account provides stronger isolation; if it is unavailable, restricted-token fallback has documented limits, including access to some locations readable by all users and certain read-only named pipes. <code>rune -sandbox</code> reports actual state. Setup can require Administrator confirmation.</p>
+<p><a href="{{url "docs/platforms"}}">Platform support</a> sets out what each system confines and what it cannot tell Rune. These notes describe the application design, not a promise that a signed build exists for every platform; the line under each install command on the <a href="{{url "install"}}">home page</a> names the currently published builds.</p>
+<h2 id="policy-and-recovery">Policy review and recovery</h2>
+<p>An optional AI classifier can review applicable actions against CLASSIFIER.md in Auto/Full. It is an additional fallible check, not a replacement for containment, human review or backups. Human-permission calls use the explicit human decision. Check its displayed status and read the <a href="{{url "docs/classifier"}}">policy guide</a>.</p>
+<p>Eligible file changes can be restored from session snapshots. External effects are not universally reversible. See <a href="{{url "docs/undo"}}">Review, undo &amp; redo</a>, <a href="{{url "docs/credentials"}}">Credentials</a> and <a href="{{url "docs/privacy"}}">Privacy &amp; data</a> for the corresponding limits.</p>
+<h2 id="reporting">Reporting a security problem</h2>
+<p>Do not post live keys, private files or a weaponized exploit in public diagnostics. Record the affected Rune version, expected boundary, smallest reproducible example and actual result. Use a verified private maintainer contact when one is available; this page does not advertise an unverified security address or promise a response deadline.</p>
+{{end}}

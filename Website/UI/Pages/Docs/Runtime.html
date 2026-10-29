@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Choose the right wait</h2>
+<p>Settings → Runtime owns model request timing, shared network waits and retries. A terminal foreground wait, a web-tool deadline and a permission-card expiry are different settings under Tools. Raising every timeout can hide the symptom without fixing the cause.</p>
+<p>An account's optional request timeout accepts whole seconds from 5 to 3,600. Blank/default removes that override. Auxiliary jobs can have their own operation deadline. An active stream and a stream receiving no data are not the same condition.</p>
+<h2 id="retry">Retries are linear</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Key</th><th>Factory value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Retries after the first attempt: up to six attempts in total. Zero disables retries.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Base step: waits increase 3, 6, 9… seconds.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>A next wait beyond this restarts the sequence at the base step. It is not exponential backoff.</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>How long an out-of-credit key rests before becoming eligible again. It does not buy credit.</td></tr>
+</tbody></table></div>
+<p>Not every failure is retried. Retrying cannot fix a wrong credential, unsupported control or incorrect endpoint. Very high counts can prolong a failure and add charges; read the classified error in logs first.</p>
+<h2 id="network">Network waits</h2>
+<dl class="ref">
+<div><dt>Stall limit</dt><dd><code>network.stream_idle_timeout</code>: 5 minutes with no response data. This is not a five-minute total limit on a continuously active stream.</dd></div>
+<div><dt>Connect timeout</dt><dd><code>network.connect_timeout</code>: 10 seconds to establish a connection.</dd></div>
+<div><dt>Probe timeout</dt><dd><code>network.probe_timeout</code>: 45 seconds for an explicit provider test.</dd></div>
+<div><dt>Catalog</dt><dd>Advanced values: 10-second request timeout, 1-hour freshness period and at most 100 pages per refresh. Catalog freshness is not a prompt-cache lifetime.</dd></div>
+</dl>
+<p>Other advanced limits bound streaming and non-streaming response sizes. They measure bytes, not tokens. The token-saver compatibility option can leave compression to a supported router; enabling it does not guarantee compression and can reduce returned detail.</p>
+<h2 id="detached-lifetime">Detached-session lifetime</h2>
+<p><code>host.idle_lifetime</code> is an advanced global setting, 60 seconds by default. When the last window leaves, active AI work stops; background commands can continue during this retention period. Reopen in time to resume watching. It is not an account logout timer or a promise of an indefinitely running server.</p>
+<h2 id="change-and-reset">Change and reset deliberately</h2>
+<p>Open the relevant Runtime row, edit and Apply. Use default removes an override; <code>rune -config explain &lt;key&gt;</code> shows effective value and timing. Stream-idle changes can affect a request already waiting, while other choices generally apply to later operations.</p>
+<p>First distinguish a slow working service, a silent stalled connection, an exhausted key and an unsupported request. A successful configuration save is not a successful network test.</p>
+{{end}}

@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="conversation">The conversation</h2>
+<p>User messages, the model's responses and tool steps share one transcript. A tool step names the action and shows its outcome. A failed, refused or not-executed call is not a completed action; read the notice rather than inferring success from the presence of a box.</p>
+<p>Long user messages and tool results are visually folded. A footer such as <strong>“lines cut. Click to open all”</strong> opens the displayed result. This is different from a tool output limit: opening a fold cannot recover text that was never returned. A saved-output notice may tell the agent where to read the remaining text.</p>
+<p>A collapsed command box shows its command on one row, while it streams, runs and after it ends. Each line break of a longer script appears there as <code>↵</code>, and <code>…</code> marks a rest that does not fit the width; both are only display marks, never part of the command that runs. Its output shows up to four rows, and the count of hidden command and output lines sits at the bottom. Click the box to open the whole command, with its original lines, and all of its output.</p>
+<p>Clicking a link in the conversation opens a <strong>REFERENCE</strong> panel with its complete address. For a web address, <strong>Open in browser</strong> or <kbd>Enter</kbd> hands it to your system browser; <strong>Copy complete destination</strong> or <kbd>C</kbd> copies it; <kbd>Esc</kbd> closes the panel. A file path can only be copied: Rune never opens or runs a file from a link.</p>
+<h2 id="composer">The composer</h2>
+<p>The box at the bottom holds your next message and shows the current model, reasoning choice where applicable, and mode. <kbd>Enter</kbd> sends it; <kbd>Alt+Enter</kbd> inserts a newline. A growing multiline input is bounded so some conversation space remains visible.</p>
+<p>Type <code>/</code> to open the command palette and filter by command or description. <kbd>Tab</kbd> completes while the palette is active; outside a form or palette it cycles permission modes. Your terminal may reserve modified keys, so consult <code>/help</code> if a shortcut does not reach Rune.</p>
+<p>Starting the input with <code>!</code> turns it into a command you run yourself; the composer then shows <strong>Shell · full access once</strong>. Read <a href="{{url "docs/shell"}}">Manual commands</a> before you use it.</p>
+<h2 id="side-panel">The side panel</h2>
+<dl class="ref">
+<div><dt>Sessions</dt><dd>Title, start time, activity, context, input/output/cache usage and spend. Unknown limits or prices stay unknown; they are not zero.</dd></div>
+<div><dt>Plan</dt><dd>The task list recorded by the agent, with todo, doing and done states. A marked task is the agent's progress report, not independent proof of correctness.</dd></div>
+<div><dt>Files changed</dt><dd>Current differences for files tracked by this session, with added and removed line counts. Counts reflect content, not the sum of every edit title.</dd></div>
+</dl>
+<p>Use <kbd>Ctrl+O</kbd> or <code>/panel</code> to toggle the panel. It can be hidden automatically when the terminal is too narrow. The preference does not stop accounting or delete information. <kbd>Ctrl+T</kbd> opens the plan.</p>
+<h2 id="questions-and-permissions">Questions and permissions</h2>
+<p>A permission card asks whether one proposed action may run. A question form asks for a decision or missing requirement. Neither is a completed tool result. Read the scope, select an answer and confirm it. A remembered approval, when offered, applies only to the scope named by that control.</p>
+<p>Large cards have their own scrollable reader and pinned answer controls. Scrolling does not answer the card. A deadline expiring is not automatic approval. The default permission wait is 10 minutes; a user question waits without expiry unless configured otherwise.</p>
+<h2 id="status-and-reading">Status and reading</h2>
+<p>The footer distinguishes working, waiting on you, retrying and compacting. A blank composer after sending is not proof that a provider has received the request. Use the status and <code>/logs</code> together when investigating a delay.</p>
+<p>A temporary footer message stays 8 seconds. When another message or a retry countdown is waiting, it gives way after 3 seconds; a retry keeps counting meanwhile. The confirmations of <kbd>Esc</kbd> and <kbd>Ctrl+C</kbd> always show over it: press <kbd>Esc</kbd> again within 3 seconds to stop the AI, or <kbd>Ctrl+C</kbd> again within 4 seconds to leave.</p>
+<p>Scrolling away from the latest message holds your reading position. <kbd>Ctrl+↓</kbd> jumps to the latest chat. Settings, logs, context and restore views own their navigation independently; <kbd>Esc</kbd> leaves a view when idle.</p>
+{{end}}

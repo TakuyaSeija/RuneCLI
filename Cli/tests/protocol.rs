@@ -103,6 +103,15 @@ impl Host {
         }
     }
 
+    fn ack_for(&mut self, id: u64) -> Value {
+        loop {
+            let ack = self.until("ack");
+            if ack["id"] == id {
+                return ack;
+            }
+        }
+    }
+
     fn finish(mut self) {
         self.send(json!({ "cmd": "shutdown", "id": 999 }));
         let status = self.child.wait().expect("host should exit");
@@ -1114,26 +1123,26 @@ fn model_selection_is_atomic_remembers_each_provider_and_persists() {
     let mut h = start("preferences-atomic", Some(fixture));
     let project = h.project.clone();
     h.send(json!({"cmd":"session.open","id":1,"project":project}));
-    let opened = h.until("ack");
+    let opened = h.ack_for(1);
     let session = opened["data"]["session"].as_i64().unwrap();
     for (id, provider, model) in [(2, "beta", "b2"), (3, "alpha", "a2")] {
         h.send(json!({"cmd":"settings.select","id":id,"session":session,"provider":provider,"model":model}));
-        let ack = h.until("ack");
+        let ack = h.ack_for(id);
         assert_eq!(ack["ok"], true, "{ack}");
         assert_eq!(ack["data"]["settings"]["provider"], provider);
         assert_eq!(ack["data"]["settings"]["model"], model);
     }
     h.send(json!({"cmd":"settings.set","id":4,"session":session,"key":"provider","value":"beta"}));
-    let restored = h.until("ack");
+    let restored = h.ack_for(4);
     assert_eq!(restored["data"]["settings"]["model"], "b2");
     h.send(json!({"cmd":"settings.select","id":5,"session":session,"provider":"alpha","model":"not-in-catalog"}));
-    assert_eq!(h.until("ack")["ok"], false);
+    assert_eq!(h.ack_for(5)["ok"], false);
     h.send(json!({"cmd":"settings.get","id":6,"session":session}));
-    let unchanged = h.until("ack");
+    let unchanged = h.ack_for(6);
     assert_eq!(unchanged["data"]["settings"]["provider"], "beta");
     assert_eq!(unchanged["data"]["settings"]["model"], "b2");
     h.send(json!({"cmd":"settings.select","id":7,"session":session,"provider":"beta","model":"custom-model","custom":true}));
-    assert_eq!(h.until("ack")["ok"], true);
+    assert_eq!(h.ack_for(7)["ok"], true);
     h.finish();
     let db = runeengine::store::Db::open(
         &project.parent().unwrap().join("rune.db"),

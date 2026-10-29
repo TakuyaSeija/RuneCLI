@@ -6,8 +6,8 @@
 //! The system prompt and the tool declarations are the first bytes of every
 //! request, so they never hold a value that can move: a timeout quoted in a tool
 //! description voids every session's prompt cache the moment `rune.toml`
-//! changes. The values still matter — a model that does not know a command is
-//! killed after 120 seconds starts a build in the foreground — so they are told
+//! changes. The values still matter — the model plans with the foreground wait
+//! and the platform's ability to detect typed-input waits — so they are told
 //! here instead: once in the context a session opens with, and again as a
 //! `<status_update>` naming only what changed, before the next request after
 //! the change. Nothing is ever rewritten; the newest value of each name is the
@@ -60,6 +60,10 @@ pub fn current(rt: &Runtime, st: &SessionState, settings: &ModelSettings) -> Val
             seconds(config.duration("terminal.command_timeout")),
         ),
         (
+            "input wait detection",
+            input_wait_detection(crate::platform::INPUT_WAIT_DETECTION).into(),
+        ),
+        (
             "command output limit",
             format!("{} characters", count("terminal.max_output_chars")),
         ),
@@ -98,6 +102,17 @@ pub fn current(rt: &Runtime, st: &SessionState, settings: &ModelSettings) -> Val
             }
         }),
     ]
+}
+
+/// A platform limitation matters before launch too: a quiet interactive
+/// command may need an explicit background request to be answered promptly.
+fn input_wait_detection(detection: crate::platform::InputWaitDetection) -> &'static str {
+    use crate::platform::InputWaitDetection;
+    match detection {
+        InputWaitDetection::Every => "all typed-input waits",
+        InputWaitDetection::HiddenOnly => "hidden typed-input waits only",
+        InputWaitDetection::Never => "unavailable",
+    }
 }
 
 /// Who serves a web tool now, or why nobody can — the model learns it before
@@ -222,6 +237,7 @@ mod tests {
 
     fn context_row(id: i64, status: Held) -> Message {
         Message {
+            manual_shell: false,
             work: None,
             continuation: None,
             id,
@@ -232,6 +248,7 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: Some(ContextMeta {
@@ -291,6 +308,21 @@ mod tests {
         assert_eq!(held["model"], "m");
         compaction.status.clear();
         assert!(super::held(Some(&compaction), &[]).is_empty());
+    }
+
+    #[test]
+    fn input_wait_status_reports_the_platform_capability_not_a_guess() {
+        use crate::platform::InputWaitDetection;
+        for (detection, expected) in [
+            (InputWaitDetection::Every, "all typed-input waits"),
+            (
+                InputWaitDetection::HiddenOnly,
+                "hidden typed-input waits only",
+            ),
+            (InputWaitDetection::Never, "unavailable"),
+        ] {
+            assert_eq!(input_wait_detection(detection), expected);
+        }
     }
 
     #[test]

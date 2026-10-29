@@ -10,8 +10,7 @@ impl Tool for ReadMcpResource {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Read a resource of a connected MCP server, by the URI that discover_capabilities or the server gave."
-                .into(),
+            description: "Read a resource of a connected MCP server.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,
@@ -28,7 +27,7 @@ impl Tool for ReadMcpResource {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 4096,
-                        "description": "The resource's URI."
+                        "description": "The resource URI returned by discover_capabilities or the server."
                     }
                 }
             }),

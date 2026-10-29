@@ -1,15 +1,16 @@
 #!/bin/sh
-# RuneAgent installer — Atoryn Studio
+# RuneAgent installer for Linux and macOS — Atoryn Studio
 #
 #   curl -fsSL {{.Origin}}{{.Base}}/install.sh | sh
 #
 # Installs the newest signed release of `rune` for this machine into
 # ~/.local/bin (no root, no system change). Every download is verified
 # against the release signing key below BEFORE anything is installed; any
-# mismatch stops the installer with nothing changed.
+# mismatch stops the installer with nothing changed. Windows has its own
+# installer: {{.Origin}}{{.Base}}/install.ps1
 #
 # Options (environment): RUNE_VERSION=X.Y.Z  RUNE_INSTALL_DIR=/abs/dir
-#                        RUNE_LIBC=gnu|musl
+#                        RUNE_LIBC=gnu|musl (Linux only)
 #
 # Everything runs inside main(), called on the last line: a download cut
 # short can never execute half a script.
@@ -50,12 +51,16 @@ main() {
 
 	[ -n "$SIGNING_KEY" ] && [ -n "$LATEST" ] || fail "no release has been published yet — see $ORIGIN$BASE/"
 	[ "$(id -u)" -ne 0 ] || fail "run this as your normal user, not root: RuneAgent installs into your home folder"
-	[ "$(uname -s)" = "Linux" ] || fail "this installer supports Linux; other systems are in development"
+	case "$(uname -s)" in
+	Linux) system=linux name_system=Linux ;;
+	Darwin) system=macos name_system=macOS ;;
+	*) fail "this installer is for Linux and macOS; on Windows use $ORIGIN$BASE/install.ps1" ;;
+	esac
 	command -v curl >/dev/null 2>&1 || fail "curl is required"
 	command -v tar >/dev/null 2>&1 || fail "tar is required"
 	command -v gzip >/dev/null 2>&1 || fail "gzip is required"
-	openssl version 2>/dev/null | grep -Eq '^OpenSSL ([3-9]|[1-9][0-9])\.' ||
-		fail "OpenSSL 3 is required to verify the release signature (install your distribution's openssl package)"
+	command -v openssl >/dev/null 2>&1 ||
+		fail "openssl is required to verify the release signature (install your system's openssl package)"
 
 	case "$(uname -m)" in
 	x86_64 | amd64) arch=x86_64 ;;
@@ -63,15 +68,27 @@ main() {
 	*) fail "unsupported processor: $(uname -m)" ;;
 	esac
 
-	libc=${RUNE_LIBC:-}
-	if [ -z "$libc" ]; then
-		if ls /lib/ld-musl-*.so.1 >/dev/null 2>&1 && ! ls /lib*/ld-linux-*.so.* >/dev/null 2>&1; then
-			libc=musl
-		else
-			libc=gnu
+	if [ "$system" = macos ]; then
+		major=$(sw_vers -productVersion 2>/dev/null | cut -d. -f1)
+		[ -n "$major" ] && [ "$major" -ge 11 ] 2>/dev/null || fail "RuneAgent needs macOS 11 or later"
+		# A shell running under Rosetta reports x86_64 on Apple silicon; the native build is the right one.
+		if [ "$arch" = x86_64 ] && [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" = 1 ]; then
+			arch=aarch64
 		fi
+		[ -z "${RUNE_LIBC:-}" ] || fail "RUNE_LIBC applies to Linux only"
+		if [ "$arch" = aarch64 ]; then name_arch="Apple silicon"; else name_arch=Intel; fi
+	else
+		libc=${RUNE_LIBC:-}
+		if [ -z "$libc" ]; then
+			if ls /lib/ld-musl-*.so.1 >/dev/null 2>&1 && ! ls /lib*/ld-linux-*.so.* >/dev/null 2>&1; then
+				libc=musl
+			else
+				libc=gnu
+			fi
+		fi
+		case "$libc" in gnu | musl) ;; *) fail "RUNE_LIBC must be gnu or musl" ;; esac
+		name_arch="$arch ($libc)"
 	fi
-	case "$libc" in gnu | musl) ;; *) fail "RUNE_LIBC must be gnu or musl" ;; esac
 
 	version=${RUNE_VERSION:-$LATEST}
 	printf '%s' "$version" | grep -Eq '^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$' ||
@@ -80,27 +97,32 @@ main() {
 	dir=${RUNE_INSTALL_DIR:-$HOME/.local/bin}
 	case "$dir" in /*) ;; *) fail "RUNE_INSTALL_DIR must be an absolute path" ;; esac
 
-	name="rune-$version-linux-$arch-$libc.tar.gz"
+	if [ "$system" = macos ]; then
+		name="rune-$version-macos-$arch.tar.gz"
+	else
+		name="rune-$version-linux-$arch-$libc.tar.gz"
+	fi
 	url="$ORIGIN$BASE/download/$version"
 
 	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t rune-install)
 	trap 'rm -rf "$tmp"' EXIT
 	trap 'exit 130' INT TERM
 
-	say "RuneAgent $version for Linux $arch ($libc)"
+	say "RuneAgent $version for $name_system $name_arch"
 	fetch "$url/SHA256SUMS" "$tmp/SHA256SUMS"
 	fetch "$url/SHA256SUMS.sig" "$tmp/SHA256SUMS.sig"
 	printf '%s\n' "$SIGNING_KEY" >"$tmp/signing-key.pem"
 
-	# 1. The checksum list must carry the release key's signature.
-	openssl pkeyutl -verify -pubin -inkey "$tmp/signing-key.pem" -rawin \
-		-in "$tmp/SHA256SUMS" -sigfile "$tmp/SHA256SUMS.sig" >/dev/null 2>&1 ||
+	# 1. The checksum list must carry the release key's signature (ECDSA P-256
+	#    over SHA-256, which OpenSSL and the LibreSSL of macOS both check).
+	openssl dgst -sha256 -verify "$tmp/signing-key.pem" -signature "$tmp/SHA256SUMS.sig" \
+		"$tmp/SHA256SUMS" >/dev/null 2>&1 ||
 		fail "SIGNATURE CHECK FAILED for $version — nothing was installed. Do not use these files."
 	say "  signature verified (key $KEY_FINGERPRINT)"
 
 	# 2. The archive must be in that signed list with exactly that hash.
 	expected=$(awk -v n="$name" '$2 == n { print $1 }' "$tmp/SHA256SUMS")
-	[ -n "$expected" ] || fail "no build for Linux $arch ($libc) in release $version"
+	[ -n "$expected" ] || fail "no build for $name_system $name_arch in release $version"
 	fetch "$url/$name" "$tmp/$name"
 	actual=$(sha256_of "$tmp/$name")
 	[ "$actual" = "$expected" ] || fail "CHECKSUM MISMATCH for $name — nothing was installed. Do not use this file."

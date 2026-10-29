@@ -88,6 +88,7 @@ fn state_kind(event: &Event) -> Option<&'static str> {
         Event::Session { .. } => Some("session"),
         Event::Settings { .. } => Some("settings"),
         Event::Composer { .. } => Some("composer"),
+        Event::Compacting { .. } => Some("compacting"),
         _ => None,
     }
 }
@@ -236,20 +237,40 @@ fn fold_into(run: &mut Run, event: &Event) {
         }
         // A call being written: progress, superseded by the call itself.
         Event::ToolArgs {
-            id, index, delta, ..
-        } => match events.iter_mut().rev().find_map(|held| match held {
-            Event::ToolArgs {
-                id: held_id,
-                index: held_index,
-                delta: held_delta,
-                ..
-            } if held_id == id && held_index == index => Some(held_delta),
-            _ => None,
+            id,
+            index,
+            delta,
+            shell,
+            ..
+        } => match events.iter_mut().rev().find(|held| {
+            matches!(held, Event::ToolArgs { id: held_id, index: held_index, .. }
+                if held_id == id && held_index == index)
         }) {
-            Some(held) => held.push_str(delta),
-            None => events.push(event.clone()),
+            Some(Event::ToolArgs {
+                delta: held_delta,
+                shell: held_shell,
+                ..
+            }) => {
+                held_delta.push_str(delta);
+                if shell.is_some() {
+                    held_shell.clone_from(shell);
+                }
+            }
+            _ => events.push(event.clone()),
         },
         Event::ToolCall { id, .. } => {
+            // ToolCall replaces argument bytes, not the engine's preview identity.
+            // Keep only that metadata until ToolShell confirms the pinned shell.
+            events.retain_mut(|held| match held {
+                Event::ToolArgs { id: held_id, delta, shell, .. } if held_id == id => {
+                    delta.clear();
+                    shell.is_some()
+                }
+                _ => true,
+            });
+            events.push(event.clone());
+        }
+        Event::ToolShell { id, .. } => {
             events.retain(|held| !matches!(held, Event::ToolArgs { id: held_id, .. } if held_id == id));
             events.push(event.clone());
         }
@@ -273,11 +294,36 @@ fn fold_into(run: &mut Run, event: &Event) {
         Event::StreamReset { .. } => {
             while matches!(
                 events.last(),
-                Some(Event::Text { .. } | Event::Thinking { .. } | Event::ToolArgs { .. })
+                Some(
+                    Event::Text { .. }
+                        | Event::Thinking { .. }
+                        | Event::ThinkingTokens { .. }
+                        | Event::ToolArgs { .. }
+                )
             ) {
                 events.pop();
             }
             clear_retry(events);
+        }
+        // A round's thinking count, whole each time: the latest one since the
+        // round's last usage stands for it, where the round's first stood.
+        Event::ThinkingTokens { .. } => {
+            let round = events
+                .iter()
+                .rposition(|held| matches!(held, Event::Usage { .. }))
+                .map_or(0, |at| at + 1);
+            match events[round..]
+                .iter_mut()
+                .find(|held| matches!(held, Event::ThinkingTokens { .. }))
+            {
+                Some(held) => *held = event.clone(),
+                None => events.push(event.clone()),
+            }
+        }
+        // The session's cost, whole each time: only the latest is the answer.
+        Event::Spend { .. } => {
+            events.retain(|held| !matches!(held, Event::Spend { .. }));
+            events.push(event.clone());
         }
         // A wait for a reply to a request: kept while it is open.
         Event::Retrying { .. } => {
@@ -395,6 +441,62 @@ mod tests {
         );
     }
 
+    /// A window joining mid-run is told each round's thinking count as it
+    /// stands — the latest Anthropic reported, the billed one once it came —
+    /// where the round's thinking began; another round's count is its own.
+    #[test]
+    fn a_rounds_thinking_count_is_held_as_it_stands_now() {
+        let (bus, _rx) = bus();
+        let count = |tokens: u64, billed: bool| Event::ThinkingTokens {
+            session: 1,
+            tokens,
+            billed,
+        };
+        let thinking = || Event::Thinking {
+            session: 1,
+            delta: String::new(),
+        };
+        bus.send(turn(1)).unwrap();
+        bus.send(thinking()).unwrap();
+        bus.send(count(50, false)).unwrap();
+        bus.send(count(250, false)).unwrap();
+        bus.send(text("answer")).unwrap();
+        bus.send(count(369, true)).unwrap();
+        bus.send(Event::Usage {
+            session: 1,
+            input: 1,
+            output: 1,
+            cached: 0,
+            cost: None,
+            details: Default::default(),
+        })
+        .unwrap();
+        bus.send(thinking()).unwrap();
+        bus.send(count(30, false)).unwrap();
+        let held: Vec<_> = bus
+            .run_of(1)
+            .unwrap()
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                Event::ThinkingTokens { tokens, billed, .. } => Some((*tokens, *billed)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(held, [(369, true), (30, false)]);
+        assert!(matches!(
+            bus.run_of(1).unwrap().events[2],
+            Event::ThinkingTokens { tokens: 369, .. }
+        ));
+        // The attempt failed and is repeated: its count goes with its words.
+        bus.send(Event::StreamReset { session: 1 }).unwrap();
+        let events = bus.run_of(1).unwrap().events;
+        assert!(
+            matches!(events.last(), Some(Event::Usage { .. })),
+            "{events:?}"
+        );
+    }
+
     #[test]
     fn a_call_being_written_is_replaced_by_the_call() {
         let (bus, _rx) = bus();
@@ -406,6 +508,7 @@ mod tests {
                 index: 0,
                 name: "create_file".into(),
                 delta: delta.into(),
+                shell: None,
             })
             .unwrap();
         }
@@ -425,6 +528,57 @@ mod tests {
         let events = bus.run_of(1).unwrap().events;
         assert_eq!(events.len(), 2);
         assert!(matches!(events[1], Event::ToolCall { .. }));
+    }
+
+    #[test]
+    fn terminal_shell_survives_stream_folding_and_the_executing_view() {
+        let (bus, _rx) = bus();
+        bus.send(turn(1)).unwrap();
+        let shell = crate::shell::ShellInfo::new(std::path::Path::new("/bin/bash"));
+        for (delta, metadata) in [
+            ("{\"command\":\"echo ", None),
+            ("test\"}", Some(shell.clone())),
+        ] {
+            bus.send(Event::ToolArgs {
+                session: 1,
+                id: "terminal".into(),
+                index: 0,
+                name: "terminal_use".into(),
+                delta: delta.into(),
+                shell: metadata,
+            })
+            .unwrap();
+        }
+        let events = bus.run_of(1).unwrap().events;
+        assert!(
+            matches!(&events[1], Event::ToolArgs { delta, shell: Some(held), .. }
+            if delta == "{\"command\":\"echo test\"}" && held == &shell)
+        );
+        bus.send(Event::ToolCall {
+            session: 1,
+            id: "terminal".into(),
+            name: "terminal_use".into(),
+            action: "run".into(),
+            args: serde_json::json!({"command":"echo test"}),
+            at: 0,
+        })
+        .unwrap();
+        let events = bus.run_of(1).unwrap().events;
+        assert!(
+            matches!(&events[1], Event::ToolArgs { delta, shell: Some(held), .. }
+            if delta.is_empty() && held == &shell)
+        );
+        bus.send(Event::ToolShell {
+            session: 1,
+            id: "terminal".into(),
+            shell: shell.clone(),
+        })
+        .unwrap();
+        let events = bus.run_of(1).unwrap().events;
+        assert!(!events
+            .iter()
+            .any(|event| matches!(event, Event::ToolArgs { .. })));
+        assert!(matches!(&events[2], Event::ToolShell { shell: held, .. } if held == &shell));
     }
 
     #[test]

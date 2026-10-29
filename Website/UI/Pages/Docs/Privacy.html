@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Local does not mean offline</h2>
+<p>Rune runs on your computer and keeps local settings, sessions and project data. The application does not require an Atoryn account and has no product telemetry collection. It still makes the network requests needed by the accounts, catalogs, models and tools you use.</p>
+<p>Using a remote model sends relevant request content to that provider. Running the program locally is not a promise that all code stays on the machine. For sensitive work, review the destination, model configuration, attached files and provider's own retention policy.</p>
+<h2 id="what-is-sent">What can be sent</h2>
+<dl class="ref">
+<div><dt>Main model</dt><dd>Your prompt, selected conversation context, tool declarations/results and supported attachments needed for the request.</dd></div>
+<div><dt>Auxiliary models</dt><dd>Relevant material for policy review, instruction extraction, summaries or titles. A separate configured provider can receive that subset.</dd></div>
+<div><dt>Search and page services</dt><dd>A search query, or the target page address and service-specific request. Built-in fetching contacts the target site directly.</dd></div>
+<div><dt>MCP and commands</dt><dd>Data passed to external tools or programs. Their own network behavior and retention are not controlled by a blanket “local agent” claim.</dd></div>
+<div><dt>Account tests and catalogs</dt><dd>Authentication/test requests and model information requests. Tests can be billed.</dd></div>
+</dl>
+<p>Choosing another endpoint is a data-routing decision. An unavailable explicit web pin does not silently fall back to another third party.</p>
+<h2 id="what-is-kept">What is kept locally</h2>
+<p>The selected Rune home holds configuration, encrypted credentials, conversation/project data, memory and eligible file-restoration data. A workspace change does not delete its history. A session can therefore retain private prompts and tool output after you stop working.</p>
+<p>Compaction changes model context, not a secure-erasure policy. Session deletion and storage pruning are explicit maintenance actions. Deleting a connection is not a promise that all its credentials or historical request metadata have been erased.</p>
+<h2 id="sharing-diagnostics">Sharing diagnostics</h2>
+<p>Logs, context views, request dry runs and effective configuration can contain private code, paths, account names or work descriptions. Credential redaction helps with known secrets; it is not a guarantee every private string has been removed.</p>
+<p>Share the smallest relevant excerpt after reviewing it. Never paste a real key into chat, source control or a public bug report. Prefer masked key metadata and a minimal reproduction over a full data-folder dump.</p>
+<h2 id="your-controls">Your controls</h2>
+<p>Choose the intended workspace and mode, attach only needed files, review account endpoints and use provider-side retention/budget controls when required. A local model can reduce remote-model disclosure, but separate web tools, auxiliary routes or commands may still contact services.</p>
+<p><code>-read-only</code> restricts mutating tools; it does not mean no reading or network transmission. A spending warning is not a hard cap. An undo restores eligible local files; it cannot retract information already sent.</p>
+{{end}}

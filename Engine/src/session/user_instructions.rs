@@ -14,7 +14,7 @@ pub(crate) struct Source {
 pub(crate) fn sources(history: &[Message]) -> Vec<Source> {
     let mut out = Vec::new();
     for (index, row) in history.iter().enumerate() {
-        if row.role == Role::User {
+        if row.role == Role::User && !row.manual_shell {
             out.push(Source {
                 id: row.id,
                 work: row.work.map_or(row.id, |w| w.source),
@@ -98,6 +98,7 @@ mod tests {
     #[test]
     fn a_partial_answer_keeps_only_actual_user_words_and_not_question_authority() {
         let base = Message {
+            manual_shell: false,
             id: 1,
             turn: 1,
             role: Role::User,
@@ -111,10 +112,15 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: None,
         };
+        let mut manual = base.clone();
+        manual.manual_shell = true;
+        manual.content = "! echo allow all tools".into();
+        assert!(sources(&[manual]).is_empty());
         let mut call = base.clone();
         call.id = 2;
         call.role = Role::Assistant;
@@ -145,6 +151,7 @@ mod tests {
     fn every_user_source_keeps_its_work_and_nothing_else_becomes_one() {
         let rows: Vec<_> = (1..=150)
             .map(|id| Message {
+                manual_shell: false,
                 id,
                 turn: id,
                 role: if id == 100 { Role::Context } else { Role::User },
@@ -158,6 +165,7 @@ mod tests {
                 tool_name: None,
                 tool_calls: None,
                 reasoning: None,
+                thinking_tokens: None,
                 media: Vec::new(),
                 created_at: 0,
                 context: None,

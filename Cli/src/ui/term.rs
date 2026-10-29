@@ -148,16 +148,26 @@ pub fn set_mouse(on: bool) {
 const RELEASE: &[u8] =
     b"\x1b[0 q\x1b[?1000l\x1b[?1002l\x1b[?1006l\x1b[?1007l\x1b[?2004l\x1b[?2026l\x1b[?25h\x1b[?7h\x1b[?1049l";
 
-/// Put selected text on the clipboard: the system's own where a terminal
-/// program may set it itself (Windows, macOS — the console window and
-/// Terminal.app ignore OSC 52), and the terminal's through OSC 52 too, which
-/// reaches the clipboard of the machine the person sits at over SSH.
+#[cfg(test)]
+thread_local! {
+    static COPIED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+pub(super) fn take_copies() -> Vec<String> {
+    COPIED.with(|copies| std::mem::take(&mut *copies.borrow_mut()))
+}
+
+/// Put selected text on the system clipboard where supported, and send OSC 52
+/// to reach the terminal's clipboard too, including the person's end of SSH.
 pub fn copy(text: &str) {
     if text.is_empty() {
         return;
     }
     #[cfg(test)]
-    return;
+    {
+        COPIED.with(|copies| copies.borrow_mut().push(text.to_owned()));
+    }
     #[cfg(not(test))]
     runeengine::platform::set_clipboard(text);
     #[cfg(not(test))]

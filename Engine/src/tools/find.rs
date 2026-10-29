@@ -31,8 +31,9 @@ impl Tool for FindFiles {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "find_files".into(),
-            description: "Find files by path pattern. *.rs matches at any depth; src/**/*.rs only under src. Every file is searched, ignored and hidden ones too; only .git and .rune are skipped."
-                .into(),
+            description:
+                "Find files by path pattern. *.rs matches at any depth; src/**/*.rs only under src."
+                    .into(),
             parameters: flat_schema(
                 json!({
                     "pattern": {
@@ -41,7 +42,7 @@ impl Tool for FindFiles {
                     },
                     "path": {
                         "type": "string",
-                        "description": "Directory to search: relative to the workspace, ~/..., or absolute. Default: the workspace root."
+                        "description": "The directory to search."
                     },
                     "limit": {
                         "type": "integer",

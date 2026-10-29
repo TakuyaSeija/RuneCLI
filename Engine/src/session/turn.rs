@@ -33,7 +33,36 @@ pub fn persist_prompt(
     queued: bool,
     pending_id: Option<i64>,
 ) -> Result<i64> {
-    persist_prompt_as(rt, st, text, media, queued, pending_id, false)
+    persist_prompt_as(
+        rt,
+        st,
+        text,
+        media,
+        queued,
+        pending_id,
+        pending_id.is_some(),
+        false,
+    )
+}
+
+pub fn persist_manual_shell(
+    rt: &Runtime,
+    st: &SessionState,
+    text: &str,
+    queued: bool,
+    pending_id: Option<i64>,
+) -> Result<i64> {
+    super::manual_shell::validate(text)?;
+    persist_prompt_as(
+        rt,
+        st,
+        text,
+        &[],
+        queued,
+        pending_id,
+        pending_id.is_some(),
+        true,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -45,6 +74,7 @@ fn persist_prompt_as(
     queued: bool,
     pending_id: Option<i64>,
     continuing: bool,
+    manual_shell: bool,
 ) -> Result<i64> {
     let db = panic::lock(&rt.db);
     let mut composer =
@@ -70,6 +100,7 @@ fn persist_prompt_as(
         composer
             .pending
             .push(crate::store::composer::PendingPrompt {
+                manual_shell,
                 id: turn,
                 message_id: None,
                 text: text.into(),
@@ -99,17 +130,14 @@ fn persist_prompt_as(
             None => db.next_message_id()?,
         };
         let history = db.history_shared(st.id)?;
-        let work = if continuing {
-            crate::store::sessions::Work {
-                source: super::work::source(&history).unwrap_or(message_id),
-                finished: false,
-            }
-        } else {
-            super::work::for_user(&history, message_id)
+        let work = match pending_id.filter(|_| continuing) {
+            Some(accepted) => super::work::for_queued(&history, message_id, accepted),
+            None => super::work::for_user(&history, message_id),
         };
         db.append_message(
             st.id,
             NewMessage {
+                manual_shell,
                 work: Some(work),
                 id: Some(message_id),
                 media: json.as_deref(),
@@ -185,7 +213,16 @@ pub fn run(
         Some(turn) => turn,
         None => persist_prompt(rt, st, text, &media, false, None)?,
     };
-    start(rt, st, turn, text, false)
+    start(rt, st, turn, text, false, false)
+}
+
+pub fn run_manual_shell(
+    rt: &Runtime,
+    st: &SessionState,
+    text: &str,
+    committed: i64,
+) -> Result<StopReason> {
+    start(rt, st, committed, text, false, true)
 }
 
 /// A turn Rune opens itself: a background task ended while nothing was running.
@@ -193,7 +230,7 @@ pub fn run(
 pub fn run_notification(rt: &Runtime, st: &SessionState, text: &str) -> Result<StopReason> {
     let _ = rt.limits.config.reload_if_changed();
     let turn = persist_notification(rt, st, text)?;
-    start(rt, st, turn, text, true)
+    start(rt, st, turn, text, true, false)
 }
 
 /// Store a notification of Rune's as the opening of its own turn.
@@ -251,7 +288,9 @@ fn start(
     mut turn: i64,
     text: &str,
     notification: bool,
+    manual_shell: bool,
 ) -> Result<StopReason> {
+    let mut manual = manual_shell.then(|| text.to_string());
     let began = crate::store::now_ms();
     // The turn was announced when its message was stored (`persist_prompt`,
     // `persist_notification`) or marked started (`announce_committed`): the
@@ -301,11 +340,17 @@ fn start(
     // only by `settle`, which decides under the same lock a newcomer is queued
     // by: a steer or a wake can no longer land between the last look at the
     // queue and the release, stored with nobody left to answer it.
-    let (stop, final_turn) = 'run: loop {
+    let (stop, _) = 'run: loop {
         let (stop, last) = loop {
             // Undo history is never trimmed (owner, 2026-10-11): every turn's
             // snapshots stay for the session's life, and what a session that
             // is deleted held is collected then (`Checkpoints::collect`).
+            if let Some(text) = manual.take() {
+                if let Err(error) = super::manual_shell::execute(rt, st, turn, &text) {
+                    report_turn_error(rt, st, turn, &error);
+                    break (StopReason::Failed, turn);
+                }
+            }
             let (stop, last) = settle_turn(rt, st, turn);
             if !matches!(stop, StopReason::End | StopReason::Refused) {
                 break (stop, last);
@@ -321,7 +366,9 @@ fn start(
         };
         let answerable = matches!(stop, StopReason::End | StopReason::Refused);
         loop {
-            match st.settle(answerable) {
+            match st.settle_with(answerable, |queued| {
+                finish_run(rt, st, began, last, stop, queued)
+            }) {
                 // Asked for while the turn ran: it runs now, before the session
                 // is let go, so a request racing `done` either belongs to this
                 // run or starts an idle job.
@@ -342,7 +389,13 @@ fn start(
                     if queued.is_empty() {
                         continue;
                     }
-                    match persist_all(rt, st, &queued) {
+                    let (current, rest) = queued_batch(queued);
+                    st.requeue_front(rest);
+                    manual = current
+                        .last()
+                        .filter(|queued| queued.manual_shell)
+                        .map(|queued| queued.text.clone());
+                    match persist_all(rt, st, &current) {
                         Ok(next) => {
                             turn = next;
                             continue 'run;
@@ -350,8 +403,15 @@ fn start(
                         Err(e) => {
                             report_turn_error(rt, st, turn, &e);
                             // Let go, keeping what is still waiting.
-                            if let super::Settle::Released(rest) = st.settle(false) {
-                                store_unanswered(rt, st, rest);
+                            loop {
+                                if matches!(
+                                    st.settle_with(false, |rest| {
+                                        finish_run(rt, st, began, last, StopReason::Failed, rest)
+                                    }),
+                                    super::Settle::Released(_)
+                                ) {
+                                    break;
+                                }
                             }
                             break 'run (StopReason::Failed, last);
                         }
@@ -368,26 +428,34 @@ fn start(
         }
     };
 
-    // How long the session was working is counted here, by the only one that
-    // knows — before the end is announced, so whoever reads the session after
-    // `done` finds the time already in it.
-    {
-        let spent = (crate::store::now_ms().saturating_sub(began) + 500) / 1000;
-        if let Ok(db) = rt.db.lock() {
-            if let Ok(row) = db.get_session(st.id) {
-                let _ = db.update_active_seconds(st.id, row.active_seconds + spent);
-            }
+    Ok(stop)
+}
+
+/// Called with admission still held: history, accounting and the terminal
+/// event are one ordered end, before another message can start its run.
+fn finish_run(
+    rt: &Runtime,
+    st: &SessionState,
+    began: i64,
+    turn: i64,
+    stop: StopReason,
+    queued: Vec<super::Queued>,
+) {
+    store_unanswered(rt, st, queued);
+    let spent = (crate::store::now_ms().saturating_sub(began) + 500) / 1000;
+    if let Ok(db) = rt.db.lock() {
+        if let Ok(row) = db.get_session(st.id) {
+            let _ = db.update_active_seconds(st.id, row.active_seconds + spent);
         }
     }
     emit(
         rt,
         Event::Done {
             session: st.id,
-            turn: final_turn,
+            turn,
             stop,
         },
     );
-    Ok(stop)
 }
 
 /// Drives one turn and settles every way it can end: a panic becomes a `done`
@@ -488,15 +556,30 @@ fn store_unanswered(rt: &Runtime, st: &SessionState, queued: Vec<super::Queued>)
 /// taking it — a wake that arrived during a direct tool call or a manual
 /// compaction. Called with the session held; nothing left to answer is not an
 /// error, and the caller's guard lets the session go.
+fn queued_batch(mut queued: Vec<super::Queued>) -> (Vec<super::Queued>, Vec<super::Queued>) {
+    let end = match queued.iter().position(|queued| queued.manual_shell) {
+        Some(0) => 1,
+        Some(at) => at,
+        None => queued.len(),
+    };
+    let rest = queued.split_off(end);
+    (queued, rest)
+}
+
 pub fn run_queued(rt: &Runtime, st: &SessionState) -> Result<StopReason> {
     let _ = rt.limits.config.reload_if_changed();
-    let queued = take_speakable_steers(st);
+    let (queued, rest) = queued_batch(take_speakable_steers(st));
+    st.requeue_front(rest);
     let Some(last) = queued.last() else {
         return Ok(StopReason::End);
     };
-    let (text, notification) = (last.text.clone(), last.origin == super::Origin::Rune);
+    let (text, notification, manual) = (
+        last.text.clone(),
+        last.origin == super::Origin::Rune,
+        last.manual_shell,
+    );
     let turn = persist_all(rt, st, &queued)?;
-    start(rt, st, turn, &text, notification)
+    start(rt, st, turn, &text, notification, manual)
 }
 
 /// Store one queued message under the role its origin calls for, as a turn of
@@ -511,6 +594,7 @@ fn persist_queued(rt: &Runtime, st: &SessionState, queued: &super::Queued) -> Re
             false,
             queued.committed,
             true,
+            queued.manual_shell,
         ),
         super::Origin::Rune => persist_notification(rt, st, &queued.text),
     }
@@ -525,7 +609,7 @@ fn persist_queued(rt: &Runtime, st: &SessionState, queued: &super::Queued) -> Re
 /// answers them together. A steer is a message, not an interruption.
 fn take_steer_turn(rt: &Runtime, st: &SessionState) -> Result<Option<i64>> {
     let mut last = None;
-    for queued in take_speakable_steers(st) {
+    for queued in speakable(st, st.take_steers()) {
         // `persist_queued` announces the turn as it stores it.
         let turn = persist_queued(rt, st, &queued)?;
         last = Some(turn);
@@ -591,6 +675,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
     // Whether this turn already compacted because a provider said the request
     // was longer than the model's context.
     let mut overflow_compacted = false;
+    let mut overflow_rejection = None;
     // How often each exact call (`same_call`) has failed in this turn.
     let mut failures: std::collections::HashMap<(String, String), usize> =
         std::collections::HashMap::new();
@@ -667,17 +752,29 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
         // and the request is built from them. Dropped with this round, so the
         // next append extends the store's copy in place.
         let mut transcript = panic::lock(&rt.db).history_shared(st.id)?;
-        let mut compaction =
-            compact::maybe_compact_with(rt, st, &settings, &system, force, &transcript);
+        let mut compaction = compact::maybe_compact_with(
+            rt,
+            st,
+            &settings,
+            &system,
+            force || overflow_rejection.is_some(),
+            &transcript,
+        );
         loop {
             match compaction {
                 // A compaction is the sanctioned prefix reset: the next request
                 // is cold by design.
                 Ok(true) => {
                     warm_route = None;
+                    overflow_rejection = None;
                     break;
                 }
-                Ok(false) => break,
+                Ok(false) => {
+                    if let Some(error) = overflow_rejection.take() {
+                        return Err(error);
+                    }
+                    break;
+                }
                 Err(Error::Cancelled) => return Ok((StopReason::Cancelled, turn)),
                 Err(e) => {
                     super::log::warn(
@@ -744,42 +841,16 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
             settings: settings.clone(),
         };
 
-        // Calibration is for text-only requests; never infer tokens from media
-        // bytes or allow an attachment sample to distort later text estimates.
-        let text_estimate = {
-            compact::estimate_tokens(&request.system)
-                + declared.tokens
-                + request
-                    .messages
-                    .iter()
-                    .map(|m| {
-                        compact::estimate_tokens(&m.content)
-                            + compact::estimate_tokens(
-                                &serde_json::to_string(&m.tool_calls).unwrap_or_default(),
-                            )
-                            + m.reasoning.as_deref().map_or(0, compact::estimate_tokens)
-                            + m.native(&settings.provider, &settings.model)
-                                .map_or(0, |v| compact::estimate_tokens(&v.to_string()))
-                    })
-                    .sum::<usize>()
-        };
-        let estimated_in = if request.messages.iter().any(|m| !m.media.is_empty()) {
-            0
-        } else {
-            text_estimate
-        };
-        let budget = compact::compact_threshold(rt, &settings);
-        if compact::corrected(rt, &settings, text_estimate) > budget {
-            return Err(Error::invalid(format!(
-                "Request exceeds Rune's usable context budget after compaction (estimated {} tokens; budget {budget}). The latest user input, newest complete tool group, or fixed instructions cannot be reduced safely. Use smaller input/file ranges or select a model with a larger configured budget; no agent API request was sent and no tools were replayed.",
-                compact::corrected(rt, &settings, text_estimate))));
-        }
         if st.cancel.load(Ordering::Relaxed) {
             return Ok((StopReason::Cancelled, turn));
         }
         let mut text = String::new();
         let mut thinking = String::new();
+        // What Anthropic billed of this round's thinking, through a door that
+        // asked it to count (`Chunk::ThinkingTokens`): the message's own fact.
+        let mut thought: Option<u64> = None;
         let mut calls: Vec<(String, String, serde_json::Value)> = Vec::new();
+        let mut terminal_preview_shell = None;
         let mut invalid_calls = std::collections::HashMap::new();
         let mut continuation = None;
         let mut completion = None;
@@ -820,6 +891,20 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     name,
                     delta,
                 } => {
+                    let shell = st
+                        .registry
+                        .get(&name)
+                        .ok()
+                        .filter(|tool| tool.name() == "terminal_use")
+                        .map(|_| {
+                            terminal_preview_shell
+                                .get_or_insert_with(|| {
+                                    crate::shell::ShellInfo::new(&crate::tools::terminal::shell(
+                                        &rt.limits.config.text("terminal.shell"),
+                                    ))
+                                })
+                                .clone()
+                        });
                     emit(
                         rt,
                         Event::ToolArgs {
@@ -828,6 +913,20 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                             index,
                             name,
                             delta,
+                            shell,
+                        },
+                    );
+                }
+                Chunk::ThinkingTokens { tokens, billed } => {
+                    if billed {
+                        thought = Some(tokens);
+                    }
+                    emit(
+                        rt,
+                        Event::ThinkingTokens {
+                            session: st.id,
+                            tokens,
+                            billed,
                         },
                     );
                 }
@@ -873,7 +972,6 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                         &settings.model,
                         "agent",
                         &details,
-                        estimated_in as u64,
                     ) {
                         accounting_error = Some(error);
                     }
@@ -886,6 +984,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                         output,
                         cached,
                         cost,
+                        details.reasoning,
                     );
                     let warm = warm_route.as_ref().is_some_and(|(provider, model, tools)| {
                         provider == &settings.provider
@@ -912,11 +1011,14 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                             details: Box::new(details),
                         },
                     );
+                    super::spend::publish(rt, st.id);
                 }
                 Chunk::Reset => {
                     text.clear();
                     thinking.clear();
+                    thought = None;
                     calls.clear();
+                    terminal_preview_shell = None;
                     invalid_calls.clear();
                     continuation = None;
                     completion = None;
@@ -1032,9 +1134,9 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
             Err(Error::Cancelled) if st.cancel.load(Ordering::Relaxed) => {}
             // Longer than the model's context: compact, once, and send again.
             // A second overflow after compacting is reported as it is.
-            Err(Error::ContextOverflow(_)) if !overflow_compacted => {
+            Err(error @ Error::ContextOverflow(_)) if !overflow_compacted => {
                 overflow_compacted = true;
-                st.ask_compaction();
+                overflow_rejection = Some(error);
                 continue;
             }
             // Cut off at the output limit: the owner's contract keeps what
@@ -1049,6 +1151,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                         NewMessage {
                             tool_calls: None,
                             reasoning: (!thinking.trim().is_empty()).then_some(thinking.as_str()),
+                            thinking_tokens: thought,
                             ..NewMessage::plain(turn, Role::Assistant, &text)
                         },
                     )?;
@@ -1066,6 +1169,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     NewMessage {
                         tool_calls: None,
                         reasoning: (!thinking.trim().is_empty()).then_some(thinking.as_str()),
+                        thinking_tokens: thought,
                         ..NewMessage::plain(turn, Role::Assistant, &text)
                     },
                 );
@@ -1164,6 +1268,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     continuation: native.as_deref(),
                     tool_calls: encoded.as_deref(),
                     reasoning: (!thinking.trim().is_empty()).then_some(thinking.as_str()),
+                    thinking_tokens: thought,
                     ..NewMessage::plain(turn, Role::Assistant, &text)
                 },
             )?;
@@ -1280,7 +1385,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     Err(Error::Cancelled) => Finished::stopped(),
                     // Everything else, success or failure, reaches the model in the
                     // same shape: a failed tool result it can read and correct.
-                    other => Finished::of(other),
+                    other => Finished::for_call(st, &call.name, other),
                 };
                 // The same call failing again and again is a loop, not progress:
                 // the third time, the result says so (audit H4).
@@ -1303,6 +1408,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     }
                 }
 
+                finished.explain_terminal_recovery(st, &call.name);
                 call::report(rt, st, &call.id, &finished)?;
 
                 // The memory index was written: the next request checks it against
@@ -1515,7 +1621,9 @@ fn history(
     out.extend(rows.into_iter().map(|m| {
         Message {
             role: m.role,
-            content: m.content,
+            content: if m.manual_shell {
+                crate::frame::block("manual_shell", &[("kind", "user_submission")], &format!("The person's submitted shell script; execution is recorded separately.\nscript: {}", serde_json::to_string(&m.content).unwrap_or_default()))
+            } else { m.content },
             tool_call_id: m.tool_call_id,
             tool_name: m.tool_name,
             // A row written before this column existed simply has no calls; an

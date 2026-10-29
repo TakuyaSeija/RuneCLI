@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="what-a-skill-is">A skill is a guide</h2>
+<p>A skill packages reusable instructions and references for a task. It is not an executable permission grant. The agent can discover a relevant skill and read its SKILL.md, or you can explicitly activate one in the conversation. Review advice and scripts from other authors before following them.</p>
+<h2 id="discover-and-use">Discover and use</h2>
+<dl class="ref">
+<div><dt>/skills list</dt><dd>List available guides and their exact IDs.</dd></div>
+<div><dt>/skills show &lt;id&gt;</dt><dd>Read one guide's information.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Activate a guide for this conversation. Its text cannot approve unrelated actions or override execution checks.</dd></div>
+<div><dt>/skills enable|disable &lt;id&gt;</dt><dd>Change availability for the current project; this does not uninstall it for every user or project.</dd></div>
+<div><dt>/skills reload</dt><dd>Refresh the catalog after changes. Read a changed guide again before relying on it.</dd></div>
+</dl>
+<h2 id="locations-and-install">Locations and installation</h2>
+<p>A project guide lives in <code>.rune/skills/&lt;name&gt;/SKILL.md</code>; portable project guides can use <code>.agents/skills/</code>. Personal guides live under the selected Rune home's skills folder, with the portable personal location available when enabled.</p>
+<p><code>rune -skills install &lt;folder-or-zip&gt; --scope project|user</code> installs a reviewed package in the intended scope. Each package has its own lowercase name and matching folder, a SKILL.md with name/description metadata, and optional relative references. Installation and updates should be deliberate rather than automatic trust in downloaded text.</p>
+<h2 id="catalogue">What the AI sees of your skills</h2>
+<p>The AI is not handed every guide in full. It receives a short catalogue of the available skills, their names and one-line descriptions, and reads a whole guide only when it needs one. That catalogue is limited to 8 KiB of text by default (<code>skills.max_catalog_size</code>); a skill that does not fit stays discoverable, so the AI can still find and read it. The limit is a size in bytes, not a count of model tokens. A <code>capabilities.catalog_bytes</code> value, where you saved one, takes precedence over it.</p>
+<p>Change it with <code>rune -config set skills.max_catalog_size 16KiB</code> and return to the default with <code>rune -config reset skills.max_catalog_size</code>. A larger catalogue uses more of the model's context on every request.</p>
+<h2 id="official-help">Official offline help</h2>
+<p>Rune bundles the settings-guide skill; it does not require another download or service account. The managed official text can be repaired automatically if changed or damaged. Put customizations in a separate personal/project skill rather than editing that managed copy.</p>
+<p>Guides with the same name can come from different scopes. Use the exact listed ID to distinguish them. Disabling capabilities or a guide can also make official help unavailable; it is not proof the installed binary lacks the feature.</p>
+{{end}}

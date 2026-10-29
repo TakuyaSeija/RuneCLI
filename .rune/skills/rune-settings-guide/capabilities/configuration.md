@@ -12,7 +12,7 @@ Location: advanced `[capabilities]` in rune.toml; management is available throug
 | `servers` |{}| Personal MCP definitions; use MCP management. |
 | `projects` |{}| Per-project capability choices. Prefer management commands rather than inventing project entries. |
 | `page_size` |12| Capability catalog page count, 1–100. Separate from the discovery tool's page_size. |
-| `catalog_tokens` |2048| Allowance for listing skill summaries to the AI, 128–32768. Full guides are read when needed. |
+| `catalog_bytes` |Inherit `skills.max_catalog_size`| Optional UTF-8 byte override for listing skill summaries to the AI, 512–131072. It is not a token count; full guides are read when needed. Older saved catalogue allowances are upgraded once to equivalent byte limits. |
 | `max_entries` |2000| Catalog/package entry bound, 1–10000. |
 | `max_skill_bytes` |65536| SKILL.md size limit, 1024–1048576 bytes. |
 | `max_package_bytes` |16777216| Total skill-package allowance, 1024–134217728 bytes. |
@@ -35,3 +35,6 @@ These are factory values, not a claim about the current user's saved choices. In
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
 | `capabilities` | `{}` | Capability options table; preserve unrelated server/project choices |
+| `skills.max_catalog_size` | `"8KiB"` | Default catalogue byte allowance when no `capabilities.catalog_bytes` override exists; advanced global TOML/CLI choice |
+
+Inspect, set or reset the default byte allowance with `rune -config explain skills.max_catalog_size`, `rune -config set skills.max_catalog_size 8KiB`, or `rune -config reset skills.max_catalog_size`. A kept nested `capabilities.catalog_bytes` choice takes precedence; remove only that nested key to inherit again. This changes summary listings on the next context refresh, not provider tokenization or access permissions.

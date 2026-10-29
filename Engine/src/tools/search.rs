@@ -32,7 +32,7 @@ impl Tool for SearchText {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "search_text".into(),
-            description: "Search file contents. Returns path:line: text for each matching line. Every file is searched, ignored and hidden ones too; only .git and .rune are skipped."
+            description: "Search file contents. Returns path:line: text for each matching line."
                 .into(),
             parameters: flat_schema(
                 json!({
@@ -42,7 +42,7 @@ impl Tool for SearchText {
                     },
                     "path": {
                         "type": "string",
-                        "description": "A file or directory to search: relative to the workspace, ~/..., or absolute. Default: the workspace root."
+                        "description": "The file or directory to search."
                     },
                     "regex": {
                         "type": "boolean",

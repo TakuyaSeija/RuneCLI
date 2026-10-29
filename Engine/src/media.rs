@@ -917,7 +917,7 @@ pub fn parts_for_message(
             }
             Some(Gone::Changed) => {
                 out.push(Inlined::Text(format!(
-                    "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"changed\" note=\"The file changed after it was attached and its content as sent was not kept. Read it with inspect_file.\" />\n"
+                    "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"changed\" note=\"The file changed after it was attached and its content as sent was not kept.\" />\n"
                 )));
                 continue;
             }
@@ -934,7 +934,7 @@ pub fn parts_for_message(
                         if char_count > max_text_file_chars {
                             let total_lines = text_content.lines().count();
                             out.push(Inlined::Text(format!(
-                                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"too_long\" char_limit=\"{max_text_file_chars}\">\nThis file exceeds the {} character context limit and was not auto-loaded (truncated {total_lines} lines more). You can inspect it using the inspect_file tool — either read the full content or specific line ranges as needed.\n</file_attachment>\n",
+                                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"too_long\" char_limit=\"{max_text_file_chars}\">\nThis file exceeds the {} character text-injection limit; its {total_lines} lines were not auto-loaded.\n</file_attachment>\n",
                                 human_num(max_text_file_chars)
                             )));
                         } else {
@@ -945,7 +945,7 @@ pub fn parts_for_message(
                     }
                     None => {
                         out.push(Inlined::Text(format!(
-                            "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"binary_not_injected\">\nThis is a binary file format that is not natively injected into your context. Use inspect_file or terminal commands to read its content.\n</file_attachment>\n"
+                            "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"binary_not_injected\">\nThis binary file format is not natively injected.\n</file_attachment>\n"
                         )));
                     }
                 },
@@ -963,7 +963,7 @@ pub fn parts_for_message(
         let Some(modality) = modality else {
             // Non-inlinable binary format (e.g. .xlsx, .xls, .docx, .zip, .tar, .exe, .bin)
             out.push(Inlined::Text(format!(
-                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"binary_not_injected\">\nThis is a binary file format that is not natively injected into your context. Use inspect_file or terminal commands to read its content.\n</file_attachment>\n"
+                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"binary_not_injected\">\nThis binary file format is not natively injected.\n</file_attachment>\n"
             )));
             continue;
         };
@@ -987,13 +987,13 @@ pub fn parts_for_message(
 
         if dialect_unsupported || image_format_unsupported || model_unsupported {
             let note = if dialect == Dialect::OpenAi && modality == "file" {
-                "This OpenAI-compatible endpoint does not support inline PDF file blocks. Use the inspect_file tool to inspect its content."
+                "This OpenAI-compatible endpoint does not support inline PDF file blocks."
             } else if dialect_unsupported {
-                "The active endpoint does not support this media type. Switch to a model that supports it, or use the inspect_file tool."
+                "The active endpoint does not support this media type."
             } else if image_format_unsupported {
-                "Anthropic only accepts PNG, JPEG, GIF, or WebP images. Use inspect_file or convert the image."
+                "Anthropic only accepts PNG, JPEG, GIF, or WebP images."
             } else {
-                "The active model cannot read this file type. Switch to a model that supports it, or use the inspect_file tool."
+                "The active model cannot read this file type."
             };
             out.push(Inlined::Text(format!(
                 "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"unsupported_by_model\" note=\"{note}\" />\n"
@@ -1007,7 +1007,7 @@ pub fn parts_for_message(
         if file_too_large {
             let budget_mb = (total_budget / (1024 * 1024)).max(1);
             out.push(Inlined::Text(format!(
-                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"too_large\">\nThis file exceeds the {budget_mb} MB payload limit for this model and was not auto-loaded. You can inspect it using the inspect_file tool.\n</file_attachment>\n"
+                "\n<file_attachment path=\"{path}\" size=\"{size_str}\" status=\"too_large\">\nThis file exceeds the {budget_mb} MB payload limit for this model and was not auto-loaded.\n</file_attachment>\n"
             )));
             continue;
         }
@@ -1361,12 +1361,12 @@ mod tests {
                     "must carry char_limit: {xml}"
                 );
                 assert!(
-                    xml.contains("truncated 1000 lines more"),
+                    xml.contains("1000 lines were not auto-loaded"),
                     "must show line count: {xml}"
                 );
                 assert!(
-                    xml.contains("inspect_file"),
-                    "must advise inspect_file: {xml}"
+                    !xml.contains("inspect_file"),
+                    "repeated recovery instruction: {xml}"
                 );
             }
             other => panic!("expected Inlined::Text, got {other:?}"),
@@ -1458,8 +1458,8 @@ mod tests {
                     "must be binary_not_injected: {xml}"
                 );
                 assert!(
-                    xml.contains("inspect_file"),
-                    "must advise inspect_file: {xml}"
+                    !xml.contains("inspect_file"),
+                    "repeated recovery instruction: {xml}"
                 );
             }
             other => panic!("expected Inlined::Text, got {other:?}"),

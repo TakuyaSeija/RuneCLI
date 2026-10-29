@@ -30,6 +30,21 @@
       "default": 4096,
       "kind": "Count(256,10000000)"
     },
+    "skills.max_catalog_size": {
+      "document": "capabilities/configuration.md",
+      "default": "8KiB",
+      "kind": "Size"
+    },
+    "sanitizer.max_batch_size": {
+      "document": "auxiliary/sanitizer.md",
+      "default": "64KiB",
+      "kind": "Size"
+    },
+    "compact.max_batch_size": {
+      "document": "auxiliary/compact.md",
+      "default": "128KiB",
+      "kind": "Size"
+    },
     "generation": {
       "document": "generation/sampling.md",
       "default": null,
@@ -527,6 +542,11 @@
       "default": "8s",
       "kind": "Duration"
     },
+    "ui.status_replace_lifetime": {
+      "document": "appearance/rendering.md",
+      "default": "3s",
+      "kind": "Duration"
+    },
     "ui.quit_lifetime": {
       "document": "appearance/rendering.md",
       "default": "4s",
@@ -724,7 +744,7 @@
         "servers",
         "projects",
         "page_size",
-        "catalog_tokens",
+        "catalog_bytes",
         "max_entries",
         "max_skill_bytes",
         "max_package_bytes",
@@ -840,6 +860,12 @@
     "presence_penalty",
     "stop"
   ],
+  "features": {
+    "instruction_ownership": {"document":"data/instructions.md","facts":["/context","general agent instructions","tool descriptions","required tool arguments","access checks"]},
+    "footer_status": {"document":"appearance/rendering.md","facts":["8 seconds","3 seconds of visible time","Retry timing continues","confirmations take priority","including retry backoff"]},
+    "manual_shell": {"document":"tools/terminal-use.md","facts":["full access once","whitespace before","does not automatically replay","without classifier/sanitizer review"]},
+    "reference_links": {"document":"appearance/layout.md","facts":["Open in browser","Copy complete destination","copying only","does not run the file"]}
+  },
   "tools": {
     "terminal_use": "tools/terminal-use.md",
     "inspect_file": "tools/inspect-file.md",

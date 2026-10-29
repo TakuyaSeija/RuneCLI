@@ -306,7 +306,14 @@ pub(super) fn cursor_down(input: &str, cursor: usize, width: usize) -> Option<us
 }
 
 impl App {
+    pub(super) fn cancel_selection(&mut self) {
+        self.selection_cancelled |= self.selection.take().is_some();
+    }
+
     pub fn on_key(&mut self, key: Key, d: &mut Driver) {
+        if !matches!(key, Key::Mouse(_)) {
+            self.cancel_selection();
+        }
         // Another window promoting this draft is rare; asking the registry on
         // every key was a synchronous engine call on the UI thread (audit T4).
         let check_due = self
@@ -355,7 +362,7 @@ impl App {
         }
 
         if key == Key::Ctrl('c') {
-            if self.busy {
+            if self.working() {
                 let now = Instant::now();
                 let armed = self.quit_armed
                     && self.quit_armed_at.is_some_and(|at| {
@@ -369,7 +376,7 @@ impl App {
                 } else {
                     self.quit_armed = true;
                     self.quit_armed_at = Some(now);
-                    self.note("press ctrl+c again to leave Rune · esc twice to stop AI");
+                    self.tick_footer(now);
                 }
             } else {
                 self.stop_or_quit(d);
@@ -481,7 +488,8 @@ impl App {
             self.clear_status();
             return;
         }
-        if key == Key::Esc && self.busy && self.questions.is_none() && self.mcp_input.is_none() {
+        if key == Key::Esc && self.working() && self.questions.is_none() && self.mcp_input.is_none()
+        {
             let now = Instant::now();
             let armed = self.stop_armed
                 && self.stop_armed_at.is_some_and(|at| {
@@ -495,7 +503,7 @@ impl App {
             } else {
                 self.stop_armed = true;
                 self.stop_armed_at = Some(now);
-                self.note("press esc again to stop");
+                self.tick_footer(now);
             }
             return;
         }
@@ -649,7 +657,7 @@ impl App {
             // cursor, because a list that scrolls away from its own selection is
             // a list that has to be scrolled back.
             Click::WheelUp | Click::WheelDown => {
-                self.selection = None;
+                self.cancel_selection();
                 let up = m.kind == Click::WheelUp;
                 let multiplier = m.modifiers.wheel_multiplier();
                 // The modal's list scrolls only if it has somewhere of its own
@@ -707,6 +715,7 @@ impl App {
                 }
             }
             Click::Press => {
+                self.selection_cancelled = false;
                 let point = super::draw::Point {
                     row: m.row,
                     col: m.col,
@@ -727,6 +736,10 @@ impl App {
                 }
             }
             Click::Release => {
+                if std::mem::take(&mut self.selection_cancelled) {
+                    self.selection = None;
+                    return;
+                }
                 let Some(mut selection) = self.selection.take() else {
                     self.press(m.row, m.col, d);
                     return;
@@ -762,10 +775,17 @@ impl App {
                 // click, not a clipboard selection. Real drags keep selecting.
                 let navigation = matches!(
                     hit_anchor,
-                    super::draw::Hit::Settings(_)
-                        | super::draw::Hit::Log(_)
+                    super::draw::Hit::Settings(
+                        super::settings::Target::Back
+                            | super::settings::Target::Tabs { .. }
+                            | super::settings::Target::Row(_)
+                            | super::settings::Target::Cards { .. }
+                            | super::settings::Target::Apply
+                            | super::settings::Target::Cancel
+                            | super::settings::Target::Reset
+                            | super::settings::Target::Choice(_)
+                    ) | super::draw::Hit::Log(_)
                         | super::draw::Hit::Questions(_)
-                        | super::draw::Hit::McpText(_)
                         | super::draw::Hit::Palette(_)
                         | super::draw::Hit::UndoFile { .. }
                         | super::draw::Hit::McpSubmit { .. }
@@ -779,21 +799,16 @@ impl App {
                     return;
                 }
                 selection.moved |= selection.head != selection.anchor;
-                self.selection = Some(selection);
                 if selection.moved {
-                    if self.select_input(selection.anchor, selection.head) {
-                        self.selection = None;
-                        return;
-                    }
-                    let selected = selection.selected_text(&self.selection_rows);
+                    let selected = self
+                        .copy_input(selection.anchor, selection.head)
+                        .unwrap_or_else(|| selection.selected_text(&self.selection_rows));
                     if !selected.is_empty() {
                         super::term::copy(&selected);
-                        self.status = Some(format!(
+                        self.note(format!(
                             "copied {} character(s) from the selection",
                             selected.chars().count()
                         ));
-                    } else {
-                        self.press(m.row, m.col, d);
                     }
                 } else {
                     self.press(m.row, m.col, d);
@@ -802,7 +817,7 @@ impl App {
         }
     }
 
-    fn select_input(&mut self, first: super::draw::Point, last: super::draw::Point) -> bool {
+    fn copy_input(&self, first: super::draw::Point, last: super::draw::Point) -> Option<String> {
         use super::draw::Hit;
         let (from, to) = (
             super::draw::hit_at(self, first.row),
@@ -810,33 +825,20 @@ impl App {
         );
         match (from, to) {
             (Hit::ComposerText(a), Hit::ComposerText(b)) => {
-                let Some(start) = self.composer_hit_rows.get(a).map(|r| r.caret_at(first.col))
-                else {
-                    return false;
-                };
-                let Some(row) = self.composer_hit_rows.get(b) else {
-                    return false;
-                };
-                self.input_editor.select_in_row(
-                    &self.input,
-                    &mut self.cursor,
-                    start,
-                    row,
-                    last.col,
-                    self.composer_width,
-                );
-                true
+                let start = self.composer_hit_rows.get(a)?.caret_at(first.col);
+                let end = self.composer_hit_rows.get(b)?.caret_at(last.col);
+                Some(super::selection::source(&self.input, start, end))
             }
             (Hit::Settings(a), Hit::Settings(b)) => {
-                settings::select(self, a, first.col, b, last.col)
+                settings::copy_input(self, a, first.col, b, last.col)
             }
             (Hit::Questions(a), Hit::Questions(b)) => {
-                super::questions::select(self, (a, first.col), (b, last.col))
+                super::questions::copy_input(self, (a, first.col), (b, last.col))
             }
             (Hit::McpText(a), Hit::McpText(b)) if a == b => {
-                super::mcp_input::select(self, a, first.col, last.col)
+                super::mcp_input::copy_input(self, a, first.col, last.col)
             }
-            _ => false,
+            _ => None,
         }
     }
 
@@ -851,6 +853,12 @@ impl App {
         if self.pointer_in_sidebar(row, col) {
             return;
         }
+        if let Some(link) = self.links.iter().find(|link| {
+            link.row == row && link.columns.contains(&usize::from(col.saturating_sub(1)))
+        }) {
+            super::links::show(self, link.url.clone());
+            return;
+        }
         self.act(super::draw::hit_at(self, row), col, d)
     }
 
@@ -859,6 +867,8 @@ impl App {
     fn act(&mut self, hit: super::draw::Hit, col: u16, d: &mut Driver) {
         match hit {
             super::draw::Hit::None => {}
+            super::draw::Hit::LinkOpen => super::links::open(self, d),
+            super::draw::Hit::LinkCopy => super::links::copy(self),
             super::draw::Hit::Questions(r) => super::questions::click(self, r, col, d),
             super::draw::Hit::McpText(field) => super::mcp_input::click(self, field, col),
             super::draw::Hit::McpSubmit { first, last } => {
@@ -908,7 +918,7 @@ impl App {
                         && index < self.attached.len()
                     {
                         let file = self.attached.remove(index);
-                        self.status = Some(format!("{} is no longer attached", file.name));
+                        self.note(format!("{} is no longer attached", file.name));
                     }
                 }
             }
@@ -1048,7 +1058,7 @@ impl App {
     /// therefore not an empty line: the first press only says what the second
     /// would do, and what has already been typed stays on screen.
     fn stop_or_quit(&mut self, d: &mut Driver) {
-        if self.busy {
+        if self.working() {
             let Some(session) = self.session else {
                 return;
             };
@@ -1058,7 +1068,8 @@ impl App {
                 session,
                 call: None,
             });
-            self.status = Some("stopping…".into());
+            self.set_retry_status(None);
+            self.note_control("stopping…");
             let now = Instant::now();
             for tool in self.blocks.iter_mut().filter_map(Block::tool_mut) {
                 if !tool.state.finished() {
@@ -1080,8 +1091,9 @@ impl App {
             self.quit = true;
         } else {
             self.quit_armed = true;
-            self.quit_armed_at = Some(Instant::now());
-            self.note("press ctrl+c again to leave");
+            let now = Instant::now();
+            self.quit_armed_at = Some(now);
+            self.tick_footer(now);
         }
     }
 
@@ -1383,14 +1395,31 @@ impl App {
         {
             return;
         }
-        self.status = Some("Checking attachment support…".into());
+        self.note("Checking attachment support…");
         self.request(d, Awaiting::Catalogue(provider.clone()), |id| {
             Command::ProviderModels { id, name: provider }
         });
     }
 
     pub(super) fn submit(&mut self, d: &mut Driver) {
-        let text = self.input.trim().to_string();
+        let manual_shell = runeengine::session::manual_shell::command(&self.input).is_some();
+        if manual_shell {
+            if let Err(error) = runeengine::session::manual_shell::validate(&self.input) {
+                self.note(error.to_string());
+                return;
+            }
+            if !self.attached.is_empty() {
+                self.note("Remove attachments before submitting a manual shell command.");
+                return;
+            }
+        }
+        let bang_after_whitespace =
+            runeengine::session::manual_shell::command(self.input.trim_start()).is_some();
+        let text = if manual_shell || bang_after_whitespace {
+            self.input.clone()
+        } else {
+            self.input.trim().to_string()
+        };
         if text.is_empty() && self.attached.is_empty() {
             return;
         }
@@ -1442,8 +1471,7 @@ impl App {
             return;
         }
         if self.model().is_empty() {
-            self.status =
-                Some("Select Models — please choose a model in settings (/settings)".into());
+            self.note("Select Models — please choose a model in settings (/settings)");
             return;
         }
         self.refresh_attachment_model(d);
@@ -1468,9 +1496,18 @@ impl App {
             self.composition.submitted = Some(draft.composer.clone());
             self.composition.promote_pending = true;
             self.composition.promote_started = Some(std::time::Instant::now());
-            self.request(d, Awaiting::Promoted, |id| Command::DraftPromote {
-                id,
-                draft: Box::new(draft),
+            self.request(d, Awaiting::Promoted, |id| {
+                if manual_shell {
+                    Command::DraftShellPromote {
+                        id,
+                        draft: Box::new(draft),
+                    }
+                } else {
+                    Command::DraftPromote {
+                        id,
+                        draft: Box::new(draft),
+                    }
+                }
             });
             return;
         }
@@ -1503,6 +1540,7 @@ impl App {
         // already been started.
         self.reset_plan_scroll();
         self.composition.submits.push_back(super::composer::Submit {
+            manual_shell,
             text,
             media,
             composer,
@@ -1510,9 +1548,9 @@ impl App {
         self.send_submits(d);
     }
 
-    /// Send the oldest message waiting to be submitted, once the host holds
-    /// it: an edit still in flight is waited for (the main loop calls again
-    /// when it lands), one unanswered for three seconds is given up.
+    /// Send the oldest message once the host holds it. Either the edit ACK
+    /// or the host's operation receipt settles the edit; elapsed time alone
+    /// never proves that the composer is ready.
     pub(super) fn send_submits(&mut self, d: &mut Driver) {
         if self.composition.submits.is_empty() {
             return;
@@ -1525,19 +1563,11 @@ impl App {
             self.sync_composer(d, false);
             self.composition.urgent = false;
             if self.composition.flight.is_some() {
-                if self
-                    .composition
-                    .flight_started
-                    .is_some_and(|t| t.elapsed() > std::time::Duration::from_secs(3))
-                {
-                    self.composition.flight = None;
-                    self.composition.flight_started = None;
-                } else {
-                    return;
-                }
+                return;
             }
         }
         let Some(super::composer::Submit {
+            manual_shell,
             text,
             media,
             composer,
@@ -1578,11 +1608,22 @@ impl App {
                 text: text.clone(),
                 media,
             },
-            |id| Command::PromptSteer {
-                id,
-                session,
-                text,
-                attach,
+            |id| {
+                if manual_shell {
+                    Command::ShellSubmit {
+                        id,
+                        session,
+                        text,
+                        submission: runeengine::platform::new_tree_mark(),
+                    }
+                } else {
+                    Command::PromptSteer {
+                        id,
+                        session,
+                        text,
+                        attach,
+                    }
+                }
             },
         );
     }
@@ -1611,7 +1652,7 @@ impl App {
 
     /// Slash commands: the same operations as the shortcuts, for people who
     /// would rather type than remember a keymap.
-    fn slash(&mut self, command: &str, d: &mut Driver) {
+    pub(crate) fn slash(&mut self, command: &str, d: &mut Driver) {
         let mut words = command.split_whitespace();
         let verb = words.next().unwrap_or("");
         let rest: Vec<&str> = words.collect();
@@ -1693,7 +1734,18 @@ impl App {
                     }
                 }
                 Some("on") => {
-                    if self.is_suppressed("thinking") && self.is_suppressed("effort") {
+                    let disabled = self.settings["thinking_disabled"].as_bool() == Some(true)
+                        || self
+                            .lookup_model_info(self.provider(), self.model())
+                            .is_some_and(|m| {
+                                m.reasoning_support() == Some(false)
+                                    || m.reasoning_options
+                                        .as_ref()
+                                        .is_some_and(|v| !v.iter().any(|e| e != "off"))
+                            });
+                    if disabled {
+                        self.note("Thinking is disabled for this model in Alt+C");
+                    } else if self.is_suppressed("thinking") && self.is_suppressed("effort") {
                         self.note("Reasoning is not supported by this model or provider");
                     } else if self.is_suppressed("effort") {
                         settings::apply(self, "thinking", "true", d);
@@ -1734,7 +1786,18 @@ impl App {
                     }
                 }
                 _ => {
-                    if self.is_suppressed("effort") {
+                    let disabled = self.settings["thinking_disabled"].as_bool() == Some(true)
+                        || self
+                            .lookup_model_info(self.provider(), self.model())
+                            .is_some_and(|m| {
+                                m.reasoning_support() == Some(false)
+                                    || m.reasoning_options
+                                        .as_ref()
+                                        .is_some_and(|v| !v.iter().any(|e| e != "off"))
+                            });
+                    if disabled {
+                        self.note("Thinking is disabled for this model in Alt+C");
+                    } else if self.is_suppressed("effort") {
                         self.note(
                             "Reasoning effort levels are not supported by this model or provider",
                         );
@@ -2017,6 +2080,19 @@ impl App {
     pub fn cycle_thinking(&mut self, d: &mut Driver) {
         if self.is_suppressed("thinking") && self.is_suppressed("effort") {
             self.note("Thinking is not supported by the active model or provider.");
+            return;
+        }
+        let thinking_disabled = self.settings["thinking_disabled"].as_bool() == Some(true)
+            || self
+                .lookup_model_info(self.provider(), self.model())
+                .is_some_and(|m| {
+                    m.reasoning_support() == Some(false)
+                        || m.reasoning_options
+                            .as_ref()
+                            .is_some_and(|v| !v.iter().any(|e| e != "off"))
+                });
+        if thinking_disabled {
+            self.note("Thinking is disabled for this model in Alt+C.");
             return;
         }
         let effort_suppressed = self.is_suppressed("effort");
@@ -2748,12 +2824,20 @@ mod tests {
             .unwrap();
         mouse_click(&mut app, &mut d, back as u16 + 1, 4);
         assert_eq!(app.preferences.location.page, Page::Overview);
-        // A real drag still selects rather than opening a control.
+        // A real drag over content selects rather than opening a control.
         let _ = draw::compose_for_test(&mut app, 34, 120);
         let card = app
             .hits
             .iter()
-            .position(|hit| matches!(hit, Hit::Settings(Target::Cards { .. } | Target::Row(_))))
+            .enumerate()
+            .position(|(index, hit)| {
+                matches!(hit, Hit::Settings(Target::Cards { .. } | Target::Row(_)))
+                    && !app.selection_rows[index].spans.is_empty()
+                    && !app.selection_rows[index]
+                        .text
+                        .trim_matches(['│', ' '])
+                        .is_empty()
+            })
             .unwrap();
         use crate::ui::input::{Click, Modifiers, Mouse};
         for (kind, col) in [(Click::Press, 8), (Click::Drag, 30), (Click::Release, 30)] {
@@ -3012,7 +3096,7 @@ mod tests {
         assert!(!app.stop_armed);
         assert!(app.queued_prompt.is_some());
         assert_eq!(
-            app.status.as_deref(),
+            app.confirmation_status(Instant::now()),
             Some("press ctrl+c again to leave Rune · esc twice to stop AI")
         );
         app.on_key(Key::Ctrl('c'), &mut d);
@@ -3070,10 +3154,50 @@ mod tests {
 
         // When in main screen without panel: Esc arms stop as expected
         press(&mut app, &mut d, &[Key::Esc]);
-        assert_eq!(app.status.as_deref(), Some("press esc again to stop"));
+        assert_eq!(
+            app.confirmation_status(Instant::now()),
+            Some("press esc again to stop")
+        );
         assert!(app.stop_armed);
         press(&mut app, &mut d, &[Key::Esc]);
         assert_eq!(app.status.as_deref(), Some("stopping…"));
+    }
+
+    #[test]
+    fn escape_confirmation_during_retry_uses_stop_not_quit_lifetime() {
+        let mut app = App::for_test();
+        let mut driver = test_driver("esc-retry-footer");
+        app.busy = true;
+        app.on_event(runeengine::proto::Event::Retrying {
+            session: app.session.unwrap(),
+            attempt: 1,
+            of: 3,
+            wait_ms: 9000,
+            rotated: false,
+            reason: "Rate limited".into(),
+        });
+        app.on_key(Key::Esc, &mut driver);
+        assert_eq!(
+            app.confirmation_status(Instant::now()),
+            Some("press esc again to stop")
+        );
+        assert!(
+            app.status.is_none(),
+            "control hint must not become a stale 8s notice"
+        );
+        let now = Instant::now();
+        app.stop_armed_at = Some(now - std::time::Duration::from_millis(3100));
+        assert!(app.confirmation_status(now).is_none());
+        app.tick();
+        assert!(!app.stop_armed, "stop expires after 3s, not quit's 4s");
+        app.on_key(Key::Esc, &mut driver);
+        assert!(app.stop_armed);
+        assert_ne!(app.status.as_deref(), Some("stopping…"));
+        app.on_key(Key::Esc, &mut driver);
+        assert_eq!(app.status.as_deref(), Some("stopping…"));
+        assert!(app.retry_status.is_none());
+        assert!(app.confirmation_status(Instant::now()).is_none());
+        driver.engine.shutdown();
     }
 
     #[test]
@@ -3087,7 +3211,10 @@ mod tests {
         app.blocks.push(super::super::blocks::Block::of(tool));
 
         press(&mut app, &mut d, &[Key::Esc]);
-        assert_eq!(app.status.as_deref(), Some("press esc again to stop"));
+        assert_eq!(
+            app.confirmation_status(Instant::now()),
+            Some("press esc again to stop")
+        );
         press(&mut app, &mut d, &[Key::Esc]);
         assert_eq!(app.status.as_deref(), Some("stopping…"));
         let tool = app.blocks[0].tool_mut().unwrap();
@@ -3120,7 +3247,10 @@ mod tests {
             app.pending.is_some(),
             "first Esc does not answer or cancel the question"
         );
-        assert_eq!(app.status.as_deref(), Some("press esc again to stop"));
+        assert_eq!(
+            app.confirmation_status(Instant::now()),
+            Some("press esc again to stop")
+        );
         press(&mut app, &mut d, &[Key::Esc]);
         assert_eq!(app.status.as_deref(), Some("stopping…"));
         let tool = app.blocks[0].tool_mut().unwrap();
@@ -3480,10 +3610,16 @@ mod tests {
         app.blocks.push(Block::Thinking {
             text: "a b c".into(),
             open: false,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         app.blocks.push(Block::Thinking {
             text: "d e f".into(),
             open: false,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         app.open_block(0);
         assert!(matches!(app.blocks[0], Block::Thinking { open: true, .. }));
@@ -3586,6 +3722,9 @@ mod tests {
         app.blocks.push(Block::Thinking {
             text: "thinking".into(),
             open: false,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         for (name, state) in [
             ("inspect_file", crate::ui::blocks::ToolState::Ok),
@@ -3710,6 +3849,11 @@ mod tests {
             .status
             .as_deref()
             .is_some_and(|status| status.starts_with("copied ")));
+        assert_eq!(crate::ui::term::take_copies(), vec!["select"]);
+        assert!(
+            app.selection.is_none(),
+            "release must remove the drag highlight"
+        );
         d.engine.shutdown();
     }
 
@@ -4284,6 +4428,7 @@ mod tests {
 
         // unknown theme
         app.slash("theme neon", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(app.theme, ThemeMode::Violet);
         assert!(app.status.as_ref().unwrap().contains("unknown theme"));
 
@@ -4413,6 +4558,7 @@ mod tests {
 
         // 3. /classifier unknown subcommand shows usage
         app.slash("classifier foobar", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             blocks_before,
@@ -4596,9 +4742,10 @@ mod tests {
         press(&mut app, &mut d, &[Key::Enter]);
         assert_eq!(app.input, "/mode ", "Enter again must keep '/mode '");
         assert_eq!(app.mode, "ask", "mode must still not switch on empty Enter");
-        // Now type 'auto' and Enter
+        // Now type 'auto' and Enter; the existing usage note keeps its read interval.
         press(&mut app, &mut d, &typed("auto"));
         press(&mut app, &mut d, &[Key::Enter]);
+        app.show_waiting_status_for_test();
         assert!(app
             .status
             .as_ref()
@@ -4779,6 +4926,13 @@ mod tests {
         assert!(app.status_at.is_some(), "must set status_at for 8s timeout");
 
         app.slash("verbose", &mut d);
+        assert!(
+            app.status
+                .as_ref()
+                .is_some_and(|s| s.contains("Verbose mode on")),
+            "first message must remain readable"
+        );
+        app.show_waiting_status_for_test();
         assert!(!app.verbose);
         assert_eq!(
             app.blocks.len(),
@@ -4794,6 +4948,7 @@ mod tests {
         app.sidebar = false;
         assert!(!app.sidebar);
         app.slash("panel", &mut d);
+        app.show_waiting_status_for_test();
         assert!(app.sidebar);
         assert_eq!(
             app.blocks.len(),
@@ -4807,6 +4962,7 @@ mod tests {
 
         // 3. /set without args keeps input and shows usage in footer, ZERO chat blocks
         app.slash("set", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(app.input, "/set ");
         assert_eq!(
             app.blocks.len(),
@@ -4820,6 +4976,7 @@ mod tests {
 
         // 4. /attach without args keeps input and shows usage in footer, ZERO chat blocks
         app.slash("attach", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(app.input, "/attach ");
         assert_eq!(
             app.blocks.len(),
@@ -4833,6 +4990,7 @@ mod tests {
 
         // 5. /detach without args keeps input and shows footer note, ZERO chat blocks
         app.slash("detach", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(app.input, "/detach ");
         assert_eq!(
             app.blocks.len(),
@@ -4846,6 +5004,7 @@ mod tests {
 
         // 6. /mode with explicit mode name
         app.slash("mode auto", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             0,
@@ -4857,6 +5016,7 @@ mod tests {
             .is_some_and(|s| s.contains("Switching mode to auto")));
 
         app.slash("mode full", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             0,
@@ -4868,6 +5028,7 @@ mod tests {
             .is_some_and(|s| s.contains("Switching mode to full")));
 
         app.slash("mode invalid", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             0,
@@ -4880,6 +5041,7 @@ mod tests {
 
         // 7. /theme cycles or sets theme, ZERO chat blocks
         app.slash("theme", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             0,
@@ -4889,6 +5051,7 @@ mod tests {
 
         // 8. Unknown command shows footer note, ZERO chat blocks
         app.slash("invalid_command", &mut d);
+        app.show_waiting_status_for_test();
         assert_eq!(
             app.blocks.len(),
             0,
@@ -5596,6 +5759,54 @@ mod tests {
 
     /// 2A: Ctrl+↓ is back to the newest row from anywhere — the composer
     /// holding text, a question card up — and leaves the composer alone.
+    #[test]
+    fn shell_submission_is_explicit_and_paste_never_executes_before_enter() {
+        for (index, input) in [
+            "! echo first\necho second",
+            "hello ! echo text",
+            "hello\n! echo text",
+            " ! echo text",
+            "\n! echo text",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut d = test_driver(&format!("manual-submit-{index}"));
+            d.reconnecting = true;
+            let mut app = App::for_test_with(
+                serde_json::json!({"settings":{"model":"test-model","provider":"test"}}),
+            );
+            app.input = input.into();
+            app.cursor = input.len();
+            let frame = super::super::draw::compose_for_test(&mut app, 28, 90);
+            let manual = input.starts_with('!');
+            assert_eq!(
+                frame
+                    .iter()
+                    .any(|row| ansi::plain(row).contains("Shell · full access once")),
+                manual
+            );
+            assert!(d.outbox.is_empty());
+            app.submit(&mut d);
+            if manual {
+                assert!(d
+                    .outbox
+                    .iter()
+                    .any(|cmd| matches!(cmd,Command::ShellSubmit{text,..} if text==input)));
+            } else {
+                assert!(d
+                    .outbox
+                    .iter()
+                    .any(|cmd| matches!(cmd,Command::PromptSteer{text,..} if text==input)));
+            }
+            assert!(!d
+                .outbox
+                .iter()
+                .any(|cmd| matches!(cmd, Command::ToolInvoke { .. })));
+            d.engine.shutdown();
+        }
+    }
+
     #[test]
     fn ctrl_down_jumps_to_the_latest_row_from_anywhere() {
         let mut d = test_driver("ctrl-down");

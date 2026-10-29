@@ -413,6 +413,7 @@ mod tests {
                         tail: String::new(),
                         screen: None,
                         reported: None,
+                        log_position: Some(runeengine::session::background_log::Position { stable: 1000, end: 1234 }),
                         waiting: None,
                         tree: None,
                     },

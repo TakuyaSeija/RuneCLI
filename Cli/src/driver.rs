@@ -175,6 +175,8 @@ impl Driver {
                 | Command::DraftSave { .. }
                 | Command::DraftSettings { .. }
                 | Command::DraftPromote { .. }
+                | Command::DraftShellPromote { .. }
+                | Command::OpenUrl { .. }
         ) {
             self.engine.handle(cmd);
         } else if self.reconnecting {
@@ -336,6 +338,15 @@ impl Driver {
         let id = self.next;
         self.next += 1;
         let command = make(id);
+        // Resume only reads/adopts the session. If the host retires between
+        // hello and its ACK, it is safe to repeat this same command at the
+        // same authenticated socket, within this call's original deadline.
+        // No mutating command gets an implicit retry here.
+        let remote_resume = match &command {
+            Command::SessionResume { session, .. } if self.client.is_some() => Some(*session),
+            _ => None,
+        };
+        let pending_before = self.pending_events.len();
         #[cfg(not(test))]
         let host_diagnostic = if let Command::SessionResume { session, .. } = &command {
             self.db_path
@@ -368,7 +379,7 @@ impl Driver {
         if let Some((client, _)) = &barrier {
             client.send(&command)?;
         } else {
-            self.handle(command);
+            self.handle(command.clone());
         }
         loop {
             if deadline.is_some_and(|at| std::time::Instant::now() >= at) {
@@ -382,6 +393,16 @@ impl Driver {
                 Ok(ev) => ev,
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    if let Some(session) = remote_resume {
+                        if self.reconnect_resume(
+                            session,
+                            &command,
+                            deadline.unwrap(),
+                            pending_before,
+                        ) {
+                            continue;
+                        }
+                    }
                     #[cfg(not(test))]
                     if let Some(path) = &host_diagnostic {
                         return Err(format!(
@@ -392,6 +413,20 @@ impl Driver {
                     return Err("the engine stopped".to_string());
                 }
             };
+            if let Some(session) = remote_resume {
+                let moving = matches!(&event, Event::HostUpgrading { session: owner } if *owner == session)
+                    || matches!(&event, Event::Ack { id: got, ok: false, data: Some(data), .. }
+                        if *got == id && data.get("retry").and_then(Value::as_bool) == Some(true));
+                if moving {
+                    if self.reconnect_resume(session, &command, deadline.unwrap(), pending_before) {
+                        continue;
+                    }
+                    return Err(format!(
+                        "Session host did not acknowledge resume within {} seconds",
+                        RESUME_DEADLINE.as_secs()
+                    ));
+                }
+            }
             if let Event::Ack {
                 id: got,
                 ok,
@@ -410,6 +445,33 @@ impl Driver {
             }
             watch(&event);
             self.pending_events.push(event);
+        }
+    }
+
+    /// Startup has no event loop yet to follow HostUpgrading. Reconnect only
+    /// that read-only resume, keeping its identity and the one original wait.
+    fn reconnect_resume(
+        &mut self,
+        session: i64,
+        command: &Command,
+        deadline: std::time::Instant,
+        pending_before: usize,
+    ) -> bool {
+        if let Some(old) = self.client.take() {
+            old.disconnect();
+        }
+        self.pending_events.truncate(pending_before);
+        loop {
+            if std::time::Instant::now() >= deadline {
+                return false;
+            }
+            if let Ok((client, events)) = crate::session_ipc::SessionClient::connect(session) {
+                self.client = Some(client);
+                self.events = events;
+                self.handle(command.clone());
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
         }
     }
 
@@ -811,6 +873,156 @@ mod tests {
         host.join().unwrap();
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_dir_all(&store);
+    }
+
+    #[test]
+    fn resume_follows_a_host_that_leaves_after_hello_before_its_ack() {
+        use runeengine::platform::LocalListener;
+        use std::io::{BufRead, BufReader, Write};
+        for departure in 0..3 {
+            let mut d = crate::ui::test_driver(&format!("resume-departure-{departure}"));
+            let session = 987_680 + departure;
+            let path = crate::session_ipc::session_socket_path(session).unwrap();
+            let _ = std::fs::remove_file(&path);
+            let key = runeengine::access::HostKey::issue(&path).unwrap();
+            let listener = LocalListener::bind(&path).unwrap();
+            let wake = listener.try_clone().unwrap();
+            let (sent, received) = std::sync::mpsc::channel();
+            let host = std::thread::spawn(move || {
+                for round in 0..2 {
+                    let Ok(mut stream) = listener.accept() else {
+                        return;
+                    };
+                    stream
+                        .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                        .unwrap();
+                    let mut reader = BufReader::new(stream.try_clone().unwrap());
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    let runeengine::access::Presented::Hello(Some(presented)) =
+                        runeengine::access::presented(line.trim_end())
+                    else {
+                        panic!("no hello");
+                    };
+                    assert!(key.admits(&presented));
+                    writeln!(stream, "{}", runeengine::access::admitted_line()).unwrap();
+                    line.clear();
+                    reader.read_line(&mut line).unwrap();
+                    let command: Command = serde_json::from_str(&line).unwrap();
+                    assert!(
+                        matches!(command, Command::SessionResume { session: s, .. } if s == session)
+                    );
+                    let id = command.request_id();
+                    sent.send(id).unwrap();
+                    if round == 0 {
+                        let notice = match departure {
+                            0 => Some(Event::HostUpgrading { session }),
+                            1 => Some(Event::Ack {
+                                id,
+                                ok: false,
+                                error: Some("retiring".into()),
+                                data: Some(serde_json::json!({"retry":true})),
+                            }),
+                            _ => None,
+                        };
+                        if let Some(event) = notice {
+                            writeln!(stream, "{}", serde_json::to_string(&event).unwrap()).unwrap();
+                        }
+                        stream.shutdown().unwrap();
+                    } else {
+                        let ack = Event::Ack {
+                            id,
+                            ok: true,
+                            error: None,
+                            data: Some(
+                                serde_json::json!({"session":session,"protocol":runeengine::proto::PROTOCOL,"version":runeengine::VERSION}),
+                            ),
+                        };
+                        writeln!(stream, "{}", serde_json::to_string(&ack).unwrap()).unwrap();
+                    }
+                }
+            });
+            let (client, events) = crate::session_ipc::SessionClient::connect(session).unwrap();
+            d.client = Some(client);
+            d.events = events;
+            let resumed = d.resume(session, None);
+            let _ = wake.wake();
+            host.join().unwrap();
+            assert!(resumed.is_ok(), "departure={departure}: {resumed:?}");
+            let requests: Vec<_> = received.try_iter().collect();
+            assert_eq!(requests.len(), 2, "resume was not handed on");
+            assert_eq!(
+                requests[0], requests[1],
+                "the same read-only resume is reissued, not other commands"
+            );
+            d.shutdown();
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    fn resume_semantic_refusals_and_mutating_retry_acks_are_not_reissued() {
+        use runeengine::platform::LocalListener;
+        use std::io::{BufRead, BufReader, Write};
+        for resume in [true, false] {
+            let mut d = crate::ui::test_driver(if resume {
+                "resume-refused"
+            } else {
+                "mutation-not-retried"
+            });
+            let session = if resume { 987_684 } else { 987_685 };
+            let path = crate::session_ipc::session_socket_path(session).unwrap();
+            let _ = std::fs::remove_file(&path);
+            let key = runeengine::access::HostKey::issue(&path).unwrap();
+            let listener = LocalListener::bind(&path).unwrap();
+            let host = std::thread::spawn(move || {
+                let mut stream = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                let runeengine::access::Presented::Hello(Some(presented)) =
+                    runeengine::access::presented(line.trim_end())
+                else {
+                    panic!("no hello");
+                };
+                assert!(key.admits(&presented));
+                writeln!(stream, "{}", runeengine::access::admitted_line()).unwrap();
+                line.clear();
+                reader.read_line(&mut line).unwrap();
+                let cmd: Command = serde_json::from_str(&line).unwrap();
+                let ack = Event::Ack {
+                    id: cmd.request_id(),
+                    ok: false,
+                    error: Some("fixture refusal".into()),
+                    data: (!resume).then(|| serde_json::json!({"retry":true})),
+                };
+                writeln!(stream, "{}", serde_json::to_string(&ack).unwrap()).unwrap();
+            });
+            let (client, events) = crate::session_ipc::SessionClient::connect(session).unwrap();
+            d.client = Some(client);
+            d.events = events;
+            let started = std::time::Instant::now();
+            let result = if resume {
+                d.resume(session, None).map(|(_, value)| value)
+            } else {
+                d.call(|id| Command::SessionRename {
+                    id,
+                    session,
+                    title: "not repeated".into(),
+                })
+            };
+            host.join().unwrap();
+            assert_eq!(result.unwrap_err(), "fixture refusal");
+            assert!(
+                started.elapsed() < RESUME_DEADLINE,
+                "a refusal was mistaken for a lost connection"
+            );
+            d.shutdown();
+            let _ = std::fs::remove_file(&path);
+        }
     }
 
     #[test]

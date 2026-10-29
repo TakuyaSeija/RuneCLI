@@ -24,6 +24,11 @@ pub fn document(app: &App, width: usize) -> super::panel_view::Document {
         Panel::Undo | Panel::Redo => return super::undo::document(app, width),
         Panel::Context => context_document(app, width),
         Panel::Logs => logs_document(app, width),
+        Panel::Link => {
+            let mut doc = super::panel_view::Document::plain(render(app, width));
+            doc.from_top = true;
+            return doc;
+        }
         _ => return super::panel_view::Document::plain(render(app, width)),
     };
     doc.append("hint", vec![String::new()]);
@@ -34,15 +39,16 @@ pub fn document(app: &App, width: usize) -> super::panel_view::Document {
 pub fn render(app: &App, width: usize) -> Sink {
     let mut out = Sink::default();
     match app.panel {
+        Panel::Link => return super::links::render(app, width),
         // Its own module: it is a screen rather than a panel, and it had grown
         // to more code than the other three put together.
         Panel::Settings => return super::settings::render(app, width, 32).0,
-        Panel::Tasks => out.extend(tasks(app, width)),
+        Panel::Tasks => out.append(&tasks(app, width)),
         Panel::Undo | Panel::Redo => return super::undo::document(app, width).sink,
-        Panel::Logs => out.extend(logs(app, width)),
-        Panel::Context => out.extend(context(app, width)),
+        Panel::Logs => out.append(&logs_document(app, width).sink),
+        Panel::Context => out.append(&context_document(app, width).sink),
         Panel::Capabilities => {
-            out.extend(title(
+            out.append(&title(
                 "CAPABILITIES",
                 "Skills and MCP connections available to Rune",
                 width,
@@ -84,10 +90,10 @@ pub fn render(app: &App, width: usize) -> Sink {
                 }
             }
             if let Some(content) = data["content"].as_str() {
-                out.extend(super::markdown::render(content, width));
+                out.append(&super::markdown::render_content(content, width));
             }
             if let Some(url) = data["authorization_url"].as_str() {
-                out.extend(super::markdown::render(&format!("[Open sign-in page]({url})\n\nComplete sign-in in your browser, then use /mcp login-status <id>."),width));
+                out.append(&super::markdown::render_content(&format!("[Open sign-in page]({url})\n\nComplete sign-in in your browser, then use /mcp login-status <id>."),width));
             }
             if let Some(status) = data["status"].as_str() {
                 out.push(format!("  {}", ansi::plain(status)));
@@ -100,7 +106,7 @@ pub fn render(app: &App, width: usize) -> Sink {
             }
             out.push("  /skills show <id> · /skill <id> · /mcp connect <id>".into());
         }
-        Panel::Help => out.extend(help(app, width)),
+        Panel::Help => out.append(&help(app, width)),
         Panel::None => return out,
     }
     // A panel's keys belong to the panel. The screen carries no permanent
@@ -124,6 +130,7 @@ fn hint(app: &App) -> String {
         // live underneath it — which is what a person does next after reading
         // one. See [`key`].
         Panel::Context => "pgup/pgdn or the wheel to scroll · esc close".into(),
+        Panel::Link => "Enter open web · C copy destination · Esc close".into(),
         Panel::Tasks | Panel::Help | Panel::Capabilities | Panel::None => {
             "esc close · or just carry on typing".into()
         }
@@ -178,16 +185,18 @@ pub fn value_of(settings: &Value, key: &str) -> String {
 /// status, a plan, a list of keys — and the theme is what tells them the program
 /// has a shape of its own. The owner's call, after the panels were made neutral
 /// and the plan read like a wall of grey.
-fn title(text: &str, note: &str, width: usize) -> Vec<String> {
+pub(super) fn title(text: &str, note: &str, width: usize) -> Sink {
     let rule = width.saturating_sub(4).min(72);
-    let mut out = vec![
-        String::new(),
-        format!("  {ACCENT}{}{text}{}", ansi::BOLD, ansi::RESET),
-    ];
+    let mut out = Sink::default();
+    out.push(String::new());
+    out.push(format!("  {ACCENT}{}{text}{}", ansi::BOLD, ansi::RESET));
     if !note.is_empty() {
         out.extend(paragraph(note, FAINT, 2, width));
     }
-    out.push(format!("  {RULE}{}{}", "─".repeat(rule), ansi::RESET));
+    out.chrome(
+        format!("  {RULE}{}{}", "─".repeat(rule), ansi::RESET),
+        super::draw::Hit::None,
+    );
     out.push(String::new());
     out
 }
@@ -213,6 +222,17 @@ pub fn heading(title: &str, width: usize) -> String {
         "─".repeat(rule),
         ansi::RESET
     )
+}
+
+pub(super) fn heading_into(out: &mut Sink, prefix: &str, title: &str, width: usize) {
+    let first = ansi::width(prefix);
+    out.push_ranges(
+        format!("{prefix}{}", heading(title, width)),
+        super::draw::Hit::None,
+        vec![super::selection::Span::new(
+            first..first + ansi::width(title),
+        )],
+    );
 }
 
 /// One FILE CHANGE row, shared by the side panel and the theme preview: a
@@ -248,7 +268,7 @@ pub fn file_change_counts_w(counts: &[String]) -> usize {
 
 // ─── The plan, undo history, and help ────────────────────────────────────────
 
-fn tasks(app: &App, width: usize) -> Vec<String> {
+fn tasks(app: &App, width: usize) -> Sink {
     let mut out = title(
         "PLAN",
         "what the agent said it would do, and how far it has got",
@@ -333,7 +353,7 @@ fn separator(width: usize) -> String {
     format!("    {RULE}{}{RESET}", "─".repeat(width.saturating_sub(6)))
 }
 
-fn help(app: &App, width: usize) -> Vec<String> {
+fn help(app: &App, width: usize) -> Sink {
     let mut out = title("KEYS", "everything this screen answers to", width);
     for (key, what) in [
         ("ctrl+o", "the session panel: context, cache, spend"),
@@ -369,7 +389,7 @@ fn help(app: &App, width: usize) -> Vec<String> {
         ));
     }
     out.push(String::new());
-    out.extend(title(
+    out.append(&title(
         "TEXT EDITING",
         "one canonical key per action · temporary history is field-local",
         width,
@@ -383,7 +403,15 @@ fn help(app: &App, width: usize) -> Vec<String> {
         ));
     }
     out.push(String::new());
-    out.extend(title(
+    out.append(&title(
+        "MANUAL SHELL AND REFERENCES",
+        "explicit user actions, not AI approval",
+        width,
+    ));
+    out.extend(paragraph("! <command> at the very start runs your complete script with full access once. Enter authorizes all lines; review pasted scripts. No automatic Administrator elevation or change to the session mode. The AI sees the result after completion or background handoff.", TEXT, 2, width));
+    out.extend(paragraph("Click a reference label to review its complete destination. Open in browser / Enter opens HTTP(S); Copy / C copies it. File paths are copy-only: no file is opened or executed. Esc closes the reference panel.", TEXT, 2, width));
+    out.push(String::new());
+    out.append(&title(
         "COMMANDS",
         "type / in the composer and the list comes to you",
         width,
@@ -410,7 +438,7 @@ fn help(app: &App, width: usize) -> Vec<String> {
     // somebody who came looking, rather than to somebody who has just opened the
     // program to type.
     out.push(String::new());
-    out.extend(title(
+    out.append(&title(
         "THIS MACHINE",
         "what is enforcing, and what can get past it",
         width,
@@ -467,14 +495,10 @@ fn shown_logs(app: &App) -> Vec<&runeengine::proto::LogEntry> {
 /// the tools declared, every message Rune wrote into the session, the summary of
 /// a compressed past and the values in `<status>` — exactly as the engine says
 /// it was sent, so a person can read what the model reads.
-fn context(app: &App, width: usize) -> Vec<String> {
-    context_document(app, width).sink.lines
-}
-
 fn context_document(app: &App, width: usize) -> super::panel_view::Document {
     use super::panel_view::Document;
     let mut doc = Document::reader();
-    doc.append(
+    doc.append_sink(
         "title",
         title(
             "CONTEXT",
@@ -522,7 +546,8 @@ fn context_document(app: &App, width: usize) -> super::panel_view::Document {
         let name = tool["name"].as_str().unwrap_or("?");
         let key = format!("tool:{name}");
         if i > 0 {
-            doc.append(format!("{key}:rule"), vec![separator(width)]);
+            let rows = doc.append(format!("{key}:rule"), vec![separator(width)]);
+            doc.sink.copy[rows.start].clear();
         }
         doc.append(format!("{key}:name"), paragraph(name, ACCENT, 4, width));
         let required: Vec<&str> = tool["parameters"]["required"]
@@ -573,7 +598,8 @@ fn context_document(app: &App, width: usize) -> super::panel_view::Document {
     for (i, row) in messages.iter().enumerate() {
         let key = format!("message:{}", row["id"].as_i64().unwrap_or(i as i64));
         if i > 0 {
-            doc.append(format!("{key}:rule"), vec![separator(width)]);
+            let rows = doc.append(format!("{key}:rule"), vec![separator(width)]);
+            doc.sink.copy[rows.start].clear();
         }
         let kind = row["kind"].as_str().unwrap_or("context");
         let name = row["name"]
@@ -656,14 +682,11 @@ fn context_document(app: &App, width: usize) -> super::panel_view::Document {
 
 fn context_section(doc: &mut super::panel_view::Document, key: &str, label: &str, width: usize) {
     let inner = width.saturating_sub(4);
-    doc.append(
-        format!("section:{key}"),
-        vec![
-            String::new(),
-            format!("  {}", heading(&ansi::truncate(label, inner), inner)),
-            String::new(),
-        ],
-    );
+    let mut section = Sink::default();
+    section.push(String::new());
+    heading_into(&mut section, "  ", &ansi::truncate(label, inner), inner);
+    section.push(String::new());
+    doc.append_sink(format!("section:{key}"), section);
 }
 
 fn context_text(doc: &mut super::panel_view::Document, key: &str, text: &str, width: usize) {
@@ -674,13 +697,16 @@ fn context_text(doc: &mut super::panel_view::Document, key: &str, text: &str, wi
         } else {
             ansi::wrap(&ansi::plain(line), room)
         };
-        doc.append(
+        let rows = doc.append(
             format!("{key}:line:{i}"),
             parts
                 .into_iter()
                 .map(|part| format!("    {TEXT}{part}{RESET}"))
                 .collect(),
         );
+        for at in rows {
+            doc.sink.copy[at] = vec![super::selection::Span::new(4..width)];
+        }
     }
 }
 
@@ -688,10 +714,6 @@ fn context_text(doc: &mut super::panel_view::Document, key: &str, text: &str, wi
 /// sits where a reader's eye already is — at the bottom, by the composer. Each
 /// line is its time to the second, its level, what it is about, and one
 /// sentence; `enter` opens what the sentence was built from.
-fn logs(app: &App, width: usize) -> Vec<String> {
-    logs_document(app, width).sink.lines
-}
-
 fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
     use runeengine::proto::LogLevel;
     let mut doc = super::panel_view::Document::reader();
@@ -730,7 +752,8 @@ fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
     ));
     out.push(String::new());
     let shown = shown_logs(app);
-    doc.append("header", std::mem::take(&mut out));
+    doc.append_sink("header", std::mem::take(&mut out));
+    let mut out = Vec::new();
     if shown.is_empty() {
         out.push(format!(
             "  {MUTED}Nothing logged in this session yet.{}",
@@ -815,6 +838,9 @@ fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
             std::mem::take(&mut out),
             |_| super::draw::Hit::Log(i),
         );
+        if title_row > 0 {
+            doc.sink.copy[range.start].clear();
+        }
         if i == selected {
             let start = range.start + title_row;
             doc.focus = Some(start..start + 1);
@@ -857,6 +883,19 @@ pub fn click_log(app: &mut App, index: usize) {
 }
 
 pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
+    if app.panel == Panel::Link {
+        match key {
+            Key::Enter => {
+                super::links::open(app, d);
+                return true;
+            }
+            Key::Char('c') => {
+                super::links::copy(app);
+                return true;
+            }
+            _ => {}
+        }
+    }
     if app.panel == Panel::Settings {
         return super::settings::key(app, key, d);
     }
@@ -903,7 +942,7 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
     }
     let reader = matches!(
         app.panel,
-        Panel::Context | Panel::Help | Panel::Tasks | Panel::Capabilities
+        Panel::Context | Panel::Help | Panel::Tasks | Panel::Capabilities | Panel::Link
     );
     match key {
         Key::Enter
@@ -991,7 +1030,9 @@ mod tests {
             heading("PLAN 1/2", 40).contains(&ACCENT.to_string()),
             "the plan heading lost the theme"
         );
-        let panel_title = title("PLAN", "what the agent said it would do", 40).join("\n");
+        let panel_title = title("PLAN", "what the agent said it would do", 40)
+            .lines
+            .join("\n");
         assert!(
             panel_title.contains(&ACCENT.to_string()) && panel_title.contains(&FAINT.to_string()),
             "the panel title and subtitle lost the theme"
@@ -1106,6 +1147,7 @@ mod tests {
     fn the_plan_says_so_plainly_when_there_is_none() {
         let app = App::for_test();
         assert!(tasks(&app, 80)
+            .lines
             .join("\n")
             .contains("has not written a plan"));
     }
@@ -1153,7 +1195,7 @@ mod tests {
 
     #[test]
     fn every_shortcut_in_the_help_is_one_a_terminal_can_actually_send() {
-        let text = help(&App::for_test(), 80).join("\n");
+        let text = help(&App::for_test(), 80).lines.join("\n");
         assert!(!text.contains("ctrl+,"), "a terminal cannot send that");
         assert!(!text.contains("ctrl+s"), "ctrl+s is XOFF and stays unbound");
         assert!(text.contains("ctrl+o"));

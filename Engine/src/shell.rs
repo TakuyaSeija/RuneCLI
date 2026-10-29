@@ -48,6 +48,58 @@ impl ShellKind {
     }
 }
 
+/// Engine-observed shell identity, not an argument supplied by the model.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ShellInfo {
+    pub program: String,
+}
+
+impl ShellInfo {
+    pub fn new(program: &Path) -> Self {
+        Self {
+            program: program.to_string_lossy().into_owned(),
+        }
+    }
+
+    pub fn kind(&self) -> ShellKind {
+        ShellKind::of(Path::new(&self.program))
+    }
+
+    pub fn title(&self) -> &str {
+        let file = self
+            .program
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(&self.program);
+        let name = file.strip_suffix(".exe").unwrap_or(file);
+        if name.eq_ignore_ascii_case("bash") {
+            "Bash"
+        } else if self.kind() == ShellKind::PowerShell {
+            "PowerShell"
+        } else if self.kind() == ShellKind::Cmd {
+            "Cmd"
+        } else {
+            name
+        }
+    }
+
+    pub fn syntax(&self) -> &'static str {
+        match self.kind() {
+            ShellKind::Posix => "sh",
+            ShellKind::PowerShell => "powershell",
+            ShellKind::Cmd => "cmd",
+        }
+    }
+
+    pub fn prompt(&self) -> &'static str {
+        match self.kind() {
+            ShellKind::Posix => "$",
+            ShellKind::PowerShell => "PS>",
+            ShellKind::Cmd => ">",
+        }
+    }
+}
+
 /// What PowerShell runs around a command: output in UTF-8 (a console's own
 /// code page would garble every name that is not ASCII), the last exit code
 /// cleared — then the command — then its exit code reported the way a POSIX
@@ -127,6 +179,24 @@ mod tests {
     use std::ffi::OsString;
 
     #[test]
+    fn shell_titles_follow_the_actual_executable_not_the_operating_system() {
+        for (program, title, syntax, prompt) in [
+            ("/bin/bash", "Bash", "sh", "$"),
+            ("/bin/zsh", "zsh", "sh", "$"),
+            ("/bin/sh", "sh", "sh", "$"),
+            (r"C:\PowerShell\pwsh.exe", "PowerShell", "powershell", "PS>"),
+            (r"C:\Windows\System32\cmd.exe", "Cmd", "cmd", ">"),
+            (r"C:\Git\bin\bash.exe", "Bash", "sh", "$"),
+        ] {
+            let shell = ShellInfo::new(Path::new(program));
+            assert_eq!(shell.title(), title);
+            assert_eq!(shell.syntax(), syntax);
+            assert_eq!(shell.prompt(), prompt);
+            assert!(!shell.title().contains("Administrator"));
+        }
+    }
+
+    #[test]
     fn a_shell_is_known_by_its_name() {
         for (path, kind) in [
             ("/bin/bash", ShellKind::Posix),
@@ -153,6 +223,16 @@ mod tests {
         let launch = launch(Path::new("/bin/bash"), "echo hi && ls").unwrap();
         assert_eq!(launch.args, ["-c", "echo hi && ls"].map(OsString::from));
         assert_eq!(launch.verbatim_tail, None);
+    }
+
+    #[test]
+    fn posix_launch_keeps_newlines_indentation_comments_and_heredocs_exact() {
+        let script = "echo first ; echo second\necho third\n# not a command\ncat <<'END'\n  original line\nEND\n";
+        let launch = launch(Path::new("/bin/bash"), script).unwrap();
+        assert_eq!(launch.args, [OsString::from("-c"), OsString::from(script)]);
+        assert!(!launch.args[1]
+            .to_string_lossy()
+            .contains("echo second echo third"));
     }
 
     /// PowerShell gets the command whole, encoded, with the preamble and the

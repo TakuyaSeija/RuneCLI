@@ -179,9 +179,9 @@ def gateway(a, router):
     scroll_to(a, "9router · Search · Fetch")
     select(a, "9router · Search · Fetch")
     a.send(b"\r")
-    live.until(lambda: a.shows("Key name / 9router"), "account setup", a)
-    a.send(b"\x1b")
-    live.until(lambda: a.shows("Save account"), "account form", a)
+    # The form is the step (owner, 2026-10-23): no editor opens by itself.
+    live.until(lambda: a.shows("NOT SAVED YET") and a.shows("Save account"), "account form", a)
+    assert not a.shows("Key name / 9router"), a.screen.text()
     for gone in ("Route", "Web search", "Web fetch", "SERP zone"):
         assert gone not in a.screen.text(), a.screen.text()
     select(a, "Base URL")
@@ -283,6 +283,8 @@ def main():
         scroll_to(a, "SearXNG · Search")
         SearXNG.json_enabled = False
         click_text(a, "SearXNG · Search")
+        live.until(lambda: a.shows("NOT SAVED YET"), "SearXNG form, on its address", a)
+        a.send(b"\r")
         live.until(lambda: a.shows("Base URL / searxng"), "address", a)
         a.type(searxng)
         a.send(b"\r")

@@ -132,7 +132,7 @@ pub fn heading(tool: &Tool) -> String {
         "terminal_use" => {
             let cmds = commands(tool);
             if let Some(cmd) = cmds.first() {
-                format!("Run $ {cmd}")
+                format!("Run {cmd}")
             } else {
                 "Running a command".to_string()
             }

@@ -218,21 +218,69 @@ impl Settings {
         cached: u64,
         details: &crate::provider::UsageDetails,
     ) -> Option<f64> {
-        if let Some(cost) = details.provider_cost {
-            return Some(cost);
-        }
-        if !details.measured || !details.input_known || !details.output_known {
-            return None;
-        }
         let price = self
             .providers
             .get(provider)
             .and_then(|p| p.model(model))
             .and_then(|m| m.price.as_ref());
-        match price {
-            Some(p) => p.cost(input, output, cached, details),
-            None => None,
-        }
+        charge(price, input, output, cached, details)
+    }
+
+    /// Every model's price as it stands now, to price recorded requests with
+    /// once the settings are let go: the store is read under its own lock,
+    /// never with this one held.
+    pub fn prices(&self) -> Prices {
+        Prices(
+            self.providers
+                .list
+                .iter()
+                .flat_map(|p| {
+                    p.models
+                        .iter()
+                        .filter_map(|m| Some(((p.name.clone(), m.id.clone()), m.price.clone()?)))
+                })
+                .collect(),
+        )
+    }
+}
+
+/// What one request cost at `price`: the provider's own figure when it gave
+/// one, else the model's rates over a measured request — never a guess.
+fn charge(
+    price: Option<&providers::Price>,
+    input: u64,
+    output: u64,
+    cached: u64,
+    details: &crate::provider::UsageDetails,
+) -> Option<f64> {
+    if let Some(cost) = details.provider_cost {
+        return Some(cost);
+    }
+    if !details.measured || !details.input_known || !details.output_known {
+        return None;
+    }
+    price?.cost(input, output, cached, details)
+}
+
+/// The prices of [`Settings::prices`]: a request recorded before its model
+/// had a price takes the price the model has now (owner, 2026-10-23); one
+/// priced when it ran keeps what it was charged.
+#[derive(Debug, Clone, Default)]
+pub struct Prices(std::collections::HashMap<(String, String), providers::Price>);
+
+impl Prices {
+    /// [`Settings::price_of`], at these prices.
+    pub fn price_of(
+        &self,
+        provider: &str,
+        model: &str,
+        input: u64,
+        output: u64,
+        cached: u64,
+        details: &crate::provider::UsageDetails,
+    ) -> Option<f64> {
+        let price = self.0.get(&(provider.to_string(), model.to_string()));
+        charge(price, input, output, cached, details)
     }
 }
 

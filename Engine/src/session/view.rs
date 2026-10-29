@@ -27,6 +27,9 @@ use crate::store::Db;
 /// word the stream has said about the same thing wins.
 pub struct Standing {
     pub settings: Value,
+    /// Every model's price, read before the store is taken: what prices the
+    /// requests that ran without one ([`crate::store::Db::session_usage`]).
+    pub prices: crate::settings::Prices,
     pub file_changes: Value,
     pub mode: String,
     pub classifier: Value,
@@ -73,7 +76,7 @@ pub fn from_store(
         // the moment it began (`live`'s first event says when).
         "active_seconds": row.active_seconds,
         "settings": standing.settings,
-        "usage": db.session_usage_before(session, first)?,
+        "usage": db.session_usage_before(session, first, &standing.prices)?,
         "tasks": db.tasks(session)?,
         "file_changes": standing.file_changes,
         "composer": db.jsonl.composer(session)?,
@@ -112,6 +115,11 @@ pub fn overlay(view: &mut Value, account: &Account) -> Result<()> {
     if let Some(Event::Composer { composer, .. }) = account.last("composer") {
         view["composer"] = serde_json::to_value(composer)?;
     }
+    view["compacting"] = account
+        .last("compacting")
+        .map(serde_json::to_value)
+        .transpose()?
+        .unwrap_or(Value::Null);
     view["live"] = match &account.run {
         Some(run) => json!({
             "first_turn": run.first_turn,

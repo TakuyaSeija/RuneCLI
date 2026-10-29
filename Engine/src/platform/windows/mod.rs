@@ -5,6 +5,8 @@
 //! for the window's own terminal. Windows 10 1809 and later.
 
 mod account;
+mod browser;
+pub use browser::open_browser;
 mod clipboard;
 mod confine;
 mod console;

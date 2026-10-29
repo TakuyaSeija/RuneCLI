@@ -254,6 +254,8 @@ pub(super) fn spec_of_mode(role: Role, mode: ThemeMode) -> Spec {
     match role {
         // Neutrals — the background's hue, separated only by how far they sit from it.
         Role::Text => spec(None, 0.03, 15.0),
+        // Prose alone reaches the neutral endpoint; chrome keeps its hierarchy.
+        Role::Response => spec(None, 0.0, 21.0),
         Role::Muted => spec(None, 0.06, 10.0),
 
         // Faint and Rule carry bold, rich, unmistakable tints of the active theme
@@ -363,6 +365,13 @@ fn solve(bg: Rgb, spec: &Spec) -> Rgb {
         None => spec.sat.min(chroma_of(bg) * 2.0 + 0.04),
     };
     let lighter = luminance(bg) < PIVOT;
+    if spec.sat == 0.0 && spec.contrast >= 21.0 {
+        return if lighter {
+            Rgb(255, 255, 255)
+        } else {
+            Rgb(0, 0, 0)
+        };
+    }
     let start = lightness_of(bg);
     let mut best = Rgb(0, 0, 0);
     let mut best_ratio = 0.0;
@@ -593,6 +602,20 @@ mod tests {
 
     const DARK: Rgb = Rgb(12, 14, 20);
     const LIGHT: Rgb = Rgb(250, 250, 248);
+
+    #[test]
+    fn response_alone_uses_the_neutral_endpoint_on_dark_and_light_backgrounds() {
+        for mode in ThemeMode::ALL {
+            for bg in [DARK, LIGHT] {
+                let palette = build_with(bg, mode);
+                let response = palette.of(Role::Response);
+                assert_eq!(response.0, response.1);
+                assert_eq!(response.1, response.2);
+                assert!(contrast(response, bg) >= contrast(palette.of(Role::Text), bg));
+                assert!(contrast(response, bg) >= contrast(palette.of(Role::Muted), bg));
+            }
+        }
+    }
 
     /// The whole point of the module: nothing it produces may be hard to read on
     /// the background it produced it for. This is the "samar" bug as a test.

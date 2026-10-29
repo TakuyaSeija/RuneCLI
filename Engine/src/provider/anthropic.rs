@@ -55,7 +55,12 @@ pub(crate) fn body(req: &Request, cfg: &ProviderConfig) -> Value {
     let mut body = Map::new();
     body.insert("model".into(), json!(s.model));
     body.insert("stream".into(), json!(true));
-    body.insert("system".into(), json!(req.system));
+    // An empty system is no system: Anthropic refuses an empty text block
+    // ("system: text content blocks must be non-empty", through 9router,
+    // 2026-10-23).
+    if !req.system.is_empty() {
+        body.insert("system".into(), json!(req.system));
+    }
 
     let model = cfg.model(&s.model);
     let ceiling = model.and_then(|m| m.max_output);
@@ -65,8 +70,19 @@ pub(crate) fn body(req: &Request, cfg: &ProviderConfig) -> Value {
         .max_output
         .unwrap_or_else(|| ceiling.map_or(auto_smart, |limit| auto_smart.min(limit)));
     body.insert("max_tokens".into(), json!(max_tokens));
-    let thinking = (s.thinking || model.is_some_and(|m| m.thinking_required))
-        && model.is_none_or(|m| m.thinking);
+    // 9router's Anthropic door asks for thinking the router's way: its level
+    // table, Off said aloud, no level the route's own.
+    let router = (cfg.api_kind() == "9router")
+        .then(|| router_thinking(s, model, max_tokens))
+        .flatten();
+    let thinking = match &router {
+        Some(controls) => controls.thinks(),
+        None if cfg.api_kind() == "9router" => false,
+        None => {
+            (s.thinking || model.is_some_and(|m| m.thinking_required))
+                && model.is_none_or(|m| m.thinking)
+        }
+    };
     if !s.is_suppressed(cfg, "temperature") {
         if let Some(t) = s.temperature {
             body.insert("temperature".into(), json!(t));
@@ -80,7 +96,12 @@ pub(crate) fn body(req: &Request, cfg: &ProviderConfig) -> Value {
     if !s.stop.is_empty() && !s.is_suppressed(cfg, "stop") {
         body.insert("stop_sequences".into(), json!(s.stop));
     }
-    if thinking {
+    if let Some(controls) = router {
+        body.insert("thinking".into(), controls.thinking);
+        if let Some(effort) = controls.effort {
+            body.insert("output_config".into(), json!({ "effort": effort }));
+        }
+    } else if thinking && cfg.api_kind() != "9router" {
         if model.is_some_and(|m| m.thinking_modes.iter().any(|mode| mode == "adaptive")) {
             body.insert("thinking".into(), json!({"type":"adaptive"}));
             if let Some(effort) = s
@@ -143,6 +164,116 @@ pub(crate) fn body(req: &Request, cfg: &ProviderConfig) -> Value {
         }
     }
     Value::Object(body)
+}
+
+/// What 9router appends to every tool name it sends a Claude subscription
+/// route (`cc/…`): on its OpenAI door it takes it off the model's calls, on
+/// its `/v1/messages` it passes them back still carrying it (9router 0.5.104,
+/// measured 2026-10-23: `search_text` came back `search_text_ide`, and the
+/// call failed as an unknown tool).
+pub(crate) const ROUTER_TOOL_SUFFIX: &str = "_ide";
+
+/// A `tool_use` block under the name the request declared: one `declared`
+/// tool's name plus [`ROUTER_TOOL_SUFFIX`] is that tool, in the call and in
+/// the block kept for the route's replay (sent back carrying the suffix, the
+/// router would add another). Any other name stays as it came.
+fn declared_name(declared: Option<&[String]>, block: &Value) -> Value {
+    let mut block = block.clone();
+    let renamed = declared.and_then(|declared| {
+        let name = block.get("name")?.as_str()?;
+        let bare = name.strip_suffix(ROUTER_TOOL_SUFFIX)?;
+        (block["type"] == json!("tool_use")
+            && !declared.iter().any(|d| d == name)
+            && declared.iter().any(|d| d == bare))
+        .then(|| bare.to_string())
+    });
+    if let Some(bare) = renamed {
+        block["name"] = json!(bare);
+    }
+    block
+}
+
+/// What a 9router route is asked to think, in Claude's own controls.
+struct RouterThinking {
+    thinking: Value,
+    effort: Option<&'static str>,
+}
+
+impl RouterThinking {
+    fn thinks(&self) -> bool {
+        self.thinking["type"] != json!("disabled")
+    }
+}
+
+/// The session's thinking on a 9router model, as its Anthropic door
+/// (`/v1/messages`) takes it: the same choices as the router's OpenAI door
+/// ([`crate::settings::providers::ROUTER_LEVELS`], Off, "Route default"),
+/// turned into Claude's controls the way the router turns `reasoning_effort`
+/// into them (9router 0.5.104 source, read 2026-10-23), since this door
+/// passes the request through as written (owner, 2026-10-23):
+///
+/// - Off is `disabled`, said aloud: the door applies the route's own thinking
+///   to a request that names none (measured on `cc/claude-sonnet-5-5` and
+///   `cc/claude-haiku-5-5`). A route that cannot stop thinking
+///   (`thinking_off_requests_low`) is asked for Low instead (a request,
+///   never a guarantee of the upstream's actual thinking).
+/// - A level on a `claude-adaptive` route is `adaptive` with
+///   `output_config.effort` (`minimal`, a level Claude does not name, asks
+///   for `low`, as the router does); a budget there is not read (measured).
+///   Elsewhere it is a budget from the router's table, never under the
+///   minimum Anthropic takes.
+/// - On with no level ("Route default") sends nothing: the route decides.
+///
+/// What is shown of it is Anthropic's count, asked for by the door's beta
+/// ([`crate::settings::providers::THINKING_TOKEN_COUNT`]), never its text.
+///
+/// `None` sends nothing at all.
+fn router_thinking(
+    s: &crate::settings::ModelSettings,
+    model: Option<&ModelInfo>,
+    max_tokens: u64,
+) -> Option<RouterThinking> {
+    let model = model?;
+    if model.reasoning_support() != Some(true) {
+        return None;
+    }
+    let level = if s.thinking || model.thinking_required {
+        s.effort
+            .as_deref()
+            .filter(|e| model.effort_choices("9router").iter().any(|v| v == *e))?
+    } else if model.thinking_off_requests_low() {
+        "low"
+    } else {
+        return Some(RouterThinking {
+            thinking: json!({ "type": "disabled" }),
+            effort: None,
+        });
+    };
+    let adaptive = model
+        .metadata
+        .pointer("/capabilities/thinkingFormat")
+        .and_then(Value::as_str)
+        == Some("claude-adaptive");
+    if adaptive {
+        let effort = match level {
+            "minimal" | "low" => "low",
+            "medium" => "medium",
+            "high" => "high",
+            "xhigh" => "xhigh",
+            _ => "max",
+        };
+        return Some(RouterThinking {
+            thinking: json!({ "type": "adaptive" }),
+            effort: Some(effort),
+        });
+    }
+    let budget = crate::settings::providers::router_budget(level)
+        .max(MIN_THINKING_BUDGET)
+        .min(max_tokens.saturating_sub(1));
+    Some(RouterThinking {
+        thinking: json!({ "type": "enabled", "budget_tokens": budget }),
+        effort: None,
+    })
 }
 
 /// Add user-side blocks: to the user message already last, or as a new one.
@@ -313,6 +444,8 @@ enum Block {
 /// is, so the meaning of a fragment was decided one event earlier.
 #[derive(Default)]
 pub struct State {
+    /// Declared tool names a gateway hands back changed ([`ROUTER_TOOL_SUFFIX`]).
+    pub(crate) renamed: Option<Vec<String>>,
     pub(crate) calls: Assembly,
     kinds: BTreeMap<u32, Block>,
     pub(crate) usage: Option<Chunk>,
@@ -321,6 +454,15 @@ pub struct State {
     open_blocks: std::collections::BTreeSet<u32>,
     partial_inputs: BTreeMap<u32, String>,
     details: super::UsageDetails,
+    /// The request asked Anthropic to count the thinking
+    /// ([`crate::settings::providers::THINKING_TOKEN_COUNT`]).
+    pub(crate) counted: bool,
+    /// The sum of the thinking counts Anthropic reported so far.
+    reported: u64,
+    /// A thinking block opened in this message.
+    thought: bool,
+    /// Its billed count was told.
+    billed: bool,
 }
 
 impl State {
@@ -354,6 +496,11 @@ impl State {
             .and_then(Value::as_u64);
         self.details.cache_write = usage
             .get("cache_creation_input_tokens")
+            .and_then(Value::as_u64);
+        // Thinking a route returns no text for is still counted here: Claude
+        // Code's subscription route, measured through 9router 2026-10-23.
+        self.details.reasoning = usage
+            .pointer("/output_tokens_details/thinking_tokens")
             .and_then(Value::as_u64);
         let written = self.details.cache_write.unwrap_or(
             self.details
@@ -429,6 +576,8 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
                     "invalid or repeated content block start".into(),
                 ));
             }
+            let declared = block.map(|b| declared_name(state.renamed.as_deref(), b));
+            let block = declared.as_ref();
             if let Some(block) = block {
                 state.blocks.insert(index, block.clone());
             }
@@ -450,6 +599,7 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
                 }
                 Some("thinking") | Some("redacted_thinking") => {
                     state.kinds.insert(index, Block::Thinking);
+                    state.thought = true;
                 }
                 _ => {
                     state.kinds.insert(index, Block::Text);
@@ -458,8 +608,15 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
             if let Some(t) = text(block, "text") {
                 out.push(Chunk::Text(t));
             }
-            if let Some(t) = text(block, "thinking") {
-                out.push(Chunk::Thinking(t));
+            match text(block, "thinking") {
+                Some(t) => out.push(Chunk::Thinking(t)),
+                // Thinking that starts with no text — Claude Code's
+                // subscription route returns none at all — still starts:
+                // the window shows it, and Anthropic's count follows.
+                None if matches!(block_type, Some("thinking" | "redacted_thinking")) => {
+                    out.push(Chunk::Thinking(String::new()))
+                }
+                None => {}
             }
         }
         "content_block_delta" => {
@@ -508,6 +665,19 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
                     if let Some(t) = text(delta, "thinking") {
                         out.push(Chunk::Thinking(t));
                     }
+                    // The tokens thought since the frame before, as Anthropic
+                    // counted them; the last frame carries `null`.
+                    let counted = delta
+                        .and_then(|d| d.get("estimated_tokens"))
+                        .and_then(Value::as_u64)
+                        .filter(|n| *n > 0);
+                    if let Some(n) = counted.filter(|_| state.counted) {
+                        state.reported = state.reported.saturating_add(n);
+                        out.push(Chunk::ThinkingTokens {
+                            tokens: state.reported,
+                            billed: false,
+                        });
+                    }
                 }
                 Block::ToolUse => {
                     let piece = text(delta, "partial_json").unwrap_or_default();
@@ -535,6 +705,19 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
             }
             if let Some(usage) = value.get("usage") {
                 state.update_usage(usage)?;
+                // The count the usage bills is the thinking's own, told where
+                // Anthropic tells it — before the usage closes the round on
+                // every screen — and once: it ends what was reported while
+                // the thinking ran (whose last frame carries none).
+                if state.counted && state.thought && !state.billed {
+                    if let Some(tokens) = state.details.reasoning {
+                        state.billed = true;
+                        out.push(Chunk::ThinkingTokens {
+                            tokens,
+                            billed: true,
+                        });
+                    }
+                }
             }
         }
         _ => {}
@@ -640,6 +823,162 @@ mod tests {
         assert!(chunks.iter().any(|c|matches!(c,Chunk::Usage{input:1500,output:0,cached:900,details} if details.cache_write_5m==Some(200) && details.cache_write_1h==Some(300) && details.output_known)));
     }
 
+    /// Owner, 2026-10-23, found in the live window: 9router's `/v1/messages`
+    /// hands a Claude subscription route's call back as `search_text_ide`.
+    /// It is the declared tool, in the call and in what is kept for replay;
+    /// a name that is not a declared one plus the suffix stays as it came.
+    #[test]
+    fn a_tool_name_the_router_suffixed_is_read_as_the_declared_tool() {
+        let mut state = State {
+            renamed: Some(vec!["search_text".to_string(), "x_ide".to_string()]),
+            ..Default::default()
+        };
+        let events = [
+            json!({"type":"message_start","message":{"usage":{"input_tokens":5,"output_tokens":1}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"t1","name":"search_text_ide","input":{}}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"pattern\":\"hello\",\"regex\":true}"}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"t2","name":"x_ide","input":{}}}),
+            json!({"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{}"}}),
+            json!({"type":"content_block_stop","index":1}),
+            json!({"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"t3","name":"other_ide","input":{}}}),
+            json!({"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{}"}}),
+            json!({"type":"content_block_stop","index":2}),
+            json!({"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":9}}),
+        ];
+        let mut chunks = Vec::new();
+        for event in &events {
+            chunks.extend(absorb(event, &mut state).unwrap());
+        }
+        assert_eq!(state.blocks[&0]["name"], json!("search_text"));
+        chunks.extend(state.finish().unwrap());
+        let names: Vec<_> = chunks
+            .iter()
+            .filter_map(|c| match c {
+                Chunk::ToolCall { name, args, .. } => Some((name.clone(), args.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            names,
+            [
+                (
+                    "search_text".into(),
+                    json!({"pattern": "hello", "regex": true})
+                ),
+                ("x_ide".into(), json!({})),
+                ("other_ide".into(), json!({})),
+            ]
+        );
+    }
+
+    /// Owner, 2026-10-23: Claude Code's subscription route thinks without
+    /// returning the text; the count it reports is what says it thought.
+    #[test]
+    fn the_thinking_count_a_route_reports_is_kept_with_the_usage() {
+        let mut state = State::default();
+        absorb(&json!({"type":"message_start","message":{"usage":{"input_tokens":29,"output_tokens":1}}}),&mut state).unwrap();
+        absorb(&json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":525,"output_tokens_details":{"thinking_tokens":520}}}),&mut state).unwrap();
+        let chunks = state.finish().unwrap();
+        assert!(chunks.iter().any(|c| matches!(c, Chunk::Usage { output: 525, details, .. } if details.reasoning == Some(520))));
+    }
+
+    /// A request without a system prompt sends none: Anthropic refuses an
+    /// empty one (measured through 9router, 2026-10-23).
+    #[test]
+    fn an_empty_system_prompt_is_not_sent() {
+        let mut req = request(vec![Message::user("hi")]);
+        req.system = String::new();
+        assert!(body(&req, &config()).get("system").is_none());
+        req.system = "sys".into();
+        assert!(body(&req, &config()).get("system").is_some());
+    }
+
+    /// Owner, 2026-10-23: what is shown of a thinking is what Anthropic
+    /// reports, never Rune's estimate. The frames below are the ones
+    /// `cc/claude-haiku-5-5` streamed through 9router with the door's beta
+    /// (signature shortened): each `estimated_tokens` is the tokens thought
+    /// since the frame before, the last is `null`, and the usage bills the
+    /// thinking. A request that did not ask for counts reports none, and a
+    /// message that did not think gets no count at all.
+    #[test]
+    fn the_thinking_count_is_the_sum_anthropic_reports_then_the_one_it_bills() {
+        let frames = [
+            json!({"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":45,"output_tokens":1}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}),
+            json!({"type":"ping"}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":50}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":200}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":250}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":250}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":300}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":300}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":300}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":300}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":null}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"CAQS2B4K"}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}),
+            json!({"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"16"}}),
+            json!({"type":"content_block_stop","index":1}),
+            json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":45,"output_tokens":2123,"output_tokens_details":{"thinking_tokens":2120}}}),
+            json!({"type":"message_stop"}),
+        ];
+        let counts = |counted: bool, frames: &[Value]| {
+            let mut state = State {
+                counted,
+                ..Default::default()
+            };
+            let mut chunks = Vec::new();
+            for frame in frames {
+                chunks.extend(absorb(frame, &mut state).unwrap());
+            }
+            chunks.extend(state.finish().unwrap());
+            let counts: Vec<_> = chunks
+                .iter()
+                .filter_map(|c| match c {
+                    Chunk::ThinkingTokens { tokens, billed } => Some((*tokens, *billed)),
+                    _ => None,
+                })
+                .collect();
+            (chunks, counts)
+        };
+        let (chunks, reported) = counts(true, &frames);
+        assert_eq!(
+            reported,
+            [
+                (50, false),
+                (250, false),
+                (500, false),
+                (750, false),
+                (1050, false),
+                (1350, false),
+                (1650, false),
+                (1950, false),
+                (2120, true),
+            ]
+        );
+        // The thinking starts on screen before its first count, and its
+        // billed count comes before the usage that closes the round.
+        assert_eq!(chunks[0], Chunk::Thinking(String::new()));
+        let billed = chunks
+            .iter()
+            .position(|c| matches!(c, Chunk::ThinkingTokens { billed: true, .. }));
+        let usage = chunks.iter().position(|c| matches!(c, Chunk::Usage { .. }));
+        assert!(billed < usage, "{chunks:?}");
+        // Not asked: no count, whatever the frames carry.
+        assert!(counts(false, &frames).1.is_empty());
+        // Asked, but the message did not think: nothing either.
+        let answer = [
+            json!({"type":"message_start","message":{"id":"msg_2","usage":{"input_tokens":45,"output_tokens":1}}}),
+            json!({"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}),
+            json!({"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"16"}}),
+            json!({"type":"content_block_stop","index":0}),
+            json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3,"output_tokens_details":{"thinking_tokens":0}}}),
+        ];
+        assert!(counts(true, &answer).1.is_empty());
+    }
+
     #[test]
     fn signed_thinking_survives_storage_and_only_replays_to_its_own_route() {
         let blocks = json!([{"type":"thinking","thinking":"reason","signature":"opaque-signature"},{"type":"tool_use","id":"c","name":"echo","input":{"text":"abc"}}]);
@@ -669,6 +1008,81 @@ mod tests {
         );
         assert_eq!(same[0]["content"], blocks);
         assert!(conversation(&[message], None, None, Some(("other", "fixture"))).is_empty());
+    }
+
+    /// Owner, 2026-10-23: a 9router connection speaking the Anthropic format
+    /// reaches the router's `/v1/messages`, which passes a request through as
+    /// written and applies the route's own thinking to one that names none.
+    /// The person's choice is asked for in Claude's controls, the way the
+    /// router's OpenAI door would have turned it.
+    #[test]
+    fn a_9router_route_on_the_anthropic_door_is_asked_for_thinking_in_claudes_controls() {
+        let mut cfg = preset("9router").unwrap().build("");
+        cfg.dialect = crate::settings::providers::Dialect::Anthropic;
+        let route = |id: &str, format: &str, can_disable: bool| {
+            let mut m = ModelInfo::named(id, true);
+            m.metadata = json!({"capabilities": {"reasoning": true, "thinkingFormat": format, "thinkingCanDisable": can_disable}});
+            m.max_output = Some(64_000);
+            m.settle_router_thinking();
+            m
+        };
+        cfg.models = vec![
+            route("cc/claude-sonnet-5-5", "claude-adaptive", true),
+            route("cc/claude-haiku-5-5", "claude-budget", true),
+            route("cc/claude-opus-5-5", "claude-adaptive", false),
+            route("cc/budget-cannot-disable", "claude-budget", false),
+        ];
+        for model in &mut cfg.models[2..] {
+            model.reasoning_options = Some(vec!["off".into(), "max".into()]);
+            model.settle_router_thinking();
+        }
+        let ask = |model: &str, thinking: bool, effort: Option<&str>| {
+            let mut settings = ModelSettings::for_provider(&cfg);
+            settings.model = model.into();
+            settings.thinking = thinking;
+            settings.effort = effort.map(String::from);
+            settings.max_output = Some(32_000);
+            let req = Request {
+                control: Default::default(),
+                system: "sys".into(),
+                messages: vec![Message::user("hi")],
+                tools: Vec::new(),
+                settings,
+            };
+            body(&req, &cfg)
+        };
+        // Off is said aloud: the door thinks on its own otherwise.
+        let off = ask("cc/claude-sonnet-5-5", false, None);
+        assert_eq!(off["thinking"], json!({"type": "disabled"}));
+        assert!(off.get("output_config").is_none());
+        // A level on an adaptive route is its effort; minimal is Claude's low.
+        let high = ask("cc/claude-sonnet-5-5", true, Some("high"));
+        assert_eq!(high["thinking"], json!({"type": "adaptive"}));
+        assert_eq!(high["output_config"], json!({"effort": "high"}));
+        let least = ask("cc/claude-sonnet-5-5", true, Some("minimal"));
+        assert_eq!(least["output_config"], json!({"effort": "low"}));
+        // A budget route gets the router's budget for the level.
+        let medium = ask("cc/claude-haiku-5-5", true, Some("medium"));
+        assert_eq!(
+            medium["thinking"],
+            json!({"type": "enabled", "budget_tokens": 8192})
+        );
+        // No level is the route's own: nothing is sent.
+        let default = ask("cc/claude-sonnet-5-5", true, None);
+        assert!(default.get("thinking").is_none(), "{default}");
+        // Off requests Low even when the person's offered subset starts at Max.
+        let must = ask("cc/claude-opus-5-5", false, None);
+        assert_eq!(must["thinking"], json!({"type": "adaptive"}));
+        assert_eq!(must["output_config"], json!({"effort": "low"}));
+        let budget = ask("cc/budget-cannot-disable", false, None);
+        assert_eq!(
+            budget["thinking"],
+            json!({"type":"enabled", "budget_tokens":1024})
+        );
+        assert!(budget.get("output_config").is_none());
+        // The request is a Messages body at the same address.
+        assert!(off.get("reasoning_effort").is_none());
+        assert_eq!(endpoint(&cfg), "http://localhost:20128/v1/messages");
     }
 
     #[test]

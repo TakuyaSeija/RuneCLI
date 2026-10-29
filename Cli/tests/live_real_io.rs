@@ -326,12 +326,12 @@ fn real_wire_payload_inspection_with_real_files() {
                 "must contain char_limit=60000: {xml}"
             );
             assert!(
-                xml.contains("truncated 1200 lines more"),
-                "must report truncated lines: {xml}"
+                xml.contains("1200 lines were not auto-loaded"),
+                "must report omitted lines: {xml}"
             );
             assert!(
-                xml.contains("inspect_file"),
-                "must advise inspect_file: {xml}"
+                !xml.contains("inspect_file"),
+                "repeated recovery instruction: {xml}"
             );
         }
         other => panic!("expected Inlined::Text, got {other:?}"),
@@ -354,9 +354,8 @@ fn real_wire_payload_inspection_with_real_files() {
                 "must be binary_not_injected: {xml}"
             );
             assert!(
-                xml.contains("inspect_file or terminal commands")
-                    || xml.contains("inspect_file or terminal commands"),
-                "must advise inspect_file or terminal: {xml}"
+                !xml.contains("inspect_file"),
+                "repeated recovery instruction: {xml}"
             );
         }
         other => panic!("expected Inlined::Text, got {other:?}"),

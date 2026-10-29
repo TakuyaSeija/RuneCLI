@@ -321,6 +321,7 @@ impl State {
         row_index(rows, display_at, upstream)
     }
 
+    #[cfg(test)]
     pub fn select(&mut self, text: &str, cursor: &mut usize, start: usize, end: usize) {
         self.observe(text, *cursor);
         self.anchor = Some(boundary(text, start));
@@ -332,6 +333,7 @@ impl State {
         self.killed = None;
     }
 
+    #[cfg(test)]
     pub(super) fn select_in_row(
         &mut self,
         text: &str,

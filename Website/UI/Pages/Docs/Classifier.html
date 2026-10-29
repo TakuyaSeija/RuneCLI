@@ -1,0 +1,18 @@
+{{define "article"}}
+<h2 id="purpose">Policy review, not a permission grant</h2>
+<p>The classifier reviews applicable proposed actions against your written CLASSIFIER.md policy. It needs usable policy and an eligible mode. It is inactive in Ask; in Auto/Full, exclusions and explicit human authorization can affect whether a call is reviewed. Read Classifier status rather than equating Enabled with Active.</p>
+<p>A review model can be wrong. Review does not replace access checks, safe task boundaries or your judgment, and it does not make Full a low-risk mode.</p>
+<h2 id="policy-authority">Policy authority</h2>
+<p>Policy can be global in the selected Rune home or project-local at the workspace root. Global rules take precedence over project rules, which take precedence over explicit sourced user restrictions for the work. Write clear requirements, prohibitions and exceptions rather than relying on a model to infer an unstated approval.</p>
+<p>CLASSIFIER.md is distinct from AGENTS.md project guidance. You own the policy file; changing it is a real project/global policy decision. An assistant-created explanation or a tool response cannot invent your approval.</p>
+<h2 id="snapshot-and-reload">Snapshot and reload</h2>
+<p>The session pins policy at its first admitted work, including a missing or invalid-policy state. Editing the file does not silently replace the live policy. When idle, use Reload classifier policy in Generation or <code>/classifier reload</code>. A failed reload keeps the previous policy; a new host/session reads the applicable current policy.</p>
+<p>Check status after reload. No usable policy means no claim of active review. Do not disable the classifier or switch modes simply because an evaluation fails.</p>
+<h2 id="evidence-and-limits">Evidence and limits</h2>
+<p>Review uses the exact proposed arguments, relevant original user instructions and clarifications, explicit text/image attachments, and selected recent tool inputs. It does not automatically collect arbitrary script or repository contents merely because a command mentions a file.</p>
+<p>The factory text-evidence allowance is 256 KiB after formatting; proposed arguments stay complete. Policy files have a separate 64 KiB factory limit. Image and total provider request limits remain separate. The default review deadline is 120 seconds and requested output 1,024 tokens, constrained by the model.</p>
+<p>Excluded tools controls which applicable calls skip classifier review only; it does not bypass other permissions. Context tools controls which recent inputs provide context, independently of exclusions. An explicit empty list is not a reset.</p>
+<h2 id="sanitizer-and-failures">Sanitizer and failures</h2>
+<p>The enabled-by-default sanitizer can extract instructions from original user sources for review. It does not rewrite the user's messages or clean source files. If extraction is unavailable, original restrictions can still be used. Additional model work can add latency, cost and a different provider destination.</p>
+<p>A denied review, an unavailable service and an invalid evaluation are different outcomes, not an automatic approval. Read the reported result. Changing review model, evidence or exclusions can alter coverage; explain the risk before applying those global choices.</p>
+{{end}}

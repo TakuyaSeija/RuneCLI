@@ -279,6 +279,7 @@ fn distance(a: Rgb, b: Rgb) -> i32 {
 pub enum Role {
     Accent,
     Text,
+    Response,
     User,
     Muted,
     Faint,
@@ -302,9 +303,10 @@ pub enum Role {
 }
 
 impl Role {
-    pub const ALL: [Role; 19] = [
+    pub const ALL: [Role; 20] = [
         Role::Accent,
         Role::Text,
+        Role::Response,
         Role::User,
         Role::Muted,
         Role::Faint,
@@ -370,6 +372,8 @@ impl std::fmt::Display for Ink {
 // would be two things to keep in step for no gain.
 pub const ACCENT: Ink = Ink(Role::Accent);
 pub const TEXT: Ink = Ink(Role::Text);
+/// Assistant prose only, including intermediate responses; not tool output.
+pub const RESPONSE: Ink = Ink(Role::Response);
 /// What the user themselves typed — the strongest ink on the screen, because
 /// telling one's own words from the model's is the first thing a reader does.
 pub const USER: Ink = Ink(Role::User);
@@ -1162,13 +1166,13 @@ pub fn slice(s: &str, from: usize, to: usize) -> String {
     }
     let plain = plain(s);
     let mut out = String::new();
-    let mut measure = Measure::default();
-    for c in plain.chars() {
-        let before = measure.total;
-        let after = measure.add(c);
-        if (after > from && before < to) || (after == before && before > from && before <= to) {
-            out.push(c);
+    let mut column = 0;
+    for (_, glyph, width) in editor_glyphs(&plain) {
+        let end = column + width;
+        if end > from && column < to {
+            out.push_str(glyph);
         }
+        column = end;
     }
     out
 }
@@ -1179,6 +1183,18 @@ pub fn select(s: &str, from: usize, to: usize) -> String {
     if from >= to {
         return s.to_string();
     }
+    let mut column = 0;
+    let mut selected = None::<(usize, usize)>;
+    for (_, _, width) in editor_glyphs(&plain(s)) {
+        let end = column + width;
+        if end > from && column < to {
+            selected = Some((selected.map_or(column, |range| range.0), end));
+        }
+        column = end;
+    }
+    let Some((from, to)) = selected else {
+        return s.to_owned();
+    };
     let mut out = String::new();
     let mut active = String::new();
     let mut measure = Measure::default();
@@ -1215,7 +1231,19 @@ pub fn select(s: &str, from: usize, to: usize) -> String {
 /// A clickable link, where the terminal supports OSC 8. Terminals that do not
 /// simply show the text, so there is no fallback to write.
 pub fn link(url: &str, text: &str) -> String {
-    format!("\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\")
+    let safe = !url.is_empty()
+        && url.len() <= 8192
+        && !url.chars().any(|ch| {
+            ch.is_control() || matches!(ch, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+        });
+    let web = runeengine::platform::BrowserUrl::parse(url).is_ok();
+    let windows_path =
+        matches!(url.as_bytes(), [drive, b':', b'/' | b'\\', ..] if drive.is_ascii_alphabetic());
+    let path = !url.contains(':') || windows_path;
+    if !safe || !(web || path || url.starts_with("file://")) {
+        return tame(text);
+    }
+    format!("\x1b]8;;{url}\x1b\\{}\x1b]8;;\x1b\\", tame(text))
 }
 
 /// Move the cursor to a 1-based row and column.
@@ -1452,6 +1480,20 @@ mod tests {
     #[test]
     fn blank_lines_survive_wrapping() {
         assert_eq!(wrap("a\n\nb", 10), vec!["a", "", "b"]);
+    }
+
+    #[test]
+    fn slicing_keeps_the_whole_glyph_when_either_wide_cell_is_selected() {
+        for glyph in ["界", "e\u{301}", "👩🏽\u{200d}💻", "🇮🇩", "1️⃣"] {
+            let text = format!("a{glyph}z");
+            for col in 1..1 + width(glyph) {
+                assert_eq!(slice(&text, col, col + 1), glyph);
+                assert_eq!(
+                    select(&text, col, col + 1),
+                    select(&text, 1, 1 + width(glyph))
+                );
+            }
+        }
     }
 
     #[test]

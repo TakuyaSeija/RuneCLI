@@ -33,8 +33,14 @@ impl Document {
     }
 
     pub fn append(&mut self, key: impl Into<String>, lines: Vec<String>) -> Range<usize> {
+        let mut sink = Sink::default();
+        sink.extend(lines);
+        self.append_sink(key, sink)
+    }
+
+    pub fn append_sink(&mut self, key: impl Into<String>, sink: Sink) -> Range<usize> {
         let start = self.sink.lines.len();
-        self.sink.extend(lines);
+        self.sink.append(&sink);
         let rows = start..self.sink.lines.len();
         if !rows.is_empty() {
             self.spans.push(Span {

@@ -68,6 +68,21 @@ jobs:
           cargo build --locked -p runecli
           python3 -I Cli/tests/RunPTY.py target/debug/rune
 
+      - name: Install Go for the website
+        if: always()
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Website and release signer
+        # The site, its catalog and install.sh end to end; the signer against openssl.
+        if: always()
+        run: |
+          (cd Website && go vet ./... && go test -count=1 ./...)
+          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
+
   # The Linux release, as people get it: built for glibc 2.17 (every glibc
   # distribution since 2012) and as one static musl file (Alpine, any Linux
   # without glibc), on x86_64 and aarch64 — then checked for what it asks of
@@ -213,7 +228,9 @@ jobs:
 
       - name: Build release (x64)
         if: always()
-        run: cargo build --release --locked -p runecli
+        run: |
+          cargo build --release --locked -p runecli
+          target/release/rune.exe --version
 
       - name: Build release (arm64)
         if: always()
@@ -231,6 +248,21 @@ jobs:
             ~/.cargo/git/db
             target
           key: windows-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+
+      - name: Install Go for the website
+        if: always()
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Website and release signer
+        # install.ps1 end to end in Windows PowerShell 5.1 and PowerShell 7.
+        if: always()
+        run: |
+          (cd Website && go vet ./... && go test -count=1 ./...)
+          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
 
       - name: Keep the binaries
         if: always()
@@ -404,6 +436,32 @@ jobs:
           cargo build --release --locked -p runecli
           cargo build --release --locked -p runecli --target x86_64-apple-darwin
 
+      - name: Run the release builds
+        # The Apple silicon build natively, the Intel one under Rosetta: a
+        # build that does not start (its signature, a library) fails here.
+        if: always()
+        run: |
+          /usr/bin/pgrep -q oahd || sudo softwareupdate --install-rosetta --agree-to-license
+          target/release/rune --version
+          arch -x86_64 target/x86_64-apple-darwin/release/rune --version
+
+      - name: Install Go for the website
+        if: always()
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Website and release signer
+        # install.sh end to end with the LibreSSL macOS ships, not a newer openssl on PATH.
+        if: always()
+        run: |
+          export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+          openssl version
+          (cd Website && go vet ./... && go test -count=1 ./...)
+          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
+
       - name: Save build cache
         if: always()
         # actions/cache v6.1.0
@@ -427,3 +485,188 @@ jobs:
             target/x86_64-apple-darwin/release/rune
           if-no-files-found: warn
           retention-days: 14
+
+  # The installers end to end on real machines, as a person runs them: the
+  # binaries this run built, staged as a release signed with a key made for
+  # this job only (Website/Tools/stage_test_release.py), served by the real
+  # website, installed by install.sh or install.ps1, then started.
+  installer-linux:
+    name: Installer (Linux ${{ matrix.arch }} ${{ matrix.libc }})
+    needs: linux-release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-24.04, libc: gnu }
+          - { arch: x86_64, runner: ubuntu-24.04, libc: musl }
+          - { arch: aarch64, runner: ubuntu-24.04-arm, libc: gnu }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        # actions/checkout v6.1.0; immutable revision, no saved Git credential.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Install Go for the website
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Fetch the build
+        # actions/download-artifact v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: rune-linux-${{ matrix.libc }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/build
+
+      - name: Install through install.sh and start it
+        run: |
+          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          chmod 0755 "$RUNNER_TEMP/build/rune"
+          python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
+            --license Ops/Release/LICENSE.txt --build "linux-${{ matrix.arch }}-${{ matrix.libc }}=$RUNNER_TEMP/build/rune"
+          (cd Website && go build -o "$RUNNER_TEMP/site" ./Server)
+          printf '{"env":"Dev","basePath":"/Studio","origin":"http://127.0.0.1:18766","hosts":["127.0.0.1:18766"],"listen":["127.0.0.1:18766"],"health":"127.0.0.1:18768","downloads":"%s","indexing":false}\n' "$RUNNER_TEMP/dl" >"$RUNNER_TEMP/site.json"
+          "$RUNNER_TEMP/site" --config "$RUNNER_TEMP/site.json" &
+          for _ in $(seq 50); do curl -fsS -o /dev/null http://127.0.0.1:18766/Studio/ && break; sleep 0.2; done
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home"
+          env -i HOME="$home" PATH=/usr/bin:/bin RUNE_LIBC=${{ matrix.libc }} sh -c 'curl -fsSL http://127.0.0.1:18766/Studio/install.sh | sh'
+          test "$(env -i HOME="$home" RUNE_HOME="$home/rune" PATH=/usr/bin:/bin "$home/.local/bin/rune" --version)" = "rune $version"
+          env -i HOME="$home" RUNE_HOME="$home/rune" PATH=/usr/bin:/bin "$home/.local/bin/rune" -config check
+          test -f "$home/.local/share/runeagent/LICENSE.txt"
+
+  installer-macos:
+    name: Installer (macOS ${{ matrix.arch }})
+    needs: macos
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: aarch64, runner: macos-14, path: release/rune }
+          - { arch: x86_64, runner: macos-15-intel, path: x86_64-apple-darwin/release/rune }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        # actions/checkout v6.1.0; immutable revision, no saved Git credential.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Install Go for the website
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Fetch the builds
+        # actions/download-artifact v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: rune-macos
+          path: ${{ runner.temp }}/build
+
+      - name: Install through install.sh and start it
+        # The system's own curl, tar and LibreSSL, as a fresh Mac has them.
+        run: |
+          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          chmod 0755 "$RUNNER_TEMP/build/release/rune" "$RUNNER_TEMP/build/x86_64-apple-darwin/release/rune"
+          python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
+            --license Ops/Release/LICENSE.txt \
+            --build "macos-aarch64=$RUNNER_TEMP/build/release/rune" \
+            --build "macos-x86_64=$RUNNER_TEMP/build/x86_64-apple-darwin/release/rune"
+          (cd Website && go build -o "$RUNNER_TEMP/site" ./Server)
+          printf '{"env":"Dev","basePath":"/Studio","origin":"http://127.0.0.1:18766","hosts":["127.0.0.1:18766"],"listen":["127.0.0.1:18766"],"health":"127.0.0.1:18768","downloads":"%s","indexing":false}\n' "$RUNNER_TEMP/dl" >"$RUNNER_TEMP/site.json"
+          "$RUNNER_TEMP/site" --config "$RUNNER_TEMP/site.json" &
+          for _ in $(seq 50); do curl -fsS -o /dev/null http://127.0.0.1:18766/Studio/ && break; sleep 0.2; done
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home"
+          env -i HOME="$home" PATH=/usr/bin:/bin:/usr/sbin:/sbin sh -c 'curl -fsSL http://127.0.0.1:18766/Studio/install.sh | sh' | tee "$RUNNER_TEMP/install.log"
+          grep -q "for macOS $([ ${{ matrix.arch }} = aarch64 ] && echo 'Apple silicon' || echo Intel)" "$RUNNER_TEMP/install.log"
+          test "$(env -i HOME="$home" RUNE_HOME="$home/rune" PATH=/usr/bin:/bin "$home/.local/bin/rune" --version)" = "rune $version"
+          env -i HOME="$home" RUNE_HOME="$home/rune" PATH=/usr/bin:/bin "$home/.local/bin/rune" -config check
+          test -f "$home/.local/share/runeagent/LICENSE.txt"
+
+  installer-windows:
+    name: Installer (Windows ${{ matrix.arch }}, ${{ matrix.shell }})
+    needs: windows
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: windows-2025, shell: powershell }
+          - { arch: x86_64, runner: windows-2025, shell: pwsh }
+          - { arch: aarch64, runner: windows-11-arm, shell: powershell }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        # actions/checkout v6.1.0; immutable revision, no saved Git credential.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Install Go for the website
+        # actions/setup-go v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: Website/go.mod
+          cache: false
+
+      - name: Fetch the builds
+        # actions/download-artifact v8.0.2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: rune-windows
+          path: ${{ runner.temp }}/build
+
+      - name: Stage and serve the release
+        run: |
+          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          echo "RUNE_TEST_VERSION=$version" >> "$GITHUB_ENV"
+          build="$(cygpath -u "$RUNNER_TEMP")/build"
+          dl="$(cygpath -u "$RUNNER_TEMP")/dl"
+          python -I Website/Tools/stage_test_release.py --version "$version" --out "$dl" \
+            --license Ops/Release/LICENSE.txt \
+            --build "windows-x86_64=$build/release/rune.exe" \
+            --build "windows-aarch64=$build/aarch64-pc-windows-msvc/release/rune.exe"
+          (cd Website && go build -o "$(cygpath -u "$RUNNER_TEMP")/site.exe" ./Server)
+          printf '{"env":"Dev","basePath":"/Studio","origin":"http://127.0.0.1:18766","hosts":["127.0.0.1:18766"],"listen":["127.0.0.1:18766"],"health":"127.0.0.1:18768","downloads":"%s","indexing":false}\n' "$(cygpath -m "$dl")" >"$(cygpath -u "$RUNNER_TEMP")/site.json"
+          "$(cygpath -u "$RUNNER_TEMP")/site.exe" --config "$(cygpath -w "$RUNNER_TEMP")\\site.json" > "$(cygpath -u "$RUNNER_TEMP")/site.log" 2>&1 &
+          for _ in $(seq 50); do curl -fsS -o /dev/null http://127.0.0.1:18766/Studio/ && break; sleep 0.2; done
+          curl -fsS -o /dev/null http://127.0.0.1:18766/Studio/install.ps1
+
+      - name: Install through install.ps1 and start it
+        shell: ${{ matrix.shell }}
+        run: |
+          $env:RUNE_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'bin'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'local'
+          irm http://127.0.0.1:18766/Studio/install.ps1 | iex
+          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
+          $rune = Join-Path $env:RUNE_INSTALL_DIR 'rune.exe'
+          $reported = (& $rune --version | Out-String).Trim()
+          if ($reported -ne "rune $env:RUNE_TEST_VERSION") { throw "installed program says '$reported'" }
+          $env:RUNE_HOME = Join-Path $env:RUNNER_TEMP 'rune-home'
+          & $rune -config check
+          if ($LASTEXITCODE -ne 0) { throw 'rune -config check failed' }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'RuneAgent\LICENSE.txt'))) { throw 'license notices missing' }
+          # A second install over the first, as an update: the earlier program is set aside, not lost.
+          irm http://127.0.0.1:18766/Studio/install.ps1 | iex
+          if ($LASTEXITCODE -ne 0) { throw 'reinstall failed' }
+          $reported = (& $rune --version | Out-String).Trim()
+          if ($reported -ne "rune $env:RUNE_TEST_VERSION") { throw "reinstalled program says '$reported'" }

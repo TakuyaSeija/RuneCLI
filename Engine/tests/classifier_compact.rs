@@ -437,8 +437,16 @@ fn work_source_is_durable_and_a_completed_answer_resets_it_for_the_next_request(
 }
 
 #[test]
-fn a_tiny_compact_model_never_gets_a_forced_2000_token_input_floor() {
+fn compact_uses_its_explicit_batch_byte_limit_without_token_conversion() {
     let mut h = Harness::new("tiny", false, 2200);
+    runeengine::settings::configuration::Configuration::edit(
+        &h.root.join("home"),
+        Some("compact.max_batch_size"),
+        Some(json!("4KiB")),
+        false,
+        None,
+    )
+    .unwrap();
     let db = h.history();
     for turn in 1..=2 {
         db.append_message(h.id, NewMessage::plain(turn, Role::User, "task"))
@@ -466,10 +474,37 @@ fn a_tiny_compact_model_never_gets_a_forced_2000_token_input_floor() {
     let requests = h.judge.requests.lock().unwrap();
     assert!(requests.len() > 1);
     for request in requests.iter() {
-        let estimated = runeengine::session::compact::estimate_tokens(&request.system)
-            + runeengine::session::compact::estimate_tokens(&request.messages[0].content);
-        assert!(estimated < 1944, "{estimated}");
+        assert!(request.messages[0].content.len() <= 4096);
+        assert_eq!(request.settings.max_output, Some(256));
     }
+}
+
+#[test]
+fn classifier_does_not_reject_evidence_using_a_character_token_guess() {
+    let mut h = Harness::new("classifier-no-token-guess", false, 1000);
+    std::fs::write(
+        h.project.join("CLASSIFIER.md"),
+        "Allow ordinary writes inside the project.",
+    )
+    .unwrap();
+    h.auto();
+    let body = "Actual proposed file content. ".repeat(1000);
+    h.invoke(
+        710,
+        "create_file",
+        json!({"action":"write complete evidence","path":"Allowed.txt","text":body}),
+    );
+    assert_eq!(
+        std::fs::read_to_string(h.project.join("Allowed.txt")).unwrap(),
+        body
+    );
+    assert!(h
+        .judge
+        .requests
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|r| r.control.role == Some("classifier") && r.messages[0].content.contains(&body)));
 }
 
 #[test]
@@ -743,6 +778,14 @@ fn sanitizer_custom_failure_uses_active_once_and_raw_failure_is_settled() {
 #[test]
 fn compact_reads_middle_user_constraints_in_budgeted_batches_and_uses_effective_output() {
     let mut h = Harness::new("compact-full-user", false, 4000);
+    runeengine::settings::configuration::Configuration::edit(
+        &h.root.join("home"),
+        Some("compact.max_batch_size"),
+        Some(json!("8KiB")),
+        false,
+        None,
+    )
+    .unwrap();
     let db = h.history();
     let text = format!(
         "{}\nMIDDLE-CONSTRAINT: never delete important.db\n{}",
@@ -786,7 +829,10 @@ fn compact_reads_middle_user_constraints_in_budgeted_batches_and_uses_effective_
         .any(|r| r.messages[0].content.contains("MIDDLE-CONSTRAINT")));
     for r in compact {
         assert_eq!(r.settings.max_output, Some(256));
-        assert!(r.system.contains("never more than 128"));
+        assert!(r
+            .system
+            .contains("configured output allowance is 256 tokens"));
+        assert!(r.messages[0].content.len() <= 8192);
     }
 }
 

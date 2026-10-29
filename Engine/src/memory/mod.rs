@@ -76,14 +76,6 @@ pub const ALIAS: &str = "@memory";
 /// what makes the truncation below keep the freshest entries.
 pub const INDEX_FILE: &str = "MEMORY.md";
 
-/// What an over-budget index is told to do about it. One sentence, one place:
-/// the note beside a cut recall and the notice after a write that overflowed
-/// are both built from it, so they cannot drift apart.
-const COMPACT_ADVICE: &str =
-    "Keep one line per entry, newest at the top, move detail into topic files, and \
-     prune or merge older entries from the bottom. A topic file is never shown on \
-     its own: read it with inspect_file when you need it.";
-
 /// One project's memory directory.
 #[derive(Debug, Clone)]
 pub struct Memory {
@@ -182,13 +174,9 @@ impl Memory {
     /// the model — there is nothing remembered yet — so they answer the same way
     /// rather than surfacing an error it cannot act on.
     pub fn recall(&self, budget: usize) -> Recall {
-        let fresh = || {
-            Recall {
-            index: format!(
-                "(no memories saved yet — create {ALIAS}/{INDEX_FILE} when you learn something worth keeping)"
-            ),
+        let fresh = || Recall {
+            index: format!("(no memories saved yet at {ALIAS}/{INDEX_FILE})"),
             cut: None,
-        }
         };
         let Some((text, total)) = self.read_index(budget) else {
             return fresh();
@@ -263,7 +251,7 @@ fn verdict(bytes: usize, budget: usize) -> Option<String> {
     (bytes > budget).then(|| {
         format!(
             "{INDEX_FILE} is {} over its {} budget, so its last lines no longer reach \
-             the context a session opens with. {COMPACT_ADVICE}",
+             the context a session opens with.",
             human((bytes - budget) as u64),
             human(budget as u64)
         )
@@ -493,7 +481,8 @@ mod tests {
         let r = m.recall(CAP);
         let cut = r.cut.expect("truncation must be announced");
         assert!(cut.contains("over its 20.0 KB budget"), "{cut}");
-        assert!(cut.contains(COMPACT_ADVICE), "{cut}");
+        assert!(!cut.contains("prune or merge"), "{cut}");
+        assert!(!cut.contains("inspect_file"), "{cut}");
         assert!(
             cut.contains(&format!("first {} lines", r.index.lines().count())),
             "{cut}"

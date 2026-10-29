@@ -1,153 +1,180 @@
+{{define "copy-icons"}}<svg class="i-copy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/></svg><svg class="i-done" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{end}}
 {{define "content"}}
-<section class="hero">
-  <div class="shell hero-grid">
-    <div class="hero-copy">
-      <span class="eyebrow">Atoryn Studio presents RuneAgent</span>
-      <h1 class="display">Your code. Your machine. <em>Your rules.</em></h1>
-      <p class="lead">RuneAgent is a coding agent for your terminal that plans, reads, edits, builds and tests with you, while your code never leaves your computer and nothing happens without the permission you chose.</p>
-      <div class="command" role="group" aria-label="Install command">
-        <span class="prompt" aria-hidden="true">$</span>
-        <code id="install-cmd">{{.InstallCmd}}</code>
-        <button class="copy" type="button" data-copy="install-cmd">Copy</button>
+<section class="hero" aria-labelledby="hero-title">
+  <div class="shell hero-inner" id="install">
+    <h1 class="display" id="hero-title"><span class="line">A coding agent</span> <span class="line">that works in your <em>terminal.</em></span></h1>
+    <p class="lead"><span class="line">RuneAgent plans, edits and runs commands in your project on the model you connect.</span> <span class="line">You see every step, file change and cost, and you decide how far it may reach.</span></p>
+    <div class="install">
+      <input class="sr os-input" type="radio" name="install-os" id="os-linux" checked>
+      <input class="sr os-input" type="radio" name="install-os" id="os-macos">
+      <input class="sr os-input" type="radio" name="install-os" id="os-windows">
+      <div class="install-box">
+        <div class="os-tabs"><label for="os-linux">Linux</label><label for="os-macos">macOS</label><label for="os-windows">Windows</label></div>
+        <div class="os-panel os-linux">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd" aria-label="Copy the Linux install command" title="Copy">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "linux"}}</p>
+        </div>
+        <div class="os-panel os-macos">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd-macos">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-macos" aria-label="Copy the macOS install command" title="Copy">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "macos"}}</p>
+        </div>
+        <div class="os-panel os-windows">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">PS&gt; </span><code id="install-cmd-windows">{{.InstallCmdWindows}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-windows" aria-label="Copy the Windows install command" title="Copy">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "windows"}}</p>
+        </div>
       </div>
-      <div class="hero-actions">
-        <a class="button gold" href="{{url "install"}}">Install RuneAgent <span class="arrow" aria-hidden="true">&rarr;</span></a>
-        <a class="button" href="{{url "security"}}">How it keeps you safe</a>
-      </div>
-      <div class="hero-meta">
-        {{- if .Latest}}
-        <span>Version {{.Latest.Version}}</span>
-        {{- else}}
-        <span>First public release coming soon</span>
-        {{- end}}
-        <span>Linux, x86_64</span>
-        <span>One self-contained binary</span>
-      </div>
-    </div>
-    <div class="hero-art" aria-hidden="true">
-      <div class="ring"></div>
-      <div class="ring two"></div>
-      <img src="{{asset "Images/RuneCrystal.webp"}}" width="720" height="720" alt="">
+      <p class="hero-links"><a class="link" href="{{url "docs"}}">Read the manual</a><a class="link for-unix" href="{{url "install.sh"}}">View install.sh</a><a class="link for-windows" href="{{url "install.ps1"}}">View install.ps1</a></p>
     </div>
   </div>
 </section>
 
-<section aria-label="Promises">
+<section class="session" id="session" aria-labelledby="session-title">
   <div class="shell">
-    <div class="strip reveal">
-      <div><strong>No telemetry</strong><span>Nothing is reported back. Ever.</span></div>
-      <div><strong>Your models, your keys</strong><span>Talks only to the provider you choose.</span></div>
-      <div><strong>Undo for every change</strong><span>Any edit can be reverted, file by file.</span></div>
-      <div><strong>Enforced, not requested</strong><span>Limits the agent cannot talk its way out of.</span></div>
+    <div class="intro">
+      <h2 class="title" id="session-title">From an empty folder to passing tests.</h2>
+      <p class="lead">Six moments from one real session in which Rune built a music player in {{.Demo.Recorded}}. Every step, file and number is the session's own; the streaming, the reading pace and the Ask approvals are simulated, and the original ran in Full mode.</p>
     </div>
-  </div>
-</section>
-
-<section class="section">
-  <div class="shell">
-    <div class="section-head">
-      <span class="eyebrow">Why RuneAgent</span>
-      <h2 class="title">An agent you can <em>let work</em>.</h2>
-      <p class="lead">Most assistants ask a model to behave. RuneAgent does not have to ask: what the agent may touch is decided by RuneAgent itself, on your machine, before anything runs.</p>
-    </div>
-    <div class="grid three">
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">I</div>
-        <h3>Local-first by design</h3>
-        <p>Your repository, history and settings stay on your computer. There is no Atoryn server in between: the only traffic is the request to the model provider you configured.</p>
-      </article>
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">II</div>
-        <h3>Guardrails that hold</h3>
-        <p>Commands run in an isolated sandbox enforced by the operating system. The project folder is the boundary; reaching beyond it needs your explicit approval.</p>
-      </article>
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">III</div>
-        <h3>No write without an undo</h3>
-        <p>Before a file is changed, its original is kept. Review what changed, see the diff, and roll back one file or a whole session in a keystroke.</p>
-      </article>
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">IV</div>
-        <h3>Bring any model</h3>
-        <p>Use Anthropic, any OpenAI-compatible endpoint, a local model or one of more than twenty ready-made provider presets. Switch models without switching tools.</p>
-      </article>
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">V</div>
-        <h3>Made for long sessions</h3>
-        <p>Builds and servers keep running in the background, interactive prompts are recognised, and new versions take over without closing your work.</p>
-      </article>
-      <article class="card reveal">
-        <div class="glyph" aria-hidden="true">VI</div>
-        <h3>Extensible when you need it</h3>
-        <p>Connect tools over the Model Context Protocol, add project skills, and give the agent web search and page reading through services you choose.</p>
-      </article>
-    </div>
-  </div>
-</section>
-
-<hr class="divider">
-
-<section class="section">
-  <div class="shell">
-    <div class="section-head">
-      <span class="eyebrow">Three steps</span>
-      <h2 class="title">From install to <em>first change</em>.</h2>
-    </div>
-    <div class="steps">
-      <div class="step reveal">
-        <h3>Install</h3>
-        <p>One command places a single, signed binary in your home folder. No root, no system changes.</p>
+    <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
+      <div class="chapters" role="group" aria-label="Chapters of the recorded session">
+        {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="Recorded at {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
-      <div class="step reveal">
-        <h3>Connect a model</h3>
-        <p>Start <code>rune</code> in your project and add the provider you want. Your API key is stored encrypted on your machine.</p>
+      <div class="terminal-viewport" data-terminal-viewport>
+      <section class="term" aria-label="Interactive illustration: an excerpt of recorded Rune session 655, paced for reading; progressive streaming and Ask approvals are simulated, not measured chunk timing">
+        <div class="tbar">
+          <div class="tbar-ctrls" data-replay-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="Play the replay" title="Play">
+              <svg data-icon="pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" hidden><path d="M8 5v14M16 5v14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+              <svg data-icon="play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m8 5 11 7-11 7Z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="btn-tctrl" data-demo-replay aria-label="Replay from the start" title="Replay from start"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <p class="tbar-title demo-meta">Interactive illustration · {{.Demo.ShownSteps}} of {{.Demo.Final.Steps}} recorded steps · Streaming and approvals simulated</p>
+          <div class="tbar-view" data-view-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-panel aria-label="Show session panel" aria-expanded="false" title="Session panel"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 4v16" stroke="currentColor" stroke-width="1.6"/></svg></button>
+            <button type="button" class="btn-tctrl" data-demo-expand aria-label="Full screen" aria-pressed="false" title="Full screen"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M20 15v5h-5M4 15v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div class="tbar-dots" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></div>
+        </div>
+        <div class="terminal-screen" data-terminal-screen>
+          <div class="tui">
+            <div class="tmain">
+              <div class="tlog" data-log tabindex="0" role="region" aria-label="Recorded session transcript">{{template "demo-transcript" .}}</div>
+              <button type="button" class="jump-latest" data-jump hidden>Press Ctrl+↓ Jump to latest</button>
+            </div>
+            <aside class="tside" aria-label="Session details">
+              <p class="sh">SESSIONS</p>
+              <dl class="st">
+                <div><dt>Title</dt><dd data-f="title">{{.Demo.Title}}</dd></div>
+                <div><dt>Started</dt><dd data-f="started">{{.Demo.Started}}</dd></div>
+                <div><dt>Activity</dt><dd data-f="activity">{{.Demo.Active}} &middot; {{.Demo.Final.Steps}} steps &middot; 1 turn</dd></div>
+                <div title="{{.Demo.ContextSource}}; capacity added from the stored model metadata"><dt>Context Window</dt><dd data-f="ctx">{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div>
+                <div><dt>TokIn</dt><dd data-f="tin">{{num .Demo.Final.In}}</dd></div>
+                <div><dt>TokOut</dt><dd data-f="tout">{{num .Demo.Final.Out}}</dd></div>
+                <div><dt>CacheIn</dt><dd data-f="cin">{{num .Demo.Final.Cache}}</dd></div>
+                <div><dt>Spend</dt><dd data-f="spend">{{money .Demo.Final.Cost}}</dd></div>
+              </dl>
+              <div class="side-heading" data-side-heading><p class="sh" data-side-plan-heading>PLAN <span data-plan-count>{{doneCount .Demo.Tasks}}/{{len .Demo.Tasks}}</span></p><p class="sh" data-side-files-heading hidden></p></div>
+              <div class="tside-window">
+              <p class="tside-more side-above" data-side-above hidden></p>
+              <div class="tside-scroll" data-side tabindex="0" aria-label="Plan and file changes">
+                <ol class="demo-plan" data-demo-plan-list>{{range .Demo.Tasks}}<li data-s="{{.Status}}">{{.Text}}</li>{{end}}</ol>
+                <div data-demo-files>
+                  <p class="sh files-head"><span><span class="count" data-files-count>{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="dim">&middot;</span> <span class="ok" data-files-added>+{{.Demo.Totals.Added}}</span>{{if .Demo.Totals.Removed}} <span class="bad" data-files-removed>&minus;{{.Demo.Totals.Removed}}</span>{{end}}</span></p>
+                  {{range .Demo.Files}}<p class="demo-file"><span class="path" title="{{.Path}}">&#9679; {{.Path}}</span><span class="counts"><b class="ok">+{{.Added}}</b>{{if .Removed}} <b class="bad">&minus;{{.Removed}}</b>{{end}}</span></p>{{end}}
+                </div>
+              </div>
+              <p class="tside-more" data-side-more hidden></p>
+              </div>
+            </aside>
+          </div>
+          <fieldset class="demo-permission" data-permission hidden>
+            <legend><span data-permission-title>Bash</span> <span class="permission-simulation">&middot; Simulated approval</span></legend>
+            <div class="box-out" data-permission-body tabindex="0" aria-label="Proposed action"></div>
+            <div class="answers" data-permission-answers><button type="button" aria-current="true" data-answer="once">Allow once</button><button type="button" data-answer="always" hidden>Always allow</button><button type="button" data-answer="refuse">Refuse</button></div>
+            <p class="hint" data-permission-hint>Illustration only &middot; automatically continues</p>
+          </fieldset>
+          <fieldset class="tin" data-composer><legend>[ <b class="tfg">{{.Demo.Model}}</b> <span class="effort-label">{{.Demo.Effort}}</span> <span class="faint">&middot;</span> <b class="ok">{{.Demo.Mode}}</b> ]</legend>
+            <p class="prompt"><span class="caret">&#8250;</span> <span class="typed" data-typed></span><span class="ph" data-placeholder>ask, or / for commands</span></p>
+          </fieldset>
+          <p class="tstat"><span class="spin" data-spin hidden></span><span class="word" data-word hidden></span><span class="rule" data-rule hidden>&#9474;</span><span class="where" data-where>{{.Demo.Project}}</span><span class="dim">&#9474;</span><span class="msg" data-msg><b class="ok">[{{.Demo.Mode}}]</b> asks before actions run; classifier is inactive in ask mode</span><span class="ver">{{.Demo.Version}}</span></p>
+        </div>
+      </section>
       </div>
-      <div class="step reveal">
-        <h3>Choose the freedom</h3>
-        <p>Pick how much the agent may do on its own, describe the work, and watch every step as it happens.</p>
+    </figure>
+    <div class="session-still">
+      <div class="still-window" role="group" aria-label="The final report of recorded session 655, as it ended">
+        <div class="still-bar" aria-hidden="true"><span class="still-title">rune · {{.Demo.Project}}</span><span class="tbar-dots"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></span></div>
+        <div class="still-body">{{range .Demo.Steps}}{{if eq .Kind "final"}}{{template "demo-blocks" .Prose}}{{end}}{{end}}</div>
       </div>
+      <details class="still-toggle"><summary><span class="still-open">Show the whole report</span><span class="still-close">Show less</span></summary></details>
+      <p class="still-note">The session's own final report, unchanged. The replay plays on a wider screen.</p>
     </div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="modes-title">
+<section class="features" aria-labelledby="features-title">
   <div class="shell">
-    <div class="section-head">
-      <span class="eyebrow">Permission modes</span>
-      <h2 class="title" id="modes-title">You decide <em>how far</em> it goes.</h2>
+    <div class="intro">
+      <h2 class="title" id="features-title">An agent that shows its work.</h2>
+      <p class="lead">The model proposes. Rune shows what runs, what changed and what it cost, and leaves the decisions that matter with you.</p>
     </div>
-    <div class="grid three">
-      <article class="card mode ask reveal">
-        <span class="tag">Ask</span>
-        <h3>Every action, approved</h3>
-        <p>Reading your project is free. Every edit and every command waits for your yes. The default.</p>
+    <div class="feature-grid">
+      <article class="feature feature-reach">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-ask" checked>
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-auto">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
+        <div class="feature-copy">
+          <h3>You decide how far it reaches.</h3>
+          <p>Every session runs in one of three modes. Choose with <code>/mode</code>; Ask is where Rune starts.</p>
+          <div class="modes">
+            <label class="mode" for="mode-ask"><b>Ask</b><span>Every edit asks, and every command asks each time.</span></label>
+            <label class="mode" for="mode-auto"><b>Auto</b><span>Works freely inside the workspace. Outside access and risky commands still ask.</span></label>
+            <label class="mode" for="mode-full"><b>Full</b><span>No permission questions, as your OS account. Your explicit choice, never a shortcut.</span></label>
+          </div>
+        </div>
+        {{with .Demo.Sample}}<div class="reach-side">
+          <p class="feature-note">The same command in each mode, in the CLI's own words. In Ask the approval takes the composer's place, and a command never offers “always”.</p>
+          <div class="mini" role="group" aria-label="How the same command runs in the chosen mode">
+            <div class="mini-bar" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span><span class="mini-title">rune · ~/Project/Music</span></div>
+            <div class="mini-body">
+              <p class="mini-step"><span class="mini-dot" aria-hidden="true">●</span>{{.Label}}</p>
+              <div class="mini-box on-run"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><div class="mini-out">{{range $i, $r := .Rows}}{{if lt $i 4}}<p>{{$r.Text}}</p>{{end}}{{end}}</div></div>
+              <div class="mini-card on-ask"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><p class="mini-answers"><span class="cli-on">Allow once</span><span>Refuse</span></p></div>
+              <div class="mini-composer on-run"><p class="mini-legend">[ <b class="cli-fg">{{$.Demo.Model}}</b> {{$.Demo.Effort}} <span class="cli-faint">·</span> <b class="cli-warn on-auto">Auto</b><b class="cli-bad on-full">Full</b> ]</p><p><span class="cli-a">›</span> <span class="cli-faint">ask, or / for commands</span></p></div>
+            </div>
+            <p class="mini-status"><span class="on-ask"><b class="cli-ok">[Ask]</b> asks before actions run; classifier is inactive in ask mode</span><span class="on-auto"><b class="cli-warn">[Auto]</b> works freely inside workspace; classifier is inactive because no policy file was found</span><span class="on-full"><b class="cli-bad">[Full]</b> unconfined system access; classifier is inactive because no policy file was found</span></p>
+          </div>
+        </div>{{end}}
       </article>
-      <article class="card mode reveal">
-        <span class="tag">Auto</span>
-        <h3>Trusted inside the project</h3>
-        <p>Edits and sandboxed commands in the project run on their own, still undoable. Anything beyond the project still asks.</p>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>Every change on the record.</h3>
+          <p>The side panel lists every file the session changes, with the lines added and removed, as the work happens. <code>/undo</code> restores an eligible file to its state before the session; keep Git and backups for everything else.</p>
+        </div>
+        <p class="feature-note">The side panel as the CLI draws it, from the recorded session.</p>
+        <div class="cli-panel" role="group" aria-label="The side panel's changed files">
+          <p class="cli-sh"><span><span class="cli-fg">{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="cli-dim">·</span> <span class="cli-ok">+{{.Demo.Totals.Added}}</span></span></p>
+          {{range slice .Demo.Files 0 8}}<p class="cli-file"><span class="cli-path">● {{.Path}}</span><span class="cli-ok">+{{.Added}}</span></p>{{end}}
+        </div>
       </article>
-      <article class="card mode full reveal">
-        <span class="tag">Full</span>
-        <h3>Unrestricted, by choice</h3>
-        <p>For the moments you deliberately want no limits. Never the default, always one switch away from Ask.</p>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>Your model, your account.</h3>
+          <p>Pick from the models your configured providers return, or enter an exact model ID. Rune counts context, tokens and spend as it works. There is no bundled API credit.</p>
+        </div>
+        <p class="feature-note">The side panel as the CLI draws it, from the recorded session.</p>
+        <div class="cli-panel" role="group" aria-label="The side panel's session numbers">
+          <p class="cli-sh"><span>SESSIONS</span></p>
+          <dl class="cli-stats"><div><dt>Title</dt><dd>{{.Demo.Title}}</dd></div><div><dt>Started</dt><dd>{{.Demo.Started}}</dd></div><div><dt>Activity</dt><dd>{{.Demo.Active}} · {{.Demo.Final.Steps}} steps · 1 turn</dd></div><div><dt>Context Window</dt><dd>{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div><div><dt>TokIn</dt><dd>{{num .Demo.Final.In}}</dd></div><div><dt>TokOut</dt><dd>{{num .Demo.Final.Out}}</dd></div><div><dt>CacheIn</dt><dd>{{num .Demo.Final.Cache}}</dd></div><div><dt>Spend</dt><dd>{{money .Demo.Final.Cost}}</dd></div></dl>
+        </div>
       </article>
     </div>
   </div>
 </section>
-
-<section class="section">
-  <div class="shell">
-    <div class="closing reveal">
-      <span class="eyebrow">Ready</span>
-      <h2 class="title">Put an agent to work, <em>on your terms</em>.</h2>
-      <div class="command" role="group" aria-label="Install command">
-        <span class="prompt" aria-hidden="true">$</span>
-        <code id="install-cmd-2">{{.InstallCmd}}</code>
-        <button class="copy" type="button" data-copy="install-cmd-2">Copy</button>
-      </div>
-      <a href="{{url "install"}}">Other ways to install, and how to verify the download &rarr;</a>
-    </div>
-  </div>
-</section>
+{{template "install-details" .}}
+<section class="close" aria-labelledby="close-title"><div class="shell close-inner">
+  <h2 class="title" id="close-title">Your terminal. Your model.<br><em>Your call.</em></h2>
+  <p class="lead">Start small, keep the scope clear, and review the work.</p>
+  <div class="hero-actions"><a class="btn" href="{{url "install"}}">Install RuneAgent</a>{{with .Latest}}<span class="meta">Release {{.Version}} · {{.Date}}</span>{{end}}</div>
+</div></section>
 {{end}}

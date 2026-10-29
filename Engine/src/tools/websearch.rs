@@ -70,7 +70,7 @@ impl Tool for WebSearch {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "web_search".into(),
-            description: "Search the web. Returns links and snippets; use web_fetch to read a particular page as Markdown.".into(),
+            description: "Search the web for links and snippets.".into(),
             parameters: flat_schema(
                 json!({
                     "query": {

@@ -303,7 +303,14 @@ impl ModelSettings {
                 self.thinking = true;
             }
             if self.effort.as_ref().is_some_and(|e| !options.contains(e)) {
-                self.effort = options.iter().find(|v| *v != "off" && *v != "on").cloned();
+                self.effort = if provider.api_kind() == "9router" {
+                    model
+                        .effort_choices(provider.api_kind())
+                        .into_iter()
+                        .find(|v| v != "off" && v != "on")
+                } else {
+                    options.iter().find(|v| *v != "off" && *v != "on").cloned()
+                };
             }
         }
         if let (Some(requested), Some(limit)) = (self.max_output, model.max_output) {
@@ -315,15 +322,16 @@ impl ModelSettings {
             // No level on a route that applies its own is "Route default".
             let valid = self.effort.is_none() && model.route_default_level(provider.api_kind())
                 || self.effort.as_ref().is_some_and(|e| {
-                    model.efforts.contains(e)
-                        || (model.efforts.is_empty() && !e.trim().is_empty() && e != "off")
-                        || (e.parse::<u64>().ok().filter(|n| *n > 0).is_some()
-                            && (model.thinking_modes.iter().any(|m| m == "enabled")
-                                || model
-                                    .metadata
-                                    .pointer("/reasoning/supports_max_tokens")
-                                    .and_then(serde_json::Value::as_bool)
-                                    == Some(true)))
+                    (provider.api_kind() != "9router" || model.router_level_allowed(e))
+                        && (model.efforts.contains(e)
+                            || (model.efforts.is_empty() && !e.trim().is_empty() && e != "off")
+                            || (e.parse::<u64>().ok().filter(|n| *n > 0).is_some()
+                                && (model.thinking_modes.iter().any(|m| m == "enabled")
+                                    || model
+                                        .metadata
+                                        .pointer("/reasoning/supports_max_tokens")
+                                        .and_then(serde_json::Value::as_bool)
+                                        == Some(true))))
                 });
             if !valid {
                 self.effort = model.starting_effort(provider.api_kind());
@@ -416,9 +424,13 @@ impl ModelSettings {
             "thinking" => {
                 let b = parse_bool(v)?;
                 if let Some(m) = model {
-                    if b && m.reasoning_support() == Some(false) {
+                    if b && (m.reasoning_support() == Some(false)
+                        || m.reasoning_options
+                            .as_ref()
+                            .is_some_and(|v| !v.iter().any(|e| e != "off")))
+                    {
                         return Err(Error::invalid(format!(
-                            "model `{}` does not support reasoning",
+                            "thinking is disabled for model `{}` in Alt+C",
                             m.id
                         )));
                     }
@@ -439,6 +451,20 @@ impl ModelSettings {
                 }
             }
             "effort" => {
+                if let Some(m) = model {
+                    if !v.eq_ignore_ascii_case("off")
+                        && !v.is_empty()
+                        && (m.reasoning_support() == Some(false)
+                            || m.reasoning_options
+                                .as_ref()
+                                .is_some_and(|v| !v.iter().any(|e| e != "off")))
+                    {
+                        return Err(Error::invalid(format!(
+                            "thinking is disabled for model `{}` in Alt+C",
+                            m.id
+                        )));
+                    }
+                }
                 if v.eq_ignore_ascii_case(super::providers::ROUTE_DEFAULT) {
                     if !model.is_some_and(|m| m.route_default_level(api)) {
                         return Err(Error::invalid(
@@ -474,10 +500,7 @@ impl ModelSettings {
                                     .and_then(serde_json::Value::as_bool)
                                     == Some(true)
                         });
-                        let allowed = m
-                            .reasoning_options
-                            .clone()
-                            .unwrap_or_else(|| m.efforts.clone());
+                        let allowed = m.effort_choices(api);
                         if !budget && !allowed.iter().any(|e| e.eq_ignore_ascii_case(v)) {
                             if m.efforts.is_empty() {
                                 return Err(Error::invalid(format!(
@@ -658,7 +681,7 @@ impl ModelSettings {
             });
         }
 
-        if p.dialect == super::providers::Dialect::Anthropic {
+        if p.dialect_for(&self.model) == super::providers::Dialect::Anthropic {
             for key in ["frequency_penalty", "presence_penalty"] {
                 out.push(Suppressed {
                     key,
@@ -694,7 +717,7 @@ impl ModelSettings {
         if (self.thinking || thinking_req)
             && model_thinks
             && (p.thinking == Thinking::Object
-                || p.dialect == super::providers::Dialect::Anthropic
+                || p.dialect_for(&self.model) == super::providers::Dialect::Anthropic
                 || m_opt.is_some_and(|m| {
                     m.metadata
                         .pointer("/reasoning/fixes_temperature")
@@ -810,7 +833,7 @@ impl ModelSettings {
             && supports("max_tokens") == Some(false)
         {
             None
-        } else if p.dialect == Dialect::OpenAi
+        } else if p.dialect_for(&self.model) == Dialect::OpenAi
             && !MAX_TOKENS_ONLY.contains(&p.api_kind())
             && (m.is_some_and(|m| m.thinking_required || m.thinking)
                 || p.thinking != Thinking::None)
@@ -897,14 +920,19 @@ impl ModelSettings {
             // No level chosen sends none ("Route default"), on every model
             // the router serves: the route applies its own, and a level filled
             // in for the person turned `…-high` routes down to it (owner,
-            // 2026-10-15). Off is `none` everywhere; a route that cannot stop
-            // thinking reads it as its least (`thinking_off_asks_least`).
+            // 2026-10-15). Off requests Low on an explicit cannot-disable
+            // route; `none` elsewhere requests disabled, but the router's
+            // executor may still change it (owner, 2026-10-25).
             let level = if !enabled {
-                Some("none")
+                Some(if m.is_some_and(ModelInfo::thinking_off_requests_low) {
+                    "low"
+                } else {
+                    "none"
+                })
             } else {
-                self.effort
-                    .as_deref()
-                    .filter(|e| m.is_none_or(|m| m.efforts.iter().any(|v| v == *e)))
+                self.effort.as_deref().filter(|e| {
+                    m.is_none_or(|m| m.effort_choices(p.api_kind()).iter().any(|v| v == *e))
+                })
             };
             if let Some(level) = level {
                 out.insert("reasoning_effort".into(), json!(level));
@@ -1388,6 +1416,99 @@ mod tests {
         router
     }
 
+    #[test]
+    fn setting_thinking_or_effort_is_refused_when_disabled_in_alt_c() {
+        let mut model = ModelInfo::named("disabled-in-alt-c", true);
+        model.reasoning_options = Some(vec!["off".into()]);
+        let mut settings = ModelSettings {
+            model: "disabled-in-alt-c".into(),
+            ..Default::default()
+        };
+        let err = settings
+            .set("thinking", "true", Some(&model), "9router")
+            .unwrap_err();
+        assert!(err.to_string().contains("disabled for model"), "{err}");
+        let err = settings
+            .set("effort", "low", Some(&model), "9router")
+            .unwrap_err();
+        assert!(err.to_string().contains("disabled for model"), "{err}");
+        let err = settings
+            .set("effort", "default", Some(&model), "9router")
+            .unwrap_err();
+        assert!(err.to_string().contains("disabled for model"), "{err}");
+        assert!(settings
+            .set("thinking", "false", Some(&model), "9router")
+            .is_ok());
+        assert!(settings
+            .set("effort", "off", Some(&model), "9router")
+            .is_ok());
+    }
+
+    #[test]
+    fn router_off_requests_low_only_for_explicit_cannot_disable_capability() {
+        let router = router_with(vec![
+            router_row("cannot-disable", Some("gemini-level"), false),
+            router_row("can-disable", Some("openai"), true),
+            ModelInfo::named("unknown", true),
+        ]);
+        for model in &router.models {
+            let mut settings = ModelSettings::for_provider(&router);
+            settings.model = model.id.clone();
+            settings.thinking = false;
+            // An old retained effort must not turn Off into a chosen level.
+            settings.effort = Some("max".into());
+            let expected = if model.id == "cannot-disable" {
+                "low"
+            } else {
+                "none"
+            };
+            assert_eq!(settings.body(&router)["reasoning_effort"], expected);
+            assert!(settings.body(&router).get("reasoning").is_none());
+            settings.thinking = true;
+            settings.effort = None;
+            assert!(settings.body(&router).get("reasoning_effort").is_none());
+        }
+        let model = router.model("cannot-disable").unwrap();
+        let mut settings = ModelSettings::for_provider(&router);
+        settings.model = model.id.clone();
+        assert!(settings
+            .set("effort", "minimal", Some(model), "9router")
+            .is_err());
+        settings
+            .set("effort", "low", Some(model), "9router")
+            .unwrap();
+        assert_eq!(settings.body(&router)["reasoning_effort"], "low");
+    }
+
+    #[test]
+    fn router_retained_minimal_is_not_sent_on_a_cannot_disable_route() {
+        let mut model = router_row("retained", Some("openai"), false);
+        model.reasoning_options = Some(vec!["off".into(), "minimal".into(), "high".into()]);
+        model.efforts = vec!["minimal".into(), "high".into()];
+        model.default_effort = Some("minimal".into());
+        model.manual_fields = vec!["efforts".into(), "default_effort".into()];
+        let router = router_with(vec![model]);
+        let mut settings = ModelSettings::for_provider(&router);
+        settings.thinking = true;
+        settings.effort = Some("minimal".into());
+        assert!(settings.body(&router).get("reasoning_effort").is_none());
+        settings.normalize_for_model(&router);
+        assert_eq!(
+            settings.effort, None,
+            "an unavailable retained level returns to route default"
+        );
+        assert_eq!(
+            router.models[0].default_effort.as_deref(),
+            Some("minimal"),
+            "the stored choice was not rewritten"
+        );
+        settings.effort = Some("high".into());
+        settings.normalize_for_model(&router);
+        assert_eq!(settings.body(&router)["reasoning_effort"], "high");
+        settings.thinking = false;
+        assert_eq!(settings.body(&router)["reasoning_effort"], "low");
+    }
+
     /// Owner, 2026-10-15: every 9router model offers the levels the router
     /// reads — not three, not the upstream's own list — with Off always among
     /// them, a thinking format of the row's own or none.
@@ -1399,10 +1520,15 @@ mod tests {
             router_row("cl/inclusionai/ling-3.0-flash", None, true),
             ModelInfo::named("hand-added", true),
         ]);
-        let mut offered = vec!["off".to_string()];
-        offered.extend(ROUTER_LEVELS.map(String::from));
         for m in &router.models {
-            assert_eq!(m.efforts, ROUTER_LEVELS, "{}", m.id);
+            let levels: Vec<_> = ROUTER_LEVELS
+                .into_iter()
+                .filter(|level| !m.thinking_off_requests_low() || *level != "minimal")
+                .map(String::from)
+                .collect();
+            let mut offered = vec!["off".to_string()];
+            offered.extend(levels.clone());
+            assert_eq!(m.efforts, levels, "{}", m.id);
             assert_eq!(m.reasoning_choices("9router"), offered, "{}", m.id);
             assert!(m.route_default_level("9router"), "{}", m.id);
             assert!(!m.thinking_required, "{}", m.id);
@@ -1410,11 +1536,11 @@ mod tests {
         }
         // What Off does is the router's to publish, never guessed.
         let high = router.model("ag/gemini-3.8-flash-high").unwrap();
-        assert!(high.thinking_off_asks_least());
+        assert!(high.thinking_off_requests_low());
         assert!(!router
             .model("cc/claude-sonnet-5-5")
             .unwrap()
-            .thinking_off_asks_least());
+            .thinking_off_requests_low());
         let mut partial = router_row("ag/claude", Some("claude-adaptive"), true);
         assert!(!partial.thinking_off_between_tools_only());
         partial.metadata["capabilities"]["thinkingOffType"] = serde_json::json!("between_tools");
@@ -1473,7 +1599,7 @@ mod tests {
         assert!(err.to_string().contains("no route default"), "{err}");
     }
 
-    /// Owner, 2026-10-15: every 9router model starts Off — `none`, no level
+    /// Owner, 2026-10-15: every 9router model starts Off, with no chosen level
     /// beside a name that may carry one — and is turned on in Settings ›
     /// Models › Alt+C › Reasoning or in the session; on with no level asks for
     /// none ("Route default"), on every model the router serves.
@@ -1492,12 +1618,12 @@ mod tests {
             );
         }
 
-        // A new session: Off, and Off is sent as `none`.
+        // A new session on an explicit cannot-disable route: Off requests Low.
         let mut s = ModelSettings::for_provider(&router);
         assert_eq!(s.model, "ag/gemini-3.8-flash-high");
         assert!(!s.thinking);
         assert_eq!(s.effort, None);
-        assert_eq!(s.body(&router)["reasoning_effort"], "none");
+        assert_eq!(s.body(&router)["reasoning_effort"], "low");
 
         for id in [
             "ag/gemini-3.8-flash-high",
@@ -1508,7 +1634,15 @@ mod tests {
             s.model = id.into();
             // Off is a choice even where the route cannot stop thinking.
             s.set("thinking", "false", info, "9router").unwrap();
-            assert_eq!(s.body(&router)["reasoning_effort"], "none", "{id}");
+            assert_eq!(
+                s.body(&router)["reasoning_effort"],
+                if info.is_some_and(ModelInfo::thinking_off_requests_low) {
+                    "low"
+                } else {
+                    "none"
+                },
+                "{id}"
+            );
             // On with no level: nothing sent, the route decides.
             s.set("thinking", "true", info, "9router").unwrap();
             s.normalize_for_model(&router);
@@ -1518,8 +1652,8 @@ mod tests {
             assert!(s.thinking);
             assert!(!s.body(&router).contains_key("reasoning_effort"), "{id}");
             // Every level the router reads is sent as chosen.
-            for level in ROUTER_LEVELS {
-                s.set("effort", level, info, "9router").unwrap();
+            for level in info.unwrap().router_levels() {
+                s.set("effort", &level, info, "9router").unwrap();
                 s.normalize_for_model(&router);
                 assert_eq!(s.body(&router)["reasoning_effort"], level, "{id}");
             }

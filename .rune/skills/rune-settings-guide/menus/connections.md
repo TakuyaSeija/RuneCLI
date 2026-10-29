@@ -5,8 +5,8 @@ Use Connections to manage accounts, endpoint addresses and API keys. It does not
 The list combines model and web accounts. Keys shows a count. State describes credential availability; Configured, Keyless or Resting does not by itself mean a live request succeeded. Serves lists enabled uses such as Models, Search and Fetch.
 
 ## Add or edit an account
-- Add connection → model provider: follow Key name/API key setup. Rune tests a new model account before accepting it.
-- Add connection → Search & Fetch vendor: enter the required address/key, then Save account. This stores access; add and test its actual providers under Tools.
+- Add connection → model provider: its form is shown first, marked NOT CONNECTED YET, with the cursor on what it still needs (the address for a provider without one of its own, else the API key); Enter opens a field, and Enter in the API key connects. Rune tests a new model account before accepting it. Esc or Cancel in the form or any of its fields leaves the addition with nothing saved. A connection name already in use is refused.
+- Add connection → Search & Fetch vendor: its form is shown first, marked NOT SAVED YET, on the address or key it needs; enter them, then Save account. This stores access; add and test its actual providers under Tools.
 - Open an existing account to edit its Base URL and manage named keys. Some vendors show separate web/fetch addresses.
 - `Use default` on an endpoint restores the provider/vendor address, not an address guessed by the AI.
 - Remove a key only after confirming the intended key. Removing a connection may keep its keys available for reuse; do not assume it is credential erasure.

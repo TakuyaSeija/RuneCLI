@@ -1807,3 +1807,307 @@ fn a_format_16_home_whose_store_cannot_be_opened_upgrades_and_is_told_about_serp
     let config = std::fs::read_to_string(home.join("rune.toml")).unwrap_or_default();
     assert!(!config.contains("serper"), "{config}");
 }
+
+/// Owner, 2026-10-23: 0.8.2 and 0.8.3 reached Claude Code's models on
+/// 9router through a second connection with a key of its own. Format 21
+/// folds it into the router's one connection at the same address: whatever
+/// named it names that one — the provider default, a job's model, a
+/// session's settings (also as kept in its folder), a model's saved
+/// settings, a draft — and its kept catalogue goes. A model saved under both
+/// keeps the one connection's settings.
+#[test]
+fn format_21_folds_a_9router_anthropic_connection_into_the_one_router() {
+    let home = old_home("router-fold");
+    let store = &home.store;
+    advance(store, 20);
+    std::fs::write(
+        store.join("rune.toml"),
+        r#"[title]
+model = { provider = "9router-anthropic", id = "cc/claude-haiku-5-5" }
+
+[providers]
+default = "9router-anthropic"
+
+[[providers.list]]
+api = "9router"
+name = "9router"
+base_url = "http://localhost:20128/v1"
+dialect = "open_ai"
+thinking = "effort"
+secret = "9router"
+auth = { header = "Authorization", prefix = "Bearer " }
+
+[[providers.list]]
+api = "9router"
+name = "9router-anthropic"
+base_url = "http://localhost:20128/v1/"
+dialect = "anthropic"
+thinking = "effort"
+secret = "9router-anthropic"
+auth = { header = "Authorization", prefix = "Bearer " }
+
+[providers.excluded_models]
+9router = []
+9router-anthropic = ["cc/claude-opus-5"]
+"#,
+    )
+    .unwrap();
+    {
+        let db = crate::store::Db::open(&store.join("rune.db"), std::time::Duration::from_secs(5))
+            .unwrap();
+        let c = db.conn();
+        c.execute(
+            "UPDATE sessions SET settings=?1 WHERE id=1",
+            [r#"{"provider":"9router-anthropic","model":"cc/claude-haiku-5-5"}"#],
+        )
+        .unwrap();
+        for (provider, model, settings) in [
+            ("9router-anthropic", "cc/a", "{}"),
+            ("9router-anthropic", "cc/b", r#"{"lost":1}"#),
+            ("9router", "cc/b", r#"{"kept":1}"#),
+        ] {
+            c.execute(
+                "INSERT INTO model_settings (provider, model, settings, updated_at) VALUES (?1, ?2, ?3, 1)",
+                [provider, model, settings],
+            )
+            .unwrap();
+        }
+        c.execute(
+            "INSERT INTO provider_models (provider, id, info, updated_at) VALUES ('9router-anthropic', 'cc/a', '{}', 1)",
+            [],
+        )
+        .unwrap();
+    }
+    let app = crate::project::find(store, &home.project).unwrap();
+    let session = app.join("sessions/1");
+    std::fs::write(
+        session.join("meta.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "id": 1,
+            "settings": r#"{"provider":"9router-anthropic","model":"cc/claude-haiku-5-5"}"#
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        session.join("composer.json"),
+        r#"{"settings":{"provider":"9router-anthropic","model":"cc/a"},"text":"hi"}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        store.join("drafts.json"),
+        r#"{"projects":{"p":{"composer":{"settings":{"provider":"9router-anthropic"}}}}}"#,
+    )
+    .unwrap();
+
+    prepare(store, store, &[], &mut |_| {}).unwrap();
+    assert_eq!(state(store, store).unwrap(), State::Current);
+
+    let text = std::fs::read_to_string(store.join("rune.toml")).unwrap();
+    let config: serde_json::Value = toml_edit::de::from_str(&text).unwrap();
+    let list = config["providers"]["list"].as_array().unwrap();
+    assert_eq!(list.len(), 1, "{text}");
+    assert_eq!(list[0]["name"].as_str(), Some("9router"));
+    assert_eq!(list[0]["dialect"].as_str(), Some("open_ai"));
+    assert_eq!(config["providers"]["default"].as_str(), Some("9router"));
+    assert_eq!(
+        config["title"]["model"]["provider"].as_str(),
+        Some("9router")
+    );
+    assert!(config["providers"]["excluded_models"]
+        .get("9router-anthropic")
+        .is_none());
+    assert!(!text.contains("9router-anthropic"), "{text}");
+
+    let db =
+        crate::store::Db::open(&store.join("rune.db"), std::time::Duration::from_secs(5)).unwrap();
+    let c = db.conn();
+    let settings: String = c
+        .query_row("SELECT settings FROM sessions WHERE id=1", [], |r| r.get(0))
+        .unwrap();
+    assert!(settings.contains(r#""provider":"9router""#), "{settings}");
+    let saved: Vec<(String, String, String)> = c
+        .prepare("SELECT provider, model, settings FROM model_settings ORDER BY model")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .map(|row| row.unwrap())
+        .collect();
+    assert_eq!(
+        saved,
+        [
+            ("9router".into(), "cc/a".into(), "{}".into()),
+            ("9router".into(), "cc/b".into(), r#"{"kept":1}"#.into())
+        ]
+    );
+    let kept: i64 = c
+        .query_row(
+            "SELECT count(*) FROM provider_models WHERE provider='9router-anthropic'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(kept, 0);
+
+    let meta = std::fs::read_to_string(session.join("meta.json")).unwrap();
+    assert!(
+        meta.contains(r#"\"provider\":\"9router\""#) && meta.contains("\n  "),
+        "{meta}"
+    );
+    let composer = std::fs::read_to_string(session.join("composer.json")).unwrap();
+    assert!(
+        composer.contains(r#""provider":"9router""#) && composer.contains(r#""text":"hi""#),
+        "{composer}"
+    );
+    let drafts = std::fs::read_to_string(store.join("drafts.json")).unwrap();
+    assert!(!drafts.contains("9router-anthropic"), "{drafts}");
+
+    // Done once: a second start changes nothing.
+    let before = tree(store);
+    prepare(store, store, &[], &mut |_| {}).unwrap();
+    assert_eq!(tree(store), before);
+}
+
+/// A 9router connection speaking the Anthropic door with no other 9router
+/// connection beside it is turned back to the OpenAI door under its own
+/// name: nothing that names it changes.
+#[test]
+fn format_21_turns_a_lone_9router_anthropic_connection_back_to_openai() {
+    let home = old_home("router-lone");
+    let store = &home.store;
+    advance(store, 20);
+    std::fs::write(
+        store.join("rune.toml"),
+        r#"[providers]
+default = "9router-anthropic"
+
+[[providers.list]]
+api = "9router"
+name = "9router-anthropic"
+base_url = "http://localhost:20128/v1"
+dialect = "anthropic"
+thinking = "effort"
+auth = { header = "Authorization", prefix = "Bearer " }
+"#,
+    )
+    .unwrap();
+    prepare(store, store, &[], &mut |_| {}).unwrap();
+    let text = std::fs::read_to_string(store.join("rune.toml")).unwrap();
+    let config: serde_json::Value = toml_edit::de::from_str(&text).unwrap();
+    let list = config["providers"]["list"].as_array().unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0]["name"].as_str(), Some("9router-anthropic"));
+    assert_eq!(list[0]["dialect"].as_str(), Some("open_ai"));
+    assert_eq!(
+        config["providers"]["default"].as_str(),
+        Some("9router-anthropic")
+    );
+}
+
+/// Owner, 2026-10-23: 0.8.4 and 0.8.5 kept the reasoning count of every
+/// route's usage with its message, and a reopened session drew a `Thought`
+/// of tokens where gemini had sent nothing, or tokens where its words were.
+/// Format 22 keeps a count only where the message's route went through the
+/// door that asks Anthropic to count (Claude Code's models on 9router); every
+/// other message keeps everything but the count, and a line that does not
+/// read is kept byte for byte.
+#[test]
+fn format_22_keeps_a_thinking_count_only_where_anthropic_counted_it() {
+    let home = old_home("thinking-count");
+    let store = &home.store;
+    advance(store, 21);
+    std::fs::write(
+        store.join("rune.toml"),
+        r#"[[providers.list]]
+api = "9router"
+name = "9router"
+base_url = "http://localhost:20128/v1"
+dialect = "open_ai"
+thinking = "effort"
+auth = { header = "Authorization", prefix = "Bearer " }
+
+[[providers.list]]
+api = "anthropic"
+name = "claude"
+base_url = "https://api.anthropic.com/v1"
+dialect = "anthropic"
+auth = { header = "x-api-key", prefix = "" }
+"#,
+    )
+    .unwrap();
+    {
+        let db = crate::store::Db::open(&store.join("rune.db"), std::time::Duration::from_secs(5))
+            .unwrap();
+        for (provider, id, info) in [
+            (
+                "9router",
+                "cc/claude-haiku-5-5",
+                r#"{"id":"cc/claude-haiku-5-5","metadata":{"owned_by":"cc"}}"#,
+            ),
+            (
+                "9router",
+                "ag/gemini-3.8-flash-high",
+                r#"{"id":"ag/gemini-3.8-flash-high","metadata":{"owned_by":"ag"}}"#,
+            ),
+            ("claude", "claude-opus-5", r#"{"id":"claude-opus-5"}"#),
+        ] {
+            db.conn()
+                .execute(
+                    "INSERT INTO provider_models (provider, id, info, updated_at) VALUES (?1, ?2, ?3, 1)",
+                    [provider, id, info],
+                )
+                .unwrap();
+        }
+    }
+    let route = |provider: &str, model: &str| serde_json::json!({"provider": provider, "model": model, "data": {}});
+    let rows = [
+        serde_json::json!({"id": 1, "role": "user", "content": "go"}),
+        serde_json::json!({"id": 2, "role": "assistant", "content": "a", "reasoning": null,
+            "thinking_tokens": 2120, "continuation": route("9router", "cc/claude-haiku-5-5")}),
+        serde_json::json!({"id": 3, "role": "assistant", "content": "b", "reasoning": "Initial assessment",
+            "thinking_tokens": 214, "continuation": route("9router", "ag/gemini-3.8-flash-high")}),
+        serde_json::json!({"id": 4, "role": "assistant", "content": "c", "reasoning": null,
+            "thinking_tokens": 30, "continuation": route("9router", "ag/gemini-3.8-flash-high")}),
+        serde_json::json!({"id": 5, "role": "assistant", "content": "d", "reasoning": "words",
+            "thinking_tokens": 99, "continuation": route("claude", "claude-opus-5")}),
+        serde_json::json!({"id": 6, "role": "assistant", "content": "e", "thinking_tokens": 7}),
+    ];
+    let mut bytes = Vec::new();
+    for row in &rows {
+        bytes.extend(serde_json::to_vec(row).unwrap());
+        bytes.push(b'\n');
+    }
+    bytes.extend_from_slice(b"{\"id\":7,\"thinking_tokens\":1 torn\n");
+    let app = crate::project::find(store, &home.project).unwrap();
+    let path = app.join("sessions/1/session.jsonl");
+    std::fs::write(&path, &bytes).unwrap();
+
+    prepare(store, store, &[], &mut |_| {}).unwrap();
+    assert_eq!(state(store, store).unwrap(), State::Current);
+    let after = std::fs::read(&path).unwrap();
+    assert!(after.ends_with(b"{\"id\":7,\"thinking_tokens\":1 torn\n"));
+    let rows: Vec<serde_json::Value> = after
+        .split(|b| *b == b'\n')
+        .filter_map(|line| serde_json::from_slice(line).ok())
+        .collect();
+    let count = |id: i64| {
+        let row = rows.iter().find(|r| r["id"] == id).unwrap();
+        row.get("thinking_tokens").cloned()
+    };
+    assert_eq!(
+        count(2),
+        Some(serde_json::json!(2120)),
+        "Anthropic counted it"
+    );
+    for id in [3, 4, 5, 6] {
+        assert_eq!(count(id), None, "message {id} keeps no count");
+    }
+    let gemini = rows.iter().find(|r| r["id"] == 3).unwrap();
+    assert_eq!(gemini["reasoning"], "Initial assessment");
+    assert_eq!(gemini["continuation"]["model"], "ag/gemini-3.8-flash-high");
+
+    // Done once: a second start changes nothing.
+    let before = tree(store);
+    prepare(store, store, &[], &mut |_| {}).unwrap();
+    assert_eq!(tree(store), before);
+}

@@ -18,7 +18,7 @@ These do not have extra controls in the Connections page. Preserve working prese
 
 | Property | User-facing meaning |
 | --- | --- |
-| `dialect` | API compatibility choice: open_ai or anthropic. Must match the endpoint; an incorrect choice can prevent requests working. |
+| `dialect` | API compatibility choice: open_ai or anthropic. Must match the endpoint; an incorrect choice can prevent requests working. A 9router connection keeps `open_ai`; Rune reaches Claude Code's models through its Anthropic door by itself ([9router](presets/9router.md)). |
 | `thinking` | Provider reasoning-control compatibility setting: none/object/effort. Not the current conversation's Thinking switch. Prefer Generation for that. |
 | `auth.header`, `auth.prefix` | Credential presentation required by the provider. Use its preset/documentation; wrong values can cause authentication failures. Never put a real key here. |
 | `secret` | Reference to configured credentials, not the actual key. Use credential management rather than inventing references. |

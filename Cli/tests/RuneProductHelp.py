@@ -28,7 +28,8 @@ with tempfile.TemporaryDirectory(prefix="ProductHelp-", dir=BASE) as temp:
         assert (result.returncode == 0) == ok, (args, result.stdout, result.stderr)
         return result.stdout
 
-    run("-upgrade-check")
+    probe = run("-upgrade-check")
+    current_format = next(int(line.split()[1]) for line in probe.splitlines() if line.startswith("format "))
     assert not home.exists(), "probe must not create even an empty home"
     inventory = json.loads(run("-skills", "list"))
     help_skill = next(s for s in inventory["skills"] if s["id"] == "rune-settings-guide:builtin")
@@ -40,7 +41,14 @@ with tempfile.TemporaryDirectory(prefix="ProductHelp-", dir=BASE) as temp:
     assert not (home / "master.key").exists()
     shown = json.loads(run("-skills", "show", help_skill["id"]))
     assert "Rune user settings guide" in shown["content"]
-    assert "terminal.command_timeout" in (package / "tools/terminal-use.md").read_text()
+    terminal_help = (package / "tools/terminal-use.md").read_text()
+    assert all(word in terminal_help for word in ("terminal.command_timeout", "full access once", "whitespace before", "does not automatically replay", "PowerShell", "Cmd"))
+    display_help = (package / "appearance/layout.md").read_text()
+    assert all(word in display_help for word in ("Open in browser", "Copy complete destination", "copying only", "does not run the file"))
+    compact_help = (package / "auxiliary/compact.md").read_text()
+    assert all(word in compact_help for word in ("Compacting", "spinner", "Esc twice", "waits in order"))
+    troubleshooting = (package / "troubleshooting.md").read_text()
+    assert all(word in troubleshooting for word in ("waiting to be sent", "provider received", "Compacting", "continues that resume"))
     assert all("Source authorities" not in p.read_text() for p in docs)
     assert not (user / ".rune").exists(), "explicit RUNE_HOME stays isolated"
     run("-skills", "disable", help_skill["id"])
@@ -66,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix="ProductHelp-", dir=BASE) as temp:
     assert any(s["name"] == "mine" for s in listed["skills"])
     assert (upgraded / "rune.toml").read_text() == choices
     assert "Keep this." in (personal / "SKILL.md").read_text()
-    assert json.loads((upgraded / "version.json").read_text())["version"] == 20
+    assert json.loads((upgraded / "version.json").read_text())["version"] == current_format
     assert not (upgraded / "master.key").exists()
     print("PASS format19 upgrade preserves user choices and personal skills")
 

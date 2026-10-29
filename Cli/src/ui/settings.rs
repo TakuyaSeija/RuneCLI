@@ -205,7 +205,11 @@ impl State {
 
     /// False only at the root: the caller then closes Settings.
     pub fn back(&mut self) -> bool {
-        if self.editor.take().is_some() {
+        // A connection being added is left whole, never half-filled: Esc or
+        // Cancel in any of its questions goes back to the list it was chosen
+        // from, with nothing saved (owner, 2026-10-23).
+        let adding = matches!(self.location.page, Page::Setup(_));
+        if self.editor.take().is_some() && !adding {
             return true;
         }
         if let Some(parent) = self.parents.pop() {
@@ -980,13 +984,22 @@ fn model_setup_rows(app: &App, draft: &ProviderDraft) -> Vec<Row> {
         .and_then(|p| p["url_hint"].as_str())
         .filter(|hint| !hint.is_empty())
         .unwrap_or("Use this account's API base URL without /chat/completions. HTTPS is required outside this machine. Saving access does not change generation settings.");
-    vec![
-        Row::new(Kind::Edit(Field::SetupName), "Connection name", format!("[ {} ↵ ]", draft.name)).help("Local account name saved in rune.toml. It does not change the adapter identity."),
+    let mut rows = vec![
+        Row::new(Kind::Fact, "NOT CONNECTED YET", String::new()),
+        Row::new(
+            Kind::Edit(Field::SetupName),
+            "Connection name",
+            format!("[ {} ↵ ]", draft.name),
+        )
+        .help("Local account name saved in rune.toml. It does not change the adapter identity."),
+    ];
+    rows.extend([
         Row::new(Kind::Edit(Field::SetupUrl), "API base URL", if url.is_empty() { "[ Required ↵ ]".into() } else { format!("[ {url} ↵ ]") }).help(endpoint_help).note(if required { "This provider needs an account-specific endpoint." } else { "Empty uses the provider's preset endpoint." }),
         Row::new(Kind::Edit(Field::SetupKeyName), "Key name", format!("[ {} ↵ ]", draft.key_name)).help("Label for this credential in the encrypted vault."),
         Row::new(Kind::Edit(Field::SetupKey), "API key", if draft.key.is_empty() { "[ Set API key ↵ ]".into() } else { "••••••••  [ edit ↵ ]".into() }).help(hint),
         Row::new(Kind::ConnectModel, "Connect", "Connect →".into()).help("Check account access and save the connection. This contacts your endpoint; it does not prove every model or capability. Non-secret choices go to rune.toml; credentials stay in the vault."),
-    ]
+    ]);
+    rows
 }
 
 /// Whether this model preset has no address of its own, so the account's
@@ -1005,6 +1018,40 @@ fn model_url_missing(app: &App, draft: &ProviderDraft) -> bool {
 /// Open the one field a model connection still lacks — its address where it
 /// has none, else its key — so a preset with an address of its own asks for
 /// the key alone. Returns false when nothing is missing.
+/// Put the cursor on `field`'s row of the page shown, or the first row that
+/// can be chosen when it has none.
+fn focus(app: &mut App, field: Field) {
+    match rows(app)
+        .iter()
+        .position(|r| r.kind == Kind::Edit(field.clone()))
+    {
+        Some(row) => app.preferences.location.row = row,
+        None => {
+            app.preferences.location.row = 0;
+            settle(app);
+        }
+    }
+}
+
+/// A new model connection's form, on what it still needs: the address an
+/// account must give, else the key — the form is the step, an editor opens
+/// only on Enter (owner, 2026-10-23).
+fn focus_model_field(app: &mut App) {
+    let missing = app
+        .preferences
+        .setup
+        .as_ref()
+        .is_some_and(|draft| model_url_missing(app, draft));
+    focus(
+        app,
+        if missing {
+            Field::SetupUrl
+        } else {
+            Field::SetupKey
+        },
+    );
+}
+
 fn ask_model_field(app: &mut App) -> bool {
     let Some(draft) = app.preferences.setup.as_ref().filter(|p| !p.service) else {
         return false;
@@ -1047,6 +1094,21 @@ fn connect_model(app: &mut App, driver: &mut Driver) {
         notice(
             app,
             "API key cannot be empty for this provider.",
+            Tone::Error,
+        );
+        return;
+    }
+    // Saving under a name in use would replace that connection whole.
+    if provider_list(app)
+        .into_iter()
+        .any(|p| p["name"].as_str() == Some(draft.name.trim()))
+    {
+        notice(
+            app,
+            &format!(
+                "A connection named {} already exists. Choose another connection name.",
+                draft.name.trim()
+            ),
             Tone::Error,
         );
         return;
@@ -1094,6 +1156,24 @@ fn provider_api<'a>(app: &'a App, provider: &str) -> &'a str {
         .find(|p| p["name"].as_str() == Some(provider))
         .and_then(|p| p["api"].as_str())
         .unwrap_or("compatible")
+}
+
+/// The switch describes Rune's request, never a promise about the router's
+/// executor or upstream. Both settings surfaces show the same qualification.
+fn router_off_hint(
+    api: &str,
+    model: Option<&runeengine::settings::providers::ModelInfo>,
+) -> Option<(&'static str, &'static str)> {
+    if api != "9router" {
+        return None;
+    }
+    Some(if model.is_some_and(|m| m.thinking_off_requests_low()) {
+        ("Off: requests Low", "This route reports that thinking cannot be disabled: Off requests Low, not zero thinking. Minimal is not offered. The router/provider may change the requested level.")
+    } else if model.is_some_and(|m| m.thinking_off_between_tools_only()) {
+        ("Off: between tools only", "On this route Off stops thinking between tool calls only; the model still thinks before it answers. Off is a request, not a guarantee of zero thinking.")
+    } else {
+        ("Off: request only", "Off requests disabled thinking. Even when the route reports that it can disable thinking, the router/provider may change this request; zero thinking is not guaranteed. Omitting the request would leave the route's default.")
+    })
 }
 
 fn model_provider(app: &App) -> &str {
@@ -1235,12 +1315,15 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
                 if choices.is_empty() { "Unsupported / unknown".into() }
                 else if m.thinking_required && m.efforts.is_empty() && api != "9router" { "On (Mandatory)".into() }
                 else {
-                    let options = m.reasoning_options.as_ref().unwrap_or(&choices);
+                    let options: Vec<_> = m.reasoning_options.as_ref().unwrap_or(&choices)
+                        .iter().filter(|option| choices.contains(option)).cloned().collect();
                     format!("{} · {}", if m.reasoning_enabled.unwrap_or(false) { "On" } else { "Off" }, options.join(", "))
                 }
             }).unwrap_or_else(|| "Unsupported / unknown".into()),
         )
-        .help("Configure reasoning support and effort levels for this model"),
+        .help(&router_off_hint(provider_api(app, provider), info.as_ref())
+            .map(|(_, help)| format!("Configure reasoning support and effort levels for this model. {help}"))
+            .unwrap_or_else(|| "Configure reasoning support and effort levels for this model".into())),
     ];
     for (key, label) in [
         ("cache_write", "Cache write price"),
@@ -1556,13 +1639,28 @@ fn knob_choices(app: &App, key: &str) -> Option<Vec<String>> {
         .iter()
         .find(|k| k["key"].as_str() == Some(key))?;
     let thinking_required = app.settings["thinking_required"].as_bool() == Some(true);
+    let thinking_disabled = app.settings["thinking_disabled"].as_bool() == Some(true)
+        || app
+            .lookup_model_info(app.provider(), app.model())
+            .is_some_and(|m| {
+                m.reasoning_support() == Some(false)
+                    || m.reasoning_options
+                        .as_ref()
+                        .is_some_and(|v| !v.iter().any(|e| e != "off"))
+            });
     if key == "thinking" || k["kind"] == "bool" {
         if key == "thinking" && thinking_required {
             return Some(vec!["on".into()]);
         }
+        if key == "thinking" && thinking_disabled {
+            return Some(vec!["off".into()]);
+        }
         return Some(vec!["off".into(), "on".into()]);
     }
     if key == "effort" {
+        if thinking_disabled {
+            return None;
+        }
         let mut list = Vec::new();
         if let Some(arr) = k["choices"].as_array() {
             for v in arr {
@@ -1752,30 +1850,17 @@ fn sampling_rows(app: &App) -> Vec<Row> {
                 } else {
                     raw_val
                 };
-                // What Off does on this route, as the router publishes it.
                 let off_reads = matches!(key, "thinking" | "effort")
                     .then(|| app.lookup_model_info(app.provider(), app.model()))
                     .flatten();
-                let off_partial = off_reads
-                    .as_ref()
-                    .is_some_and(|m| m.thinking_off_between_tools_only());
-                let off_least = !off_partial
-                    && off_reads
-                        .as_ref()
-                        .is_some_and(|m| m.thinking_off_asks_least());
-                let mut help = if off_partial {
-                    format!(
-                        "{} On this route Off stops thinking between tool calls only; the model still thinks before it answers.",
-                        knob["help"].as_str().unwrap_or("")
-                    )
-                } else if off_least {
-                    format!(
-                        "{} This route cannot stop thinking: Off asks it for its least thinking.",
-                        knob["help"].as_str().unwrap_or("")
-                    )
-                } else {
-                    knob["help"].as_str().unwrap_or("").to_string()
-                };
+                let off_hint = matches!(key, "thinking" | "effort")
+                    .then(|| router_off_hint(provider_api(app, app.provider()), off_reads.as_ref()))
+                    .flatten();
+                let mut help = knob["help"].as_str().unwrap_or("").to_string();
+                if let Some((_, explanation)) = off_hint {
+                    help.push(' ');
+                    help.push_str(explanation);
+                }
                 if key == "effort"
                     && choices
                         .as_ref()
@@ -1787,10 +1872,8 @@ fn sampling_rows(app: &App) -> Vec<Row> {
                 }
                 let mut row =
                     Row::new(Kind::Edit(Field::Knob(key.into())), label, disp_val).help(&help);
-                if off_partial {
-                    row = row.note("←→ switches and saves · Off: between tools only");
-                } else if off_least {
-                    row = row.note("←→ switches and saves · Off: least thinking");
+                if let Some((note, _)) = off_hint {
+                    row = row.note(format!("←→ switches and saves · {note}"));
                 } else if choices.is_some() {
                     row = row.note("←→ switches and saves");
                 }
@@ -2270,25 +2353,28 @@ fn service_setup_rows(app: &App, d: &ProviderDraft) -> Vec<Row> {
         .and_then(|a| a["key"].as_str())
         .unwrap_or("required");
     let own_server = adapter.is_some_and(|a| a["base_url"].is_null());
-    let mut out = vec![Row::new(
-        Kind::Edit(Field::SetupUrl),
-        "Base URL",
-        if !d.url.is_empty() {
-            format!("[ {} ↵ ]", d.url)
-        } else if own_server {
-            "[ Set your server's address ↵ ]".into()
+    let mut out = vec![Row::new(Kind::Fact, "NOT SAVED YET", String::new())];
+    out.push(
+        Row::new(
+            Kind::Edit(Field::SetupUrl),
+            "Base URL",
+            if !d.url.is_empty() {
+                format!("[ {} ↵ ]", d.url)
+            } else if own_server {
+                "[ Set your server's address ↵ ]".into()
+            } else {
+                format!(
+                    "{} (default)",
+                    adapter.and_then(|a| a["base_url"].as_str()).unwrap_or("")
+                )
+            },
+        )
+        .help(if own_server {
+            "The address of your own server, e.g. http://localhost:8888."
         } else {
-            format!(
-                "{} (default)",
-                adapter.and_then(|a| a["base_url"].as_str()).unwrap_or("")
-            )
-        },
-    )
-    .help(if own_server {
-        "The address of your own server, e.g. http://localhost:8888."
-    } else {
-        "Leave as is for the vendor's address; set one only for a proxy of your own."
-    })];
+            "Leave as is for the vendor's address; set one only for a proxy of your own."
+        }),
+    );
     let vault_keys = adapter.and_then(|a| a["keys"].as_u64()).unwrap_or(0);
     if key != "none" {
         out.push(
@@ -3462,7 +3548,17 @@ pub fn render_interactive(
     width: usize,
     height: usize,
 ) -> (Sink, Option<(usize, usize)>) {
-    let (sink, cursor, geometry) = layout(app, width, height);
+    let (mut sink, cursor, geometry) = layout(app, width, height);
+    for (index, hit) in sink.owner.iter().enumerate() {
+        if let Hit::Settings(Target::Text { row, .. }) = hit {
+            let first = geometry[*row].first_col.saturating_sub(1);
+            sink.copy[index] = vec![super::selection::Span {
+                columns: first..first + ansi::width(&geometry[*row].text).max(1),
+                region: super::selection::Region::Input,
+                source: None,
+            }];
+        }
+    }
     app.preferences.text_rows = geometry;
     (sink, cursor)
 }
@@ -3526,7 +3622,7 @@ fn layout(
             }),
         );
     }
-    head.push(format!("  {RULE}{}{RESET}", "─".repeat(inner)));
+    head.chrome(format!("  {RULE}{}{RESET}", "─".repeat(inner)), Hit::None);
     let mut crumbs: Vec<String> = state.parents.iter().map(|l| safe(l.page.title())).collect();
     crumbs.push(safe(page.title()));
     if let Some(e) = &state.editor {
@@ -3571,7 +3667,8 @@ fn layout(
                         } else {
                             Target::Search
                         };
-                        head.push_at(format!("  {l}"), Hit::Settings(target));
+                        if index == r { head.push_at(format!("  {l}"), Hit::Settings(target)); }
+                        else { head.chrome(format!("  {l}"), Hit::Settings(target)); }
                     }
                 } else {
                     let projection = super::editor::Projection::plain(&state.location.query);
@@ -3600,7 +3697,7 @@ fn layout(
     let rs = rows(app);
     let selected = state.location.row.min(rs.len().saturating_sub(1));
     let mut foot = Sink::default();
-    foot.push(format!("  {RULE}{}{RESET}", "─".repeat(inner)));
+    foot.chrome(format!("  {RULE}{}{RESET}", "─".repeat(inner)), Hit::None);
     let active_notice = state.notice.as_ref().filter(|n| {
         n.page == *page
             && (n.tone == Tone::Busy
@@ -3782,14 +3879,11 @@ fn layout(
                 if capacity >= 6 {
                     body_cursor = Some((body.lines.len() + r, c + 2));
                     for (index, l) in lines.into_iter().enumerate() {
-                        body.push_at(
-                            format!("  {l}"),
-                            if index == r {
-                                Hit::Settings(target)
-                            } else {
-                                Hit::None
-                            },
-                        );
+                        if index == r {
+                            body.push_at(format!("  {l}"), Hit::Settings(target));
+                        } else {
+                            body.chrome(format!("  {l}"), Hit::None);
+                        }
                     }
                 } else {
                     body_cursor = Some((body.lines.len(), c + 2));
@@ -3904,25 +3998,52 @@ fn layout(
                 None
             };
             if let Some(right) = right_card {
-                for (left, r) in left_card.iter().zip(&right) {
-                    body.push_at(
+                for (index, (left, r)) in left_card.iter().zip(&right).enumerate() {
+                    let spans = if index > 0 && index + 1 < left_card.len() {
+                        vec![
+                            super::selection::Span {
+                                columns: 4..card_w,
+                                region: super::selection::Region::Card(pair),
+                                source: None,
+                            },
+                            super::selection::Span {
+                                columns: card_w + 7..2 * card_w + 3,
+                                region: super::selection::Region::Card(pair + 1),
+                                source: None,
+                            },
+                        ]
+                    } else {
+                        Vec::new()
+                    };
+                    body.push_ranges(
                         format!("  {left}   {r}"),
                         Hit::Settings(Target::Cards {
                             left: pair,
                             right: Some(pair + 1),
                             split: 2 + card_w + 3,
                         }),
+                        spans,
                     );
                 }
             } else {
-                for left in &left_card {
-                    body.push_at(
+                for (index, left) in left_card.iter().enumerate() {
+                    let spans = if index > 0 && index + 1 < left_card.len() {
+                        vec![super::selection::Span {
+                            columns: 4..card_w,
+                            region: super::selection::Region::Card(pair),
+                            source: None,
+                        }]
+                    } else {
+                        Vec::new()
+                    };
+                    body.push_ranges(
                         format!("  {left}"),
                         Hit::Settings(Target::Cards {
                             left: pair,
                             right: None,
                             split: 2 + card_w + 3,
                         }),
+                        spans,
                     );
                 }
             }
@@ -3996,23 +4117,23 @@ fn layout(
     if let Some((r, c)) = body_cursor.filter(|(r, _)| *r >= top && *r < top + capacity) {
         cursor = Some((head.lines.len() + r - top + 1, c + 1));
     }
-    for (line, hit) in body
+    for ((line, hit), spans) in body
         .lines
         .into_iter()
         .zip(body.owner)
+        .zip(body.copy)
         .skip(top)
         .take(capacity)
     {
-        head.push_at(line, hit);
+        head.push_ranges(line, hit, spans);
     }
     while head.lines.len() + foot.lines.len() < height {
         head.push(String::new());
     }
-    for (line, hit) in foot.lines.into_iter().zip(foot.owner) {
-        head.push_at(line, hit);
-    }
+    head.append(&foot);
     head.lines.truncate(height);
     head.owner.truncate(height);
+    head.copy.truncate(height);
     for line in &mut head.lines {
         *line = ansi::truncate(line, width);
     }
@@ -4295,11 +4416,10 @@ fn model_body(app: &App, rs: &[Row], width: usize, capacity: usize) -> Sink {
 
     let mut out = Sink::default();
     if wide {
-        out.push(format!(
+        out.push_ranges(format!(
             "  {MUTED}{}{RULE}│{RESET}  {TEXT}{BOLD}{}{RESET} {MUTED}· {header_count} models{RESET}",
-            ansi::pad("PROVIDERS", rail),
-            safe(&header_name)
-        ));
+            ansi::pad("PROVIDERS", rail), safe(&header_name)
+        ), Hit::None, vec![super::selection::Span { columns: 2..rail + 2, region: super::selection::Region::Card(0), source: None }, super::selection::Span { columns: rail + 5..width, region: super::selection::Region::Card(1), source: None }]);
     } else {
         out.push_at(
             format!(
@@ -4355,7 +4475,23 @@ fn model_body(app: &App, rs: &[Row], width: usize, capacity: usize) -> Sink {
             provider: p_item.map(|(idx, _, _)| idx),
             split: if wide { rail + 3 } else { 0 },
         };
-        out.push_at(
+        let spans = if wide {
+            vec![
+                super::selection::Span {
+                    columns: 2..rail + 2,
+                    region: super::selection::Region::Card(0),
+                    source: None,
+                },
+                super::selection::Span {
+                    columns: rail + 5..width,
+                    region: super::selection::Region::Card(1),
+                    source: None,
+                },
+            ]
+        } else {
+            vec![super::selection::Span::new(2..width)]
+        };
+        out.push_ranges(
             if wide {
                 format!(
                     "  {}{RULE}│{RESET}  {text}",
@@ -4365,6 +4501,7 @@ fn model_body(app: &App, rs: &[Row], width: usize, capacity: usize) -> Sink {
                 format!("  {text}")
             },
             Hit::Settings(hit),
+            spans,
         );
     }
     out
@@ -4550,8 +4687,9 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
             app.show_panel(Panel::None);
             if matches!(key, Key::Ctrl('c')) {
                 app.quit_armed = true;
-                app.quit_armed_at = Some(std::time::Instant::now());
-                app.note("press ctrl+c again to leave");
+                let now = std::time::Instant::now();
+                app.quit_armed_at = Some(now);
+                app.tick_footer(now);
             }
         }
         return true;
@@ -5039,7 +5177,62 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
     true
 }
 
-pub(super) fn select(app: &mut App, from: Target, first: u16, to: Target, last: u16) -> bool {
+#[cfg(test)]
+#[test]
+fn mouse_copy_uses_field_source_and_secret_never_enters_clipboard() {
+    let mut driver = super::test_driver("settings-mouse-copy");
+    for (field, secret) in [(Field::Knob("stop".into()), false), (Field::SetupKey, true)] {
+        let mut app = App::for_test();
+        app.panel = Panel::Settings;
+        app.preferences.editor = Some(Editor {
+            id: 1,
+            field,
+            title: "Fixture".into(),
+            help: String::new(),
+            text: "aé界tail".into(),
+            cursor: "aé界tail".len(),
+            editing: super::editing::State::default(),
+            choices: Vec::new(),
+            clearable: false,
+            button: 0,
+            confirm_apply_at: None,
+        });
+        let (sink, _) = render_interactive(&mut app, 120, 34);
+        let target = sink
+            .owner
+            .iter()
+            .find_map(|hit| match hit {
+                Hit::Settings(target @ Target::Text { .. }) => Some(*target),
+                _ => None,
+            })
+            .unwrap();
+        let Target::Text { row, .. } = target else {
+            unreachable!()
+        };
+        let first = app.preferences.text_rows[row].first_col as u16;
+        assert_eq!(
+            copy_input(&app, target, first, target, first + 4).as_deref(),
+            Some(if secret { "" } else { "aé界" })
+        );
+        let editor = app.preferences.editor.as_ref().unwrap();
+        assert!(editor
+            .editing
+            .selected(&editor.text, editor.cursor)
+            .is_none());
+        assert_eq!(editor.cursor, "aé界tail".len());
+        key(&mut app, &Key::Char('X'), &mut driver);
+        assert_eq!(app.preferences.editor.as_ref().unwrap().text, "aé界tailX");
+    }
+    driver.engine.shutdown();
+}
+
+pub(super) fn copy_input(
+    app: &App,
+    from: Target,
+    first: u16,
+    to: Target,
+    last: u16,
+) -> Option<String> {
     let (
         Target::Text { row: a, editor: id },
         Target::Text {
@@ -5048,28 +5241,25 @@ pub(super) fn select(app: &mut App, from: Target, first: u16, to: Target, last: 
         },
     ) = (from, to)
     else {
-        return false;
+        return None;
     };
     if id != other {
-        return false;
+        return Some(String::new());
     }
-    let Some(start) = app.preferences.text_rows.get(a).map(|r| r.caret_at(first)) else {
-        return false;
-    };
-    let Some(end) = app.preferences.text_rows.get(b).map(|r| r.caret_at(last)) else {
-        return false;
-    };
-    match (id, app.preferences.editor.as_mut()) {
-        (Some(id), Some(e)) if e.id == id => {
-            e.editing.select(&e.text, &mut e.cursor, start, end);
-            true
-        }
-        (None, None) => {
-            let loc = &mut app.preferences.location;
-            loc.editing.select(&loc.query, &mut loc.cursor, start, end);
-            true
-        }
-        _ => false,
+    let start = app.preferences.text_rows.get(a)?.caret_at(first);
+    let end = app.preferences.text_rows.get(b)?.caret_at(last);
+    match (id, app.preferences.editor.as_ref()) {
+        (Some(id), Some(e)) if e.id == id => Some(if e.secret() {
+            String::new()
+        } else {
+            super::selection::source(&e.text, start, end)
+        }),
+        (None, None) => Some(super::selection::source(
+            &app.preferences.location.query,
+            start,
+            end,
+        )),
+        _ => Some(String::new()),
     }
 }
 
@@ -5331,7 +5521,8 @@ pub fn open(app: &mut App, row: &Row, d: &mut Driver) {
         Kind::AddPreset(name) => {
             app.preferences.navigate(Page::Setup(name.clone()));
             app.preferences.setup = Some(ProviderDraft::model(name));
-            ask_model_field(app);
+            // The form is shown, never an editor over it (owner, 2026-10-23).
+            focus_model_field(app);
         }
         Kind::AddService(id)
             if provider_list(app)
@@ -5350,15 +5541,13 @@ pub fn open(app: &mut App, row: &Row, d: &mut Driver) {
                 service: true,
                 ..ProviderDraft::model(id)
             });
+            // The form first, on what it still needs (owner, 2026-10-23).
             if adapter["base_url"].is_null() {
-                edit_now(
-                    app,
-                    Field::SetupUrl,
-                    "Base URL",
-                    "The address of your own server.",
-                );
+                focus(app, Field::SetupUrl);
             } else if adapter["key"] != "none" && adapter["keys"].as_u64().unwrap_or(0) == 0 {
-                edit_now(app, Field::SetupKeyName, "Key name", "");
+                focus(app, Field::SetupKey);
+            } else {
+                settle(app);
             }
         }
         Kind::Connect => connect_service(app, d),
@@ -6875,7 +7064,7 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                 },
             );
             app.preferences.editor = None;
-            app.status = Some("Model configuration saved.".into());
+            app.note("Model configuration saved.");
         }
     }
 }
@@ -7302,7 +7491,7 @@ pub fn ack(app: &mut App, request: Request, ok: bool, error: Option<String>, dat
         app.preferences.notice = Some(n);
         let is_reasoning_setting = matches!(&request.operation, Operation::Setting(Some(k)) if k == "thinking" || k == "effort");
         if app.panel == super::Panel::Settings || !is_reasoning_setting {
-            app.status = Some(text);
+            app.note(text);
         }
     }
     // What the vendor offered opens as a choice, on the page it was asked from.
@@ -7953,6 +8142,7 @@ mod tests {
         assert_eq!(
             labels,
             [
+                "NOT CONNECTED YET",
                 "Connection name",
                 "API base URL",
                 "Key name",
@@ -7992,9 +8182,11 @@ mod tests {
         driver.engine.shutdown();
     }
 
-    /// A preset with an address of its own asks for the key alone, and the
-    /// key's Enter connects; one whose address is the account's asks for it
-    /// first and sends nothing until it is given (owner, 2026-10-22).
+    /// A preset with an address of its own is shown on its key, and the
+    /// key's Enter connects; one whose address is the account's is shown on
+    /// the address, and sends nothing until both are given (owner,
+    /// 2026-10-22). The form is the step; an editor opens on Enter, and Esc
+    /// in it leaves the whole addition (owner, 2026-10-23).
     #[test]
     fn a_preset_with_its_own_address_asks_only_for_the_key() {
         let mut app = app();
@@ -8003,9 +8195,17 @@ mod tests {
             {"name":"moonshot","needs_key":true,"base_url":"https://api.moonshot.ai/v1","url_hint":"","key_hint":"key"},
             {"name":"cloudflare","needs_key":true,"base_url":"","url_hint":"Your account's URL","key_hint":"token"}
         ]);
+        // Chosen from the list, shown on the field it needs, opened by Enter.
         let open_preset = |app: &mut App, driver: &mut Driver, name: &str| {
+            app.preferences.navigate(Page::AddProvider);
             let row = Row::new(Kind::AddPreset(name.into()), name, String::new());
             open(app, &row, driver);
+            assert!(app.preferences.editor.is_none(), "the form is shown first");
+            let at = rows(app)
+                .into_iter()
+                .nth(app.preferences.location.row)
+                .unwrap();
+            open(app, &at, driver);
             app.preferences.editor.as_ref().map(|e| e.field.clone())
         };
         assert_eq!(
@@ -8048,14 +8248,23 @@ mod tests {
         let exa = rows(&app).into_iter().find(|r| r.label == "exa").unwrap();
         open(&mut app, &exa, &mut d);
         assert_eq!(app.preferences.location.page, Page::Setup("exa".into()));
+        assert!(app.preferences.editor.is_none(), "the form is shown first");
         assert_eq!(
-            app.preferences.editor.as_ref().map(|e| e.field.clone()),
-            Some(Field::SetupKeyName),
-            "a keyed vendor starts with its key"
+            rows(&app)[app.preferences.location.row].kind,
+            Kind::Edit(Field::SetupKey),
+            "a keyed vendor starts on its key"
         );
-        app.preferences.editor = None;
         let labels: Vec<String> = rows(&app).into_iter().map(|r| r.label).collect();
-        assert_eq!(labels, ["Base URL", "Key name", "API key", "Save account"]);
+        assert_eq!(
+            labels,
+            [
+                "NOT SAVED YET",
+                "Base URL",
+                "Key name",
+                "API key",
+                "Save account"
+            ]
+        );
         // Connect with no key goes back to the key, sends nothing.
         connect_service(&mut app, &mut d);
         assert_eq!(app.preferences.pending, None);
@@ -8072,8 +8281,8 @@ mod tests {
             .unwrap();
         open(&mut app, &searxng, &mut d);
         assert_eq!(
-            app.preferences.editor.as_ref().map(|e| e.field.clone()),
-            Some(Field::SetupUrl)
+            rows(&app)[app.preferences.location.row].kind,
+            Kind::Edit(Field::SetupUrl)
         );
         app.preferences.editor = None;
         assert!(
@@ -8390,6 +8599,7 @@ mod tests {
         let (note, help) = row_note(&app);
         assert!(!note.contains("between tools") && !help.contains("between tool"));
         // Where the engine's provider list carries each model's catalogue row.
+        app.providers["providers"][1]["api"] = json!("9router");
         app.providers["providers"][1]["models"][0]["metadata"] =
             json!({"capabilities":{"reasoning":true,"thinkingOffType":"between_tools"}});
         let (note, help) = row_note(&app);
@@ -8397,11 +8607,8 @@ mod tests {
         assert!(help.contains("still thinks before it answers"), "{help}");
     }
 
-    /// Owner, 2026-10-15: Off is a choice on every 9router route, and on one
-    /// the router cannot stop thinking (`thinkingCanDisable: false`) the
-    /// screen says Off asks for its least, where Off is chosen.
     #[test]
-    fn an_off_that_asks_a_route_for_its_least_is_said_where_it_is_chosen() {
+    fn router_off_is_described_as_a_request_and_cannot_disable_requests_low() {
         let mut app = app();
         let row_note = |app: &App| {
             sampling_rows(app)
@@ -8410,18 +8617,71 @@ mod tests {
                 .map(|row| (row.note, row.help))
                 .unwrap()
         };
-        let (note, help) = row_note(&app);
-        assert!(!note.contains("least") && !help.contains("least"));
+        // Identical metadata on a different adapter never claims our policy.
         app.providers["providers"][1]["models"][0]["metadata"] =
             json!({"capabilities":{"reasoning":true,"thinkingCanDisable":false}});
+        let (note, _) = row_note(&app);
+        assert!(!note.contains("requests Low"), "{note}");
+        app.providers["providers"][1]["api"] = json!("9router");
         let (note, help) = row_note(&app);
-        assert!(note.contains("Off: least thinking"), "{note}");
-        assert!(help.contains("cannot stop thinking"), "{help}");
-        // The more exact note wins where the router publishes both.
+        assert!(note.contains("Off: requests Low"), "{note}");
+        assert!(
+            help.contains("cannot be disabled") && help.contains("Minimal is not offered"),
+            "{help}"
+        );
+        // Cannot-disable decides the request even if an off-type is also given.
         app.providers["providers"][1]["models"][0]["metadata"] = json!({"capabilities":{
             "reasoning":true,"thinkingCanDisable":false,"thinkingOffType":"between_tools"}});
-        let (note, _) = row_note(&app);
-        assert!(note.contains("between tools only"), "{note}");
+        assert!(row_note(&app).0.contains("requests Low"));
+        for capability in [json!(true), Value::Null] {
+            app.providers["providers"][1]["models"][0]["metadata"] = json!({"capabilities":{
+                "reasoning":true,"thinkingCanDisable":capability}});
+            let (note, help) = row_note(&app);
+            assert!(note.contains("Off: request only"), "{note}");
+            assert!(help.contains("zero thinking is not guaranteed"), "{help}");
+        }
+    }
+
+    #[test]
+    fn router_alt_c_filters_minimal_by_capability_in_the_actual_editor() {
+        for capability in [json!(false), json!(true), Value::Null] {
+            let mut app = app();
+            app.providers["providers"][1]["api"] = json!("9router");
+            app.providers["providers"][1]["models"][0] = json!({
+                "id":"z-model", "thinking":true,
+                "reasoning_options":["off","minimal","high"],
+                "metadata":{"capabilities":{"reasoning":true,"thinkingCanDisable":capability}}
+            });
+            let rows = model_config_rows(&app, "alpha", "z-model");
+            let row = rows.iter().find(|row| row.label == "Reasoning").unwrap();
+            let offers_minimal = capability != json!(false);
+            assert_eq!(
+                row.value.contains("minimal"),
+                offers_minimal,
+                "{}",
+                row.value
+            );
+            assert!(
+                row.help.contains(if offers_minimal {
+                    "zero thinking is not guaranteed"
+                } else {
+                    "Off requests Low"
+                }),
+                "{}",
+                row.help
+            );
+            let field = Field::ModelReasoning {
+                provider: "alpha".into(),
+                model: "z-model".into(),
+            };
+            open_editor(&mut app, field, row);
+            let editor = app.preferences.editor.as_ref().unwrap();
+            assert_eq!(
+                editor.choices.iter().any(|level| level == "minimal"),
+                offers_minimal
+            );
+            assert_eq!(editor.text.contains("minimal"), offers_minimal);
+        }
     }
 
     /// A model added to or removed from the registry must show in the picker at
@@ -9142,6 +9402,47 @@ mod tests {
             knob_choices(&app, "effort").unwrap(),
             ["default", "low", "medium", "high"]
         );
+        d.engine.shutdown();
+    }
+
+    #[test]
+    fn alt_t_and_slash_commands_refuse_to_enable_thinking_when_disabled_in_alt_c() {
+        let mut app = app();
+        let mut d = super::super::test_driver("test-disabled-alt-t");
+        app.providers["providers"][1]["models"][0]["reasoning_options"] = json!(["off"]);
+        app.providers["providers"][1]["models"][0]["thinking"] = json!(false);
+        app.settings["settings"]["provider"] = json!("alpha");
+        app.settings["settings"]["model"] = json!("z-model");
+        app.settings["settings"]["thinking"] = json!(false);
+        app.settings["settings"]["effort"] = json!(null);
+        app.settings["thinking_disabled"] = json!(true);
+        app.settings["knobs"] = json!([
+            { "key": "thinking", "label": "Thinking", "kind": "bool", "choices": ["off"] }
+        ]);
+
+        assert!(!app.thinking());
+        app.cycle_thinking(&mut d);
+        assert!(!app.thinking());
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Thinking is disabled for this model in Alt+C.")
+        );
+
+        app.slash("thinking on", &mut d);
+        app.show_waiting_status_for_test();
+        assert!(!app.thinking());
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Thinking is disabled for this model in Alt+C")
+        );
+
+        app.slash("thinking low", &mut d);
+        assert!(!app.thinking());
+        assert_eq!(
+            app.status.as_deref(),
+            Some("Thinking is disabled for this model in Alt+C")
+        );
+
         d.engine.shutdown();
     }
 

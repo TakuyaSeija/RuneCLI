@@ -33,11 +33,9 @@ pub struct Job<'a> {
     pub inherit: bool,
 }
 
-/// The model a job runs on, with the role's sampling and output budget
-/// applied, and the input that model can take: one answer for the job itself
-/// and for a caller sizing what it hands the job, so the two never disagree
-/// (the compaction used to size its transcript for the active model and send
-/// it to a smaller `compact.model`, which refused it every time).
+/// Keep route identity, output allowance and metadata capacity together.
+/// `input_budget` compares configured route capacities for a provider-rejection
+/// fallback; it is never a measurement or local admission test for source text.
 pub struct Route {
     pub settings: ModelSettings,
     pub input_budget: usize,
@@ -165,25 +163,12 @@ pub fn route(
 }
 
 pub fn run(rt: &Runtime, config: &Configuration, job: Job<'_>) -> Result<Output> {
-    let Route {
-        settings,
-        input_budget,
-    } = route(rt, config, job.role, job.active, job.inherit)?;
+    let settings = route(rt, config, job.role, job.active, job.inherit)?.settings;
     let timeout = match job.role {
         "classifier" => Some(config.duration("classifier.timeout")),
         "sanitizer" => Some(config.duration("sanitizer.timeout")),
         _ => None,
     };
-    if super::compact::estimate_tokens(&job.system)
-        + super::compact::estimate_tokens(&job.input)
-        + super::compact::estimate_tokens(&serde_json::to_string(&job.tools)?)
-        >= input_budget
-    {
-        return Err(Error::invalid(format!(
-            "{} evidence exceeds the selected model context budget",
-            job.role
-        )));
-    }
     // A job that offers exactly one tool is asking for that call and nothing
     // else; the endpoint is told so where it can be.
     let force_tool = (job.tools.len() == 1).then(|| job.tools[0].name.clone());
@@ -207,7 +192,6 @@ pub fn run(rt: &Runtime, config: &Configuration, job: Job<'_>) -> Result<Output>
             } else {
                 None
             },
-            estimate_correction: None,
             attachment_text_chars: Some(config.number("attachments.max_text_chars") as usize),
             force_tool,
         },
@@ -290,7 +274,6 @@ pub fn run(rt: &Runtime, config: &Configuration, job: Job<'_>) -> Result<Output>
             &request.settings.model,
             job.role,
             &details,
-            0,
         )?;
         let _ = rt.events.send(crate::proto::Event::AuxiliaryUsage {
             session: job.session,
@@ -300,6 +283,7 @@ pub fn run(rt: &Runtime, config: &Configuration, job: Job<'_>) -> Result<Output>
             cached,
             cost,
         });
+        super::spend::publish(rt, job.session);
         super::log::usage(
             rt,
             job.session,
@@ -309,6 +293,7 @@ pub fn run(rt: &Runtime, config: &Configuration, job: Job<'_>) -> Result<Output>
             output,
             cached,
             cost,
+            details.reasoning,
         );
     }
     if job.cancel.load(Ordering::Relaxed) {
@@ -481,7 +466,9 @@ mod tests {
             assert_eq!(sent.settings.temperature, None);
             assert_eq!(sent.settings.model, "fixture");
         }
-        let usage = crate::panic::lock(&db).session_usage(session).unwrap();
+        let usage = crate::panic::lock(&db)
+            .session_usage(session, &Default::default())
+            .unwrap();
         assert_eq!((usage.tok_in, usage.tok_out, usage.used), (30, 6, 0));
     }
 }

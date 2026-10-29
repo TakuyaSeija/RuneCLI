@@ -15,6 +15,7 @@
 pub mod auxiliary;
 #[path = "BackgroundTask.rs"]
 pub mod background;
+pub mod background_log;
 pub mod cache_watch;
 pub mod call;
 pub mod compact;
@@ -23,8 +24,10 @@ pub mod context;
 pub mod file_changes;
 pub mod live;
 pub mod log;
+pub mod manual_shell;
 pub mod prompt;
 pub(crate) mod sanitizer;
+pub mod spend;
 pub mod status;
 pub(crate) mod text_batches;
 pub mod title;
@@ -87,6 +90,7 @@ impl Clone for Runtime {
 /// jail, or in ask mode without a sandbox, because neither is expressible here.
 /// A message waiting for the running turn's next decision point.
 pub struct Queued {
+    pub manual_shell: bool,
     pub text: String,
     pub media: Vec<crate::media::Attachment>,
     /// The composer entry a steer was committed from, when it came from one.
@@ -136,6 +140,9 @@ pub enum Admitted {
     /// The session was free and is now held for the caller, which runs the
     /// message itself.
     Began(BusyGuard),
+    /// Older messages survived the previous job's release: this caller holds
+    /// the session for the whole queue, its own message last.
+    Backlog(BusyGuard),
 }
 
 /// How a run of turns ends ([`SessionState::settle`]).
@@ -232,9 +239,9 @@ pub struct SessionState {
     /// one and a Stop of the turn reaches every one.
     current_calls: Mutex<Vec<(String, Arc<AtomicBool>)>>,
     /// True while a turn (or a direct tool call, a manual compaction, a
-    /// capability operation) holds the session — a second prompt is refused
-    /// rather than interleaved, because two loops sharing one history produce
-    /// nonsense. Written only under [`Self::admission`]; read without it.
+    /// capability operation) holds the session — later prompts wait for it,
+    /// because two loops sharing one history cannot run together. Written
+    /// only under [`Self::admission`]; read without it.
     busy: AtomicBool,
     /// Who may start work on this session, and what waits for the work in
     /// progress: one lock for both (see [`Admission`]).
@@ -714,19 +721,45 @@ impl SessionState {
             admission.queue.push(queued()?);
             return Ok(Admitted::Queued);
         }
+        let backlog = !admission.queue.is_empty();
+        if backlog {
+            admission.queue.push(queued()?);
+        }
         let period = self
             .open_period(&mut admission)
             .ok_or_else(|| crate::error::Error::Internal("admission raced".into()))?;
-        Ok(Admitted::Began(BusyGuard {
+        let guard = BusyGuard {
             state: Arc::clone(self),
             period,
-        }))
+        };
+        Ok(if backlog {
+            Admitted::Backlog(guard)
+        } else {
+            Admitted::Began(guard)
+        })
     }
 
     /// Every queued message, in order — the work in progress taking them at a
     /// decision point.
     pub fn take_queued(&self) -> Vec<Queued> {
         panic::lock(&self.admission).queue.drain(..).collect()
+    }
+
+    /// A manual shell is an ordering barrier, never a mid-response steer.
+    pub fn take_steers(&self) -> Vec<Queued> {
+        let mut admission = panic::lock(&self.admission);
+        let count = admission
+            .queue
+            .iter()
+            .position(|queued| queued.manual_shell)
+            .unwrap_or(admission.queue.len());
+        admission.queue.drain(..count).collect()
+    }
+
+    pub fn requeue_front(&self, mut queued: Vec<Queued>) {
+        let mut admission = panic::lock(&self.admission);
+        queued.append(&mut admission.queue);
+        admission.queue = queued;
     }
 
     /// Take a notification of Rune's back out of the queue while it still
@@ -746,7 +779,11 @@ impl SessionState {
     /// whatever arrived — answered when `answerable` (the run ended on its
     /// own), handed back to be stored when it was stopped or failed — and only
     /// then is the session let go, in the same hold of the lock.
-    pub fn settle(&self, answerable: bool) -> Settle {
+    pub fn settle_with(
+        &self,
+        answerable: bool,
+        before_release: impl FnOnce(Vec<Queued>),
+    ) -> Settle {
         let mut admission = panic::lock(&self.admission);
         if std::mem::take(&mut admission.compact) {
             return Settle::Compact;
@@ -755,8 +792,20 @@ impl SessionState {
         if answerable && !queued.is_empty() {
             return Settle::Continue(queued);
         }
+        // The old run's remaining history and Done must precede any newcomer:
+        // releasing first let its Done turn the new turn's spinner off.
+        before_release(queued);
         self.busy.store(false, Ordering::Release);
-        Settle::Released(queued)
+        Settle::Released(Vec::new())
+    }
+
+    #[cfg(test)]
+    pub fn settle(&self, answerable: bool) -> Settle {
+        let mut left = Vec::new();
+        match self.settle_with(answerable, |queued| left = queued) {
+            Settle::Released(_) => Settle::Released(left),
+            other => other,
+        }
     }
 
     /// Ask for a compaction at the next request boundary of the work in
@@ -1066,6 +1115,7 @@ mod tests {
 
     fn steer(text: &str) -> Queued {
         Queued {
+            manual_shell: false,
             text: text.into(),
             media: Vec::new(),
             committed: None,
@@ -1186,6 +1236,57 @@ mod tests {
             1,
             "starting work threw the message away"
         );
+        engine.shutdown();
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    /// A manual job can end while its queue's wake has not run yet. The next
+    /// prompt must join that queue, not begin ahead of messages sent earlier.
+    #[test]
+    fn a_released_backlog_stays_ahead_of_the_next_prompt() {
+        let (mut engine, st, base) = open("admission-backlog");
+        st.background.set_notifier(Arc::new(Waiting::default()));
+        let guard = st.begin_guarded().unwrap();
+        st.admit(|| Ok(steer("sent before leaving"))).unwrap();
+        drop(guard);
+        assert!(!st.is_busy());
+        let queued = AtomicBool::new(false);
+        let admitted = st
+            .admit(|| {
+                queued.store(true, Ordering::SeqCst);
+                Ok(steer("Continue"))
+            })
+            .unwrap();
+        assert!(
+            queued.load(Ordering::SeqCst),
+            "the newer prompt overtook the backlog"
+        );
+        let messages: Vec<_> = st.take_queued().into_iter().map(|q| q.text).collect();
+        assert_eq!(messages, ["sent before leaving", "Continue"]);
+        drop(admitted);
+        engine.shutdown();
+        let _ = std::fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn a_runs_terminal_event_is_ordered_before_the_next_admission() {
+        let (mut engine, st, base) = open("admission-terminal");
+        let guard = st.begin_guarded().unwrap();
+        let mut finished = false;
+        let result = st.settle_with(true, |_| {
+            assert!(st.is_busy(), "a newcomer could start before Done");
+            assert!(matches!(
+                st.admission.try_lock(),
+                Err(std::sync::TryLockError::WouldBlock)
+            ));
+            finished = true;
+        });
+        assert!(finished);
+        assert!(matches!(result, Settle::Released(_)));
+        let next = st.begin_guarded().unwrap();
+        drop(guard);
+        assert!(st.is_busy());
+        drop(next);
         engine.shutdown();
         let _ = std::fs::remove_dir_all(base);
     }

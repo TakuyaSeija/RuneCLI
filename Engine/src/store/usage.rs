@@ -18,7 +18,13 @@ use crate::error::Result;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SessionUsage {
+    /// Measured requests that have no price yet: their model had none when
+    /// they ran and has none now.
     pub unpriced_calls: u64,
+    /// Measured requests with a price — charged when they ran, or priced
+    /// since by their model's current rates.
+    #[serde(default)]
+    pub priced_calls: u64,
     pub used: u64,
     pub tok_in: u64,
     pub tok_out: u64,
@@ -47,11 +53,8 @@ pub struct AggregateUsage {
 impl Db {
     /// Record one measured request for every role, using the engine's price result.
     ///
-    /// `estimated_in` is what Rune's own estimate said this request would cost. It
-    /// is stored beside the provider's real `input` so the two can be compared
-    /// later: the provider owns the true token count, and the only honest way to
-    /// know how far Rune's guess drifts is to keep both numbers. `0` means the
-    /// request carried no estimate and must not be used as a calibration sample.
+    /// Only reported usage reaches accounting. The retired `estimated_in`
+    /// column remains historical storage; new requests always leave it zero.
     #[allow(clippy::too_many_arguments)]
     pub fn record_usage_role(
         &self,
@@ -65,7 +68,6 @@ impl Db {
         model: &str,
         role: &str,
         details: &crate::provider::UsageDetails,
-        estimated_in: u64,
     ) -> Result<()> {
         if [input, output, cached]
             .into_iter()
@@ -77,46 +79,37 @@ impl Db {
         }
         crate::store::while_busy(|| {
             self.conn.execute("INSERT INTO token_usage (session_id,turn,timestamp,tok_in,tok_out,cache_in,context_used,cost,provider,model,role,details,cost_known,estimated_in) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)",
-            params![session,turn,now_ms(),input as i64,output as i64,cached as i64,if role=="agent"{input as i64}else{0},cost.unwrap_or(0.0),provider,model,role,serde_json::to_string(details)?,cost.is_some(),estimated_in.min(i64::MAX as u64) as i64])?;
+            params![session,turn,now_ms(),input as i64,output as i64,cached as i64,if role=="agent"{input as i64}else{0},cost.unwrap_or(0.0),provider,model,role,serde_json::to_string(details)?,cost.is_some(),0i64])?;
             Ok(())
         })
     }
 
-    /// How far Rune's own estimate drifts from the provider's real input, per model.
-    ///
-    /// Returns `real / estimated` summed over every recorded request that carried
-    /// both a real count and an estimate — the provider's own numbers, never a
-    /// ratio anyone wrote down. `None` when no comparable sample exists, so the
-    /// caller keeps its own estimate rather than inventing a correction.
-    pub fn estimate_correction(&self, provider: &str, model: &str) -> Result<Option<f64>> {
-        let row = self.conn.query_row(
-            "SELECT SUM(tok_in), SUM(estimated_in) FROM token_usage \
-             WHERE provider=?1 AND model=?2 AND role='agent' AND estimated_in > 0 AND tok_in > 0 \
-               AND (details IS NULL OR json_extract(details,'$.input_known')=1)",
-            params![provider, model],
-            |r| Ok((r.get::<_, Option<i64>>(0)?, r.get::<_, Option<i64>>(1)?)),
-        )?;
-        Ok(match row {
-            (Some(real), Some(estimated)) if real > 0 && estimated > 0 => {
-                Some(real as f64 / estimated as f64)
-            }
-            _ => None,
-        })
-    }
-
-    /// Retrieve cumulative and latest token usage for a session.
-    pub fn session_usage(&self, session_id: i64) -> Result<SessionUsage> {
-        self.session_usage_before(session_id, None)
+    /// Retrieve cumulative and latest token usage for a session, a request
+    /// recorded without a price priced at `prices` where its model has one now.
+    pub fn session_usage(
+        &self,
+        session_id: i64,
+        prices: &crate::settings::Prices,
+    ) -> Result<SessionUsage> {
+        self.session_usage_before(session_id, None, prices)
     }
 
     /// [`Db::session_usage`] as it stood before turn `before`: the rows of
     /// earlier turns only. A window that joins a running turn adds that turn's
     /// own requests from the events it replays, so the rows it has already
     /// written must not be counted a second time.
+    ///
+    /// A request that had no price when it ran is priced here, at its model's
+    /// rates as they stand now (owner, 2026-10-23: a price filled in later
+    /// prices the history it was missing from; a different model counts from
+    /// its own requests). The row itself is never rewritten: a request priced
+    /// when it ran keeps what it was charged, and one priced here follows its
+    /// model's price until that is set.
     pub fn session_usage_before(
         &self,
         session_id: i64,
         before: Option<i64>,
+        prices: &crate::settings::Prices,
     ) -> Result<SessionUsage> {
         let mut usage = SessionUsage::default();
         let last_row = self.conn.query_row(
@@ -148,14 +141,43 @@ impl Db {
         // spending to price, and it would do so forever: the row is written
         // once and no later turn ever revises it, so a single early failure
         // would sit in the number for the life of the session.
-        usage.unpriced_calls = self.conn.query_row(
-            "SELECT COUNT(*) FROM token_usage WHERE session_id=?1 AND (?2 IS NULL OR turn < ?2) AND cost_known=0 \
+        let mut unpriced = self.conn.prepare_cached(
+            "SELECT provider, model, tok_in, tok_out, cache_in, details FROM token_usage \
+             WHERE session_id=?1 AND (?2 IS NULL OR turn < ?2) AND cost_known=0 \
                AND (tok_in > 0 OR tok_out > 0 \
                     OR json_extract(details,'$.input_known')=1 \
                     OR json_extract(details,'$.output_known')=1)",
-            params![session_id, before],
-            |r| r.get(0),
         )?;
+        let rows = unpriced.query_map(params![session_id, before], |r| {
+            Ok((
+                r.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                r.get::<_, i64>(2)? as u64,
+                r.get::<_, i64>(3)? as u64,
+                r.get::<_, i64>(4)? as u64,
+                r.get::<_, Option<String>>(5)?,
+            ))
+        })?;
+        for row in rows {
+            let (provider, model, input, output, cached, details) = row?;
+            // Details that do not read are a request nobody can price now.
+            let cost = details
+                .as_deref()
+                .and_then(|d| serde_json::from_str::<crate::provider::UsageDetails>(d).ok())
+                .and_then(|d| prices.price_of(&provider, &model, input, output, cached, &d));
+            match cost {
+                Some(cost) => {
+                    usage.spend += cost;
+                    usage.priced_calls += 1;
+                }
+                None => usage.unpriced_calls += 1,
+            }
+        }
+        usage.priced_calls += self.conn.query_row(
+            "SELECT COUNT(*) FROM token_usage WHERE session_id=?1 AND (?2 IS NULL OR turn < ?2) AND cost_known=1",
+            params![session_id, before],
+            |r| r.get::<_, i64>(0),
+        )? as u64;
         Ok(usage)
     }
 
@@ -207,7 +229,6 @@ mod tests {
                 input_known: true,
                 ..Default::default()
             },
-            0,
         )
         .unwrap();
         db.record_usage_role(
@@ -224,11 +245,10 @@ mod tests {
                 input_known: true,
                 ..Default::default()
             },
-            0,
         )
         .unwrap();
 
-        let u = db.session_usage(s.id).unwrap();
+        let u = db.session_usage(s.id, &Default::default()).unwrap();
         assert_eq!(u.tok_in, 2200);
         assert_eq!(u.cache_in, 600);
         assert_eq!(u.used, 1200);
@@ -246,87 +266,13 @@ mod tests {
     }
 
     #[test]
-    fn no_sample_means_no_correction_rather_than_a_guess() {
+    fn an_unknown_input_count_stays_unknown_in_context_usage() {
         let db = Db::memory().unwrap();
         let s = db.create_session("/test").unwrap();
-        // A request with no estimate recorded is not a calibration sample.
         db.record_usage_role(
             s.id,
             1,
-            1000,
-            10,
             0,
-            None,
-            "p1",
-            "m1",
-            "agent",
-            &crate::provider::UsageDetails {
-                input_known: true,
-                ..Default::default()
-            },
-            0,
-        )
-        .unwrap();
-        assert_eq!(db.estimate_correction("p1", "m1").unwrap(), None);
-        assert_eq!(db.estimate_correction("p1", "never-seen").unwrap(), None);
-    }
-
-    #[test]
-    fn the_correction_is_the_providers_own_ratio_not_a_constant() {
-        let db = Db::memory().unwrap();
-        let s = db.create_session("/test").unwrap();
-        // Rune guessed 1,000; the provider measured 1,500.
-        db.record_usage_role(
-            s.id,
-            1,
-            1500,
-            10,
-            0,
-            None,
-            "p1",
-            "m1",
-            "agent",
-            &crate::provider::UsageDetails {
-                input_known: true,
-                ..Default::default()
-            },
-            1000,
-        )
-        .unwrap();
-        let r = db.estimate_correction("p1", "m1").unwrap().unwrap();
-        assert!((r - 1.5).abs() < 1e-9, "expected 1.5, got {r}");
-
-        // A different model with the opposite drift is scored on its own numbers.
-        db.record_usage_role(
-            s.id,
-            2,
-            800,
-            10,
-            0,
-            None,
-            "p2",
-            "m2",
-            "agent",
-            &crate::provider::UsageDetails {
-                input_known: true,
-                ..Default::default()
-            },
-            1600,
-        )
-        .unwrap();
-        let r2 = db.estimate_correction("p2", "m2").unwrap().unwrap();
-        assert!((r2 - 0.5).abs() < 1e-9, "expected 0.5, got {r2}");
-    }
-
-    #[test]
-    fn an_unknown_input_count_is_not_used_to_calibrate() {
-        let db = Db::memory().unwrap();
-        let s = db.create_session("/test").unwrap();
-        // input_known=false means the provider did not really report this count.
-        db.record_usage_role(
-            s.id,
-            1,
-            1500,
             10,
             0,
             None,
@@ -337,55 +283,20 @@ mod tests {
                 input_known: false,
                 ..Default::default()
             },
-            1000,
         )
         .unwrap();
-        assert_eq!(db.estimate_correction("p1", "m1").unwrap(), None);
-    }
-
-    #[test]
-    fn a_non_agent_row_with_an_estimate_is_not_a_calibration_sample() {
-        let db = Db::memory().unwrap();
-        let s = db.create_session("/test").unwrap();
-        // Only the agent route reflects the request Rune is estimating; a
-        // summariser or classifier call must never skew the factor.
-        db.record_usage_role(
-            s.id,
-            1,
-            9000,
-            10,
-            0,
-            None,
-            "p1",
-            "m1",
-            "compact",
-            &crate::provider::UsageDetails {
-                input_known: true,
-                ..Default::default()
-            },
-            1000,
-        )
-        .unwrap();
-        assert_eq!(db.estimate_correction("p1", "m1").unwrap(), None);
-        // ...while an agent row on the same model does count.
-        db.record_usage_role(
-            s.id,
-            2,
-            1500,
-            10,
-            0,
-            None,
-            "p1",
-            "m1",
-            "agent",
-            &crate::provider::UsageDetails {
-                input_known: true,
-                ..Default::default()
-            },
-            1000,
-        )
-        .unwrap();
-        let r = db.estimate_correction("p1", "m1").unwrap().unwrap();
-        assert!((r - 1.5).abs() < 1e-9, "only the agent row counts, got {r}");
+        assert_eq!(db.session_usage(s.id, &Default::default()).unwrap().used, 0);
+        let estimated: i64 = db
+            .conn()
+            .query_row(
+                "SELECT estimated_in FROM token_usage WHERE session_id=?1",
+                [s.id],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            estimated, 0,
+            "the retired historical column never receives a fabricated count"
+        );
     }
 }

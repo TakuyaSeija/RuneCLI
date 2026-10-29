@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">Using commands</h2>
+<p>Type <code>/</code> in the composer to search the palette. Choose with the arrow keys, complete with <kbd>Tab</kbd>, and execute with <kbd>Enter</kbd>. Arguments in square brackets are optional; angle brackets describe a value you supply, not text to type literally. <code>/help</code> is the installed build's authority.</p>
+<h2 id="session-and-context">Session and context</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>Start a fresh conversation in this workspace. It does not delete the current session.</dd></div>
+<div><dt>/session</dt><dd>Open the searchable session picker for this workspace.</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>Resume a particular stored session.</dd></div>
+<div><dt>/compact</dt><dd>Summarize older context. This can make a model request and lose historical detail; it does not clear disk storage.</dd></div>
+<div><dt>/context</dt><dd>Inspect context supplied to the model. Treat its content as private work when sharing.</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>Open diagnostic events, optionally filtered by severity. Failed requests and retries belong here; the view is not permission to retry or change accounts.</dd></div>
+</dl>
+<h2 id="model-and-permissions">Model and permissions</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>Select a provider/model pair, or open Models with no argument. An ambiguous model ID is best selected through its provider in the list.</dd></div>
+<div><dt>/provider [name]</dt><dd>Choose the answering provider; no name opens the list. This changes where subsequent work can be sent.</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>Inspect or select reasoning from this model's available choices. Alt+T cycles choices. Off is a request, not proof that an upstream route uses zero reasoning.</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>Cycle or explicitly set the session's permission mode. Full grants broad autonomy; do not use it merely to silence a failure.</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>Inspect or configure policy review. Reload adopts policy for an idle session; an enabled switch alone does not prove review is active.</dd></div>
+<div><dt>/set key=value</dt><dd>Change a supported model/session control, for example <code>/set temperature=0.2</code>. Clearing an optional value, such as <code>/set temperature=</code>, returns control to the default/provider.</dd></div>
+</dl>
+<h2 id="files-and-capabilities">Files and capabilities</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>Add a file to the next message. Review pending attachments before sending; supported content goes to the selected provider.</dd></div>
+<div><dt>/detach number|all</dt><dd>Remove one pending attachment by number or remove all pending attachments.</dd></div>
+<div><dt>/undo</dt><dd>Preview and restore eligible files to before this session first changed them. Current external edits can be overwritten.</dd></div>
+<div><dt>/redo</dt><dd>Preview and restore what the latest undo replaced. It is not an unlimited backup history.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Manage available guides. Show, enable and disable take the listed skill's ID. Reload refreshes the catalog after edits.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Activate one guide for the conversation. Activation does not grant every action described by that guide.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Manage external tool connections. Review the server, destination and access before adding or connecting; a local server can start code.</dd></div>
+</dl>
+<h2 id="views-and-application">Views and application</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>Open Settings. <code>/*</code> is an alias; Ctrl+G is the keyboard shortcut.</dd></div>
+<div><dt>/theme [name]</dt><dd>Choose violet, cyan or amber. The terminal's own background and transparency remain terminal preferences.</dd></div>
+<div><dt>/panel</dt><dd>Toggle the conversation side panel. Narrow terminals may still hide it.</dd></div>
+<div><dt>/verbose</dt><dd>Expand or refold tool steps and thoughts. This does not increase a tool's returned-output cap.</dd></div>
+<div><dt>/help</dt><dd>Read the current build's command and keyboard reference.</dd></div>
+<div><dt>/quit</dt><dd>Leave Rune. Closing the last window stops active AI work; retained background tasks have a separate lifetime.</dd></div>
+</dl>
+<p>Shell commands such as <code>rune -config</code> belong in your terminal, not in the slash palette. See the <a href="{{url "docs/cli"}}">command-line reference</a> for those. To run a shell command from the composer yourself, start the input with <code>!</code>; see <a href="{{url "docs/shell"}}">Manual commands</a>.</p>
+{{end}}

@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="launch-intent">Foreground and background</h2>
+<p>The agent chooses launch intent from task dependencies. If the next step needs a command's result, a normal foreground call can return it directly. If independent work can proceed, an explicit background launch returns a task ID immediately. A command's name alone does not determine which choice is correct.</p>
+<p>A foreground command still running after the configured wait moves to background as the <strong>same process</strong>; it is not restarted. The factory wait is 120 seconds. A system-detected typed-input wait can cause an earlier handoff. Silence alone is not proof of an input prompt.</p>
+<h2 id="shell-and-directory">Shell and directory</h2>
+<p>Each call starts a new shell; <code>cd</code> does not carry over. The command's directory must be supplied for that call. The automatic shell uses an available supported shell appropriate to the operating system; advanced configuration can select an absolute installed shell path.</p>
+<p>The command box names the shell that actually ran: <code>$</code> for bash and zsh, <code>PS&gt;</code> for PowerShell and <code>&gt;</code> for Command Prompt. Changing shells changes command syntax. Shell commands run with the current permission mode and approved scope; terminal settings do not themselves authorize execution or access to a local service.</p>
+<h2 id="reports">Read the actual report</h2>
+<dl class="ref">
+<div><dt>Running</dt><dd>The process is still active, not a completed success.</dd></div>
+<div><dt>Waiting for input</dt><dd>The system detected an input wait. Read the prompt before answering.</dd></div>
+<div><dt>Completed / Failed</dt><dd>The process ended. Read its exit code and output; a successful exit only proves the command's own check.</dd></div>
+<div><dt>Killed</dt><dd>The process was stopped. Do not assume partially completed work was rolled back.</dd></div>
+<div><dt>Lost</dt><dd>Rune cannot confirm a normal final result, for example after losing the tracked runtime. It is not success.</dd></div>
+</dl>
+<p>When a task ends or a wait is detected, Rune notifies the agent. The agent reads the report with manage_process instead of repeatedly polling or launching the same command again. Additional information can identify shortened or incomplete capture.</p>
+<h2 id="saved-log">The saved log</h2>
+<p>Each background command writes one log file on your computer. It holds the finished output and, at its end, the current screen, so a question that has not printed a final newline is already in it. The log is plain text after the terminal's cursor moves are applied: a progress bar that redraws one line stays one line, and an answer typed onto a question's line replaces that line instead of repeating it.</p>
+<p>The first report the agent reads from a background command starts at the beginning of the log, even when part of it was shown before; later reports return only new or changed output. A report that names only the process and its log had nothing new. Before Rune announces that a command waits for input, it writes the log to disk, so a restarted Rune can read it without the old conversation. That is not a guarantee against disk failure or a crash in the middle of a write.</p>
+<h2 id="typed-input">Typed input</h2>
+<p>terminal_send_input types into a known background task. It does not wait for completion or return the next output. The submit choice can append Enter automatically, force Enter, or type text only. An empty text with Enter presses Enter alone.</p>
+<p>Input-wait detection differs by platform: Linux detects typed-input waits, macOS detects hidden entries such as password prompts, and Windows does not detect these waits. A quiet task on the latter systems can still be waiting. Never guess a password or confirm a destructive prompt merely because the process is quiet.</p>
+<h2 id="output-and-lifetime">Output bounds and lifetime</h2>
+<p>The factory returned-text cap is 30,000 characters. Separate capture limits are 8 MiB for foreground output and 100 MiB per background log; exceeding a capture/log bound can stop the command. The four-line transcript preview is only a display fold.</p>
+<p>Closing the last Rune window stops active AI work. Background tasks can remain during the detached-session retention period, 60 seconds by default, then end. Use a deliberate operating-system service arrangement if you need an independent long-running service; do not assume a background Rune task survives forever.</p>
+{{end}}

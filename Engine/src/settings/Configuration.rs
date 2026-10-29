@@ -29,12 +29,14 @@ pub struct Field {
 }
 use Kind::*;
 pub const FIELDS: &[Field] = &[
-Field {key:"capabilities",default:"{}",kind:Capabilities,help:"Scoped skills, product workflows, MCP definitions and context budgets. Managed by rune -skills and rune -mcp."},
+Field {key:"capabilities",default:"{}",kind:Capabilities,help:"Scoped skills, product workflows, MCP definitions and catalogue byte budgets. Managed by rune -skills and rune -mcp."},
+Field { key:"skills.max_catalog_size", default:"\"8KiB\"", kind:Size, help:"UTF-8 byte limit for skill-summary catalogue text when capabilities.catalog_bytes is not explicitly set. Not model tokens; full guides remain discoverable." },
 Field{key:"network.max_stream_size",default:"\"16MiB\"",kind:Size,help:"Maximum accumulated wire bytes in one model response."},
 Field { key:"sanitizer.enabled", default:"true", kind:Bool, help:"Extract original user instructions before eligible classifier review by default. Set false to opt out; never runs for human-authorized, excluded, or inactive classifier actions." },
 Field { key:"sanitizer.model", default:"null", kind:Model, help:"Omit to inherit the active model. Failure falls back to a distinct active route, then original user sources." },
 Field { key:"sanitizer.timeout", default:"\"120s\"", kind:Duration, help:"Maximum time for one instruction extraction request." },
 Field { key:"sanitizer.max_output_tokens", default:"4096", kind:Count(256,10000000), help:"Output allowance for sourced instruction extraction, bounded by the model's capability." },
+Field { key:"sanitizer.max_batch_size", default:"\"64KiB\"", kind:Size, help:"Maximum quoted source-text bytes in one extraction batch. Not a token count or a guarantee that a model accepts the batch; provider payload limits also apply." },
 Field{key:"generation",default:"null",kind:Generation,help:"Global generation defaults; keys match session generation settings. Stop is an exact string array."},
 Field { key:"checkpoint.max_file_size", default:"\"64MiB\"", kind:Size, help:"Maximum snapshot size; larger writes fail before mutation." },
 Field { key:"checkpoint.refresh_interval", default:"\"1s\"", kind:Duration, help:"Content refresh cadence for files already tracked by an open session; Rune writes publish immediately." },
@@ -84,8 +86,9 @@ Field { key:"classifier.max_evidence_size", default:"\"256KiB\"", kind:Size, hel
 Field { key:"classifier.max_policy_size", default:"\"64KiB\"", kind:Size, help:"Maximum bytes per policy file." },
 Field { key:"compact.model", default:"null", kind:Model, help:"Omit to inherit the active request provider/model." },
 Field { key:"compact.max_output_tokens", default:"32768", kind:Count(256,10000000), help:"Output tokens for a history summary; the summariser is told to fit within it." },
+Field { key:"compact.max_batch_size", default:"\"128KiB\"", kind:Size, help:"Maximum quoted source/summary text bytes in one compaction batch. Not model tokens; small models may reject it. Original user sources are split, never silently shortened." },
 Field { key:"compact.keep_recent_turns", default:"5", kind:Count(1,100), help:"Turns kept verbatim." },
-Field { key:"compact.fallback_context_tokens", default:"200000", kind:Count(1000,10000000), help:"Context budget assumed for a model that publishes no context window." },
+Field { key:"compact.fallback_context_tokens", default:"200000", kind:Count(1000,10000000), help:"Reported input-token threshold for automatic compaction when the model publishes no context window. Unknown usage is never inferred from text or media bytes." },
 Field { key:"compact.message_chars", default:"32000", kind:Count(100,1000000), help:"Unicode characters retained per old assistant/tool-result body. Original user instructions are processed whole, in batches when needed; attachments are separate." },
 Field { key:"compact.tool_chars", default:"2000", kind:Count(100,1000000), help:"Unicode characters retained per historical tool call arguments, never one limit shared by an entire call array. Identity and target metadata stay visible." },
 Field { key:"title.model", default:"null", kind:Model, help:"Omit to inherit the active request provider/model." },
@@ -130,7 +133,8 @@ Field { key:"ui.sidebar", default:"true", kind:Bool, help:"Conversation side pan
 Field { key:"ui.scroll_lines", default:"2", kind:Count(1,30), help:"Rows one mouse-wheel notch moves the transcript; with Ctrl or Alt held, three times as far." },
 Field { key:"ui.scroll_smooth", default:"true", kind:Bool, help:"Glide to where the wheel pointed instead of jumping there." },
 Field { key:"ui.frame_interval", default:"\"16ms\"", kind:Duration, help:"UI refresh interval." },
-Field { key:"ui.status_lifetime", default:"\"8s\"", kind:Duration, help:"Transient status lifetime." },
+Field { key:"ui.status_lifetime", default:"\"8s\"", kind:Duration, help:"Unopposed transient status lifetime." },
+Field { key:"ui.status_replace_lifetime", default:"\"3s\"", kind:Duration, help:"Visible status interval before another waiting message or retry can take the footer." },
 Field { key:"ui.quit_lifetime", default:"\"4s\"", kind:Duration, help:"Quit confirmation lifetime." },
 Field { key:"ui.stop_lifetime", default:"\"3s\"", kind:Duration, help:"Stop confirmation lifetime." },
 Field { key:"ui.escape_timeout", default:"\"50ms\"", kind:Duration, help:"Escape-sequence timeout." },
@@ -1079,6 +1083,7 @@ pub fn is_internal_invariant(key: &str) -> bool {
             | "retry.credit_cooldown"
             | "ui.frame_interval"
             | "ui.status_lifetime"
+            | "ui.status_replace_lifetime"
             | "ui.quit_lifetime"
             | "ui.stop_lifetime"
             | "ui.escape_timeout"

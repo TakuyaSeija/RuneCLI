@@ -23,4 +23,4 @@ Advanced `overrides` can describe additional published tiers: `min_prompt_tokens
 ## Effects and risks
 Wrong rates or hours make estimates misleading. Rates should match the exact provider/model, and can change over time. An input price is not a model's context limit. A cached rate does not enable caching or guarantee a cache hit.
 
-Unknown usage or prices may prevent a reliable estimate. A provider-reported charge can differ from a local estimate. Use the provider's billing as the authority; this is not a spending cap. Confirm any pricing change rather than silently replacing the user's choices during refresh.
+Setting a price for a model also prices that model's earlier requests that ran without one, in every session; requests priced when they ran keep their price ([usage](../data/usage.md)). Unknown usage or prices may prevent a reliable estimate. A provider-reported charge can differ from a local estimate. Use the provider's billing as the authority; this is not a spending cap. Confirm any pricing change rather than silently replacing the user's choices during refresh.

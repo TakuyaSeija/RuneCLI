@@ -29,7 +29,7 @@ impl Tool for DiscoverCapabilities {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Find what is not already listed: skills beyond <available_skills>, the tools of connected MCP servers (each with the input schema call_mcp_tool needs), and MCP resources.".into(),
+            description: "Find capabilities not declared in this request: skills beyond <available_skills>, connected MCP tools with their input schemas, and MCP resources.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,

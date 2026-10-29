@@ -12,9 +12,6 @@ fn default_true() -> bool {
 fn default_page_size() -> usize {
     12
 }
-fn default_catalog_tokens() -> usize {
-    2048
-}
 fn default_max_entries() -> usize {
     2000
 }
@@ -50,8 +47,8 @@ pub struct Settings {
     pub projects: BTreeMap<String, Project>,
     #[serde(default = "default_page_size", skip_serializing)]
     pub page_size: usize,
-    #[serde(default = "default_catalog_tokens", skip_serializing)]
-    pub catalog_tokens: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub catalog_bytes: Option<usize>,
     #[serde(default = "default_max_entries", skip_serializing)]
     pub max_entries: usize,
     #[serde(default = "default_max_skill_bytes", skip_serializing)]
@@ -75,7 +72,7 @@ impl Default for Settings {
             servers: BTreeMap::new(),
             projects: BTreeMap::new(),
             page_size: 12,
-            catalog_tokens: 2048,
+            catalog_bytes: None,
             max_entries: 2000,
             max_skill_bytes: 65536,
             max_package_bytes: 16 * 1024 * 1024,
@@ -186,19 +183,21 @@ pub struct ResolvedServer {
 impl Settings {
     pub fn from_config(config: &Configuration) -> Result<Self> {
         let value = config.get("capabilities");
-        let settings: Self = serde_json::from_value(if value.is_null() {
+        let mut settings: Self = serde_json::from_value(if value.is_null() {
             serde_json::json!({})
         } else {
             value.clone()
         })?;
         settings.check()?;
+        if settings.catalog_bytes.is_none() {
+            settings.catalog_bytes = Some(config.number("skills.max_catalog_size") as usize);
+        }
         Ok(settings)
     }
 
     pub fn check(&self) -> Result<()> {
         for (value, min, max) in [
             (self.page_size, 1, 100),
-            (self.catalog_tokens, 128, 32768),
             (self.max_entries, 1, 10000),
             (self.max_skill_bytes, 1024, 1024 * 1024),
             (self.max_package_bytes, 1024, 128 * 1024 * 1024),
@@ -210,6 +209,14 @@ impl Settings {
                     "Capability setting is outside its supported range",
                 ));
             }
+        }
+        if self
+            .catalog_bytes
+            .is_some_and(|bytes| !(512..=131072).contains(&bytes))
+        {
+            return Err(Error::invalid(
+                "Catalogue byte setting is outside its supported range",
+            ));
         }
         if self.servers.len() > 128 || self.projects.len() > 10000 {
             return Err(Error::invalid("Too many capability configuration entries"));
@@ -463,6 +470,19 @@ fn check_digest(digest: &str) -> Result<()> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn catalogue_default_is_a_byte_field_not_an_estimated_token_count() {
+        let configuration = Configuration::default();
+        let settings = Settings::from_config(&configuration).unwrap();
+        assert_eq!(
+            settings.catalog_bytes,
+            Some(configuration.number("skills.max_catalog_size") as usize)
+        );
+        assert!(
+            serde_json::from_value::<Settings>(serde_json::json!({"catalog_tokens":2048})).is_err()
+        );
+    }
+
     /// What the owner sets under `[capabilities]` is what the engine runs on.
     #[test]
     fn the_owners_capability_limits_are_read_as_written() {
@@ -470,13 +490,16 @@ mod tests {
         std::fs::create_dir_all(&home).unwrap();
         std::fs::write(
             home.join("rune.toml"),
-            "[capabilities]\ntimeout_seconds = 7\ncatalog_tokens = 4096\nexternal_skills_compatibility = true\n",
+            "[capabilities]\ntimeout_seconds = 7\ncatalog_bytes = 16384\nexternal_skills_compatibility = true\n",
         )
         .unwrap();
         let settings = Settings::from_config(&Configuration::load(&home).unwrap()).unwrap();
         std::fs::remove_dir_all(&home).ok();
         assert_eq!(settings.timeout_seconds, 7);
-        assert_eq!(settings.catalog_tokens, 4096);
+        assert_eq!(settings.catalog_bytes, Some(16384));
+        assert!(
+            serde_json::from_value::<Settings>(serde_json::json!({"catalog_tokens":4096})).is_err()
+        );
         assert!(settings.external_skills_compatibility);
     }
 }

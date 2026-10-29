@@ -30,7 +30,7 @@ impl Tool for PatchFile {
                 json!({
                     "path": {
                         "type": "string",
-                        "description": "The file: relative to the workspace, ~/..., absolute, or @memory/..."
+                        "description": "The file to patch."
                     },
                     "old_str": {
                         "type": "string",

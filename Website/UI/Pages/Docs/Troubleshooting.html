@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="collect-evidence">Collect the smallest useful evidence</h2>
+<p>Record <code>rune -version</code>, the exact error, visible footer, affected command or setting, and whether one session or every session is affected. Read the relevant <code>/logs</code> entry and inspect one setting with explain. Redact private work before sharing.</p>
+<pre class="block"><code>rune -version
+rune -config check
+rune -config explain network.stream_idle_timeout</code></pre>
+<p>These commands inspect version/configuration. A valid file is not a working provider connection. <code>-doctor</code>, provider tests and model tests can make real network requests.</p>
+<h2 id="installing">Installing</h2>
+<dl class="ref">
+<div><dt>rune: command not found</dt><dd>The installer names the folder it used. Run <code>rune</code> from there by its full path, or add that folder to your PATH as <a href="{{url "docs/install"}}#path">Install &amp; update</a> shows, then open a new terminal.</dd></div>
+<div><dt>No build for your system</dt><dd>The release has no signed build for that system, processor or C library. The line under the install command on the <a href="{{url "install"}}">home page</a> says which builds exist. Nothing was installed.</dd></div>
+<div><dt>SIGNATURE CHECK FAILED or CHECKSUM MISMATCH</dt><dd>The download is not the published release. Nothing was installed; do not use those files. Try again later, from a network you trust, and report it if it persists.</dd></div>
+<div><dt>Run as your normal user</dt><dd>On Linux and macOS the installer refuses root, because the program goes into your own home folder. Open an ordinary terminal and run it again. On Windows an Administrator PowerShell is not needed; the program goes into the profile of the account that window runs as.</dd></div>
+<div><dt>The program does not run on this system</dt><dd>The system is older than Rune supports, or the processor does not match. <a href="{{url "docs/platforms"}}">Platform support</a> lists the versions.</dd></div>
+</dl>
+<h2 id="terminal">Keys, mouse, colours and copying</h2>
+<p>A shortcut that does nothing was usually kept by the terminal. Konsole zooms on <kbd>Ctrl</kbd>+wheel unless its profile says otherwise, and some terminals turn <kbd>Alt</kbd>+wheel sideways; <code>/help</code> lists what Rune answers to. Colours that look wrong on a light or dark background usually mean the terminal did not report its background: set <code>RUNE_THEME</code> to <code>dark</code>, <code>light</code> or a hex colour.</p>
+<p>On Linux, copying goes through the terminal, which must allow programs to set the clipboard; over SSH or in tmux that is often off. Turn it on, for tmux with <code>set -g set-clipboard on</code>, or hold <kbd>Shift</kbd> while dragging to use the terminal's own selection.</p>
+<h2 id="commands-ask">Commands keep asking in Auto</h2>
+<p>Auto runs commands without asking only where they can be confined. Where the system offers no sandbox, such as an old Linux kernel, every command asks first; <code>/help</code> says under <em>This machine</em> whether the sandbox is active. On Windows without Rune's sandbox account, Git Bash and other MSYS2 or Cygwin programs ask before each command; <code>rune -sandbox</code> says why the account is not in use and <code>rune -sandbox setup</code> sets it up. A command that reaches a program already running on your computer, such as a container engine or a key agent, also asks; that is a separate permission.</p>
+<h2 id="background">A background command seems stuck</h2>
+<p>Read the command's report and log before stopping or answering it. On Linux Rune notices when a command waits for typed input. macOS tells Rune only about hidden entries such as password prompts, and Windows tells nothing, so there a quiet command may be waiting for an answer or still working. Never guess a password or confirm a prompt only because a command is quiet. Closing every Rune window ends background commands once the detached-session lifetime, 60 seconds by default, has passed.</p>
+<h2 id="context">The model says the context is too large</h2>
+<p>Rune compacts older history from the usage your provider reports, or after the provider rejects a request as too large. If no older part can be summarized safely, the provider's error is shown and the same request is not sent again. Check the model's context window in Models → <kbd>Alt+C</kbd>, start a fresh session with <code>/new</code> for unrelated work, or run <code>/compact</code>. If a small summary model rejects a batch, lower <code>compact.max_batch_size</code>.</p>
+<h2 id="credentials">Keys are unavailable</h2>
+<p>Key missing means the data folder holds no key for that account; add it in Connections. Unavailable means the encrypted store exists but cannot be opened, for example because its key file is missing or belongs to another backup. Restore the matching pair from a backup first. Starting a new credential store sets the old one aside and needs every key added again; it is the last step, not a test. <a href="{{url "docs/credentials"}}">Credentials</a> explains each state.</p>
+<h2 id="waiting">A message appears to be waiting</h2>
+<p>Distinguish queued input, an unanswered permission/question, active generation with no incoming data, retry waits and Compacting. A blank composer alone does not identify the state. Avoid sending repeated Continue messages as a diagnosis; they become additional work.</p>
+<p>A slow continuous stream is different from an idle stream. Check the reported timeout before changing it. A terminal command moving to background is not automatically a failed or killed command; read the task's report.</p>
+<h2 id="accounts">An account or model fails</h2>
+<p>Verify the selected provider/model and intended endpoint. Key missing, Unavailable and Resting are different credential states. A catalog entry does not prove entitlement, and a word in a model ID does not prove a reasoning mode is available.</p>
+<p>Retries do not repair invalid credentials or unsupported controls. Check the exact failure first; do not replace a credential store, switch providers or send repeated billable tests without a deliberate decision.</p>
+<h2 id="limits">Output or search is incomplete</h2>
+<p>Distinguish a four-line display fold, a returned-text cap, a stopped search and a model context overflow. Open the fold, read any saved-output or continuation notice, and narrow the file range or search scope. An incomplete search does not prove no other match exists.</p>
+<p>Context size is not maximum reply size. Raising a displayed capability cannot enlarge the provider limit. Reducing output too far can leave no final answer after reasoning.</p>
+<h2 id="policy-and-web">Policy or web status looks wrong</h2>
+<p>Classifier enabled does not mean active: check mode, usable policy, exclusions and whether an idle reload is required. A failed review is not approval. A missing explicit web provider is unavailable, not permission to silently choose another third party.</p>
+<p>Search and fetch have separate selections. Saving a web account in Connections does not select a tool provider; use Tools for that.</p>
+<h2 id="after-upgrade">After an upgrade</h2>
+<p>Linux/macOS sessions can adopt the new installed build when idle without a forced relaunch. Windows windows keep working on their starting build; newly opened Rune uses the new one. A bounded resume failure does not mean your session should be deleted.</p>
+<p>If Rune says its data could not be updated, fix the named prerequisite, such as disk space or write access, and try again. If one item is reported as left unchanged, do not assume every other item failed. Never delete live runtime files, disable review, choose Full or wipe storage as an unexplained workaround.</p>
+{{end}}

@@ -24,6 +24,47 @@ fn coverage() -> Value {
     serde_json::from_str(include_str!("product_coverage.json")).unwrap()
 }
 
+#[test]
+fn context_and_background_help_teach_measured_usage_and_purposeful_checks() {
+    let usage = document("data/usage.md").unwrap();
+    assert!(usage.contains("provider's reports"));
+    assert!(usage.contains("not a promise about the next request"));
+    let compact = document("auxiliary/compact.md").unwrap();
+    for fact in [
+        "compact.max_batch_size",
+        "actual context rejection",
+        "does not convert",
+        "no safe older group",
+    ] {
+        assert!(compact.contains(fact), "{fact}");
+    }
+    let terminal = document("tools/terminal-use.md").unwrap();
+    for fact in [
+        "for`/`while",
+        "waiting command can itself move to background",
+        "actual task work",
+    ] {
+        assert!(terminal.contains(fact), "{fact}");
+    }
+}
+
+#[test]
+fn mouse_copy_help_explains_release_caret_secret_and_terminal_owned_selection() {
+    let guide = document("appearance/layout.md").unwrap();
+    for fact in [
+        "highlight",
+        "release",
+        "does not move the text cursor",
+        "Masked secret",
+        "Shift-drag",
+        "ui.mouse = false",
+        "tabs",
+        "resize",
+    ] {
+        assert!(guide.contains(fact), "mouse copy help omits {fact}");
+    }
+}
+
 /// Nothing but the revision folder and its own bookkeeping is ever left.
 fn visible(parent: &Path) -> Vec<String> {
     let mut names: Vec<_> = std::fs::read_dir(parent)
@@ -546,6 +587,93 @@ fn product_help_nested_options_and_ui_inventory_stay_current() {
             "vendor services {}",
             vendor.id
         );
+    }
+}
+
+#[test]
+fn reasoning_help_distinguishes_a_disable_request_from_the_upstream_effect() {
+    let reasoning = document("models/reasoning.md").unwrap();
+    let router = document("connections/presets/9router.md").unwrap();
+    for required in [
+        "not a guarantee",
+        "Low",
+        "Minimal",
+        "Alt+C",
+        "router/provider",
+    ] {
+        assert!(
+            reasoning.contains(required),
+            "reasoning help misses {required}"
+        );
+        assert!(router.contains(required), "router help misses {required}");
+    }
+    assert!(reasoning.contains("saved model overrides are not erased"));
+    assert!(router.contains("omitting a choice can enable a positive default"));
+}
+
+#[test]
+fn manual_shell_and_reference_link_help_cover_their_explicit_risks_and_behavior() {
+    let inventory = coverage();
+    for (feature, entry) in inventory["features"].as_object().unwrap() {
+        let text = document(entry["document"].as_str().unwrap()).unwrap();
+        for fact in entry["facts"].as_array().unwrap() {
+            assert!(
+                text.contains(fact.as_str().unwrap()),
+                "{feature} omits {fact}"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal_help_explains_execution_choices_and_failed_handoff() {
+    let text = document("tools/terminal-use.md").unwrap();
+    for behavior in [
+        "task's dependencies",
+        "run_in_background: true",
+        "same call",
+        "moves automatically",
+        "detection capability",
+        "does not start",
+        "it is stopped",
+        "rather than repeatedly polling",
+        "actual newlines, blank lines and indentation",
+        "fills one visual row",
+        "Each original newline appears as `↵`",
+        "`…` appears only when a suffix cannot fit",
+        "drag-copy restores original newlines",
+        "terminal's own selection copies the visible display",
+        "even while arguments stream or the command runs",
+        "total omitted command and output lines",
+        "engine's configured shell for the preview",
+        "Bash/zsh use `$`, PowerShell uses `PS>`, and Cmd uses `>`",
+        "first `manage_process` report independently reads the saved log from the start",
+        "saved output is synchronized to disk",
+        "including a question without a final newline",
+        "live screen at the end of the file is updated in place",
+    ] {
+        assert!(text.contains(behavior), "terminal help misses {behavior}");
+    }
+    let process = document("tools/manage-process.md").unwrap();
+    assert!(process.contains("first report reads the saved log from the start"));
+    assert!(process.contains("only new or changed output"));
+    assert!(process.contains("reads that file, not a hidden second output source"));
+    assert!(!text.contains("disk log remains empty"));
+}
+
+#[test]
+fn footer_help_explains_status_competition_and_confirmation_lifetimes() {
+    let text = document("appearance/rendering.md").unwrap();
+    for behavior in [
+        "ui.status_replace_lifetime",
+        "8 seconds",
+        "3 seconds of visible time",
+        "Retry timing continues",
+        "confirmations take priority",
+        "including retry backoff",
+        "another key disarms",
+    ] {
+        assert!(text.contains(behavior), "footer help misses {behavior}");
     }
 }
 

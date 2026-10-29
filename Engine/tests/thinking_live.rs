@@ -10,6 +10,9 @@
 //!
 //! A case is `model|level|expect|sent`: level empty = thinking on with no level
 //! of its own, `off` = thinking off; expect `text` (thinking text arrives),
+//! `counted` (no text, but Anthropic's own count of it as it runs, rising, then
+//! the billed count, equal to the usage's — Claude Code's models through
+//! 9router's Anthropic door, owner 2026-10-23),
 //! `quiet` (no thinking text may arrive) or `any` (the route decides — e.g. an
 //! "off" that stops thinking between tool calls only); `sent`, when given, is
 //! the `reasoning_effort` Rune must have sent, `-` that it sent none (a
@@ -46,7 +49,11 @@ fn thinking_choices_reach_the_router_and_its_thinking_comes_back() {
     let provider = std::env::var("RUNE_LIVE_PROVIDER").unwrap();
     let cases = std::env::var("RUNE_LIVE_THINKING_CASES").unwrap();
     let root = std::env::temp_dir().join(format!("RuneThinkingLive-{}", std::process::id()));
-    let home = root.join("home");
+    // `RUNE_LIVE_KEEP_HOME`: the throwaway home is made there and kept, its
+    // key included, for a window to be tried on it; whoever asked removes it.
+    let kept = std::env::var_os("RUNE_LIVE_KEEP_HOME").map(PathBuf::from);
+    let home = kept.clone().unwrap_or_else(|| root.join("home"));
+    std::fs::create_dir_all(&root).unwrap();
     std::fs::create_dir_all(&home).unwrap();
     let source = Settings::load(&owner, &owner.join("rune.db")).unwrap();
     let mut cfg = source.providers.get(&provider).unwrap().clone();
@@ -126,8 +133,16 @@ fn thinking_choices_reach_the_router_and_its_thinking_comes_back() {
         };
         let (mut thought, mut answer) = (String::new(), String::new());
         let mut reasoning_tokens = None;
+        // Every count Anthropic reported, as it came: (sum so far, billed).
+        let mut counts: Vec<(u64, bool)> = Vec::new();
+        let began = std::time::Instant::now();
+        let mut reported_at: Vec<u128> = Vec::new();
         let outcome = live.stream(&request, &mut |chunk| {
             match chunk {
+                Chunk::ThinkingTokens { tokens, billed } => {
+                    counts.push((tokens, billed));
+                    reported_at.push(began.elapsed().as_millis());
+                }
                 Chunk::Thinking(t) => thought.push_str(&t),
                 Chunk::Text(t) => answer.push_str(&t),
                 Chunk::Usage { details, .. } => {
@@ -148,12 +163,31 @@ fn thinking_choices_reach_the_router_and_its_thinking_comes_back() {
             })
             && match expect {
                 "text" => !thought.trim().is_empty(),
+                "counted" => {
+                    let running: Vec<u64> = counts
+                        .iter()
+                        .filter(|(_, billed)| !billed)
+                        .map(|(n, _)| *n)
+                        .collect();
+                    let billed: Vec<u64> = counts
+                        .iter()
+                        .filter(|(_, billed)| *billed)
+                        .map(|(n, _)| *n)
+                        .collect();
+                    !running.is_empty()
+                        && running.windows(2).all(|w| w[0] < w[1])
+                        && billed.len() == 1
+                        && counts.last().is_some_and(|(_, b)| *b)
+                        && Some(billed[0]) == reasoning_tokens
+                        && billed[0] >= *running.last().unwrap()
+                }
                 "quiet" => thought.trim().is_empty(),
                 _ => true,
             };
         let row = json!({
             "model": model, "level": level, "sent": sent, "expect": expect,
             "thinking_chars": thought.chars().count(), "reasoning_tokens": reasoning_tokens,
+            "counts": counts, "reported_at_ms": reported_at,
             "answer": answer.trim(),
             "error": outcome.err().map(|e| e.to_string()), "passed": passed,
         });
@@ -165,8 +199,10 @@ fn thinking_choices_reach_the_router_and_its_thinking_comes_back() {
         serde_json::to_string_pretty(&report).unwrap(),
     )
     .unwrap();
-    for name in ["master.key", "secrets.vault", "secrets.lock"] {
-        let _ = std::fs::remove_file(home.join(name));
+    if kept.is_none() {
+        for name in ["master.key", "secrets.vault", "secrets.lock"] {
+            let _ = std::fs::remove_file(home.join(name));
+        }
     }
     println!(
         "THINKING_LIVE_REPORT {}",

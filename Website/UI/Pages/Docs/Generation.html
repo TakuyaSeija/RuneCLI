@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Controls for this session</h2>
+<p>Settings → Generation controls the active session/model. Optional values can be cleared to return control to the provider or starting default. Global starting values in rune.toml are separate from existing session choices. Unsupported controls may not appear.</p>
+<h2 id="reasoning">Reasoning and effort</h2>
+<p>Use Generation, <code>/thinking</code> or Alt+T to choose from the selected model's offered reasoning levels. Models → Alt+C instead configures persistent starting behavior and available options. A Thinking badge in a model list means support, not current activation.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Request disabled reasoning. It is not a guarantee of zero thinking by an upstream provider or router.</dd></div>
+<div><dt>On / effort</dt><dd>Enable supported reasoning or choose an offered level. Greater effort can increase latency and token cost without guaranteeing a better answer.</dd></div>
+<div><dt>Route default</dt><dd>Where offered, leave reasoning control to the route. This is neither Off nor a particular positive effort level.</dd></div>
+</dl>
+<p>On 9router, a route explicitly reporting that thinking cannot be disabled receives Low for an Off request; Minimal is excluded from the effective choices, even if an older saved option contains it. Routes that can disable thinking receive a disable request, but executors may still change it. Check the explanation beside the control instead of inferring behavior from the model ID.</p>
+<p>Thinking shown as text is counted in words; a route reporting thinking tokens can show those reported tokens instead. Rune does not invent a token estimate. No visible thought does not prove reasoning was disabled: some endpoints do not return it.</p>
+<h2 id="sampling">Sampling</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Control</th><th>Purpose and usual range</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Randomness, commonly 0–2. Lower is not a promise of identical answers.</td></tr>
+<tr><td>Top P</td><td>Nucleus sampling, commonly 0.01–1. Usually adjust this or temperature rather than both.</td></tr>
+<tr><td>Frequency penalty</td><td>Discourage repeated tokens, commonly −2–2; negative values encourage repetition.</td></tr>
+<tr><td>Presence penalty</td><td>Discourage repeated subjects, commonly −2–2.</td></tr>
+</tbody></table></div>
+<p>The actual accepted range belongs to the model/endpoint. Reasoning can temporarily make some sampling controls unavailable. Excessive penalties or randomness can make results less useful.</p>
+<h2 id="output">Output and stop sequences</h2>
+<p>Max output is a positive whole-token reply ceiling within the model's known limit. Reasoning can consume part of it before a final answer. Too little can leave an incomplete answer; a larger allowance can permit more spending. An omitted value is not unlimited output.</p>
+<p>Up to four stop strings can end generation. The session editor takes comma-separated entries; a TOML array preserves exact strings, including commas within one entry. A stop string that matches ordinary code can cut an answer unexpectedly.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>The first example sets a session preference; the second clears that optional choice. Auxiliary-model controls lower on Generation are global, described in the <a href="{{url "docs/auxiliary"}}">next article</a>.</p>
+{{end}}

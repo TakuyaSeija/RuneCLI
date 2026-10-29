@@ -169,7 +169,9 @@
 
 #[cfg(test)]
 mod boundary;
+mod browser;
 mod ledger;
+pub use browser::BrowserUrl;
 
 pub use ledger::{recorded_grants, Forgotten, RecordedGrant};
 

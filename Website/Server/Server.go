@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -23,29 +24,65 @@ type server struct {
 	mu       sync.Mutex
 	cacheFor *Catalog // the catalog the cached renders were made from
 	cache    map[string][]byte
+	gzipped  map[string][]byte // the same renders compressed, made once beside them
 }
 
 func newServer(cfg *Config, st *site, cat *catalogStore, dl *os.Root) *server {
 	return &server{cfg: cfg, site: st, catalog: cat, dl: dl}
 }
 
-// rendered returns a page/installer render, rebuilt only when the catalog
-// changed: a request never runs a template on its own.
-func (s *server) rendered(key string, build func(*Catalog) ([]byte, error)) ([]byte, error) {
+// rendered returns a page/installer render and its gzip form, rebuilt only
+// when the catalog changed: a request never runs a template or a compressor.
+func (s *server) rendered(key string, build func(*Catalog) ([]byte, error)) ([]byte, []byte, error) {
 	cat := s.catalog.get()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cacheFor != cat {
-		s.cacheFor, s.cache = cat, map[string][]byte{}
+		s.cacheFor, s.cache, s.gzipped = cat, map[string][]byte{}, map[string][]byte{}
 	}
 	if b, ok := s.cache[key]; ok {
-		return b, nil
+		return b, s.gzipped[key], nil
 	}
 	b, err := build(cat)
 	if err == nil {
-		s.cache[key] = b
+		s.cache[key], s.gzipped[key] = b, gzipOf(b)
 	}
-	return b, err
+	return b, s.gzipped[key], err
+}
+
+// gzipOf is b compressed for clients that accept it, or nil when that would
+// not help. Every response here is the same for every visitor: no request
+// data is reflected and no secret is served, so compression leaks nothing
+// (the BREACH class needs both).
+func gzipOf(b []byte) []byte {
+	if len(b) < 1024 {
+		return nil
+	}
+	var out bytes.Buffer
+	z, err := gzip.NewWriterLevel(&out, gzip.BestCompression)
+	if err != nil {
+		return nil
+	}
+	if _, err := z.Write(b); err != nil || z.Close() != nil || out.Len() >= len(b) {
+		return nil
+	}
+	return out.Bytes()
+}
+
+func acceptsGzip(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+		if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
+			continue
+		}
+		q := strings.ReplaceAll(strings.TrimSpace(params), " ", "")
+		if q, ok := strings.CutPrefix(q, "q="); ok {
+			value, err := strconv.ParseFloat(q, 64)
+			return err == nil && value > 0
+		}
+		return true
+	}
+	return false
 }
 
 func (s *server) routes() http.Handler {
@@ -59,8 +96,13 @@ func (s *server) routes() http.Handler {
 		mux.HandleFunc("GET "+base+"/"+p.Route, s.page(p.Route))
 		mux.HandleFunc("GET "+base+"/"+p.Route+"/{$}", redirectTo(base+"/"+p.Route))
 	}
+	mux.HandleFunc("GET "+base+"/install", redirectTo(base+"/#install"))
+	mux.HandleFunc("GET "+base+"/install/{$}", redirectTo(base+"/#install"))
+	mux.HandleFunc("GET "+base+"/security", redirectTo(base+"/docs/security"))
+	mux.HandleFunc("GET "+base+"/security/{$}", redirectTo(base+"/docs/security"))
 	mux.HandleFunc("GET "+base, redirectTo(base+"/"))
 	mux.HandleFunc("GET "+base+"/install.sh", s.install)
+	mux.HandleFunc("GET "+base+"/install.ps1", s.installPS)
 	mux.HandleFunc("GET "+base+"/releases.json", s.releases)
 	mux.HandleFunc("GET "+base+"/signing-key.pem", s.signingKey)
 	mux.HandleFunc("GET "+base+"/download/{version}/{file}", s.download)
@@ -79,18 +121,18 @@ func redirectTo(target string) http.HandlerFunc {
 func (s *server) page(route string) http.HandlerFunc {
 	p := s.site.pages[route]
 	return func(w http.ResponseWriter, r *http.Request) {
-		b, err := s.rendered("page:"+route, func(c *Catalog) ([]byte, error) { return s.site.render(p, c) })
+		b, gz, err := s.rendered("page:"+route, func(c *Catalog) ([]byte, error) { return s.site.render(p, c) })
 		if err != nil {
 			log.Printf("render %s: %v", p.File, err)
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
-		writeBody(w, r, "text/html; charset=utf-8", "no-cache", b)
+		writeBody(w, r, "text/html; charset=utf-8", "no-cache", b, gz)
 	}
 }
 
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
-	b, _ := s.rendered("notfound", func(c *Catalog) ([]byte, error) { return s.site.renderNotFound(c), nil })
+	b, _, _ := s.rendered("notfound", func(c *Catalog) ([]byte, error) { return s.site.renderNotFound(c), nil })
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusNotFound)
@@ -100,13 +142,23 @@ func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) install(w http.ResponseWriter, r *http.Request) {
-	b, err := s.rendered("install", s.site.renderInstaller)
+	s.installer(w, r, "install", s.site.renderInstaller)
+}
+
+func (s *server) installPS(w http.ResponseWriter, r *http.Request) {
+	s.installer(w, r, "install.ps1", s.site.renderInstallerPS)
+}
+
+// installer serves an installer as plain text: what a person reads in the
+// browser is byte for byte what the install command runs.
+func (s *server) installer(w http.ResponseWriter, r *http.Request, key string, build func(*Catalog) ([]byte, error)) {
+	b, gz, err := s.rendered(key, build)
 	if err != nil {
-		log.Printf("render installer: %v", err)
+		log.Printf("render %s: %v", key, err)
 		http.Error(w, "Internal error", http.StatusInternalServerError)
 		return
 	}
-	writeBody(w, r, "text/plain; charset=utf-8", "no-cache", b)
+	writeBody(w, r, "text/plain; charset=utf-8", "no-cache", b, gz)
 }
 
 type releaseJSON struct {
@@ -116,7 +168,7 @@ type releaseJSON struct {
 }
 
 func (s *server) releases(w http.ResponseWriter, r *http.Request) {
-	b, _ := s.rendered("releases", func(c *Catalog) ([]byte, error) {
+	b, gz, _ := s.rendered("releases", func(c *Catalog) ([]byte, error) {
 		out := releaseJSON{Fingerprint: c.KeyFingerprint, Releases: c.Releases}
 		if out.Releases == nil {
 			out.Releases = []*Release{}
@@ -126,7 +178,7 @@ func (s *server) releases(w http.ResponseWriter, r *http.Request) {
 		}
 		return json.MarshalIndent(out, "", "  ")
 	})
-	writeBody(w, r, "application/json", "no-cache", b)
+	writeBody(w, r, "application/json", "no-cache", b, gz)
 }
 
 func (s *server) signingKey(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +187,7 @@ func (s *server) signingKey(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	writeBody(w, r, "text/plain; charset=utf-8", "no-cache", cat.KeyPEM)
+	writeBody(w, r, "text/plain; charset=utf-8", "no-cache", cat.KeyPEM, nil)
 }
 
 func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +201,7 @@ func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(&b, "  <url><loc>%s%s</loc></url>\n", s.cfg.Origin, s.site.url(p.Route))
 	}
 	b.WriteString("</urlset>\n")
-	writeBody(w, r, "application/xml; charset=utf-8", "no-cache", b.Bytes())
+	writeBody(w, r, "application/xml; charset=utf-8", "no-cache", b.Bytes(), nil)
 }
 
 // download serves only files the verified catalog lists. The names never
@@ -177,6 +229,8 @@ func (s *server) download(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.HasSuffix(name, ".tar.gz"):
 		ctype = "application/gzip"
+	case strings.HasSuffix(name, ".zip"):
+		ctype = "application/zip"
 	case name == sumsFile:
 		ctype = "text/plain; charset=utf-8"
 	}
@@ -194,13 +248,21 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
-	writeBody(w, r, staticTypes[path.Ext(name)], "public, max-age=31536000, immutable", b)
+	writeBody(w, r, staticTypes[path.Ext(name)], "public, max-age=31536000, immutable", b, s.site.gzipped[name])
 }
 
-func writeBody(w http.ResponseWriter, r *http.Request, ctype, cache string, b []byte) {
+// writeBody sends b, or gz when there is one and the client accepts gzip.
+func writeBody(w http.ResponseWriter, r *http.Request, ctype, cache string, b, gz []byte) {
 	h := w.Header()
 	h.Set("Content-Type", ctype)
 	h.Set("Cache-Control", cache)
+	if gz != nil {
+		h.Set("Vary", "Accept-Encoding")
+		if acceptsGzip(r) {
+			h.Set("Content-Encoding", "gzip")
+			b = gz
+		}
+	}
 	h.Set("Content-Length", strconv.Itoa(len(b)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method != http.MethodHead {

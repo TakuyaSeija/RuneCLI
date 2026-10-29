@@ -1,7 +1,7 @@
 //! `terminal_use` — run a shell command on the real machine.
 //!
 //! This is the tool that makes everything else in `perm` and `sandbox` matter.
-//! It runs `bash` on a pseudo-terminal, in the project directory, with the
+//! It runs the configured shell on a pseudo-terminal, in the project directory, with the
 //! kernel sandbox applied to the child and to everything the child spawns.
 //!
 //! Three properties worth stating explicitly, because each one is a bug if it
@@ -38,12 +38,32 @@ use crate::proto::Event;
 pub const DEFAULT_ROWS: u16 = 40;
 pub const DEFAULT_COLS: u16 = 200;
 
-pub struct TerminalUse(pub std::sync::Arc<crate::limits::Limits>);
+pub struct TerminalUse {
+    limits: Arc<crate::limits::Limits>,
+    pinned: Option<std::path::PathBuf>,
+}
 
 impl TerminalUse {
-    /// The language commands are written in: the configured shell's.
+    pub fn new(limits: Arc<crate::limits::Limits>) -> Self {
+        Self {
+            limits,
+            pinned: None,
+        }
+    }
+    pub(crate) fn pinned(limits: Arc<crate::limits::Limits>, program: std::path::PathBuf) -> Self {
+        Self {
+            limits,
+            pinned: Some(program),
+        }
+    }
+    fn program(&self) -> std::path::PathBuf {
+        self.pinned
+            .clone()
+            .unwrap_or_else(|| shell(&self.limits.config.text("terminal.shell")))
+    }
+    /// The language commands are written in: the very executable this call pins.
     fn shell_kind(&self) -> crate::shell::ShellKind {
-        crate::shell::ShellKind::of(&shell(&self.0.config.text("terminal.shell")))
+        crate::shell::ShellKind::of(&self.program())
     }
 }
 
@@ -66,21 +86,21 @@ impl Tool for TerminalUse {
             // Static on purpose: the declarations are the first bytes of every
             // request. The shell and the timeout are status values; a result
             // that hit the timeout says so.
-            description: "Run a command on this machine, in the shell named in <status>. Each call starts a new shell, so cd does not carry over: pass path instead. A command still running at the command timeout named in <status> moves to the background and goes on there."
+            description: "Run a command in the shell named in <status>. Each call starts a new shell; cd does not carry over. A foreground command returns here if it finishes within the command timeout; otherwise the same process continues in background, also on a detected input wait. <status> names that timeout and the platform's input-wait detection support."
                 .into(),
             parameters: flat_schema(
                 json!({
                     "command": {
                         "type": "string",
-                        "description": "The command line to run."
+                        "description": "The shell script, preserving its original newlines and indentation. A leading ! here is shell syntax, not Rune's frontend-only manual authorization; do not add it to request that mode."
                     },
                     "path": {
                         "type": "string",
-                        "description": "Directory to run in, relative to the workspace. Default: the workspace root."
+                        "description": "The command's working directory."
                     },
                     "run_in_background": {
                         "type": "boolean",
-                        "description": "Start the command in the background and return at once; a <system_notification> arrives when it ends. Use it for builds, test suites, servers and anything that may outlast the command timeout. Default false."
+                        "description": "Default false: start in foreground. True: start in background and return its task id at once."
                     }
                 }),
                 &["command"],
@@ -102,7 +122,7 @@ impl Tool for TerminalUse {
         };
         // A POSIX shell on Windows has its own `/` (Git Bash: Git's folder),
         // so its `/usr/bin/env` is read there and not on the current drive.
-        let shell = shell(&self.0.config.text("terminal.shell"));
+        let shell = self.program();
         let posix_root = (platform::OS == platform::Os::Windows
             && self.shell_kind() == crate::shell::ShellKind::Posix)
             .then(|| crate::perm::reach::posix_root_of(&shell))
@@ -127,7 +147,7 @@ impl Tool for TerminalUse {
     }
 
     fn unconfinable(&self, args: &Value) -> Option<String> {
-        let shell = shell(&self.0.config.text("terminal.shell"));
+        let shell = self.program();
         if let Some(why) = platform::unconfinable(&shell) {
             return Some(why);
         }
@@ -169,7 +189,10 @@ impl Tool for TerminalUse {
         if cmd.is_empty() {
             "run command".into()
         } else {
-            format!("$ {cmd}")
+            format!(
+                "{} {cmd}",
+                crate::shell::ShellInfo::new(&self.program()).prompt()
+            )
         }
     }
 
@@ -190,7 +213,7 @@ impl Tool for TerminalUse {
             )));
         }
 
-        let timeout = Duration::from_millis(self.0.command_timeout_ms());
+        let timeout = Duration::from_millis(self.limits.command_timeout_ms());
         let run = execute(ctx, command, &target_dir, timeout, run_in_bg)?;
 
         // The kind, as a label for a frontend: kept beside the call, never in
@@ -283,7 +306,7 @@ impl Tool for TerminalUse {
                 Some(super::notice::command_timed_out(timeout.as_secs(), why))
             }
             Ending::OutputLimit => Some(super::notice::command_output_limit(&crate::media::human(
-                self.0.config.number("terminal.max_output_size"),
+                self.limits.config.number("terminal.max_output_size"),
             ))),
             Ending::Exited if empty || run.code != 0 => Some(super::notice::exit_code(run.code)),
             Ending::Exited | Ending::Started(_) | Ending::Moved(_) => None,
@@ -292,7 +315,7 @@ impl Tool for TerminalUse {
             summary,
             [Ok(transcript)],
             metadata,
-            &self.0.config.snapshot(),
+            &self.limits.config.snapshot(),
             "terminal",
             "terminal_use",
             ctx.results,
@@ -357,8 +380,10 @@ fn execute(
     // Every process this command starts carries its tree's mark, so a stop
     // reaches the ones that left its process group too.
     let tree = platform::new_tree_mark();
-    let mut launch =
-        crate::shell::launch(&shell(&ctx.limits.config.text("terminal.shell")), command)?.dir(dir);
+    let program = ctx
+        .shell
+        .ok_or_else(|| Error::invalid("terminal call has no pinned shell"))?;
+    let mut launch = crate::shell::launch(program, command)?.dir(dir);
     if !ctx.limits.config.flag("terminal.inherit_environment") {
         launch = launch.clear_env();
         for key in kept_environment(platform::OS) {
@@ -621,12 +646,26 @@ fn to_background(
     waiting: Option<platform::InputWait>,
     tree: &str,
 ) -> Result<Background> {
-    use crate::session::background::{BackgroundTaskInfo, BackgroundTaskStatus, Reported, Watch};
-    use std::io::Write;
+    use crate::session::background::{BackgroundTaskInfo, BackgroundTaskStatus, Watch};
     let finished = screen.drain();
-    file.write_all(finished.as_bytes())?;
     let shown = screen.shown();
     let tail = shown.text();
+    let mut position = crate::session::background_log::Position::default();
+    let capture_note = position
+        .publish(
+            &mut file,
+            &finished,
+            &tail,
+            ctx.limits.config.number("terminal.max_background_log_size") as usize,
+        )
+        .and_then(|()| {
+            if waiting.is_some() {
+                crate::session::background_log::Position::sync(&file)
+            } else {
+                Ok(())
+            }
+        })
+        .err();
     // Nobody types into a background task, and its terminal must be the
     // monitor's alone when an upgrade hands it on.
     *panic::lock(ctx.input) = None;
@@ -640,15 +679,11 @@ fn to_background(
         surfaced: false,
         answered: false,
         wake_text: None,
-        capture_note: None,
-        // A command known to wait hands the model what it printed in this
-        // call's result, so its first report starts after it; every other
-        // command's first report — and every one of a call the model does not
-        // read — holds its output from the start.
-        reported: (waiting.is_some() && ctx.reader == super::Reader::Model).then(|| Reported {
-            log: finished.len() as u64,
-            tail: tail.clone(),
-        }),
+        capture_note,
+        // Handoff can show output too; the first process report independently
+        // reads the saved file from its start, not the conversation's memory.
+        reported: None,
+        log_position: Some(position),
         tail,
         screen: (shown != Default::default()).then_some(shown),
         waiting,
@@ -667,7 +702,7 @@ fn to_background(
         pid,
         file,
         Arc::clone(pty),
-        finished.len(),
+        position.end as usize,
         Watch::of(&ctx.limits.config),
     );
     Ok(Background {
@@ -895,7 +930,7 @@ mod tests {
 
     #[test]
     fn risk_is_the_worst_command_in_the_batch() {
-        let t = TerminalUse(std::sync::Arc::new(crate::limits::Limits::default()));
+        let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({
             "action": "x",
             "command": "sudo rm -rf /"
@@ -908,7 +943,7 @@ mod tests {
 
     #[test]
     fn grant_key_is_the_set_of_programs() {
-        let t = TerminalUse(std::sync::Arc::new(crate::limits::Limits::default()));
+        let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({
             "action": "x",
             "command": "cargo build"
@@ -924,14 +959,14 @@ mod tests {
 
     #[test]
     fn preview_shows_the_commands_verbatim() {
-        let t = TerminalUse(std::sync::Arc::new(crate::limits::Limits::default()));
+        let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({ "action": "x", "command": "ls -la" });
         assert_eq!(t.preview(&args), "$ ls -la");
     }
 
     #[test]
     fn schema_exposes_run_in_background_and_path() {
-        let t = TerminalUse(std::sync::Arc::new(crate::limits::Limits::default()));
+        let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let decl = t.declaration();
         let schema_str = decl.parameters.to_string();
         assert!(
@@ -946,8 +981,52 @@ mod tests {
     }
 
     #[test]
+    fn execution_mode_schema_states_mechanics_not_task_policy() {
+        let tool = TerminalUse::new(Arc::new(crate::limits::Limits::default()));
+        let declaration = tool.declaration();
+        let schema = &declaration.parameters;
+        assert_eq!(schema["properties"]["run_in_background"]["type"], "boolean");
+        assert!(!schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field == "run_in_background"));
+        let description = schema["properties"]["run_in_background"]["description"]
+            .as_str()
+            .unwrap();
+        assert!(description.contains("Default false"));
+        assert!(description.contains("start in foreground"));
+        assert!(description.contains("True: start in background"));
+        assert!(description.contains("return its task id at once"));
+        assert!(declaration.description.contains("same process continues"));
+        assert!(declaration.description.contains("detected input wait"));
+        for category in ["builds", "test suites", "servers", "Choose by task"] {
+            assert!(!description.contains(category), "category bias: {category}");
+        }
+    }
+
+    #[test]
+    fn declaration_explains_multiline_and_manual_marker_without_a_bypass_field() {
+        let tool = TerminalUse::new(Arc::new(crate::limits::Limits::default()));
+        let declaration = tool.declaration();
+        assert!(!declaration.description.contains("newlines"));
+        assert!(!declaration.description.contains("manual authorization"));
+        let command = declaration.parameters["properties"]["command"]["description"]
+            .as_str()
+            .unwrap();
+        assert!(command.contains("original newlines and indentation"));
+        assert!(command.contains("frontend-only manual authorization"));
+        assert!(command.contains("do not add it to request that mode"));
+        let args = json!({"action":"run","command":"echo first\necho second"});
+        assert!(tool.validate(&args).is_ok());
+        for key in ["manual_shell", "bypass", "full_access"] {
+            assert!(declaration.parameters["properties"].get(key).is_none());
+        }
+    }
+
+    #[test]
     fn atomic_command_validates_successfully() {
-        let t = TerminalUse(std::sync::Arc::new(crate::limits::Limits::default()));
+        let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({
             "action": "test",
             "command": "ps -ef",

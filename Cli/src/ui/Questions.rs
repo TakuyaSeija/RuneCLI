@@ -11,7 +11,9 @@ use runeengine::{
     Command,
 };
 use std::ops::Range;
-use std::time::{Duration, Instant};
+#[cfg(test)]
+use std::time::Duration;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Target {
@@ -464,9 +466,10 @@ pub fn key(app: &mut App, key: &Key, driver: &mut Driver) {
         if let Some(state) = &mut app.questions {
             let now = Instant::now();
             let armed = state.esc_armed
-                && state
-                    .esc_armed_at
-                    .is_some_and(|at| now.duration_since(at) <= Duration::from_secs(3));
+                && state.esc_armed_at.is_some_and(|at| {
+                    now.duration_since(at)
+                        < super::runtime_configuration().duration("ui.stop_lifetime")
+                });
             if armed {
                 state.esc_armed = false;
                 state.esc_armed_at = None;
@@ -488,7 +491,7 @@ pub fn key(app: &mut App, key: &Key, driver: &mut Driver) {
             } else {
                 state.esc_armed = true;
                 state.esc_armed_at = Some(now);
-                app.note("press esc again to cancel");
+                app.tick_footer(now);
             }
         }
         return;
@@ -515,10 +518,6 @@ pub fn key(app: &mut App, key: &Key, driver: &mut Driver) {
         return;
     }
 
-    let was_esc_armed = app.questions.as_ref().map(|q| q.esc_armed).unwrap_or(false);
-    if was_esc_armed {
-        app.clear_status();
-    }
     let Some(state) = &mut app.questions else {
         return;
     };
@@ -596,14 +595,11 @@ pub fn click(app: &mut App, hit_row: usize, col: u16, driver: &mut Driver) {
     }
 }
 
-pub(super) fn select(app: &mut App, from: (usize, u16), to: (usize, u16)) -> bool {
-    let Some(state) = app
+pub(super) fn copy_input(app: &App, from: (usize, u16), to: (usize, u16)) -> Option<String> {
+    let state = app
         .questions
-        .as_mut()
-        .filter(|s| s.rendered_question == Some(s.current) && s.sending.is_none())
-    else {
-        return false;
-    };
+        .as_ref()
+        .filter(|s| s.rendered_question == Some(s.current) && s.sending.is_none())?;
     let point = |(row, col): (usize, u16)| {
         state.hits.get(row)?.iter().find_map(|(range, target)| {
             if !range.contains(&(col as usize)) {
@@ -611,32 +607,19 @@ pub(super) fn select(app: &mut App, from: (usize, u16), to: (usize, u16)) -> boo
             }
             match target {
                 Target::CustomText { option, row } => {
-                    Some((*option, state.text_rows.get(*row)?.caret_at(col), *row))
+                    Some((*option, state.text_rows.get(*row)?.caret_at(col)))
                 }
                 _ => None,
             }
         })
     };
-    let Some((option, start, _)) = point(from) else {
-        return false;
-    };
-    let Some((other, _, row)) = point(to) else {
-        return false;
-    };
-    if option != other {
-        return false;
-    }
-    state.focus = Target::Option(option);
-    let draft = &mut state.drafts[state.current];
-    draft.editing.select_in_row(
-        &draft.text,
-        &mut draft.cursor,
-        start,
-        &state.text_rows[row],
-        to.1,
-        state.custom_width,
-    );
-    true
+    let (option, start) = point(from)?;
+    let (other, end) = point(to)?;
+    Some(if option == other {
+        super::selection::source(&state.drafts[state.current].text, start, end)
+    } else {
+        String::new()
+    })
 }
 
 struct Row {
@@ -1020,20 +1003,22 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
         "Questions".into()
     };
 
-    out.push(draw::box_top(
-        &ansi::truncate(&label, cols.saturating_sub(6)),
-        cols,
-    ));
+    out.chrome(
+        draw::box_top(&ansi::truncate(&label, cols.saturating_sub(6)), cols),
+        Hit::None,
+    );
 
     let hit = state.hits.len();
     state.hits.push(tabs_row.controls);
-    out.push_at(
-        draw::boxed(&ansi::truncate(&tabs_row.text, inner), inner),
+    out.boxed(
+        "",
+        &ansi::truncate(&tabs_row.text, inner),
+        inner,
         Hit::Questions(hit),
     );
 
     if use_dividers {
-        out.push(draw::box_divider(cols));
+        out.chrome(draw::box_divider(cols), Hit::None);
     }
 
     for row in body.into_iter().skip(start).take(budget) {
@@ -1043,30 +1028,47 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
             // final character (xxxxx| became xxxx|x).
             cursor = Some((out.lines.len(), col.min(cols.saturating_sub(1))));
         }
+        let custom = row.controls.iter().find_map(|(_, target)| match target {
+            Target::CustomText { row, .. } => state.text_rows.get(*row),
+            _ => None,
+        });
+        let first = custom.map_or(2, |row| row.first_col.saturating_sub(1));
+        let last = cols.saturating_sub(2);
         let hit = state.hits.len();
         state.hits.push(row.controls);
-        out.push_at(
+        out.push_ranges(
             draw::boxed(&ansi::truncate(&row.text, inner), inner),
             Hit::Questions(hit),
+            vec![super::selection::Span {
+                columns: first..last,
+                region: if custom.is_some() {
+                    super::selection::Region::Input
+                } else {
+                    super::selection::Region::Page
+                },
+                source: None,
+            }],
         );
     }
 
     if use_dividers {
-        out.push(draw::box_divider(cols));
+        out.chrome(draw::box_divider(cols), Hit::None);
     }
 
     let hit = state.hits.len();
     state.hits.push(nav.controls);
-    out.push_at(draw::boxed(&nav.text, inner), Hit::Questions(hit));
+    out.boxed("", &nav.text, inner, Hit::Questions(hit));
 
     if height >= 8 {
-        out.push(draw::boxed(
+        out.boxed(
+            "",
             &ansi::truncate(&format!(" {hint_str}"), inner),
             inner,
-        ));
+            Hit::None,
+        );
     }
 
-    out.push(draw::box_bottom(cols));
+    out.chrome(draw::box_bottom(cols), Hit::None);
     (out, cursor)
 }
 
@@ -1075,6 +1077,51 @@ mod tests {
     use super::*;
     use runeengine::perm::broker::Response;
     use serde_json::json;
+
+    #[test]
+    fn mouse_copy_custom_answer_preserves_newline_source_and_does_not_mutate_the_answer() {
+        let form: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/Questions.json")).unwrap();
+        let mut questions: Vec<Question> =
+            serde_json::from_value(form["questions"].clone()).unwrap();
+        runeengine::tools::questions::prepare(&mut questions);
+        let mut state = State::new("copy".into(), questions);
+        let custom = state.questions[0].options.len();
+        state.drafts[0].chosen[custom] = true;
+        state.drafts[0].text = "alpha\nβ界tail".into();
+        state.drafts[0].cursor = state.drafts[0].text.len();
+        state.focus = Target::Option(custom);
+        let (sink, _) = render(&mut state, 120, 38);
+        let points: Vec<_> = sink
+            .owner
+            .iter()
+            .filter_map(|hit| match hit {
+                Hit::Questions(hit) => {
+                    state.hits[*hit]
+                        .iter()
+                        .find_map(|(_, target)| match target {
+                            Target::CustomText { row, .. } => {
+                                Some((*hit, state.text_rows[*row].first_col as u16))
+                            }
+                            _ => None,
+                        })
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(points.len(), 2);
+        let mut app = App::for_test();
+        app.questions = Some(state);
+        assert_eq!(
+            copy_input(&app, points[0], (points[1].0, points[1].1 + 3)).as_deref(),
+            Some("alpha\nβ界")
+        );
+        let state = app.questions.as_ref().unwrap();
+        assert_eq!(state.drafts[0].text, "alpha\nβ界tail");
+        assert_eq!(state.drafts[0].cursor, state.drafts[0].text.len());
+        assert_eq!(state.focus, Target::Option(custom));
+        assert!(state.sending.is_none());
+    }
 
     #[test]
     fn question_panel_owns_input_and_mouse_without_losing_the_composer_draft() {
@@ -1526,7 +1573,10 @@ mod tests {
         key(&mut app, &Key::Esc, &mut driver);
         assert!(app.questions.is_some());
         assert!(app.questions.as_ref().unwrap().esc_armed);
-        assert_eq!(app.status.as_deref(), Some("press esc again to cancel"));
+        assert_eq!(
+            app.confirmation_status(Instant::now()),
+            Some("press esc again to cancel")
+        );
 
         // Any non-Esc key disarms cancellation and clears status
         key(&mut app, &Key::Down, &mut driver);

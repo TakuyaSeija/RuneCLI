@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">What you need</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 or arm64, wherever a signed build for that processor is published. Each release says which builds it has. The glibc build runs on distributions with glibc 2.17 or newer, and was run on CentOS 7, Debian 11 and 12 and Ubuntu 24.04. The static musl build needs no C library of the system, and was run on Alpine.</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 or later, on Apple silicon or Intel. macOS support is in beta.</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 version 1809 or later, or Windows 11, on x64 or ARM64. Windows support is in beta.</dd></div>
+<div><dt>The installer</dt><dd>On Linux and macOS: <code>curl</code>, <code>tar</code>, <code>gzip</code> and <code>openssl</code> (OpenSSL or the LibreSSL that macOS ships) for the signature check. On Windows: PowerShell, which every supported Windows has. On Linux and macOS run it as your normal user, not root; on Windows it needs no Administrator rights.</dd></div>
+<div><dt>A model account</dt><dd>An account with a provider you choose, or a model service on your own computer. See <a href="{{url "docs/providers"}}">Model providers</a>.</dd></div>
+</dl>
+<p>Which of these systems has a signed build in the current release is stated under each install command on the <a href="{{url "install"}}">home page</a>. Differences between the systems are in <a href="{{url "docs/platforms"}}">Platform support</a>.</p>
+
+<h2 id="install">Install</h2>
+<p>The install commands are on the <a href="{{url "install"}}">home page</a>: <code>install.sh</code> for Linux and macOS, run by <code>sh</code>, and <code>install.ps1</code> for Windows, run in PowerShell. Read the script first if you like: both are served as plain text, <a href="{{url "install.sh"}}">install.sh</a> and <a href="{{url "install.ps1"}}">install.ps1</a>, exactly as the command receives them. Each runs these steps and stops at the first one that fails, with nothing changed:</p>
+<ol>
+<li>Checks the system and its version, that it runs as a normal user, and that its tools are present.</li>
+<li>Detects the processor, and on Linux the C library, glibc or musl.</li>
+<li>Downloads the release's checksum list and verifies its signature with the release key written into the script.</li>
+<li>Downloads the archive for your machine and checks it against that signed list.</li>
+<li>Checks that the archive holds only the program and its license files, and that the program starts and reports the expected version.</li>
+<li>Puts the program in place in one rename, and the license and third-party notices beside your other user data.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>System</th><th>Program</th><th>License notices</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (or <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>It never edits your shell profile or your PATH. If the folder is not on your PATH, it says so. <a href="{{url "docs/verification"}}">Release verification</a> explains what the signature does and does not prove, and how to check a download by hand.</p>
+<p>The install commands download with <code>curl</code> and PowerShell, which do not mark the program as coming from the internet. An archive you download in a browser is marked. On macOS, Gatekeeper then refuses to start that copy of <code>rune</code>; after verifying the archive, remove the mark with <code>xattr -d com.apple.quarantine rune</code>. On Windows, SmartScreen can warn when such a program is opened from File Explorer.</p>
+
+<h2 id="installer-options">Installer options</h2>
+<p>Unset, the installer takes the newest published version, your user bin folder and, on Linux, the detected C library. On Linux and macOS, save the script as <code>install.sh</code>, read it, then run it with any of these variables. On Windows, set them in the same PowerShell window before running the command.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>A published version such as <code>{{.DocVersion}}</code>. Older versions install by number.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>An absolute folder for the program instead of the default.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Linux only: <code>gnu</code> or <code>musl</code>, to choose the build instead of detecting it. A combination with no published archive is refused.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">Put rune on your PATH</h2>
+<p>Many Linux distributions already include <code>~/.local/bin</code>, but only once the folder exists when you log in; macOS does not. If <code>rune</code> is not found, add the folder yourself. For bash or zsh, the default shell on macOS, add this line to <code>~/.bashrc</code> or <code>~/.zshrc</code>, then open a new terminal:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>In fish, run <code>fish_add_path ~/.local/bin</code> once. On Windows, this PowerShell line adds the folder to your own PATH; open a new terminal afterwards:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>Use your own folder if you set <code>RUNE_INSTALL_DIR</code>.</p>
+
+<h2 id="first-start">The first start</h2>
+<p>Open a terminal in your project and run <code>rune</code>. On its first start Rune creates its data folder, <code>.rune</code> in your home folder (<code>%USERPROFILE%\.rune</code> on Windows), or the folder named by <code>RUNE_HOME</code>. It holds:</p>
+<ul>
+<li><code>rune.toml</code>, your settings. It records only the choices you made; every other value comes from the version you run.</li>
+<li>Your API keys, encrypted.</li>
+<li>Sessions, project memory and the snapshots that undo uses, kept per project.</li>
+</ul>
+<p>On Windows the first start also asks once for Administrator confirmation to set up the separate account Rune runs commands in. If you decline, Rune does not ask at every start; run <code>rune -sandbox setup</code> when you want it. <a href="{{url "docs/security"}}">Security</a> explains what changes without it.</p>
+<p><code>rune -config</code> prints the folder in use on its first line. Rune keeps its own data there, not in your projects: a project changes only through the AI's tools under the mode you choose, your own <code>!</code> commands, or a skill or MCP change you save with project scope. Continue with <a href="{{url "docs"}}#connect-and-select">connecting a model</a> in the Introduction.</p>
+
+<h2 id="update">Update</h2>
+<p>Run the installer again for the version you want, with the same <code>RUNE_INSTALL_DIR</code> if you set one. It verifies the download and replaces the program in one step; check the result with <code>rune -version</code>.</p>
+<p>Rune windows already open keep working. On Linux and macOS they move to the new build by themselves once they are idle, and the first start of a new version updates your data folder for it. On Windows a running program cannot become another one: open windows keep the version they started with, and the next Rune you open uses the new one. Do not close active work to force this.</p>
+
+<h2 id="uninstall">Uninstall</h2>
+<p>Finish or stop your work and close every Rune window. Then remove the program and its notices. On Linux and macOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>On Windows, in PowerShell:</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>On Windows, <code>rune -sandbox reset</code> first takes back the access Rune's command sandbox was given on your folders and removes its account; it may ask for Administrator confirmation. Your data folder stays until you delete it yourself. It holds your history, settings, keys and restore points, and is not needed to uninstall. If you do delete it, read its location with <code>rune -config</code> first, and never remove it while Rune is still running.</p>
+
+<h2 id="environment">Environment variables</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>Use another data folder instead of <code>.rune</code> in your home folder: its own settings, keys and sessions.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>Print without colour, as <code>--no-color</code> does.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>Tell Rune your terminal's background when the terminal does not report it: <code>dark</code>, <code>light</code> or a hex colour. It is not the theme choice, which is in Appearance.</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>Read only by the installer; see <a href="#installer-options">Installer options</a>.</dd></div>
+</dl>
+{{end}}

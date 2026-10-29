@@ -97,8 +97,12 @@ fn signature(app: &App) -> Vec<String> {
             out.push(chars[i]);
             i += 1;
         }
-        out
+        // Elapsed badges appear only at one second. Near that boundary a live
+        // clock and a persisted clock can differ in presence, not just digits.
+        out.trim_end_matches(" <t>").to_owned()
     };
+    debug_assert_eq!(clock("read a 1s"), clock("read a"));
+    debug_assert_eq!(clock("read a 1m 05s"), clock("read a"));
     out.push(format!(
         "drawn|{}",
         drawn
@@ -108,7 +112,12 @@ fn signature(app: &App) -> Vec<String> {
             .collect::<Vec<_>>()
             .join("\n")
     ));
-    out.push(format!("busy={} label={:?}", app.busy, app.label));
+    out.push(format!(
+        "busy={} compacting={} label={:?}",
+        app.busy,
+        app.compacting.is_some(),
+        app.label
+    ));
     out.push(format!("retry={:?}", app.retry_status));
     out.push(format!(
         "ask={:?} questions={} mcp={}",
@@ -120,8 +129,14 @@ fn signature(app: &App) -> Vec<String> {
         app.mcp_input.is_some()
     ));
     out.push(format!(
-        "usage in={} out={} cache={} used={} cost={:.4} unpriced={}",
-        app.tok_in, app.tok_out, app.cache_in, app.context_used, app.cost, app.unpriced_calls
+        "usage in={} out={} cache={} used={} cost={:.4} priced={} unpriced={}",
+        app.tok_in,
+        app.tok_out,
+        app.cache_in,
+        app.context_used,
+        app.cost,
+        app.priced_calls,
+        app.unpriced_calls
     ));
     out.push(format!(
         "counts steps={} turns={} title={:?} mode={}",
@@ -164,7 +179,7 @@ fn base_view() -> Value {
         "created_at": 500,
         "active_seconds": 12,
         "settings": null,
-        "usage": {"unpriced_calls": 0, "used": 90, "tok_in": 90, "tok_out": 9, "cache_in": 0, "spend": 0.5},
+        "usage": {"unpriced_calls": 0, "priced_calls": 1, "used": 90, "tok_in": 90, "tok_out": 9, "cache_in": 0, "spend": 0.5},
         "tasks": [],
         "file_changes": [],
         "composer": {},
@@ -175,6 +190,78 @@ fn base_view() -> Value {
         "toolcalls": [],
         "live": {"first_turn": null, "events": []}
     })
+}
+
+#[test]
+fn terminal_shell_is_identical_for_watching_and_reconnecting_windows() {
+    for program in ["/bin/bash", "/bin/zsh", r"C:\pwsh.exe", r"C:\cmd.exe"] {
+        let shell = runeengine::shell::ShellInfo::new(std::path::Path::new(program));
+        let events = vec![
+            Event::TurnStart {
+                session: SESSION,
+                turn: 2,
+                text: Some("run it".into()),
+                notification: false,
+                media: Vec::new(),
+                at: 0,
+            },
+            Event::ToolArgs {
+                session: SESSION,
+                id: "terminal".into(),
+                index: 0,
+                name: "terminal_use".into(),
+                delta: "{\"command\":\"echo ".into(),
+                shell: Some(shell.clone()),
+            },
+            Event::ToolArgs {
+                session: SESSION,
+                id: "terminal".into(),
+                index: 0,
+                name: "terminal_use".into(),
+                delta: "test\\necho next\"}".into(),
+                shell: Some(shell.clone()),
+            },
+            Event::StreamReset { session: SESSION },
+            Event::ToolArgs {
+                session: SESSION,
+                id: "terminal".into(),
+                index: 0,
+                name: "terminal_use".into(),
+                delta: "{\"command\":\"echo test\\necho next\"}".into(),
+                shell: Some(shell.clone()),
+            },
+            Event::ToolCall {
+                session: SESSION,
+                id: "terminal".into(),
+                name: "terminal_use".into(),
+                action: "run it".into(),
+                args: json!({"command":"echo test\necho next"}),
+                at: 0,
+            },
+            Event::ToolShell {
+                session: SESSION,
+                id: "terminal".into(),
+                shell: shell.clone(),
+            },
+            Event::ToolOutput {
+                session: SESSION,
+                id: "terminal".into(),
+                chunk: "test\r\nnext".into(),
+                rows: 30,
+                cols: 100,
+            },
+            Event::ToolResult {
+                session: SESSION,
+                id: "terminal".into(),
+                ok: true,
+                summary: "done".into(),
+                content: "test\nnext".into(),
+                detail: Some(json!({"shell":shell})),
+                at: 0,
+            },
+        ];
+        assert_parity(&base_view(), &events);
+    }
 }
 
 /// Every kind of thing a run can say, in an order a real run could say it:
@@ -217,6 +304,7 @@ fn stream() -> Vec<Event> {
         }),
     };
     let waiting = PendingPrompt {
+        manual_shell: false,
         id: 5,
         message_id: None,
         text: "also check b".into(),
@@ -245,6 +333,7 @@ fn stream() -> Vec<Event> {
             index: 0,
             name: "inspect_file".into(),
             delta: "{\"pa".into(),
+            shell: None,
         },
         Event::ToolArgs {
             session: s,
@@ -252,6 +341,7 @@ fn stream() -> Vec<Event> {
             index: 0,
             name: "inspect_file".into(),
             delta: "th\":\"a.rs\"}".into(),
+            shell: None,
         },
         Event::ToolCall {
             session: s,
@@ -374,6 +464,13 @@ fn stream() -> Vec<Event> {
             cached: 0,
             cost: Some(0.001),
         },
+        // The engine says the session's whole cost after each recorded request.
+        Event::Spend {
+            session: s,
+            spend: 0.501,
+            priced: 2,
+            unpriced: 0,
+        },
         Event::Usage {
             session: s,
             input: 150,
@@ -381,6 +478,12 @@ fn stream() -> Vec<Event> {
             cached: 100,
             cost: Some(0.02),
             details: Default::default(),
+        },
+        Event::Spend {
+            session: s,
+            spend: 0.521,
+            priced: 3,
+            unpriced: 0,
         },
         Event::Tasks {
             session: s,
@@ -482,6 +585,25 @@ fn assert_parity(base: &Value, events: &[Event]) {
             &format!("joined after {cut} events and heard the rest, it differs from the one that watched"),
         );
     }
+}
+
+#[test]
+fn a_manual_compaction_has_the_same_status_in_a_joining_window() {
+    assert_parity(
+        &base_view(),
+        &[
+            Event::Compacting {
+                session: SESSION,
+                active: true,
+                at: 30_000,
+            },
+            Event::Compacting {
+                session: SESSION,
+                active: false,
+                at: 30_000,
+            },
+        ],
+    );
 }
 
 #[test]

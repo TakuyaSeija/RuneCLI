@@ -17,7 +17,7 @@ use serde_json::Value;
 /// changed field. A frontend compares it with the `protocol` its session host
 /// reports and hands itself over to the installed build on a mismatch, instead
 /// of silently skipping lines it cannot parse.
-pub const PROTOCOL: u32 = 16;
+pub const PROTOCOL: u32 = 23;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FRONTEND → ENGINE
@@ -60,6 +60,23 @@ pub enum Command {
     },
     #[serde(rename = "draft.promote")]
     DraftPromote {
+        id: u64,
+        draft: Box<crate::store::drafts::Draft>,
+    },
+    /// The person explicitly opens a reviewed HTTP(S) link, not a model tool.
+    #[serde(rename = "ui.open_url")]
+    OpenUrl { id: u64, url: String },
+
+    /// Explicit human shell submission; ordinary prompts never parse ! as execution.
+    #[serde(rename = "shell.submit")]
+    ShellSubmit {
+        id: u64,
+        session: i64,
+        text: String,
+        submission: String,
+    },
+    #[serde(rename = "draft.shell_promote")]
+    DraftShellPromote {
         id: u64,
         draft: Box<crate::store::drafts::Draft>,
     },
@@ -772,6 +789,9 @@ impl Command {
             | Command::ComposerGet { id, .. }
             | Command::ComposerEdit { id, .. }
             | Command::PromptCommitted { id, .. }
+            | Command::ShellSubmit { id, .. }
+            | Command::OpenUrl { id, .. }
+            | Command::DraftShellPromote { id, .. }
             | Command::SessionOpen { id, .. }
             | Command::SessionList { id, .. }
             | Command::SessionResume { id, .. }
@@ -1024,6 +1044,9 @@ pub enum Event {
         index: u32,
         name: String,
         delta: String,
+        /// Engine-observed shell for this preview, never part of model arguments.
+        /// Execution publishes its authoritative pinned identity through ToolShell.
+        shell: Option<crate::shell::ShellInfo>,
     },
 
     /// The model asked for a tool. Emitted before the permission gate runs, so a
@@ -1039,6 +1062,14 @@ pub enum Event {
         /// timer of a running step is the same in every window.
         #[serde(default)]
         at: i64,
+    },
+
+    /// The exact shell pinned by the engine for this call, never model arguments.
+    #[serde(rename = "tool_shell")]
+    ToolShell {
+        session: i64,
+        id: String,
+        shell: crate::shell::ShellInfo,
     },
 
     /// Live output of a long-running tool (currently only `terminal_use`).
@@ -1182,6 +1213,32 @@ pub enum Event {
         cached: u64,
         cost: Option<f64>,
     },
+    /// What the session has cost so far, whole: every recorded request,
+    /// priced at its model's rates where it ran without one
+    /// ([`crate::store::Db::session_usage`]). Sent after each recorded request
+    /// and whenever prices may have moved, so a price filled in shows at once;
+    /// the latest one is the answer, never a sum of them.
+    /// What Anthropic has reported of the thinking now running, through a
+    /// door that asked it to count
+    /// ([`crate::settings::providers::THINKING_TOKEN_COUNT`]): the sum of its
+    /// counts so far, and — `billed` — the count its usage billed, which is
+    /// the thinking's own and ends it. The thinking it belongs to is the
+    /// round's: the one after the previous [`Event::Usage`]. Sent only where
+    /// Anthropic counted; a thinking without it is measured by its text
+    /// (owner, 2026-10-23: no estimate, only what the provider reported).
+    #[serde(rename = "thinking_tokens")]
+    ThinkingTokens {
+        session: i64,
+        tokens: u64,
+        billed: bool,
+    },
+    #[serde(rename = "spend")]
+    Spend {
+        session: i64,
+        spend: f64,
+        priced: u64,
+        unpriced: u64,
+    },
 
     /// The provider call was refused or never landed, and is being opened again.
     ///
@@ -1197,6 +1254,11 @@ pub enum Event {
         rotated: bool,
         reason: String,
     },
+
+    /// A summary request in progress, including manual work between turns.
+    /// It is session state, not a conversation row or an inference turn.
+    #[serde(rename = "compacting")]
+    Compacting { session: i64, active: bool, at: i64 },
 
     /// History was summarised to keep the conversation sendable. Nothing was
     /// deleted — this says what the *model* will see from now on, so a frontend
@@ -1282,6 +1344,7 @@ impl Event {
             | Event::Text { session, .. }
             | Event::ToolArgs { session, .. }
             | Event::ToolCall { session, .. }
+            | Event::ToolShell { session, .. }
             | Event::ToolOutput { session, .. }
             | Event::ToolResult { session, .. }
             | Event::QuestionsRequest { session, .. }
@@ -1294,7 +1357,10 @@ impl Event {
             | Event::Usage { session, .. }
             | Event::Completion { session, .. }
             | Event::AuxiliaryUsage { session, .. }
+            | Event::Spend { session, .. }
+            | Event::ThinkingTokens { session, .. }
             | Event::Retrying { session, .. }
+            | Event::Compacting { session, .. }
             | Event::Compacted { session, .. }
             | Event::Done { session, .. }
             | Event::HostUpgrading { session }

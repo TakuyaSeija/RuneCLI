@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">Open and navigate</h2>
+<p>Press <kbd>Ctrl+G</kbd>, enter <code>/settings</code>, or use its <code>/*</code> alias. Overview links to six sections. Arrows choose a row or card; Enter opens it. Tab/Shift+Tab moves focus, and Esc cancels an editor or returns one level. The footer describes the selected control.</p>
+<p>Open a value, edit it and choose Apply. Cancel keeps the earlier value. Some choice rows save directly as Left/Right changes them; read the hint and wait for the success message. Merely highlighting an item in a separate chooser is not necessarily applying it.</p>
+<h2 id="sections">One home for each setting</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models</a></dt><dd>Browse configured accounts' models, apply a provider/model pair, refresh a catalog, and configure persistent capability and price information with Alt+C.</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation</a></dt><dd>Current-session reasoning, sampling and requested output. Global auxiliary-model controls are lower on the same page.</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections</a></dt><dd>Account access: API addresses and named keys. It does not choose a web provider or own model request timeouts.</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime</a></dt><dd>Model request timeouts, retry behavior, credit cooldown and shared connection/stream waits.</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools</a></dt><dd>Tool-specific waits and output/work limits, question and permission deadlines, and separate web provider selection.</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance</a></dt><dd>Theme and conversation side-panel preference. It does not configure terminal wallpaper, blur or transparency.</dd></div>
+</dl>
+<h2 id="scope">Global and session choices</h2>
+<p>Tool limits, retry/network settings and auxiliary-model choices are global to the selected Rune home. Main Generation controls and model selection affect the active session/model. Saved model preferences can be recalled when returning to a model.</p>
+<p>The global <code>[generation]</code> table supplies starting defaults, not an instruction to overwrite every existing session. New-session fallback selects a starting provider for future sessions, not the provider for every open conversation.</p>
+<h2 id="reset-and-timing">Reset and application timing</h2>
+<p><strong>Use default</strong> removes the saved global override so the current default or inheritance applies. Saving the literal factory number is a choice; it is not the same as leaving the key unset. For optional session Generation values, clearing the field returns control to the provider/default.</p>
+<p>Settings normally follow changes without restarting Rune. Some consumers update live; others use the new value at the next operation while in-flight work keeps its starting settings. Use <code>rune -config explain &lt;key&gt;</code> for the exact key. Classifier policy has a separate explicit reload.</p>
+<h2 id="inspect-before-changing">Inspect before changing</h2>
+<p>A valid configuration does not prove a connection works, and Configured does not prove an account has credit. Connection tests make real requests and can cost money. Changing a provider can change where your data goes; increasing retries or output can increase spending.</p>
+<p>Not every advanced option has a UI row. The <a href="{{url "docs/configuration"}}">configuration-file guide</a> explains how to inspect and reset those options without inventing controls or replacing unrelated choices.</p>
+{{end}}

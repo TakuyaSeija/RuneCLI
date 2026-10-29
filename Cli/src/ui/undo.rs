@@ -29,7 +29,7 @@ use super::ansi::{self, ACCENT, ADDED, FAINT, MUTED, REMOVED, RESET, RULE, TEXT,
 use super::draw::Hit;
 use super::input::Key;
 use super::panel_view::Document;
-use super::panels::{heading, paragraph};
+use super::panels::paragraph;
 use super::{App, Awaiting, Panel};
 use crate::driver::Driver;
 
@@ -169,10 +169,10 @@ pub fn document(app: &App, width: usize) -> Document {
     let side = Side::of(app).unwrap_or(Side::Undo);
     let mut doc = Document::reader();
     doc.centre = true;
-    doc.append(
-        "title",
-        vec![String::new(), heading(&side.verb().to_uppercase(), width)],
-    );
+    let mut title = super::draw::Sink::default();
+    title.push(String::new());
+    super::panels::heading_into(&mut title, "", &side.verb().to_uppercase(), width);
+    doc.append_sink("title", title);
     doc.append("hint", paragraph(&hint(app, side), FAINT, 0, width));
     doc.append("warning", paragraph(side.warning(), WARN, 0, width));
     if let Some(why) = &app.undo_refused {
@@ -501,7 +501,7 @@ fn restore(app: &mut App, d: &mut Driver, file: String) {
     let (Some(session), Some(side)) = (app.session, Side::of(app)) else {
         return;
     };
-    app.status = Some(format!("{}ing {file}…", side.verb()));
+    app.note(format!("{}ing {file}…", side.verb()));
     let what = Awaiting::Restored {
         file: file.clone(),
         side,
@@ -595,7 +595,7 @@ pub fn diffed(app: &mut App, side: Side, file: String, data: Value) {
 /// redo list until its next undo.
 pub fn restored(app: &mut App, side: Side, file: &str, data: &Value) {
     let wrote = data["restored"] == true;
-    app.status = Some(match (side, wrote) {
+    app.note(match (side, wrote) {
         (Side::Undo, true) => format!("Undone: {file} is back the way it was before this session"),
         (Side::Undo, false) => {
             format!("Nothing to undo: {file} is already as it was before this session")

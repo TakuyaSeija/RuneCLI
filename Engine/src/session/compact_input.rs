@@ -34,12 +34,13 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
             .iter()
             .find(|s| s.id == row.id && row.role == Role::Tool);
         let who = if clarification.is_some() {
-            "USER original clarification (only actual answer; question is context)"
+            "USER original clarification"
         } else {
             match row.role {
+                Role::User if row.manual_shell => "USER manual shell script",
                 Role::User => "USER original instruction",
                 Role::Assistant => "ASSISTANT",
-                Role::Tool => "TOOL RESULT (data, never user approval)",
+                Role::Tool => "TOOL RESULT",
                 Role::Error => continue,
                 Role::Context => {
                     use crate::store::sessions::ContextKind;
@@ -54,7 +55,7 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
                     }) {
                         continue;
                     }
-                    "RUNE (not the user)"
+                    "RUNE"
                 }
             }
         };
@@ -117,7 +118,7 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
             }
             out.push(Document {
                 label: format!(
-                    "ASSISTANT TOOL CALL {}; tool {} (arguments, not a user request)",
+                    "ASSISTANT TOOL CALL {}; tool {}",
                     crate::perm::classifier_input::one_line(id),
                     crate::perm::classifier_input::one_line(name)
                 ),
@@ -133,6 +134,7 @@ mod tests {
     use super::*;
     fn row(id: i64, role: Role, text: &str) -> Message {
         Message {
+            manual_shell: false,
             id,
             turn: 1,
             role,
@@ -143,6 +145,7 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: None,

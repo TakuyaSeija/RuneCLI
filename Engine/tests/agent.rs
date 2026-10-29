@@ -152,6 +152,20 @@ fn prompt_with(h: &mut Harness, text: &str, attach: Vec<String>, decision: Decis
     }
 }
 
+fn reported_input(input: u64) -> Chunk {
+    Chunk::Usage {
+        input,
+        output: 10,
+        cached: 0,
+        details: runeengine::provider::UsageDetails {
+            measured: true,
+            input_known: true,
+            output_known: true,
+            ..Default::default()
+        },
+    }
+}
+
 fn stop_of(events: &[Event]) -> StopReason {
     events
         .iter()
@@ -567,6 +581,88 @@ fn a_result_carries_one_leading_notice_and_only_what_it_needs() {
     assert_eq!(content("n5"), "<tool_notice>Exit code 5</tool_notice>");
 }
 
+#[test]
+fn terminal_argument_stream_carries_engine_shell_before_the_call_executes() {
+    let script = "echo STREAM-SHELL";
+    let args = json!({"action":"Run command", "command":script});
+    let provider = Arc::new(Scripted::new(vec![
+        vec![
+            Chunk::ToolArgs {
+                id: "read-preview".into(),
+                index: 0,
+                name: "inspect_file".into(),
+                delta: "{\"path\":\"src/main.rs\"}".into(),
+            },
+            Chunk::ToolArgs {
+                id: "terminal-preview".into(),
+                index: 1,
+                name: "terminal_use".into(),
+                delta: "{\"command\":\"echo ".into(),
+            },
+            Chunk::ToolArgs {
+                id: "terminal-preview".into(),
+                index: 1,
+                name: "terminal_use".into(),
+                delta: "STREAM-SHELL\"}".into(),
+            },
+            Chunk::ToolCall {
+                id: "read-preview".into(),
+                name: "inspect_file".into(),
+                args: json!({"action":"Read source", "path":"src/main.rs"}),
+            },
+            Chunk::ToolCall {
+                id: "terminal-preview".into(),
+                name: "terminal_use".into(),
+                args,
+            },
+        ],
+        vec![Chunk::Text("Verified.".into())],
+    ]));
+    let mut h = harness_with("stream-terminal-shell", provider);
+    let expected_config = runeengine::settings::configuration::Configuration::load(
+        &h.db_path.parent().unwrap().join("data"),
+    )
+    .unwrap();
+    let expected = runeengine::shell::ShellInfo::new(&runeengine::tools::terminal::shell(
+        expected_config.text("terminal.shell"),
+    ));
+    let events = prompt(&mut h, "run the preview fixture", Decision::AllowOnce);
+    let call_at = events
+        .iter()
+        .position(|event| {
+            matches!(event,
+        Event::ToolCall { id, .. } if id == "terminal-preview")
+        })
+        .unwrap();
+    let streamed: Vec<_> = events
+        .iter()
+        .enumerate()
+        .filter_map(|(at, event)| match event {
+            Event::ToolArgs { id, shell, .. } if id == "terminal-preview" => Some((at, shell)),
+            Event::ToolArgs { id, shell, .. } if id == "read-preview" => {
+                assert!(shell.is_none(), "nonterminal arguments have no shell");
+                None
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(streamed.len(), 2);
+    for (at, shell) in streamed {
+        assert!(at < call_at);
+        assert_eq!(shell.as_ref(), Some(&expected));
+    }
+    assert!(events.iter().any(|event| matches!(event,
+        Event::ToolShell { id, shell, .. } if id == "terminal-preview" && shell == &expected)));
+    assert!(
+        events.iter().any(|event| matches!(event,
+        Event::PermissionRequest { tool, .. } if tool == "terminal_use")),
+        "display metadata never authorizes execution"
+    );
+    assert!(events.iter().any(|event| matches!(event,
+        Event::ToolResult { id, ok: true, content, .. }
+            if id == "terminal-preview" && content.contains("STREAM-SHELL"))));
+}
+
 /// On Windows each shell gets a command the way it reads one (owner,
 /// 2026-10-17), confined as any command is: Windows PowerShell — and
 /// PowerShell 7 where it is installed — runs it encoded whole, its output in
@@ -815,7 +911,7 @@ fn a_session_whose_context_predates_fingerprints_is_told_once_and_then_tracked()
         told[0]
     );
     assert!(
-        told[0].contains("memory index may have changed"),
+        told[0].contains("memory index at @memory/MEMORY.md may have changed"),
         "{}",
         told[0]
     );
@@ -899,7 +995,8 @@ fn a_moved_budget_is_not_news_but_a_memory_index_saved_elsewhere_is() {
     let sent = provider.last_sent().unwrap();
     let last = sent.messages.last().unwrap();
     assert!(
-        last.contains("<context_update>") && last.contains("memory index changed"),
+        last.contains("<context_update>")
+            && last.contains("memory index at @memory/MEMORY.md changed"),
         "{last}"
     );
     assert!(!last.contains("AGENTS.md"), "only what changed: {last}");
@@ -2349,10 +2446,208 @@ fn wake_turn_from(h: &mut Harness, needle: &str, initial: Vec<Event>) -> Vec<Eve
     }
 }
 
+/// A strict decoder may send false where another model omits the field.
+/// Neither a task label nor a program's name changes the execution contract.
+#[test]
+fn execution_mode_keeps_quick_dependencies_inline_without_background_resources() {
+    let mut h = harness_with_config(
+        "execution_inline",
+        "[terminal]\ncommand_timeout = \"1s\"\n",
+        json!({ "responses": [] }),
+    );
+    for (id, flag) in [(1, None), (2, Some(false))] {
+        let mut args = json!({
+            "action": "Run the build and test dependency",
+            "command": "cargo() { printf 'dependency-ready\\n'; }; cargo test"
+        });
+        if let Some(flag) = flag {
+            args["run_in_background"] = json!(flag);
+        }
+        let (content, detail, events) =
+            invoke_capturing(&mut h, id, "terminal_use", args, Decision::AllowOnce);
+        assert_eq!(content.trim(), "dependency-ready", "{content}");
+        assert_eq!(detail.as_ref().unwrap()["backgrounded"], false);
+        assert_eq!(detail.as_ref().unwrap()["exit_code"], 0);
+        assert!(!events.iter().any(is_wake));
+    }
+    let session = h.engine.session(h.session).unwrap();
+    assert!(session.state.background.list().is_empty());
+    assert!(!session.state.results.join("terminal_use").exists());
+}
+
+#[test]
+fn execution_mode_measures_the_extra_roundtrip_only_explicit_background_needs() {
+    let command = "printf 'dependency-result\\n'";
+    let mut metrics = Vec::new();
+    for background in [false, true] {
+        // A completion may wake the current turn or the next one. Use the
+        // model's admission path, rather than race a direct invoke against
+        // the notification's own turn and mistake its busy refusal for a hang.
+        let mut script = vec![call(
+            "launch",
+            "terminal_use",
+            json!({"action":"Read dependency", "command":command, "run_in_background":background}),
+        )];
+        if background {
+            script.extend([
+                say("Backgrounded."),
+                call(
+                    "report",
+                    "manage_process",
+                    json!({"action":"Read completed dependency", "process_id":""}),
+                ),
+            ]);
+        }
+        script.push(say("Done."));
+        let pauses = if background {
+            vec![(1, "launch", "finished: Completed")]
+        } else {
+            Vec::new()
+        };
+        let steps = Steps::with_wake_pauses(script, &pauses);
+        let mut h = harness_with_config_and(
+            &format!("execution_roundtrips_{background}"),
+            "",
+            steps.clone(),
+        );
+        let started = std::time::Instant::now();
+        let events = run_steps(&mut h, &steps, "Run the dependency and read its result.");
+        let elapsed_ms = started.elapsed().as_millis();
+        let calls = events
+            .iter()
+            .filter(|event| matches!(event, Event::ToolResult { .. }))
+            .count();
+        let session = h.engine.session(h.session).unwrap();
+        let tasks = session.state.background.list();
+        let launch = result_of(&events, "launch");
+        let log_bytes = if background {
+            assert_eq!(calls, 2);
+            assert_eq!(tasks.len(), 1);
+            assert!(!launch.contains("dependency-result"), "{launch}");
+            let report = result_of(&events, "report");
+            assert!(report.contains("Process: Completed"), "{report}");
+            assert!(report.contains("dependency-result"), "{report}");
+            let log_bytes = std::fs::metadata(&tasks[0].out_file).unwrap().len();
+            assert!(log_bytes > 0);
+            log_bytes
+        } else {
+            assert_eq!(calls, 1);
+            assert!(tasks.is_empty());
+            assert_eq!(launch.trim(), "dependency-result");
+            assert!(!session.state.results.join("terminal_use").exists());
+            assert!(!events.iter().any(is_wake));
+            0
+        };
+        metrics.push(format!(
+            "background={background}:calls={calls},tasks={},log_bytes={log_bytes},elapsed_ms={elapsed_ms}",
+            tasks.len()
+        ));
+    }
+    eprintln!("EXECUTION_METRICS {}", metrics.join("; "));
+}
+
+#[test]
+fn execution_mode_refuses_an_unrecordable_launch_and_stops_a_failed_handoff() {
+    let mut h = harness_with_config(
+        "execution_capture_failure",
+        "[terminal]\ncommand_timeout = \"1s\"\n",
+        json!({ "responses": [] }),
+    );
+    let session = h.engine.session(h.session).unwrap();
+    std::fs::create_dir_all(&session.state.results).unwrap();
+    std::fs::write(
+        session.state.results.join("terminal_use"),
+        "not a directory",
+    )
+    .unwrap();
+    let (failed, _, _) = invoke_capturing(
+        &mut h,
+        1,
+        "terminal_use",
+        json!({"action":"Start work", "command":"echo ran > launched", "run_in_background":true}),
+        Decision::AllowOnce,
+    );
+    assert!(failed.contains("This call failed"), "{failed}");
+    assert!(
+        !h.project.join("launched").exists(),
+        "capture failed before launch"
+    );
+
+    let (stopped, detail) = invoke(
+        &mut h,
+        2,
+        "terminal_use",
+        json!({"action":"Run a dependency", "command":"echo started; sleep 3; echo ran > continued"}),
+        Decision::AllowOnce,
+    );
+    assert!(
+        stopped.contains("The command timed out after 1s"),
+        "{stopped}"
+    );
+    assert!(
+        stopped.contains("started"),
+        "captured output survives: {stopped}"
+    );
+    assert_eq!(detail.as_ref().unwrap()["status"], "timed_out");
+    assert_eq!(detail.as_ref().unwrap()["backgrounded"], false);
+    assert!(session.state.background.list().is_empty());
+    assert!(!h.project.join("continued").exists());
+}
+
 /// Session 570: five builds killed at the timeout, two of them run again to
 /// "continue". A command still running at the timeout is not stopped: it goes
 /// on in the background. Its result is the notice alone (owner, 2026-10-11):
 /// its output, from the start, is `manage_process`'s first report.
+#[test]
+fn foreground_handoff_counts_its_live_screen_against_the_background_log_cap() {
+    let mut h = harness_with_config(
+        "handoff-live-cap",
+        "[terminal]\ncommand_timeout = \"1s\"\nmax_background_log_size = \"1KiB\"\n",
+        json!({"responses":[]}),
+    );
+    let output = "x".repeat(2000);
+    let (moved, _) = invoke(
+        &mut h,
+        1,
+        "terminal_use",
+        json!({"action":"test handoff cap","command":format!("printf '{output}'; sleep 30")}),
+        Decision::AllowOnce,
+    );
+    let task = task_id_in(&moved);
+    let background = h
+        .engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .clone();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let ended = loop {
+        let info = background.get(&task).unwrap();
+        if !matches!(
+            info.status,
+            runeengine::session::background::BackgroundTaskStatus::Running
+        ) {
+            break info;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "handoff log cap did not stop the task"
+        );
+        std::thread::yield_now();
+    };
+    assert!(ended
+        .capture_note
+        .as_deref()
+        .unwrap()
+        .contains("exceeded 1024 bytes"));
+    assert_eq!(std::fs::metadata(&ended.out_file).unwrap().len(), 1024);
+    assert_eq!(
+        std::fs::read_to_string(&ended.out_file).unwrap(),
+        "x".repeat(1024)
+    );
+}
+
 #[test]
 fn a_foreground_command_outliving_the_timeout_goes_on_in_the_background() {
     let mut h = harness_with_config(
@@ -3010,7 +3305,10 @@ fn an_index_written_past_the_recall_budget_is_told_at_the_next_request() {
         .find(|m| m.starts_with("context:") && m.contains("<system_notice>"))
         .expect("the over-budget write was told at the next request");
     assert!(notice.contains("over its 20.0 KB budget"), "{notice}");
-    assert!(notice.contains("inspect_file"), "{notice}");
+    assert!(!notice.contains("inspect_file"), "{notice}");
+    assert!(next
+        .system
+        .contains("remove or merge old lines from the bottom"));
     // The write itself is not blocked — the note is on disk either way.
     let index = memory_dir(&h).join("MEMORY.md");
     assert!(
@@ -4545,12 +4843,16 @@ impl Provider for OverflowOnce {
 /// repeated as it is (it would fail the same way five times); the turn
 /// compacts and sends again, once.
 #[test]
-fn a_context_overflow_compacts_and_sends_again_once() {
+fn a_context_overflow_without_a_safe_cut_keeps_provider_error_and_does_not_resend() {
     let provider = Arc::new(OverflowOnce(std::sync::atomic::AtomicUsize::new(0)));
     let mut h = harness_with("overflow", Arc::clone(&provider) as Arc<dyn Provider>);
     let events = prompt(&mut h, "hello", Decision::AllowOnce);
-    assert_eq!(stop_of(&events), StopReason::End, "{events:?}");
-    assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(stop_of(&events), StopReason::Failed, "{events:?}");
+    assert_eq!(provider.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert!(!events.iter().any(|e| matches!(e, Event::Compacted { .. })));
+    assert!(events.iter().any(
+        |e| matches!(e, Event::Error { message, .. } if message.contains("prompt is too long"))
+    ));
 }
 
 #[test]
@@ -4823,7 +5125,7 @@ fn abandoning_a_turn_still_answers_the_call_it_left_behind() {
     let content = last["content"].as_str().unwrap();
     assert!(content.starts_with("<tool_notice>"));
     assert!(content.contains("The user stopped this call"));
-    assert!(content.contains("may not have finished"));
+    assert!(content.contains("completion is unverified"));
     assert!(
         !content.contains("Status"),
         "the kind of ending is a label beside the call, not text for the model: {content}"
@@ -5399,9 +5701,10 @@ fn a_small_budget_truncates_honestly_on_the_wire() {
         "the notice must name the full length: {opening}"
     );
     assert!(
-        opening.contains("inspect_file"),
-        "the notice must point at the recovery path: {opening}"
+        !opening.contains("inspect_file"),
+        "runtime repeated recovery: {opening}"
     );
+    assert!(sent.system.contains("read their remainder"));
     // No half lines: every kept "rule NN" line is one of the originals, whole.
     for l in opening.lines().filter(|l| l.starts_with("rule ")) {
         assert!(text.contains(l), "a line was cut in half: {l}");
@@ -5436,6 +5739,75 @@ fn live_state_is_not_in_the_system_prompt() {
         "{workspace}"
     );
     assert!(opening.contains("command timeout: "), "{opening}");
+    use runeengine::platform::InputWaitDetection;
+    let expected = match runeengine::platform::INPUT_WAIT_DETECTION {
+        InputWaitDetection::Every => "all typed-input waits",
+        InputWaitDetection::HiddenOnly => "hidden typed-input waits only",
+        InputWaitDetection::Never => "unavailable",
+    };
+    assert!(
+        opening.contains(&format!("input wait detection: {expected}")),
+        "{opening}"
+    );
+}
+
+/// The provider receives agent policy once, alongside structural tool schemas.
+/// Execution, permission, checkpoint and wire rendering stay real in this test.
+#[test]
+fn instruction_ownership_survives_tool_execution_and_both_wire_dialects() {
+    let fixture = json!({"responses":[
+        {"chunks":[{"tool_call":{"id":"write-owned","name":"create_file","args":{"action":"Create the ownership fixture","path":"owned.txt","text":"owned\n"}}}]},
+        {"chunks":[{"text":"done"}]}
+    ]});
+    let provider = Arc::new(Scripted::from_value(&fixture, "ownership".into()).unwrap());
+    let mut h = harness_with("instruction-ownership", provider.clone());
+    let events = prompt(&mut h, "Create the fixture", Decision::AllowOnce);
+    assert_eq!(stop_of(&events), StopReason::End);
+    assert_eq!(
+        std::fs::read_to_string(h.project.join("owned.txt")).unwrap(),
+        "owned\n"
+    );
+    let sent = provider.last_sent().unwrap();
+    assert_eq!(sent.request.tools.len(), 15);
+    let registry = runeengine::tools::Registry::default();
+    for declaration in &sent.request.tools {
+        let action = &declaration.parameters["properties"]["action"];
+        assert!(action.get("description").is_none(), "{}", declaration.name);
+        assert!(declaration.parameters["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field == "action"));
+        let mut invalid = json!({"action":"valid"});
+        invalid["action"] = json!("");
+        assert!(registry
+            .get(&declaration.name)
+            .unwrap()
+            .validate(&invalid)
+            .is_err());
+    }
+    for wire in sent.wire() {
+        let payload = wire.to_string();
+        assert_eq!(
+            payload
+                .matches("what you are about to do and to what")
+                .count(),
+            1,
+            "{payload}"
+        );
+        assert_eq!(payload.matches("polling/wait loop").count(), 1);
+        assert_eq!(
+            payload.matches("first report reads from the start").count(),
+            1
+        );
+        assert!(!payload.contains("One short sentence: what you are about to do"));
+    }
+    assert!(registry
+        .get("create_file")
+        .unwrap()
+        .validate(&json!({"path":"never-created.txt","text":"x"}))
+        .is_err());
+    assert!(!h.project.join("never-created.txt").exists());
 }
 
 /// The prompt must not teach the model its own access rules — see the header of
@@ -5490,13 +5862,12 @@ fn new_session_inherits_model_from_most_recent_session() {
 }
 
 #[test]
-fn massive_thinking_output_exceeding_190k_tokens_does_not_trigger_premature_compaction_in_turn_loop(
-) {
-    // Generate massive thinking chunks exceeding 190k tokens (> 760k chars):
+fn large_thinking_text_without_reported_usage_does_not_trigger_compaction() {
+    // Source length is bytes, not an authoritative token count.
     let huge_thinking = "Reasoning step by step through deep codebase analysis... ".repeat(14_000);
     assert!(
         huge_thinking.len() > 760_000,
-        "Must exceed 760k chars for >190k tokens"
+        "Fixture must contain more than 760k UTF-8 bytes"
     );
 
     let fixture = json!({
@@ -5519,7 +5890,7 @@ fn massive_thinking_output_exceeding_190k_tokens_does_not_trigger_premature_comp
     let provider = Arc::new(Scripted::from_value(&fixture, "test".into()).unwrap());
     let mut h = harness_with("massive_thinking_compaction", provider);
 
-    // Turn 1 produces >190,000 tokens of thinking:
+    // Turn 1 produces a large thinking text but reports no token usage.
     let events1 = prompt(&mut h, "Execute first complex task", Decision::AllowOnce);
     for e in &events1 {
         assert!(
@@ -5528,14 +5899,13 @@ fn massive_thinking_output_exceeding_190k_tokens_does_not_trigger_premature_comp
         );
     }
 
-    // Turn 2: before turn 2 runs, maybe_compact() checks history from SQLite.
-    // Under the old bug, having >190k tokens of thinking in turn 1 would breach compact_at_tokens (60k) and force compaction.
-    // Under the fix, thinking is excluded, so compaction does NOT trigger.
+    // No provider input count was reported: neither display thinking nor its
+    // stored text length is a reason to compact before the next request.
     let events2 = prompt(&mut h, "Execute second task", Decision::AllowOnce);
     for e in &events2 {
         assert!(
             !matches!(e, Event::Compacted { .. }),
-            "Turn 2 must not trigger compaction despite >190k thinking in history"
+            "Turn 2 must not invent a measured input count from thinking history"
         );
     }
 }
@@ -9738,6 +10108,7 @@ fn a_wake_during_a_turn_is_shown_at_once_and_read_at_the_next_request() {
                     tail: String::new(),
                     screen: None,
                     reported: None,
+                    log_position: None,
                     waiting: None,
                     tree: None,
                 });
@@ -9821,6 +10192,7 @@ fn a_wake_during_a_direct_tool_call_is_answered_when_the_call_ends() {
         tail: String::new(),
         screen: None,
         reported: None,
+        log_position: None,
         waiting: None,
         tree: None,
     };
@@ -9857,6 +10229,15 @@ fn a_wake_during_a_direct_tool_call_is_answered_when_the_call_ends() {
         }
     }
     assert!(answer.contains("answered the wake"), "{answer}");
+    // Done is sent while admission is still held, before busy is cleared:
+    // that ordering prevents a new turn overtaking the old terminal event.
+    // Acquire through that same barrier before observing the released state,
+    // rather than racing an atomic flag on receipt of the channel message.
+    let next = session
+        .state
+        .begin_guarded()
+        .expect("the wake released admission");
+    drop(next);
     assert!(!session.state.is_busy());
 }
 
@@ -9897,6 +10278,7 @@ fn background_completion_after_cancel_wakes_the_still_active_session() {
         tail: String::new(),
         screen: None,
         reported: None,
+        log_position: None,
         waiting: None,
         tree: None,
     };
@@ -9961,11 +10343,10 @@ fn background_completion_after_cancel_wakes_the_still_active_session() {
 }
 
 #[test]
-fn engine_budget_compacts_recent_completed_turn_without_provider_usage() {
+fn unknown_usage_does_not_compact_recent_history_from_text_length() {
     let provider = Arc::new(Scripted::new(vec![
         vec![Chunk::Text("large observation ".repeat(20_000))],
-        vec![Chunk::Text("summary preserves completed work".into())],
-        vec![Chunk::Text("continued within engine budget".into())],
+        vec![Chunk::Text("continued without inventing usage".into())],
     ]));
     let mut h = harness_with("compact-engine-budget-recent", provider.clone());
     runeengine::settings::configuration::Configuration::edit(
@@ -9982,15 +10363,15 @@ fn engine_budget_compacts_recent_completed_turn_without_provider_usage() {
     );
     let events = prompt(&mut h, "second", Decision::AllowOnce);
     assert_eq!(stop_of(&events), StopReason::End);
-    assert!(events.iter().any(|e| matches!(e, Event::Compacted { kept_turns: 1, .. })),
-        "engine budget must compact even when all completed turns are recent and provider reports no usage");
-    assert_eq!(provider.calls(), 3);
+    assert!(!events.iter().any(|e| matches!(e, Event::Compacted { .. })));
+    assert!(!events.iter().any(|e| matches!(e, Event::Usage { .. })));
+    assert_eq!(provider.calls(), 2);
     assert!(provider
         .last_sent()
         .unwrap()
         .messages
         .iter()
-        .any(|m| m.contains("summary preserves completed work")));
+        .any(|m| m.contains(&"large observation ".repeat(20_000))));
 }
 
 #[test]
@@ -10011,6 +10392,7 @@ fn active_turn_compacts_old_complete_groups_without_replaying_tools() {
                 name: "create_file".into(),
                 args: json!({"action":"write once", "path":"Latest.txt", "text":"latest"}),
             },
+            reported_input(70_000),
         ],
         vec![Chunk::Text("summary of first completed tool group".into())],
         vec![Chunk::Text("completed after intra-turn summary".into())],
@@ -10090,9 +10472,9 @@ fn active_turn_compacts_old_complete_groups_without_replaying_tools() {
 }
 
 #[test]
-fn oversized_single_user_input_stops_before_agent_request_without_silent_cutting() {
+fn large_single_user_input_reaches_provider_without_invented_token_admission() {
     let provider = Arc::new(Scripted::new(vec![vec![Chunk::Text(
-        "must not send".into(),
+        "provider accepted the input".into(),
     )]]));
     let mut h = harness_with("oversized-single-input", provider.clone());
     runeengine::settings::configuration::Configuration::edit(
@@ -10108,13 +10490,17 @@ fn oversized_single_user_input_stops_before_agent_request_without_silent_cutting
         &"oversized user input ".repeat(30_000),
         Decision::AllowOnce,
     );
-    assert_eq!(stop_of(&events), StopReason::Failed);
-    assert!(events.iter().any(|event| matches!(event, Event::Error { message, .. } if message.contains("usable context budget"))));
-    assert_eq!(
-        provider.calls(),
-        0,
-        "oversized input must not call agent or summarizer"
-    );
+    assert_eq!(stop_of(&events), StopReason::End);
+    assert!(!events
+        .iter()
+        .any(|event| matches!(event, Event::Compacted { .. } | Event::Error { .. })));
+    assert_eq!(provider.calls(), 1);
+    assert!(provider
+        .last_sent()
+        .unwrap()
+        .messages
+        .iter()
+        .any(|m| m.contains(&"oversized user input ".repeat(30_000))));
 }
 
 #[test]
@@ -10168,7 +10554,10 @@ fn measured_input_triggers_compaction_even_when_character_estimate_is_small() {
         "SELECT estimated_in FROM token_usage WHERE session_id=?1 AND role='agent' ORDER BY id DESC LIMIT 1",
         [h.session], |row| row.get(0),
     ).unwrap();
-    assert!(estimated > 0, "text requests must be calibration samples");
+    assert_eq!(
+        estimated, 0,
+        "text requests must never write invented token samples"
+    );
 }
 
 #[test]
@@ -10516,6 +10905,166 @@ fn mid_turn_switch_to_model_inherits_saved_per_model_generation_settings() {
     assert!(requests[4].settings.thinking);
     assert_eq!(requests[4].settings.effort.as_deref(), Some("high"));
     assert_eq!(requests[4].settings.stop, ["DONE", "HALT"]);
+}
+
+#[test]
+fn manual_compaction_reports_work_and_queued_prompts_resume_without_reopening() {
+    use std::sync::{mpsc, Mutex};
+    use std::time::Duration;
+    struct SlowSummary {
+        entered: mpsc::Sender<()>,
+        release: Mutex<mpsc::Receiver<()>>,
+        fail: bool,
+    }
+    impl Provider for SlowSummary {
+        fn name(&self) -> &str {
+            "slow-summary"
+        }
+        fn stream(
+            &self,
+            req: &Request,
+            sink: &mut dyn FnMut(Chunk) -> Flow,
+        ) -> runeengine::Result<()> {
+            if req.control.role == Some("compact") {
+                self.entered.send(()).unwrap();
+                let until = std::time::Instant::now() + Duration::from_secs(15);
+                loop {
+                    if req.control.cancelled() {
+                        return Err(runeengine::Error::Cancelled);
+                    }
+                    if std::time::Instant::now() >= until {
+                        return Err(runeengine::Error::Provider("fixture deadline".into()));
+                    }
+                    if self
+                        .release
+                        .lock()
+                        .unwrap()
+                        .recv_timeout(Duration::from_millis(25))
+                        .is_ok()
+                    {
+                        break;
+                    }
+                }
+                if self.fail {
+                    return Err(runeengine::Error::Provider("summary unavailable".into()));
+                }
+                sink(Chunk::Text("The older work is complete.".into()));
+            } else {
+                sink(Chunk::Text("Prompt answered.".into()));
+            }
+            Ok(())
+        }
+    }
+    for outcome in ["success", "failure", "cancel"] {
+        let (entered, started) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        let provider = Arc::new(SlowSummary {
+            entered,
+            release: Mutex::new(held),
+            fail: outcome == "failure",
+        });
+        let mut h = harness_with(&format!("compact-status-{outcome}"), provider);
+        let db = runeengine::store::Db::open(&h.db_path, Duration::from_secs(5)).unwrap();
+        for turn in 1..=7 {
+            for (role, text) in [
+                (runeengine::store::sessions::Role::User, "older input"),
+                (runeengine::store::sessions::Role::Assistant, "older answer"),
+            ] {
+                db.append_message(
+                    h.session,
+                    runeengine::store::sessions::NewMessage::plain(turn, role, text),
+                )
+                .unwrap();
+            }
+        }
+        h.engine.handle(Command::SessionCompact {
+            id: 980,
+            session: h.session,
+        });
+        started.recv_timeout(Duration::from_secs(10)).unwrap();
+        h.engine.handle(Command::SessionView {
+            id: 981,
+            session: h.session,
+        });
+        let view = wait_for_ack(&h.events, 981);
+        assert_eq!(
+            view["compacting"]["active"], true,
+            "manual work is visible to a joining window"
+        );
+        h.engine.handle(Command::Prompt {
+            id: 982,
+            session: h.session,
+            text: "sent while compacting".into(),
+            attach: vec![],
+        });
+        let queued = wait_for_ack(&h.events, 982);
+        assert_eq!(
+            queued["composer"]["pending"][0]["text"],
+            "sent while compacting"
+        );
+        // A slow request on the same model must not serialize another project.
+        let other_project = h.project.parent().unwrap().join("other-project");
+        std::fs::create_dir_all(&other_project).unwrap();
+        let other = h.engine.open(other_project.to_str().unwrap()).unwrap().id();
+        h.engine.handle(Command::Prompt {
+            id: 983,
+            session: other,
+            text: "independent".into(),
+            attach: vec![],
+        });
+        loop {
+            if matches!(h.events.recv_timeout(Duration::from_secs(10)).unwrap(), Event::Done {session, ..} if session == other)
+            {
+                break;
+            }
+        }
+        if outcome == "cancel" {
+            h.engine.handle(Command::Cancel {
+                id: 984,
+                session: h.session,
+                call: None,
+            });
+        } else {
+            release.send(()).unwrap();
+        }
+        let mut cleared = false;
+        let mut user_starts = 0;
+        loop {
+            match h.events.recv_timeout(Duration::from_secs(15)).unwrap() {
+                Event::Compacting {
+                    session,
+                    active: false,
+                    ..
+                } if session == h.session => cleared = true,
+                Event::TurnStart { session, text, .. }
+                    if session == h.session && text.as_deref() == Some("sent while compacting") =>
+                {
+                    user_starts += 1
+                }
+                Event::Done { session, stop, .. } if session == h.session => {
+                    assert_eq!(stop, StopReason::End);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        assert!(
+            cleared,
+            "{outcome}: status must finish even on error/cancel"
+        );
+        assert_eq!(
+            user_starts, 1,
+            "{outcome}: no reopening or extra Continue required"
+        );
+        let users = db
+            .history(h.session)
+            .unwrap()
+            .into_iter()
+            .filter(|m| m.content == "sent while compacting")
+            .count();
+        assert_eq!(users, 1);
+        h.engine.shutdown();
+    }
 }
 
 #[test]
@@ -11118,10 +11667,16 @@ fn each_kind_of_failure_reaches_the_model_in_its_own_words() {
         json!({"action":"say hi","command":"echo hi"}),
         Decision::Deny,
     );
-    assert_eq!(
-        refused,
-        "<tool_notice>The user refused this call, so it did not run. Do not send the same call again; choose another approach or ask the user.</tool_notice>"
+    assert!(
+        refused.starts_with("<tool_notice>The user refused this call, so it did not run."),
+        "{refused}"
     );
+    assert!(
+        !refused.contains("Do not send the same call again"),
+        "{refused}"
+    );
+    assert_eq!(refused.matches("submit !").count(), 1, "{refused}");
+    assert!(refused.ends_with("</tool_notice>"));
     assert_eq!(
         audit_status(&mut h, 2, "terminal_use").as_deref(),
         Some("denied")
@@ -11151,7 +11706,7 @@ fn each_kind_of_failure_reaches_the_model_in_its_own_words() {
     );
     assert_eq!(
         missing,
-        "<tool_notice>This call was not executed (not found: missing.txt — check the path or search with find_files). Nothing ran; fix the request and call again.</tool_notice>"
+        "<tool_notice>This call was not executed (not found: missing.txt — check the path or search with find_files). Nothing ran.</tool_notice>"
     );
 
     let (not_run, _) = invoke(
@@ -11165,10 +11720,7 @@ fn each_kind_of_failure_reaches_the_model_in_its_own_words() {
         not_run.starts_with("<tool_notice>This call was not executed ("),
         "{not_run}"
     );
-    assert!(
-        not_run.ends_with("fix the request and call again.</tool_notice>"),
-        "{not_run}"
-    );
+    assert!(not_run.ends_with("Nothing ran.</tool_notice>"), "{not_run}");
     for text in [&refused, &failed, &missing, &not_run] {
         assert!(
             !text.contains("Status") && !text.contains("Reason:"),
@@ -11699,14 +12251,31 @@ fn a_background_log_is_written_as_text() {
     let log = results_dir(&h)
         .join("terminal_use")
         .join(format!("{id}.txt"));
+    let background = h
+        .engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .clone();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-    let text = loop {
-        let text = std::fs::read_to_string(&log).unwrap_or_default();
-        if text.contains("done") || std::time::Instant::now() > deadline {
-            break text;
+    loop {
+        let info = background.get(&id).unwrap();
+        if !matches!(
+            info.status,
+            runeengine::session::background::BackgroundTaskStatus::Running
+        ) {
+            break;
         }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the output task never finished"
+        );
         std::thread::sleep(std::time::Duration::from_millis(50));
-    };
+    }
+    // The live file may already contain `done`, before its final newline is
+    // published. Completion, not a substring, owns the final-byte assertion.
+    let text = std::fs::read_to_string(&log).unwrap();
     assert_eq!(text, "Building 3/3\nlink done\n", "{text:?}");
 }
 
@@ -12274,9 +12843,17 @@ fn a_command_waiting_for_input_moves_at_once_and_is_answered_question_by_questio
     let task = task_in(&install).unwrap();
     let check = result_of(&events, "check");
     assert!(check.contains("Process: Waiting for input"), "{check}");
+    // The question is readable from the process reader too, not only from
+    // the result that moved it: a compacted conversation keeps this one.
     assert!(
-        check.trim_end().ends_with("</tool_notice>"),
-        "the question was in the result already: {check}"
+        check.contains("Do you want to continue? [Y/n]"),
+        "the reader shows what the process printed: {check}"
+    );
+    // And exactly once: the screen row the log already holds is not said again.
+    assert_eq!(
+        check.matches("Do you want to continue?").count(),
+        1,
+        "the question is not repeated inside one report: {check}"
     );
     let yes = result_of(&events, "yes");
     assert_eq!(
@@ -12292,9 +12869,17 @@ fn a_command_waiting_for_input_moves_at_once_and_is_answered_question_by_questio
         question.contains("got:y") && question.contains("Name:"),
         "{question}"
     );
+    // What the first report gave is not given again. The question's row may
+    // come back once in its answered form (`[Y/n] y`): the terminal echoed the
+    // answer onto that same row, so it is the screen as it stands now, not a
+    // second copy of the question.
     assert!(
         !question.contains("preparing"),
-        "what a result gave is not given again: {question}"
+        "a finished line is not given twice: {question}"
+    );
+    assert!(
+        question.matches("Do you want to continue?").count() <= 1,
+        "one screen row is never said twice in one report: {question}"
     );
     assert!(result_of(&events, "name").starts_with("<tool_notice>Typed "));
     let result = result_of(&events, "result");
@@ -12312,9 +12897,197 @@ fn a_command_waiting_for_input_moves_at_once_and_is_answered_question_by_questio
     quiet_after(&mut h, "a wake after the end was told");
 }
 
-/// A hidden entry is said to be hidden, and only that — in a sentence with no
-/// second label colon; an answer to it reaches the program, and is never
-/// repeated back.
+/// The log must hold what the process printed while it waits, not only once it
+/// ends: a person reads that file, and a crash or a restart must not take the
+/// question away with the screen. The rows are written once — the monitor and
+/// the reader both drop the text the handoff already recorded.
+#[test]
+fn a_waiting_command_writes_its_question_into_the_log_while_it_still_waits() {
+    if runeengine::platform::INPUT_WAIT_DETECTION != runeengine::platform::InputWaitDetection::Every
+    {
+        return;
+    }
+    let steps = Steps::new(vec![
+        call(
+            "ask",
+            "terminal_use",
+            json!({"action": "ask", "command": "echo first-line; printf 'Proceed? '; read a; echo \"answer:$a\"; sleep 2"}),
+        ),
+        call(
+            "check",
+            "manage_process",
+            json!({"action": "check it", "process_id": ""}),
+        ),
+        say("Checked while it waits."),
+    ]);
+    let mut h = harness_with_config_and("log_while_waiting", QUICK_WAITS, steps.clone());
+    let events = run_steps(&mut h, &steps, "ask it");
+    let ask = result_of(&events, "ask");
+    let task = task_in(&ask).unwrap();
+    let log = h
+        .engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .get(&task)
+        .expect("the task is registered")
+        .out_file;
+
+    // The process has not been answered and is still waiting: what it printed
+    // is already on disk, readable by any reader of the file.
+    let written = std::fs::read_to_string(&log).expect("the log exists");
+    assert!(
+        written.contains("first-line") && written.contains("Proceed?"),
+        "the question is in the log while the process waits: {written:?}"
+    );
+
+    // And the reader shows it once — not twice, though the screen still holds
+    // the same rows.
+    let check = result_of(&events, "check");
+    assert!(check.contains("Process: Waiting for input"), "{check}");
+    assert_eq!(
+        check.matches("first-line").count(),
+        1,
+        "the log row is not repeated by the screen: {check}"
+    );
+    assert_eq!(
+        check.matches("Proceed?").count(),
+        1,
+        "the question is said once: {check}"
+    );
+    h.engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .stop_all();
+}
+
+/// The rows written into the log at the handoff are the same rows the screen
+/// still holds. When the process ends and the screen is drained, the log must
+/// not receive them a second time — the reader would show one question twice
+/// and call it two.
+#[test]
+fn rows_written_at_the_handoff_are_never_written_into_the_log_again() {
+    if runeengine::platform::INPUT_WAIT_DETECTION != runeengine::platform::InputWaitDetection::Every
+    {
+        return;
+    }
+    let steps = Steps::new(vec![
+        call(
+            "ask",
+            "terminal_use",
+            json!({"action": "ask", "command": "echo mark-a; printf 'Proceed? '; read a; echo \"answer:$a\""}),
+        ),
+        call(
+            "answer",
+            "terminal_send_input",
+            json!({"action": "answer", "process_id": "", "text": "y"}),
+        ),
+        say("Answered."),
+    ]);
+    let mut h = harness_with_config_and("no_second_write", QUICK_WAITS, steps.clone());
+    let events = run_steps(&mut h, &steps, "ask it");
+    let task = task_in(&result_of(&events, "ask")).unwrap();
+    let log = h
+        .engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .get(&task)
+        .expect("the task is registered")
+        .out_file;
+
+    // Wait for the monitor's final drain and write.
+    for _ in 0..40 {
+        let done = h
+            .engine
+            .session(h.session)
+            .unwrap()
+            .state
+            .background
+            .get(&task)
+            .is_some_and(|task| {
+                !matches!(
+                    task.status,
+                    runeengine::session::background::BackgroundTaskStatus::Running
+                )
+            });
+        if done {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let written = std::fs::read_to_string(&log).expect("the log exists");
+    assert_eq!(
+        written.matches("mark-a").count(),
+        1,
+        "a finished row is in the log once, not twice: {written:?}"
+    );
+    // The live suffix is updated in place: the question's answered row is
+    // present once, not an old snapshot followed by the answered form.
+    assert_eq!(
+        written.matches("Proceed?").count(),
+        1,
+        "the question is one row in the actual log: {written:?}"
+    );
+    assert!(
+        written.contains("Proceed? y"),
+        "the answered row is what the screen shows: {written:?}"
+    );
+    assert!(written.contains("answer:y"), "{written:?}");
+    quiet_after(&mut h, "a wake after the end was told");
+}
+
+/// A crash or a restart loses the screen: the task comes back from the journal
+/// with no `tail` and no grid. The question must still be readable, because it
+/// was written into the log while the process waited — that is the whole
+/// reason the handoff writes it.
+#[test]
+fn a_question_is_readable_from_the_log_without_the_conversation_or_screen() {
+    if runeengine::platform::INPUT_WAIT_DETECTION != runeengine::platform::InputWaitDetection::Every
+    {
+        return;
+    }
+    let steps = Steps::new(vec![
+        call(
+            "ask",
+            "terminal_use",
+            json!({"action": "ask", "command": "echo survived-line; printf 'Still there? '; read a; sleep 3"}),
+        ),
+        say("Waiting."),
+    ]);
+    let mut h = harness_with_config_and("survives_restart", QUICK_WAITS, steps.clone());
+    let events = run_steps(&mut h, &steps, "ask it");
+    let task = task_in(&result_of(&events, "ask")).unwrap();
+    let log = h
+        .engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .get(&task)
+        .expect("the task is registered")
+        .out_file;
+
+    // What a restart would project: the journal's Started record keeps the log
+    // path and nothing of the screen. The file alone must carry the question.
+    let on_disk = std::fs::read_to_string(&log).expect("the log exists");
+    assert!(
+        on_disk.contains("survived-line") && on_disk.contains("Still there?"),
+        "the log alone holds the question: {on_disk:?}"
+    );
+    h.engine
+        .session(h.session)
+        .unwrap()
+        .state
+        .background
+        .stop_all();
+}
+
 #[test]
 fn a_hidden_entry_is_said_to_be_hidden_and_can_be_answered() {
     // Where the system tells a wait for a hidden entry (Linux, macOS).
@@ -12498,7 +13271,7 @@ fn a_background_task_that_starts_waiting_wakes_the_session_once() {
     assert_eq!(
         wakes(
             &events,
-            &format!("Background task {task} is waiting for input. Call manage_process with process_id: {task} for what it asks, then answer it with terminal_send_input.")
+            &format!("Background task {task} is waiting for input.")
         ),
         1,
         "{events:?}"
@@ -13069,7 +13842,10 @@ fn a_failed_compaction_cancel_or_unavailable_stops_without_a_hidden_retry() {
     use runeengine::tools::questions::Reply;
     for cancel in [false, true] {
         let provider = Arc::new(Scripted::new(vec![
-            vec![Chunk::Text("large observation ".repeat(20000))],
+            vec![
+                Chunk::Text("large observation ".repeat(20000)),
+                reported_input(70_000),
+            ],
             vec![],
         ]));
         let mut h = harness_with(
@@ -13306,7 +14082,8 @@ fn an_agent_intent_cannot_forge_lines_of_the_classifier_input() {
         "{input}"
     );
     assert!(!input.lines().any(|l| l.starts_with("Actual user answer:")));
-    assert!(input.contains("Agent intent (not authorization)"));
+    assert!(input.contains("Agent intent"));
+    assert!(!input.contains("Agent intent (not authorization)"));
     assert!(input.contains("    Action s9t9e9-1a2"));
 }
 
@@ -13432,7 +14209,10 @@ fn prompt_answering_compaction(h: &mut Harness, text: &str, yes: bool) -> Vec<Ev
 #[test]
 fn a_failed_compaction_asks_and_yes_retries_then_the_turn_goes_on() {
     let provider = Arc::new(Scripted::new(vec![
-        vec![Chunk::Text("large observation ".repeat(20_000))],
+        vec![
+            Chunk::Text("large observation ".repeat(20_000)),
+            reported_input(70_000),
+        ],
         // The first summary comes back empty: the compaction fails.
         vec![],
         vec![Chunk::Text("summary after retry".into())],
@@ -13473,7 +14253,10 @@ fn a_failed_compaction_asks_and_yes_retries_then_the_turn_goes_on() {
 #[test]
 fn a_failed_compaction_answered_no_stops_the_turn_and_the_next_message_compacts_again() {
     let provider = Arc::new(Scripted::new(vec![
-        vec![Chunk::Text("large observation ".repeat(20_000))],
+        vec![
+            Chunk::Text("large observation ".repeat(20_000)),
+            reported_input(70_000),
+        ],
         vec![],
         vec![Chunk::Text("summary on the next message".into())],
         vec![Chunk::Text("answered the next message".into())],
@@ -13500,6 +14283,27 @@ fn a_failed_compaction_answered_no_stops_the_turn_and_the_next_message_compacts_
     assert!(events.iter().any(|e| matches!(e, Event::Compacted { .. })));
     assert_eq!(stop_of(&events), StopReason::End, "{events:?}");
     assert!(text_of(&events).contains("answered the next message"));
+}
+
+struct SmallCompactRejects {
+    scripted: Scripted,
+}
+impl Provider for SmallCompactRejects {
+    fn name(&self) -> &str {
+        "small-compact-rejection"
+    }
+    fn stream(
+        &self,
+        request: &Request,
+        sink: &mut dyn FnMut(Chunk) -> Flow,
+    ) -> runeengine::Result<()> {
+        if request.control.role == Some("compact") && request.settings.model == "small-compact" {
+            return Err(runeengine::Error::ContextOverflow(
+                "small compact provider rejected the input".into(),
+            ));
+        }
+        self.scripted.stream(request, sink)
+    }
 }
 
 #[test]
@@ -13532,11 +14336,13 @@ fn a_compact_model_too_small_for_the_history_falls_back_to_the_active_model() {
         None,
     )
     .unwrap();
-    let provider = Arc::new(Scripted::new(vec![
-        vec![Chunk::Text("first answer ".repeat(4_000))],
-        vec![Chunk::Text("second answer".into())],
-        vec![Chunk::Text("summary by the active model".into())],
-    ]));
+    let provider = Arc::new(SmallCompactRejects {
+        scripted: Scripted::new(vec![
+            vec![Chunk::Text("first answer ".repeat(4_000))],
+            vec![Chunk::Text("second answer".into())],
+            vec![Chunk::Text("summary by the active model".into())],
+        ]),
+    });
     let db_path = base.join("rune.db");
     let (mut engine, events) =
         Engine::start(Config::at(db_path.clone(), data, provider.clone()).unwrap()).unwrap();
@@ -13577,7 +14383,7 @@ fn a_compact_model_too_small_for_the_history_falls_back_to_the_active_model() {
             _ => {}
         }
     }
-    let summary = provider.last_sent().unwrap();
+    let summary = provider.scripted.last_sent().unwrap();
     assert_eq!(summary.request.control.role, Some("compact"));
     assert_eq!(summary.settings.model, "big-runtime");
 }
@@ -13754,9 +14560,17 @@ fn a_model_deleted_added_again_or_added_by_hand_can_have_its_thinking_configured
     });
     let answer = wait_for_ack(&h.events, 8102);
     let back = model_of(&answer, "ag/route");
-    assert_eq!(back.reasoning_choices("9router"), offered, "{back:?}");
+    assert_eq!(
+        back.reasoning_choices("9router"),
+        offered
+            .iter()
+            .filter(|level| level.as_str() != "minimal")
+            .cloned()
+            .collect::<Vec<_>>(),
+        "{back:?}"
+    );
     assert!(
-        back.thinking_off_asks_least(),
+        back.thinking_off_requests_low(),
         "the catalogue's capabilities came back"
     );
     assert_eq!(answer["settings"]["thinking"], json!(false));
@@ -14114,4 +14928,230 @@ fn an_mcp_servers_folders_outside_the_workspace_follow_the_mode() {
         state.capabilities.connection("fixture").is_ok(),
         "in Full the server starts with nobody asked"
     );
+}
+
+/// Owner, 2026-10-23: the sidebar said "not priced" for the rest of a session
+/// once one request ran on a model without a price, whatever was priced
+/// after. Now the session's cost is the engine's, worked out from every
+/// recorded request: one that ran without a price takes its model's price once
+/// it is filled in, a priced model counts from its own requests while the
+/// unpriced one stays out (and is said), and a request priced when it ran
+/// keeps what it was charged.
+#[test]
+fn a_price_filled_in_later_prices_the_requests_that_ran_without_one() {
+    use runeengine::settings::providers::{preset, ModelInfo, Price};
+    let fixture = json!({ "responses": [
+        { "chunks": [ { "text": "one" }, { "usage": { "input": 1000, "output": 100 } } ] },
+        { "chunks": [ { "text": "two" }, { "usage": { "input": 2000, "output": 200 } } ] }
+    ]});
+    let provider = Arc::new(Scripted::from_value(&fixture, "test".into()).unwrap());
+    let base = temp("price-later");
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let data_dir = base.join("data");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    runeengine::testing::posix_shell_for_tests(&data_dir);
+    let mut prov = preset("openrouter").unwrap().build("");
+    prov.name = "test-prov".into();
+    prov.secret = None;
+    let free = ModelInfo::named("free-model", false);
+    let mut paid = ModelInfo::named("paid-model", false);
+    let rates = |input: f64, output: f64| Price {
+        input,
+        output,
+        ..Default::default()
+    };
+    paid.price = Some(rates(1.0, 2.0));
+    prov.models = vec![free.clone(), paid.clone()];
+    configure_providers(
+        &data_dir,
+        json!({ "default": "test-prov", "list": [ prov ] }),
+    );
+    let db_path = base.join("rune.db");
+    let cfg = Config::at(db_path.clone(), data_dir, provider).unwrap();
+    let (mut engine, events) = Engine::start(cfg).unwrap();
+    let session = engine.open(project.to_str().unwrap()).unwrap().id();
+    let mut h = Harness {
+        engine,
+        events,
+        project,
+        session,
+        db_path,
+        _cleanup: Cleanup(base),
+    };
+    let set = |h: &mut Harness, id: u64, key: &str, value: &str| {
+        h.engine.handle(Command::SettingsSet {
+            id,
+            session: h.session,
+            key: key.into(),
+            value: value.into(),
+        });
+        wait_for_ack(&h.events, id);
+    };
+    let spend_of = |events: &[Event]| {
+        events
+            .iter()
+            .rev()
+            .find_map(|e| match e {
+                Event::Spend {
+                    spend,
+                    priced,
+                    unpriced,
+                    ..
+                } => Some((*spend, *priced, *unpriced)),
+                _ => None,
+            })
+            .expect("the engine says the session's cost after a request")
+    };
+    let close = |got: f64, want: f64| assert!((got - want).abs() < 1e-12, "{got} != {want}");
+    // Asked again, as a window does when the configuration moved.
+    let asked_again = |h: &mut Harness, id: u64| {
+        h.engine.handle(Command::SettingsGet {
+            id,
+            session: h.session,
+        });
+        let mut seen = Vec::new();
+        loop {
+            let event = h
+                .events
+                .recv_timeout(std::time::Duration::from_secs(20))
+                .unwrap();
+            let done = matches!(&event, Event::Ack { id: got, .. } if *got == id);
+            seen.push(event);
+            if done {
+                return seen;
+            }
+        }
+    };
+
+    set(&mut h, 1, "provider", "test-prov");
+    set(&mut h, 2, "model", "free-model");
+    let first = prompt(&mut h, "one", Decision::Deny);
+    assert_eq!(spend_of(&first), (0.0, 0, 1), "nothing priced yet");
+
+    // Another model, with a price: its own request counts; the first stays out.
+    set(&mut h, 3, "model", "paid-model");
+    let second = prompt(&mut h, "two", Decision::Deny);
+    let (spend, priced, unpriced) = spend_of(&second);
+    close(spend, (2000.0 * 1.0 + 200.0 * 2.0) / 1e6);
+    assert_eq!((priced, unpriced), (1, 1));
+
+    // The first model's price filled in: its request is priced from history.
+    let mut free_priced = free.clone();
+    free_priced.price = Some(rates(3.0, 4.0));
+    h.engine.handle(Command::ProviderConfigureModel {
+        id: 4,
+        provider: "test-prov".into(),
+        model: Box::new(free_priced),
+    });
+    wait_for_ack(&h.events, 4);
+    let (spend, priced, unpriced) = spend_of(&asked_again(&mut h, 5));
+    close(spend, 0.0024 + (1000.0 * 3.0 + 100.0 * 4.0) / 1e6);
+    assert_eq!((priced, unpriced), (2, 0));
+
+    // The paid model's price changed: what it charged when it ran stands.
+    let mut repriced = paid.clone();
+    repriced.price = Some(rates(10.0, 20.0));
+    h.engine.handle(Command::ProviderConfigureModel {
+        id: 6,
+        provider: "test-prov".into(),
+        model: Box::new(repriced),
+    });
+    wait_for_ack(&h.events, 6);
+    let (spend, _, _) = spend_of(&asked_again(&mut h, 7));
+    close(spend, 0.0024 + 0.0034);
+
+    // A window opened now is told the same total.
+    h.engine.handle(Command::SessionView {
+        id: 8,
+        session: h.session,
+    });
+    let view = wait_for_ack(&h.events, 8);
+    close(view["usage"]["spend"].as_f64().unwrap(), 0.0058);
+    assert_eq!(view["usage"]["unpriced_calls"], json!(0));
+    assert_eq!(view["usage"]["priced_calls"], json!(2));
+}
+
+/// Owner, 2026-10-23: what is shown of a thinking is what Anthropic reported
+/// of it, never Rune's estimate, and only where a door asked it to count
+/// (Claude Code's models: no thinking text comes back). Every count it
+/// reported reaches every window as it came, the one it billed is the
+/// assistant message's own fact, so a window opened later shows the same; a
+/// route that only says in its usage how much it reasoned (gemini through
+/// 9router's OpenAI door) is measured by its text, and its message keeps no
+/// count.
+#[test]
+fn the_thinking_count_anthropic_reported_is_sent_as_it_came_and_kept_with_its_message() {
+    let usage = |reasoning: u64| Chunk::Usage {
+        input: 100,
+        output: 70,
+        cached: 0,
+        details: runeengine::provider::UsageDetails {
+            measured: true,
+            input_known: true,
+            output_known: true,
+            reasoning: Some(reasoning),
+            ..Default::default()
+        },
+    };
+    let provider = Arc::new(Scripted::new(vec![
+        vec![
+            Chunk::Thinking(String::new()),
+            Chunk::ThinkingTokens {
+                tokens: 50,
+                billed: false,
+            },
+            Chunk::ThinkingTokens {
+                tokens: 250,
+                billed: false,
+            },
+            Chunk::Text("answer".into()),
+            Chunk::ThinkingTokens {
+                tokens: 369,
+                billed: true,
+            },
+            usage(369),
+        ],
+        vec![
+            Chunk::Thinking("let me see".into()),
+            Chunk::Text("second".into()),
+            usage(64),
+        ],
+    ]));
+    let mut h = harness_with("thinking-count", provider);
+    let events = prompt(&mut h, "think", Decision::Deny);
+    let counts: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::ThinkingTokens { tokens, billed, .. } => Some((*tokens, *billed)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(counts, [(50, false), (250, false), (369, true)]);
+    let events = prompt(&mut h, "again", Decision::Deny);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::ThinkingTokens { .. })),
+        "a count nobody reported was sent"
+    );
+    h.engine.handle(Command::SessionView {
+        id: 5,
+        session: h.session,
+    });
+    let view = wait_for_ack(&h.events, 5);
+    let answers: Vec<_> = view["history"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|m| m["role"] == json!("assistant"))
+        .collect();
+    assert_eq!(answers.len(), 2, "{view}");
+    assert_eq!(answers[0]["thinking_tokens"], json!(369), "{}", answers[0]);
+    assert!(
+        answers[1].get("thinking_tokens").is_none(),
+        "{}",
+        answers[1]
+    );
+    assert_eq!(answers[1]["reasoning"], json!("let me see"));
 }

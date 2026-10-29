@@ -63,6 +63,7 @@ pub fn usage(
     output: u64,
     cached: u64,
     cost: Option<f64>,
+    thinking: Option<u64>,
 ) {
     let human = |n: u64| crate::media::human_num(n as usize);
     let cached = if cached > 0 {
@@ -70,6 +71,12 @@ pub fn usage(
     } else {
         String::new()
     };
+    // What the model spent thinking, where the provider counts it: a route
+    // that returns no thinking text still says how much it thought.
+    let thinking_text = thinking
+        .filter(|n| *n > 0)
+        .map(|n| format!(" ({} thinking)", human(n)))
+        .unwrap_or_default();
     let cost_text = cost.map(|c| format!(", ${c:.4}")).unwrap_or_default();
     record(
         rt,
@@ -78,11 +85,13 @@ pub fn usage(
         "usage",
         role,
         format!(
-            "{role} request on {model}: {} tokens in{cached}, {} out{cost_text}.",
+            "{role} request on {model}: {} tokens in{cached}, {} out{thinking_text}{cost_text}.",
             human(input),
             human(output)
         ),
-        Some(serde_json::json!({"input": input, "output": output, "cost": cost})),
+        Some(
+            serde_json::json!({"input": input, "output": output, "cost": cost, "thinking": thinking}),
+        ),
     );
 }
 

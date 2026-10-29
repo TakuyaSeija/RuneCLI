@@ -1,0 +1,44 @@
+{{define "article"}}
+<h2 id="application">Conversation and application</h2>
+<dl class="ref">
+<div><dt>Enter · Alt+Enter</dt><dd>Send the message, or insert a newline. Modified Return combinations depend on what the terminal reports.</dd></div>
+<div><dt>Ctrl+G · Ctrl+O</dt><dd>Open Settings, or toggle the side panel.</dd></div>
+<div><dt>Ctrl+T · Ctrl+R</dt><dd>Open the plan, or expand/refold steps and thoughts. Ctrl+R in the session picker instead opens rename.</dd></div>
+<div><dt>Alt+T</dt><dd>Cycle the selected model's available reasoning choices.</dd></div>
+<div><dt>Tab</dt><dd>Complete a slash command or cycle permission mode. Forms keep their own Tab navigation.</dd></div>
+<div><dt>Esc twice</dt><dd>Stop active AI work: the first press shows a confirmation, the second within 3 seconds stops. An idle view closes with Esc.</dd></div>
+<div><dt>Ctrl+C twice</dt><dd>Leave Rune. The first press arms leaving; it does not cancel a turn or clear the draft.</dd></div>
+<div><dt>Ctrl+L · Ctrl+↓</dt><dd>Repaint the screen, or jump to the latest chat.</dd></div>
+</dl>
+<h2 id="text-editing">Text editing</h2>
+<p>These bindings are shared by the composer, editable answers, Settings fields, model search, MCP fields and session search/rename. Lists and buttons have their own navigation. A logical line ends at an inserted newline; a visual row can be a soft wrap.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody>
+<tr><td>← / →</td><td>Move by one visible character.</td></tr>
+<tr><td>Ctrl+← / Ctrl+→</td><td>Move to the previous whitespace-delimited word / end of the next word.</td></tr>
+<tr><td>↑ / ↓</td><td>Move through visual rows, retaining the desired column.</td></tr>
+<tr><td>Ctrl+A / Ctrl+E</td><td>Beginning / end of the current logical line.</td></tr>
+<tr><td>Home / End</td><td>Beginning / end of the whole input.</td></tr>
+<tr><td>Backspace / Delete</td><td>Remove the visible character before / after the caret, or the selection.</td></tr>
+<tr><td>Ctrl+U / Ctrl+K</td><td>Kill backward / forward to the logical-line boundary. Ctrl+K at a newline removes only that newline; at input end it does nothing.</td></tr>
+<tr><td>Ctrl+W / Alt+D</td><td>Kill the whitespace-delimited word on the left / right, including adjacent whitespace in that direction.</td></tr>
+<tr><td>Ctrl+Y / Alt+Y</td><td>Yank the most recent kill / cycle the preceding kill immediately after a yank.</td></tr>
+<tr><td>Ctrl+_ / Alt+R</td><td>Undo / redo a text edit in this field.</td></tr>
+<tr><td>Shift+←/→/↑/↓</td><td>Extend selection by character or visual row.</td></tr>
+<tr><td>Ctrl+Shift+← / →</td><td>Extend selection by word.</td></tr>
+<tr><td>Alt+X / Alt+W</td><td>Exchange adjacent characters / words.</td></tr>
+<tr><td>Alt+U / Alt+L / Alt+V</td><td>Uppercase / lowercase / capitalize the following word or selected text.</td></tr>
+</tbody></table></div>
+<p>Typing, pasting or deleting replaces a selection. Temporary undo and killed text belong to that field, are bounded, and are cleared when the field or session changes. They are not file backups. Rune does not provide the complete Readline alias set; for example Ctrl+B/F and Alt+B/F are not alternative motion bindings.</p>
+<h2 id="history-and-reading">History and reading</h2>
+<p>In the composer, Up/Down first navigate visible text, then reach the beginning/end, then recall prompt history. <kbd>PgUp</kbd>/<kbd>PgDn</kbd> recall history directly. History belongs to the session.</p>
+<p>A wheel notch moves the configured number of rows, two by default. Ctrl+wheel or Alt+wheel goes three times as far when the terminal forwards it. A terminal can reserve these gestures for zoom or horizontal scrolling; ordinary wheel and keys remain available.</p>
+<h2 id="mouse">Mouse</h2>
+<p>A click places the text cursor or activates a control. Drag over text and release to copy it: the highlight disappears once the text is on your clipboard. A drag in the conversation copies only that pane, without the side panel or Rune's box borders, and tables copy as tab-separated cells. Copying a collapsed command gives back its original line breaks, without the <code>↵</code> and <code>…</code> display marks. In an input field a drag copies without moving the cursor or replacing your draft; select text for editing with <kbd>Shift</kbd> and the arrow keys. Masked secret fields are never copied.</p>
+<p>The terminal must allow clipboard writes for a copy to arrive; SSH or a multiplexer can block them. <kbd>Shift</kbd>+drag, where the terminal supports it, uses the terminal's own selection instead, borders included. With <code>ui.mouse = false</code> all selection belongs to the terminal.</p>
+<p>Click a link to open its <strong>REFERENCE</strong> panel: <kbd>Enter</kbd> opens a web address in your browser, <kbd>C</kbd> copies the complete destination and <kbd>Esc</kbd> closes the panel. Dragging across a link copies text and never opens it.</p>
+<h2 id="lists-and-forms">Lists and forms</h2>
+<p>Arrows select and <kbd>Enter</kbd> opens or confirms. <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> move focus. <kbd>Esc</kbd> cancels an editor or goes back one level. In Models, Ctrl+F focuses search, Alt+C opens model configuration, T tests with a real request and Delete removes the selected result's local configuration.</p>
+<p>In question forms, Alt+Left/Right switches questions. Plain Left/Right edits text or selects buttons. Page keys read an overflowing card; they do not submit an answer. Up/Down inside a custom answer first navigate its text before leaving it. Mouse drags select text rather than activating the control underneath.</p>
+<h2 id="terminal-differences">Terminal differences</h2>
+<p>A shortcut only works if the terminal reports it. Operating-system shortcuts, terminal profiles and traditional control encodings can reserve combinations. Backgrounds, blur and transparency also belong to the terminal, not Rune. Consult <code>/help</code> for the installed build rather than assuming a shell keymap applies.</p>
+{{end}}

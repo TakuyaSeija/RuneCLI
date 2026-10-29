@@ -43,8 +43,8 @@ impl Limits {
         self.config.number("tools.max_actions_per_response") as usize
     }
 
-    /// Transcript size, in estimated tokens, at which older turns are
-    /// summarised when the model's own context window is unknown. See
+    /// Reported input-token threshold for compaction when the model's own
+    /// context window is unknown. No source length is converted to tokens. See
     /// [`crate::session::compact`].
     pub fn compact_at_tokens(&self) -> usize {
         self.config.number("compact.fallback_context_tokens") as usize

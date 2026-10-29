@@ -199,14 +199,6 @@ pub struct RequestControl {
     pub timeout: Option<std::time::Duration>,
     pub role: Option<&'static str>,
     pub config_revision: Option<(std::path::PathBuf, Option<String>)>,
-    /// The provider-measured factor by which this model's real input exceeds
-    /// Rune's estimate, when one has been recorded (see
-    /// [`crate::store::Db::estimate_correction`]). Carried on the request so the
-    /// fail-closed guards in provider shaping use the **same** corrected number
-    /// the turn loop already decided with — an under-counting estimate must not
-    /// let a request the provider would reject slip past a guard and be paid for.
-    /// `None` leaves every guard on the raw estimate.
-    pub estimate_correction: Option<f64>,
     /// The live `attachments.max_text_chars`, set by whoever owns the
     /// configuration; `None` takes the shipped default.
     pub attachment_text_chars: Option<usize>,
@@ -254,6 +246,15 @@ pub enum Chunk {
     Finished(Completion),
     Text(String),
     Thinking(String),
+    /// What Anthropic has reported of the message's thinking, through a door
+    /// that asked it to count ([`crate::settings::providers::THINKING_TOKEN_COUNT`]):
+    /// while it runs, `tokens` is the sum of the counts it reported so far;
+    /// with `billed`, the count its usage billed, which is the thinking's.
+    /// Nothing here is Rune's: no frame, no count.
+    ThinkingTokens {
+        tokens: u64,
+        billed: bool,
+    },
     /// Arguments of a tool call, arriving in pieces while the model writes them.
     ///
     /// This is what lets a frontend show a file being written as it is written,

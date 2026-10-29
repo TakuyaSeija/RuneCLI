@@ -72,14 +72,19 @@ pub struct SessionPicker {
     rename_cursor: usize,
     rename_editor: super::editing::State,
     text_row: Option<(u16, super::editor::Row)>,
+    /// The terminal cell of the text caret as (row, column), one-based like
+    /// `text_row` and `App::cursor_terminal`: both painters send it unchanged,
+    /// so a zero-based value here drew the bar on the box's top rule.
     pub(super) caret: Option<(u16, u16)>,
     pub rename_session_id: Option<i64>,
     pub pending_rename: Option<(i64, String)>,
     prev_frame: Vec<String>,
     /// Last drawn row → filtered item; never guess layout in the input path.
     hit_rows: Vec<Option<usize>>,
-    mouse_anchor: Option<(u16, u16)>,
-    mouse_dragged: bool,
+    selection: Option<super::selection::Selection>,
+    selection_rows: Vec<super::selection::Row>,
+    selection_size: Option<(u16, u16)>,
+    selection_cancelled: bool,
 }
 
 impl SessionPicker {
@@ -107,8 +112,10 @@ impl SessionPicker {
             pending_rename: None,
             prev_frame: Vec::new(),
             hit_rows: Vec::new(),
-            mouse_anchor: None,
-            mouse_dragged: false,
+            selection: None,
+            selection_rows: Vec::new(),
+            selection_size: None,
+            selection_cancelled: false,
         }
     }
 
@@ -242,26 +249,58 @@ impl SessionPicker {
         let cap = Self::visible_capacity(rows);
 
         if let Key::Mouse(mouse) = &key {
+            use super::selection::{Point, Selection};
+            let point = Point {
+                row: mouse.row,
+                col: mouse.col,
+            };
             match mouse.kind {
                 Click::Press => {
-                    self.mouse_anchor = Some((mouse.row, mouse.col));
-                    self.mouse_dragged = false;
+                    self.selection_cancelled = false;
+                    self.selection = Some(Selection {
+                        anchor: point,
+                        head: point,
+                        moved: false,
+                    });
+                    return;
                 }
                 Click::Drag => {
-                    self.mouse_dragged |= self
-                        .mouse_anchor
-                        .is_some_and(|(row, col)| row != mouse.row || col.abs_diff(mouse.col) > 1);
-                }
-                Click::Release if self.mouse_dragged => {
-                    let anchor = self.mouse_anchor.take();
-                    self.mouse_dragged = false;
-                    if let Some((row, col)) = anchor {
-                        self.text_select(row, col, mouse.row, mouse.col);
+                    if let Some(selection) = &mut self.selection {
+                        selection.head = point;
+                        selection.moved |= selection.anchor != point;
                     }
                     return;
                 }
-                _ => {}
+                Click::Release => {
+                    if std::mem::take(&mut self.selection_cancelled) {
+                        self.selection = None;
+                        return;
+                    }
+                    if let Some(mut selection) = self.selection.take() {
+                        selection.head = point;
+                        let input = self
+                            .text_row
+                            .as_ref()
+                            .is_some_and(|(row, _)| *row == selection.anchor.row);
+                        let jitter = !selection.moved
+                            && selection.anchor.row == point.row
+                            && selection.anchor.col.abs_diff(point.col) <= 1;
+                        if selection.moved || (selection.anchor != point && (input || !jitter)) {
+                            selection.moved = true;
+                            let text = self
+                                .text_copy(selection.anchor, point)
+                                .unwrap_or_else(|| selection.selected_text(&self.selection_rows));
+                            term::copy(&text);
+                            return;
+                        }
+                    }
+                }
+                Click::WheelUp | Click::WheelDown => {
+                    self.selection_cancelled |= self.selection.take().is_some();
+                }
             }
+        } else {
+            self.selection_cancelled |= self.selection.take().is_some();
         }
         // Rename mode handling
         if self.renaming.is_some() {
@@ -327,41 +366,23 @@ impl SessionPicker {
                     }
                 }
             }
-            Key::Mouse(m) => match m.kind {
-                Click::Press => {
-                    self.mouse_anchor = Some((m.row, m.col));
-                    self.mouse_dragged = false;
+            Key::Mouse(m) if m.kind == Click::Release => {
+                if self.text_click(m.row, m.col) {
+                    return;
                 }
-                Click::Drag => {
-                    self.mouse_dragged |= self
-                        .mouse_anchor
-                        .is_some_and(|(row, col)| row != m.row || col.abs_diff(m.col) > 1);
-                }
-                Click::Release => {
-                    let anchor = self.mouse_anchor.take().unwrap_or((m.row, m.col));
-                    if !self.mouse_dragged && anchor.0 == m.row && anchor.1.abs_diff(m.col) <= 1 {
-                        if self.text_click(m.row, m.col) {
-                            return;
-                        }
-                        if let Some(Some(item)) =
-                            self.hit_rows.get(m.row.saturating_sub(1) as usize)
-                        {
-                            let item = *item;
-                            if item == self.selected {
-                                self.selected_id = self
-                                    .filtered_indices()
-                                    .get(item)
-                                    .map(|&idx| self.sessions[idx].id);
-                                self.done = self.selected_id.is_some();
-                            } else {
-                                self.selected = item;
-                            }
-                        }
+                if let Some(Some(item)) = self.hit_rows.get(m.row.saturating_sub(1) as usize) {
+                    let item = *item;
+                    if item == self.selected {
+                        self.selected_id = self
+                            .filtered_indices()
+                            .get(item)
+                            .map(|&idx| self.sessions[idx].id);
+                        self.done = self.selected_id.is_some();
+                    } else {
+                        self.selected = item;
                     }
-                    self.mouse_dragged = false;
                 }
-                _ => {}
-            },
+            }
             Key::Enter => {
                 let filtered = self.filtered_indices();
                 if let Some(&idx) = filtered.get(self.selected) {
@@ -401,22 +422,20 @@ impl SessionPicker {
         }
     }
 
-    fn text_select(&mut self, first_row: u16, first: u16, last_row: u16, last: u16) -> bool {
-        let Some((row, geometry)) = self.text_row.as_ref() else {
-            return false;
-        };
-        if first_row != *row || last_row != *row {
-            return false;
+    fn text_copy(
+        &self,
+        first: super::selection::Point,
+        last: super::selection::Point,
+    ) -> Option<String> {
+        let (row, geometry) = self.text_row.as_ref()?;
+        if first.row != *row || last.row != *row {
+            return None;
         }
-        let (start, end) = (geometry.caret_at(first), geometry.caret_at(last));
-        if let Some(text) = self.renaming.as_ref() {
-            self.rename_editor
-                .select(text, &mut self.rename_cursor, start, end);
-        } else {
-            self.query_editor
-                .select(&self.query, &mut self.query_cursor, start, end);
-        }
-        true
+        Some(super::selection::source(
+            self.renaming.as_ref().unwrap_or(&self.query),
+            geometry.caret_at(first.col),
+            geometry.caret_at(last.col),
+        ))
     }
 
     fn text_click(&mut self, row: u16, col: u16) -> bool {
@@ -438,6 +457,10 @@ impl SessionPicker {
 
     /// Composes the terminal output lines matching Foto 1 aesthetic.
     pub fn compose(&mut self, rows: u16, cols: u16) -> Vec<String> {
+        if self.selection_size.is_some_and(|size| size != (rows, cols)) {
+            self.selection_cancelled |= self.selection.take().is_some();
+        }
+        self.selection_size = Some((rows, cols));
         let cols = cols.max(20) as usize;
         let filtered = self.filtered_indices();
         let total_filtered = filtered.len();
@@ -500,7 +523,7 @@ impl SessionPicker {
             );
             let value = geometry.styled(self.rename_editor.selected(cur_val, self.rename_cursor));
             let disp = format!("{label}{value}");
-            self.caret = Some((lines.len() as u16, col.saturating_sub(1) as u16));
+            self.caret = Some((lines.len() as u16 + 1, col as u16));
             self.text_row = Some((lines.len() as u16 + 1, geometry));
             let padded = pad(&format!("{TEXT}{BOLD}{disp}{RESET}"), inner_w);
             lines.push(format!("{indent}{RULE}│ {RESET}{padded}{RULE} │{RESET}"));
@@ -524,7 +547,7 @@ impl SessionPicker {
                     geometry.styled(self.query_editor.selected(&self.query, self.query_cursor))
                 )
             };
-            self.caret = Some((lines.len() as u16, col.saturating_sub(1) as u16));
+            self.caret = Some((lines.len() as u16 + 1, col as u16));
             self.text_row = Some((lines.len() as u16 + 1, geometry));
             let padded = pad(&search_content, inner_w);
             lines.push(format!("{indent}{RULE}│ {RESET}{padded}{RULE} │{RESET}"));
@@ -645,6 +668,36 @@ impl SessionPicker {
             ));
         }
 
+        self.selection_rows = lines
+            .iter()
+            .map(|line| super::selection::Row::from(super::ansi::plain(line)))
+            .collect();
+        if let Some(row) = self.selection_rows.first_mut() {
+            row.spans.clear();
+        }
+        if let Some((row, geometry)) = &self.text_row {
+            let at = usize::from(row.saturating_sub(1));
+            let first = geometry.first_col.saturating_sub(1);
+            if let Some(row) = self.selection_rows.get_mut(at) {
+                row.spans = vec![super::selection::Span {
+                    columns: first..first + super::ansi::width(&geometry.text).max(1),
+                    region: super::selection::Region::Input,
+                    source: None,
+                }];
+            }
+            for edge in [at.saturating_sub(1), at + 1] {
+                if let Some(row) = self.selection_rows.get_mut(edge) {
+                    row.spans.clear();
+                }
+            }
+        }
+        if let Some(selection) = self.selection.filter(|s| s.moved) {
+            for (at, line) in lines.iter_mut().enumerate() {
+                for range in selection.columns(&self.selection_rows, at) {
+                    *line = super::ansi::select(line, range.start, range.end);
+                }
+            }
+        }
         lines
     }
 
@@ -665,7 +718,7 @@ impl SessionPicker {
         }
         out.push_str(RESET);
         if let Some((row, col)) = self.caret {
-            out.push_str(&at(row + 1, col + 1));
+            out.push_str(&at(row, col));
             out.push_str("\x1b[6 q\x1b[?25h");
         }
         let mut stdout = std::io::stdout();
@@ -908,7 +961,8 @@ mod tests {
                 let (row, geometry) = picker.text_row.as_ref().unwrap();
                 assert!(super::super::ansi::width(&frame[*row as usize - 1]) <= cols as usize);
                 let (caret_row, caret_col) = picker.caret.unwrap();
-                assert!(caret_row < 24 && caret_col < cols);
+                assert!(caret_row <= 24 && caret_col <= cols);
+                assert_eq!(caret_row, *row, "the caret is on the text row");
                 if cols >= 32 {
                     let line = *row;
                     let first = geometry.first_col as u16;
@@ -928,14 +982,93 @@ mod tests {
                             cols,
                         );
                     }
+                    assert_eq!(super::super::term::take_copies(), vec!["bc"]);
+                    assert!(picker.selection.is_none());
+                    let released = picker.compose(24, cols);
+                    assert!(!released
+                        .iter()
+                        .any(|line| line.contains(super::super::ansi::REVERSE)));
                     picker.on_key(Key::Char('X'), 24, cols);
                     let value = picker.renaming.as_deref().unwrap_or(&picker.query);
-                    assert_eq!(value, "aXdef", "cols={cols} rename={rename}");
+                    assert_eq!(value, "abcdefX", "cols={cols} rename={rename}");
+                    for kind in [Click::Press, Click::Release] {
+                        picker.on_key(
+                            Key::Mouse(Mouse {
+                                kind,
+                                row: line,
+                                col: first + 1,
+                                modifiers: Modifiers::NONE,
+                            }),
+                            24,
+                            cols,
+                        );
+                    }
+                    picker.on_key(Key::Char('Y'), 24, cols);
+                    assert_eq!(
+                        picker.renaming.as_deref().unwrap_or(&picker.query),
+                        "aYbcdefX"
+                    );
                     assert!(!picker.done);
                     assert!(picker.pending_rename.is_none());
                 }
             }
         }
+    }
+
+    /// The caret the app sends to the terminal sits on the box's text row,
+    /// one cell after the character it follows, never on the top rule above.
+    #[test]
+    fn app_caret_follows_the_text_inside_the_box_in_search_and_rename() {
+        use super::super::ansi;
+        for cols in [20u16, 32, 60, 120] {
+            for rename in [false, true] {
+                for (text, cursor) in [("abcdef", 6), ("abcdef", 3), ("é界x", "é界x".len())] {
+                    let mut app = crate::ui::App::for_test();
+                    let mut picker = SessionPicker::new(dummy_sessions(3), None);
+                    if rename {
+                        picker.renaming = Some(text.into());
+                        picker.rename_cursor = cursor;
+                    } else {
+                        picker.query = text.into();
+                        picker.query_cursor = cursor;
+                    }
+                    app.session_picker = Some(picker);
+                    let frame = crate::ui::draw::compose_for_test(&mut app, 24, cols);
+                    let (row, col) = app.cursor_terminal.expect("the picker shows a caret");
+                    let line = ansi::plain(&frame[row as usize - 1]);
+                    let ctx = format!("cols={cols} rename={rename} text={text:?} line={line:?}");
+                    assert!(line.contains('│'), "caret is on a box text row: {ctx}");
+                    assert!(
+                        !ansi::plain(&frame[row as usize - 2]).contains('│'),
+                        "the row above the caret row is the top rule: {ctx}"
+                    );
+                    let before = ansi::slice(&line, 0, col as usize - 1);
+                    let typed = &text[..cursor];
+                    let tail: String = typed
+                        .chars()
+                        .rev()
+                        .take(3)
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev()
+                        .collect();
+                    assert!(
+                        before.ends_with(&tail),
+                        "caret follows the typed text: {ctx}"
+                    );
+                    assert!(
+                        ansi::width(&before) < col as usize,
+                        "caret column is one past the last character before it: {ctx}"
+                    );
+                }
+            }
+        }
+        // Empty search: the placeholder row still holds the caret.
+        let mut app = crate::ui::App::for_test();
+        app.session_picker = Some(SessionPicker::new(dummy_sessions(3), None));
+        let frame = crate::ui::draw::compose_for_test(&mut app, 24, 80);
+        let (row, _) = app.cursor_terminal.unwrap();
+        assert!(ansi::plain(&frame[row as usize - 1]).contains("Search..."));
     }
 
     #[test]

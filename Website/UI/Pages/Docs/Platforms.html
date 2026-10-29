@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Support at a glance</h2>
+<p>Rune is one program with the same modes, tools, settings and data on every system. What differs is what each operating system lets a program do: how a running program is replaced, how commands are confined, and what the system can tell about a waiting command. Linux is the primary platform. macOS and Windows are in beta: built and tested on real machines, with less everyday use behind them.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Area</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Support</td><td>Primary</td><td>Beta</td><td>Beta</td></tr>
+<tr><td>Versions</td><td>glibc 2.17 or newer, or any system with the static musl build</td><td>macOS 11 or later</td><td>Windows 10 version 1809 or later, Windows 11</td></tr>
+<tr><td>Processors</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Installer</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> in PowerShell</td></tr>
+<tr><td>Open windows after an update</td><td>Move to the new build when idle</td><td>Move to the new build when idle</td><td>Keep their version; the next Rune you open uses the new one</td></tr>
+<tr><td>Command sandbox</td><td>The kernel's sandbox, where the kernel provides it</td><td>macOS's own sandbox</td><td>A separate Windows account, set up once with Administrator confirmation</td></tr>
+<tr><td>Command waiting for typed input</td><td>Every wait is noticed</td><td>Only hidden entries, such as a password prompt</td><td>Not noticed</td></tr>
+<tr><td>Shell for commands</td><td>bash, else <code>/bin/sh</code></td><td>bash, else <code>/bin/sh</code></td><td>PowerShell 7, else Windows PowerShell, else Command Prompt</td></tr>
+<tr><td>Copy from Rune</td><td>Through the terminal</td><td>System clipboard and the terminal</td><td>System clipboard and the terminal</td></tr>
+<tr><td>Open a link</td><td>Your browser, through <code>xdg-open</code></td><td>Your browser</td><td>Your browser</td></tr>
+</tbody></table></div>
+<p>Which systems have a signed build in the current release is stated under each install command on the <a href="{{url "install"}}">home page</a>.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Commands are confined by the kernel's own sandbox where the kernel provides it, as most current distribution kernels do. Where it does not, such as on an old kernel, Rune says so: in Auto every command then asks first, and Full stops asking. <code>/help</code> shows under <em>This machine</em> whether the sandbox is active and anything that can get past it.</p>
+<p>Copying text goes through your terminal, which must allow programs to set the clipboard. Over SSH, or inside tmux or screen, that permission can be off; turn it on in the terminal or the multiplexer, or hold <kbd>Shift</kbd> while dragging to use the terminal's own selection. Opening a link needs <code>xdg-open</code>, which desktop systems provide.</p>
+<p>On a system that keeps its programs in a read-only package store, such as NixOS or Guix, commands may read and run what is in that store.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Commands run in macOS's own sandbox, held to the same places as on Linux. Copying text sets the system clipboard directly, so it works in Terminal, which ignores a program's request to set the clipboard through the terminal.</p>
+<p>macOS tells Rune only about hidden entries, such as a password prompt. A background command that waits quietly for another kind of answer looks like a command that is still working; read its log before deciding, and never guess a password or confirm a prompt just because a command is quiet.</p>
+<p>Commands run in bash, which macOS includes, not necessarily in the shell your terminal opens: macOS's own login shell is zsh. Choose another installed shell with an absolute path in <code>terminal.shell</code>.</p>
+<p>Install with the command on the home page. A copy downloaded in a browser is marked as coming from the internet, and Gatekeeper refuses to start it until the mark is removed; <a href="{{url "docs/install"}}#install">Install &amp; update</a> shows how.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune confines commands with a separate local account of its own. The first time you open Rune it asks once for Administrator confirmation to set that account up. If you decline, it does not ask at every start; run <code>rune -sandbox setup</code> when you want it, and <code>rune -sandbox reset</code> to remove it and every access Rune's commands were given on your folders. <code>rune -sandbox</code> lists that access and says which way of confining is in use.</p>
+<p>Without that account, Rune confines commands with a restricted form of your own account, with these limits:</p>
+<ul>
+<li>A command can still read what Windows lets every user read, such as folders at a drive's root, other drives and ProgramData, and can create files in ProgramData. Your profile folder stays out of its reach.</li>
+<li>A command can open, to read only, a named pipe another program created with Windows's default security. Writing to such a pipe is refused.</li>
+<li>Git Bash and other MSYS2 or Cygwin programs ask before each command and then run that call with full access. Windows's own HTTPS, used by <code>curl.exe</code> and <code>Invoke-WebRequest</code>, fails; Git's HTTPS still works.</li>
+</ul>
+<p>With the account in place, Git Bash and Windows's own HTTPS work inside a confined command. Rune does not add access to Windows's own folders, to a drive's root or to the folder that holds every user's profile, so a project opened in one of those asks before each command in Ask and Auto.</p>
+<p>Windows does not tell Rune when a command waits for typed input. A quiet background command may be waiting for an answer or still working: read its log before answering. A running program cannot be replaced on Windows, so an update reaches the next Rune you open, not the windows already open.</p>
+
+<h2 id="terminals">Terminals</h2>
+<p>Keys and mouse gestures only reach Rune when the terminal passes them on. Konsole zooms on <kbd>Ctrl</kbd>+wheel unless its profile says otherwise, and some terminals turn <kbd>Alt</kbd>+wheel into horizontal scrolling; plain wheel and keys always work. The wheel glides smoothly only in a terminal that draws whole frames at once and keeps up; elsewhere each notch moves at once. Colours, transparency and fonts belong to the terminal. Run <code>/help</code> to see what your build answers to.</p>
+{{end}}

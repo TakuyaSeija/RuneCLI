@@ -56,8 +56,7 @@ impl Tool for WebFetch {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "web_fetch".into(),
-            description: "Read one public web page as Markdown. Use web_search to search the web."
-                .into(),
+            description: "Read one public web page as Markdown.".into(),
             parameters: flat_schema(
                 json!({
                     "url": {

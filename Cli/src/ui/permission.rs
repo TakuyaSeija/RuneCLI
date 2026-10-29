@@ -79,18 +79,26 @@ fn document(ask: &Ask, tool: Option<&Tool>, width: usize) -> (String, Vec<String
         } else {
             None
         };
+        let shell = tool.shell.as_ref();
+        let label = shell.map_or("Terminal", |shell| shell.title());
+        let syntax = shell.map_or("", |shell| shell.syntax());
+        let prompt = shell.map_or(">", |shell| shell.prompt());
+        let prompt_width = ansi::width(prompt) + 1;
         let title = warning
-            .map(|warning| format!("Bash {MUTED}• {REMOVED}{warning}{RESET}"))
-            .unwrap_or_else(|| "Bash".into());
+            .map(|warning| format!("{label} {MUTED}• {REMOVED}{warning}{RESET}"))
+            .unwrap_or_else(|| label.into());
         let commands = steps::commands(tool);
         for command in commands {
-            let rows =
-                super::highlight::source_rows("bash", &command, width.saturating_sub(2).max(1));
+            let rows = super::highlight::source_rows(
+                syntax,
+                &command,
+                width.saturating_sub(prompt_width).max(1),
+            );
             for (index, row) in rows.into_iter().enumerate() {
                 let prefix = if index == 0 {
-                    format!("{ACCENT}${RESET} ")
+                    format!("{ACCENT}{prompt}{RESET} ")
                 } else {
-                    "  ".into()
+                    " ".repeat(prompt_width)
                 };
                 body.push(format!("{prefix}{row}"));
             }
@@ -291,7 +299,7 @@ pub(super) fn render(
     } else {
         ansi::truncate(&title, title_room)
     };
-    out.push(draw::box_top(&title, cols));
+    out.chrome(draw::box_top(&title, cols), Hit::None);
 
     let (take, below) = if room >= 3 {
         let capacity = room - usize::from(above > 0);
@@ -308,38 +316,50 @@ pub(super) fn render(
     state.visible = take;
     let left = total.saturating_sub(above + take);
     if room < 3 && total > room && room > 1 {
-        out.push(draw::boxed(
-            &format!("{MUTED}↑ {above} · ↓ {left} rows · wheel here{RESET}"),
-            inner,
-        ));
+        out.chrome(
+            draw::boxed(
+                &format!("{MUTED}↑ {above} · ↓ {left} rows · wheel here{RESET}"),
+                inner,
+            ),
+            Hit::None,
+        );
     } else if above > 0 && room >= 3 {
-        out.push(draw::boxed(
-            &format!("{MUTED}↑ {above} rows above · wheel here{RESET}"),
-            inner,
-        ));
+        out.chrome(
+            draw::boxed(
+                &format!("{MUTED}↑ {above} rows above · wheel here{RESET}"),
+                inner,
+            ),
+            Hit::None,
+        );
     }
     for line in body.iter().skip(above).take(take) {
-        out.push(draw::boxed(line, inner));
+        out.boxed("", line, inner, Hit::None);
     }
     if below {
-        out.push(draw::boxed(
-            &format!("{MUTED}↓ {left} rows below · wheel here{RESET}"),
-            inner,
-        ));
+        out.chrome(
+            draw::boxed(
+                &format!("{MUTED}↓ {left} rows below · wheel here{RESET}"),
+                inner,
+            ),
+            Hit::None,
+        );
     }
     if !compact {
-        out.push(draw::box_divider(cols));
+        out.chrome(draw::box_divider(cols), Hit::None);
     }
     for (row, line) in answers.into_iter().enumerate() {
-        out.push_at(draw::boxed(&line, inner), Hit::Answer(row));
+        out.chrome(draw::boxed(&line, inner), Hit::Answer(row));
     }
     if !compact {
-        out.push(draw::boxed(
-            &format!("{FAINT}click an answer · ← → choose · enter answer · esc refuse{RESET}"),
-            inner,
-        ));
+        out.chrome(
+            draw::boxed(
+                &format!("{FAINT}click an answer · ← → choose · enter answer · esc refuse{RESET}"),
+                inner,
+            ),
+            Hit::None,
+        );
     }
-    out.push(draw::box_bottom(cols));
+    out.chrome(draw::box_bottom(cols), Hit::None);
     out
 }
 
@@ -473,6 +493,9 @@ mod tests {
     #[test]
     fn bash_permission_has_command_only_and_one_concise_warning_when_reach_is_real() {
         let mut tool = Tool::new("t".into(), "terminal_use".into(), "run".into());
+        tool.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         tool.settle(&json!({"command":"if true; then echo 'hello'; fi"}));
         let card = render(&ask(), 0, 100, 40, Some(&tool), &mut State::default());
         assert!(ansi::plain(&card.lines[0]).contains("Bash"));

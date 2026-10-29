@@ -15,7 +15,6 @@ pub mod product;
 #[path = "Skills.rs"]
 pub mod skills;
 
-use crate::session::compact::estimate_tokens;
 use crate::settings::configuration::Configuration;
 use crate::{panic, Error, Result};
 use serde_json::{json, Value};
@@ -25,6 +24,7 @@ use std::sync::{Arc, Mutex};
 
 struct Inner {
     skills: Vec<skills::Skill>,
+    catalog_bytes: usize,
     diagnostics: Vec<Value>,
     /// Skills whose `SKILL.md` the model has read whole in this session, by id,
     /// at the package revision it read. Their packages are checked before any
@@ -101,6 +101,9 @@ impl Capabilities {
                 .iter()
                 .any(|s| s.id == *id && !s.disabled && s.revision == *revision)
         });
+        let catalog_bytes = settings
+            .catalog_bytes
+            .expect("catalogue byte limit resolved from configuration");
         Ok(Arc::new(Self {
             input: input::Input::new(session, events),
             home: config.home.clone(),
@@ -108,6 +111,7 @@ impl Capabilities {
             settings,
             state_path,
             inner: Mutex::new(Inner {
+                catalog_bytes,
                 skills,
                 diagnostics,
                 loaded,
@@ -137,6 +141,9 @@ impl Capabilities {
                 .any(|s| s.id == *id && !s.disabled && s.revision == *revision)
         });
         inner.skills = skills;
+        inner.catalog_bytes = settings
+            .catalog_bytes
+            .expect("catalogue byte limit resolved from configuration");
         inner.diagnostics = diagnostics;
         Ok(())
     }
@@ -429,10 +436,10 @@ impl Capabilities {
             .collect()
     }
 
-    /// The skills on offer, as many as fit `catalog_tokens`, each costed as the
-    /// line the opening context shows for it.
+    /// Bound catalogue text in bytes; tokenization belongs to the provider.
     pub fn catalogue(&self) -> Catalogue {
         let inner = panic::lock(&self.inner);
+        let budget = inner.catalog_bytes;
         let offered: Vec<&skills::Skill> = inner
             .skills
             .iter()
@@ -442,13 +449,14 @@ impl Capabilities {
         let mut used = 0;
         for skill in &offered {
             let path = skill.root.join("SKILL.md");
-            let cost = estimate_tokens(&format!(
-                "- {}: {} (read {})",
+            let cost = format!(
+                "- {}: {} (read {})\n",
                 skill.id,
                 skill.description,
                 path.display()
-            ));
-            if used + cost > self.settings.catalog_tokens {
+            )
+            .len();
+            if used + cost > budget {
                 break;
             }
             used += cost;

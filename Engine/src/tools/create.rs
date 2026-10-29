@@ -29,7 +29,7 @@ impl Tool for CreateFile {
                 json!({
                     "path": {
                         "type": "string",
-                        "description": "The file: relative to the workspace, ~/..., absolute, or @memory/..."
+                        "description": "The file to create or overwrite."
                     },
                     "text": {
                         "type": "string",
@@ -125,9 +125,6 @@ mod tests {
             .contains("WARNING: Overwrites the file if it already exists"));
         let path_prop = &decl.parameters["properties"]["path"];
         assert_eq!(path_prop["type"], "string");
-        assert!(path_prop["description"]
-            .as_str()
-            .unwrap()
-            .contains("The file: relative to the workspace"));
+        assert_eq!(path_prop["description"], "The file to create or overwrite.");
     }
 }

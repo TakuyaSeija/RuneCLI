@@ -647,12 +647,17 @@ fn beside(left: &str, left_w: usize, right: &str, right_w: usize) -> String {
 }
 
 fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
+    if app.selection_size.is_some_and(|size| size != (rows, cols)) {
+        app.cancel_selection();
+    }
+    app.selection_size = Some((rows, cols));
     if let Some(picker) = app.session_picker.as_mut() {
         app.preferences.height = rows as usize;
         let lines = picker.compose(rows, cols);
         app.cursor_terminal = picker.caret;
         app.hits.clear();
-        return finish_frame(app, lines);
+        app.selection_rows.clear();
+        return lines;
     }
     let rows = rows.max(8) as usize;
     let cols = cols.max(20) as usize;
@@ -667,7 +672,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         let (sink, cursor) = super::settings::render_interactive(app, cols, rows);
         app.hits = sink.owner;
         app.cursor_terminal = cursor.map(|(r, c)| (r as u16, c as u16));
-        return finish_frame(app, sink.lines);
+        return finish_frame(app, sink.lines, sink.copy);
     }
 
     if app.searching() {
@@ -679,6 +684,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         Sink {
             lines: footer,
             owner: footer_hits,
+            copy: mut footer_copy,
         },
         footer_cursor,
     ) = footer(app, rows, cols);
@@ -751,11 +757,11 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         None
     };
 
-    let (left_lines, left_owner): (&[String], &[Hit]) = if let Some(p) = &panel_sink {
-        (&p.sink.lines, &p.sink.owner)
+    let (left_lines, left_owner, left_copy) = if let Some(p) = &panel_sink {
+        (&p.sink.lines, &p.sink.owner, &p.sink.copy)
     } else {
         let s = &transcript.as_ref().unwrap().sink;
-        (&s.lines, &s.owner)
+        (&s.lines, &s.owner, &s.copy)
     };
 
     // Show the tail, unless the user has scrolled up. An overlay and the
@@ -792,6 +798,26 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         .copied()
         .collect();
     hits.resize(content_rows, Hit::None);
+    let mut copy: Vec<Vec<Span>> = left_copy
+        .iter()
+        .skip(top)
+        .take(content_rows)
+        .cloned()
+        .collect();
+    copy.resize(content_rows, Vec::new());
+    for spans in &mut copy {
+        for span in spans.iter_mut() {
+            span.columns.end = span.columns.end.min(text_w);
+        }
+        spans.retain(|span| span.columns.start < span.columns.end);
+    }
+    for spans in &mut footer_copy {
+        for span in spans {
+            if span.region != Region::Input {
+                span.region = Region::Footer;
+            }
+        }
+    }
 
     let mut lines: Vec<String> = Vec::with_capacity(rows);
     let right = if split {
@@ -801,7 +827,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         // is the fix for the panel that cut items without a word: a cut made
         // downstream is a cut the thing being cut cannot know about.
         let panel_rows = content_rows.saturating_sub(1);
-        let side = sidebar(app, right_w, panel_rows);
+        let side = sidebar_content(app, right_w, panel_rows);
         // Published for the wheel: "is the pointer over the panel?" is a
         // geometry question, and this is the geometry the last frame used.
         app.sidebar_cols = Some((left_w as u16 + 2, cols as u16));
@@ -809,12 +835,12 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         side
     } else {
         app.sidebar_cols = None;
-        Vec::new()
+        Sink::default()
     };
 
     // Each row's left column as drawn, for what is laid over it afterwards.
     let mut lefts: Vec<String> = Vec::with_capacity(content_rows);
-    for i in 0..content_rows {
+    for (i, spans) in copy.iter_mut().enumerate().take(content_rows) {
         // Cut here, once, for everything the content area can hold: transcript,
         // wordmark and panels alike. One funnel is the only way to be sure no
         // line can wrap and push the whole frame down a row.
@@ -837,7 +863,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         let l = ansi::truncate(&ansi::tame(&safe_l), text_w);
         lefts.push(l.clone());
         let line = if split {
-            let raw_r = right.get(i).map(|s| s.as_str()).unwrap_or("");
+            let raw_r = right.lines.get(i).map(|s| s.as_str()).unwrap_or("");
             let safe_r = if raw_r.contains('\n') || raw_r.contains('\r') {
                 raw_r.replace(['\r', '\n'], " ")
             } else {
@@ -847,6 +873,16 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         } else {
             l
         };
+        if split {
+            let first = left_w + 2;
+            if let Some(right_spans) = right.copy.get(i) {
+                spans.extend(right_spans.iter().map(|span| Span {
+                    columns: first + span.columns.start..(first + span.columns.end).min(cols),
+                    region: Region::Sidebar,
+                    source: span.source.clone(),
+                }));
+            }
+        }
         lines.push(line);
     }
     app.jump_hint = None;
@@ -858,6 +894,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         let at = content_rows - 1;
         let row = ansi::overlay(&lefts[at], first as usize - 1, &label);
         let right_row = right
+            .lines
             .get(at)
             .map(|r| ansi::tame(&r.replace(['\r', '\n'], " ")));
         lines[at] = match &right_row {
@@ -888,7 +925,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
             for (i, line) in palette_sink.lines.into_iter().enumerate() {
                 let at = base + i;
                 let covered = if split {
-                    let raw_r = right.get(at).map(|s| s.as_str()).unwrap_or("");
+                    let raw_r = right.lines.get(at).map(|s| s.as_str()).unwrap_or("");
                     let safe_r = if raw_r.contains('\n') || raw_r.contains('\r') {
                         raw_r.replace(['\r', '\n'], " ")
                     } else {
@@ -905,15 +942,21 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
                 };
                 lines[at] = ansi::truncate(&covered, cols);
                 hits[at] = palette_sink.owner[i];
+                copy[at].retain(|span| span.region == Region::Sidebar);
+                copy[at].extend(palette_sink.copy[i].iter().cloned().filter_map(|mut span| {
+                    span.columns.end = span.columns.end.min(text_w);
+                    (span.columns.start < span.columns.end).then_some(span)
+                }));
             }
         }
     }
     app.hits = hits;
     lines.extend(footer);
+    copy.extend(footer_copy);
     if app.panel == Panel::None {
         app.transcript_cache = transcript;
     }
-    finish_frame(app, lines)
+    finish_frame(app, lines, copy)
 }
 
 /// What the hint over the composer says while the conversation is scrolled
@@ -957,12 +1000,40 @@ pub(super) fn compose_for_test(app: &mut App, rows: u16, cols: u16) -> Vec<Strin
     compose(app, rows, cols)
 }
 
-fn finish_frame(app: &mut App, mut lines: Vec<String>) -> Vec<String> {
-    app.selection_rows = lines.iter().map(|line| ansi::plain(line)).collect();
+fn finish_frame(app: &mut App, mut lines: Vec<String>, copy: Vec<Vec<Span>>) -> Vec<String> {
+    debug_assert_eq!(lines.len(), copy.len());
+    if !app.selection_rows.is_empty() && app.selection_rows.len() != lines.len() {
+        app.cancel_selection();
+    }
+    let next_rows: Vec<_> = lines
+        .iter()
+        .zip(copy)
+        .map(|(line, spans)| super::selection::Row {
+            text: ansi::plain(line),
+            spans,
+        })
+        .collect();
+    if let Some(selection) = app
+        .selection
+        .filter(|s| s.moved && !app.selection_rows.is_empty())
+    {
+        if selection.selected_text(&app.selection_rows) != selection.selected_text(&next_rows) {
+            app.cancel_selection();
+        }
+    }
+    app.selection_rows = next_rows;
+    app.links = lines
+        .iter()
+        .enumerate()
+        .flat_map(|(index, line)| super::links::regions(line, index as u16 + 1))
+        .collect();
+    for line in &mut lines {
+        *line = super::links::web_only(line);
+    }
     if let Some(selection) = app.selection.filter(|selection| selection.moved) {
         for (row, line) in lines.iter_mut().enumerate() {
-            if let Some((from, to)) = selection.columns(row) {
-                *line = ansi::select(line, from, to);
+            for range in selection.columns(&app.selection_rows, row) {
+                *line = ansi::select(line, range.start, range.end);
             }
         }
     }
@@ -1007,6 +1078,8 @@ pub(super) fn terminal_size(app: &App, rows: u16, cols: u16) -> (u16, u16) {
 pub enum Hit {
     #[default]
     None,
+    LinkOpen,
+    LinkCopy,
     /// A transcript block, by its index in `app.blocks`.
     Block(usize),
     Settings(super::settings::Target),
@@ -1042,66 +1115,8 @@ pub enum Hit {
 
 pub(super) use super::editor::Row as ComposerRow;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Point {
-    pub row: u16,
-    pub col: u16,
-}
-
-/// A terminal-cell selection owned by Rune while mouse reporting is enabled.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Selection {
-    pub anchor: Point,
-    pub head: Point,
-    pub moved: bool,
-}
-
-impl Selection {
-    fn ends(self) -> (Point, Point) {
-        if (self.anchor.row, self.anchor.col) <= (self.head.row, self.head.col) {
-            (self.anchor, self.head)
-        } else {
-            (self.head, self.anchor)
-        }
-    }
-
-    fn columns(self, row: usize) -> Option<(usize, usize)> {
-        let (start, end) = self.ends();
-        let row = row as u16 + 1;
-        if row < start.row || row > end.row {
-            return None;
-        }
-        let from = if row == start.row {
-            start.col.saturating_sub(1) as usize
-        } else {
-            0
-        };
-        let to = if row == end.row {
-            end.col as usize
-        } else {
-            usize::MAX
-        };
-        Some((from, to))
-    }
-
-    pub fn selected_text(self, rows: &[String]) -> String {
-        if !self.moved {
-            return String::new();
-        }
-        let (start, end) = self.ends();
-        let mut selected = Vec::new();
-        for row in start.row.saturating_sub(1)..end.row {
-            let Some(line) = rows.get(row as usize) else {
-                continue;
-            };
-            let Some((from, to)) = self.columns(row as usize) else {
-                continue;
-            };
-            selected.push(ansi::slice(line, from, to).trim_end().to_string());
-        }
-        selected.join("\n").trim().to_string()
-    }
-}
+pub use super::selection::{Point, Selection};
+use super::selection::{Region, Span};
 
 /// Lines, and what each one is.
 #[derive(Default, Clone)]
@@ -1110,23 +1125,58 @@ pub struct Sink {
     /// One entry per line. Kept as a parallel vector rather than a tuple so that
     /// the common case — a line nothing can be done to — stays `sink.push(l)`.
     pub owner: Vec<Hit>,
+    /// Screen-column ranges of content, carried through the same cache and cuts.
+    pub copy: Vec<Vec<Span>>,
 }
 
 impl Sink {
+    pub fn content(&mut self, prefix: &str, body: &str, suffix: &str, hit: Hit) {
+        let first = ansi::width(prefix);
+        let last = first + ansi::width(body);
+        self.push_ranges(
+            format!("{prefix}{body}{suffix}"),
+            hit,
+            vec![Span::new(first..last.max(first + 1))],
+        );
+    }
+
+    pub fn boxed(&mut self, prefix: &str, body: &str, inner: usize, hit: Hit) {
+        let first = ansi::width(prefix) + 2;
+        self.push_ranges(
+            format!("{prefix}{}", boxed(body, inner)),
+            hit,
+            vec![Span::new(first..first + inner)],
+        );
+    }
+
+    pub fn chrome(&mut self, line: String, hit: Hit) {
+        self.push_ranges(line, hit, Vec::new());
+    }
+
+    pub fn push_ranges(&mut self, line: String, hit: Hit, spans: Vec<Span>) {
+        self.lines.push(line);
+        self.owner.push(hit);
+        self.copy.push(spans);
+    }
+
+    pub fn append(&mut self, other: &Sink) {
+        self.lines.extend(other.lines.iter().cloned());
+        self.owner.extend(other.owner.iter().copied());
+        self.copy.extend(other.copy.iter().cloned());
+    }
     #[cfg(test)]
     pub fn len(&self) -> usize {
         self.lines.len()
     }
 
     pub fn push(&mut self, line: String) {
-        self.lines.push(line);
-        self.owner.push(Hit::None);
+        self.push_at(line, Hit::None);
     }
 
     /// A line the pointer can do something with.
     pub fn push_at(&mut self, line: String, hit: Hit) {
-        self.lines.push(line);
-        self.owner.push(hit);
+        let width = ansi::width(&line);
+        self.push_ranges(line, hit, vec![Span::new(0..width.max(1))]);
     }
 
     pub fn extend(&mut self, lines: impl IntoIterator<Item = String>) {
@@ -1429,6 +1479,7 @@ impl Transcript {
         let delta = fresh_len as isize - len as isize;
         self.sink.lines.splice(start..start + len, fresh.lines);
         self.sink.owner.splice(start..start + len, fresh.owner);
+        self.sink.copy.splice(start..start + len, fresh.copy);
         self.plain.splice(start..start + len, fresh_plain);
         self.laid[at] = Laid {
             stamp: Some(stamp),
@@ -1450,6 +1501,7 @@ impl Transcript {
         let mut total_len = 0;
         let mut all_lines = Vec::new();
         let mut all_owner = Vec::new();
+        let mut all_copy = Vec::new();
         let mut all_plain = Vec::new();
         let mut all_laid = Vec::with_capacity(items.len());
 
@@ -1461,6 +1513,7 @@ impl Transcript {
             let fresh_plain: Vec<String> = fresh.lines.iter().map(|l| ansi::plain(l)).collect();
             all_lines.extend(fresh.lines);
             all_owner.extend(fresh.owner);
+            all_copy.extend(fresh.copy);
             all_plain.extend(fresh_plain);
             all_laid.push(Laid {
                 stamp: Some(stamp),
@@ -1472,6 +1525,7 @@ impl Transcript {
 
         self.sink.lines.splice(at..at, all_lines);
         self.sink.owner.splice(at..at, all_owner);
+        self.sink.copy.splice(at..at, all_copy);
         self.plain.splice(at..at, all_plain);
         for laid in self.laid.iter_mut() {
             laid.start += total_len;
@@ -1497,6 +1551,7 @@ impl Transcript {
         let old = self.banner.map(|(_, n)| n).unwrap_or(0);
         self.sink.lines.splice(0..old, lines);
         self.sink.owner.splice(0..old, owner);
+        self.sink.copy.splice(0..old, vec![Vec::new(); len]);
         self.plain.splice(0..old, plain);
         self.banner = Some((stamp, len));
         self.restack();
@@ -1580,12 +1635,21 @@ impl BlockMeasure {
                 shown: (0, 0),
                 elapsed: 0,
             },
-            Block::Thinking { text, open } => BlockMeasure {
+            Block::Thinking {
+                text,
+                open,
+                tokens,
+                chase,
+                ..
+            } => BlockMeasure {
                 kind: 2,
                 text: text.len(),
                 output: (0, 0),
-                content: 0,
-                summary: 0,
+                // Anthropic's count moves while the text may not, and the
+                // number on screen climbs to it: a block drawn with another
+                // must be drawn again.
+                content: tokens.map_or(0, |n| n as usize + 1),
+                summary: chase.map_or(0, |c| c.tokens() as usize + 1),
                 raw: 0,
                 action: 0,
                 args: false,
@@ -2017,7 +2081,7 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
             sink.blank();
             let text_wrap = inner.saturating_sub(4).max(8);
             if media.is_empty() {
-                sink.push(rule_user(time.as_deref(), inner));
+                sink.chrome(rule_user(time.as_deref(), inner), Hit::None);
             } else {
                 let prefix = format!(
                     "{RULE}╭─ {TEXT}{BOLD}you{RESET}{}{RULE} ──{RESET}",
@@ -2025,29 +2089,32 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
                 );
                 let (attachments, _, _, _) = attachment_boxes(&prefix, media, inner, false);
                 if let Some(top_line) = attachments.first() {
-                    sink.push(top_line.clone());
+                    sink.chrome(top_line.clone(), Hit::None);
                 } else {
-                    sink.push(rule_user(time.as_deref(), inner));
+                    sink.chrome(rule_user(time.as_deref(), inner), Hit::None);
                 }
             }
             let lines = ansi::wrap(text, text_wrap);
             let shown = lines.len().min(super::viewport::preview_rows(*open));
             for line in &lines[..shown] {
-                sink.push(boxed(&format!("{USER}{line}{RESET}"), text_wrap));
+                sink.boxed("", &format!("{USER}{line}{RESET}"), text_wrap, Hit::None);
             }
             let omitted = lines.len() - shown;
             if omitted > 0 {
-                sink.push(boxed(
-                    &format!("{MUTED}{}{RESET}", super::viewport::cut_lines(omitted)),
-                    text_wrap,
-                ));
+                sink.chrome(
+                    boxed(
+                        &format!("{MUTED}{}{RESET}", super::viewport::cut_lines(omitted)),
+                        text_wrap,
+                    ),
+                    Hit::None,
+                );
             }
-            sink.push(box_bottom(inner));
+            sink.chrome(box_bottom(inner), Hit::None);
         }
         Block::Notification { text, time } => {
             sink.blank();
             let text_wrap = inner.saturating_sub(4).max(8);
-            sink.push(rule_system_notification(time.as_deref(), inner));
+            sink.chrome(rule_system_notification(time.as_deref(), inner), Hit::None);
             // The model reads the tag; a person reads the sentence inside it.
             let shown = text
                 .trim()
@@ -2055,9 +2122,9 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
                 .trim_end_matches("</system_notification>")
                 .trim();
             for line in ansi::wrap(shown, text_wrap) {
-                sink.push(boxed(&format!("{TEXT}{line}{RESET}"), text_wrap));
+                sink.boxed("", &format!("{TEXT}{line}{RESET}"), text_wrap, Hit::None);
             }
-            sink.push(box_bottom(inner));
+            sink.chrome(box_bottom(inner), Hit::None);
         }
         Block::Divider { text } => {
             sink.blank();
@@ -2084,27 +2151,30 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
             // The answer owns the whole transcript column. The old 92-column
             // cap looked like a split panel even when the split was off and,
             // worse, handed tables the same narrow measure as prose.
-            for line in markdown::render(text, inner + 2) {
-                sink.push(line);
-            }
+            sink.append(&markdown::render_response(text, inner + 2));
         }
         Block::Notice { text, bad } => {
             sink.blank();
             let label = if *bad { "error" } else { "system" };
             let text_ink = if *bad { REMOVED } else { TEXT };
             let text_wrap = inner.saturating_sub(4).max(8);
-            sink.push(box_top(label, inner));
+            sink.chrome(box_top(label, inner), Hit::None);
             for raw_line in text.lines() {
                 let trimmed = raw_line.trim_end();
                 if trimmed.is_empty() {
-                    sink.push(boxed("", text_wrap));
+                    sink.boxed("", "", text_wrap, Hit::None);
                     continue;
                 }
                 for line in ansi::wrap(trimmed, text_wrap) {
-                    sink.push(boxed(&format!("{text_ink}{line}{RESET}"), text_wrap));
+                    sink.boxed(
+                        "",
+                        &format!("{text_ink}{line}{RESET}"),
+                        text_wrap,
+                        Hit::None,
+                    );
                 }
             }
-            sink.push(box_bottom(inner));
+            sink.chrome(box_bottom(inner), Hit::None);
         }
         Block::Thinking { .. } | Block::Tool(_) => {
             unreachable!("activities are drawn on the timeline")
@@ -2194,22 +2264,18 @@ fn draw_steps_with(
             .filter(|(at, _)| Some(*at) == stamp)
             .map(|(_, lines)| lines);
         match cached {
-            Some(lines) => {
-                sink.lines.extend(lines.lines.iter().cloned());
-                sink.owner.extend(lines.owner.iter().cloned());
-            }
+            Some(lines) => sink.append(lines),
             None => {
                 let mut step = Sink::default();
                 draw_one_step(app, i, is_last, inner, &mut step);
-                sink.lines.extend(step.lines.iter().cloned());
-                sink.owner.extend(step.owner.iter().cloned());
+                sink.append(&step);
                 if let (Some(cache), Some(stamp)) = (cache.as_mut(), stamp) {
                     cache.entries.insert(i, (stamp, step));
                 }
             }
         }
         if !is_last {
-            sink.push(format!("  {RULE}│{}", ansi::RESET));
+            sink.chrome(format!("  {RULE}│{}", ansi::RESET), Hit::None);
         }
     }
     sink.blank();
@@ -2218,32 +2284,44 @@ fn draw_steps_with(
 fn draw_one_step(app: &App, i: usize, is_last: bool, inner: usize, sink: &mut Sink) {
     match &app.blocks[i] {
         Block::Tool(tool) => draw_step(app, i, tool, is_last, inner, sink),
-        Block::Thinking { text, open } => draw_work_text(
+        Block::Thinking {
+            text,
+            open,
+            tokens,
+            chase,
+            ..
+        } => draw_work_text(
             app,
             i,
             "thought",
             text,
+            chase.map(|c| c.tokens()).or(*tokens),
             *open || app.verbose,
             is_last,
             inner,
             sink,
         ),
         Block::Text { text } => {
-            draw_work_text(app, i, "response", text, true, is_last, inner, sink)
+            draw_work_text(app, i, "response", text, None, true, is_last, inner, sink)
         }
         _ => {}
     }
 }
 
 /// Thinking or an intermediate response as one activity on the same spine as
-/// tool calls. Thinking keeps its live word count; an intermediate response is
-/// always open and carries a muted neutral bullet instead of a tool condition.
+/// tool calls. Thinking is measured by what there is of it (owner,
+/// 2026-10-23): the words of the text the model sent, or — where Anthropic
+/// counted it ([`Block::Thinking`] `tokens`; Claude Code's models, which send
+/// no text) — the tokens it reported, never one estimated from the other; an
+/// intermediate response is always open and carries a muted neutral bullet
+/// instead of a tool condition.
 #[allow(clippy::too_many_arguments)]
 fn draw_work_text(
     app: &App,
     at: usize,
     label: &str,
     text: &str,
+    tokens: Option<u64>,
     open: bool,
     is_last: bool,
     inner: usize,
@@ -2255,7 +2333,6 @@ fn draw_work_text(
     // from the first token through the settled Thought; condition colours are
     // reserved for tools whose outcome really has a state.
     let bullet = format!("{MUTED}●{RESET}");
-    let words = text.split_whitespace().count();
     let display_label = if !is_response {
         if is_processing {
             "Thinking"
@@ -2266,10 +2343,15 @@ fn draw_work_text(
         "Response"
     };
     let label_colour = if is_response { MUTED } else { THINK };
-    let word_count = if is_response {
-        String::new()
-    } else {
-        format!(" {MUTED}· {words} words{RESET}")
+    let words = text.split_whitespace().count();
+    let word_count = match tokens {
+        _ if is_response => String::new(),
+        // Nothing until the count on screen has begun, as Claude Code's
+        // counter shows none at zero.
+        Some(0) => String::new(),
+        Some(n) => format!(" {MUTED}· {} tokens{RESET}", thousands(n)),
+        None if words > 0 => format!(" {MUTED}· {} words{RESET}", thousands(words as u64)),
+        None => String::new(),
     };
 
     // Bullet ● sits at column 2, aligning directly with the │ spine
@@ -2284,15 +2366,28 @@ fn draw_work_text(
     );
     if open {
         let clean_text = text.trim_start_matches(['\r', '\n']);
-        let rendered = markdown::render(clean_text, inner.saturating_sub(6));
-        let lines = rendered.into_iter().skip_while(|l| l.trim().is_empty());
-        for line in lines {
-            let line_str = if is_last {
-                format!("     {line}")
-            } else {
-                format!("  {RULE}│{}   {line}", RESET)
-            };
-            sink.push_at(line_str, owner);
+        let rendered = if is_response {
+            markdown::render_response(clean_text, inner.saturating_sub(6))
+        } else {
+            markdown::render_content(clean_text, inner.saturating_sub(6))
+        };
+        let prefix = if is_last {
+            "     ".to_owned()
+        } else {
+            format!("  {RULE}│{RESET}   ")
+        };
+        let offset = ansi::width(&prefix);
+        for (line, mut spans) in rendered
+            .lines
+            .into_iter()
+            .zip(rendered.copy)
+            .skip_while(|(line, _)| line.trim().is_empty())
+        {
+            for span in &mut spans {
+                span.columns.start += offset;
+                span.columns.end += offset;
+            }
+            sink.push_ranges(format!("{prefix}{line}"), owner, spans);
         }
     }
 }
@@ -2616,14 +2711,16 @@ fn draw_step(app: &App, at: usize, tool: &Tool, is_last: bool, inner: usize, sin
     let rest = head_lines.split_off(1.min(head_lines.len()));
     for line in head_lines {
         // Bullet ● sits at column 2, aligning directly with the │ spine
-        sink.push_at(
-            format!("  {bullet} {TEXT}{line}{RESET}{timing}",),
+        sink.content(
+            &format!("  {bullet} "),
+            &format!("{TEXT}{line}{RESET}{timing}"),
+            "",
             Hit::Block(at),
         );
     }
     let spine = spine(is_last);
     for line in rest {
-        sink.push_at(format!("{spine}{MUTED}{line}{RESET}"), Hit::Block(at));
+        sink.content(&spine, &format!("{TEXT}{line}{RESET}"), "", Hit::Block(at));
     }
 
     if tool.state == ToolState::Asking {
@@ -2657,7 +2754,12 @@ fn draw_step(app: &App, at: usize, tool: &Tool, is_last: bool, inner: usize, sin
         let is_write = matches!(tool.name.as_str(), "create_file" | "patch_file");
         for bullet in &bullets {
             let line = format_bullet_row(bullet, &spine, is_file_tool, inner + 2);
-            sink.push_at(ansi::truncate(&line, inner + 2), Hit::Block(at));
+            let first = ansi::width(&spine);
+            sink.push_ranges(
+                ansi::truncate(&line, inner + 2),
+                Hit::Block(at),
+                vec![Span::new(first..inner + 2)],
+            );
             // A write that failed says so by its red bullet and its counts — no
             // word "failed", no box, none of Rune's tags (owner, 2026-10-08):
             // opened, why it failed, dim, in the words the model was told; a
@@ -2786,11 +2888,16 @@ fn draw_tasks(
             "doing" => ("◐", TEXT, TEXT),
             _ => ("○", MUTED, MUTED),
         };
-        let line = format!("{spine}{colour}{glyph}{RESET} {text_style}{text}{RESET}",);
-        sink.push_at(ansi::truncate(&line, inner + 2), Hit::Block(at));
+        let body = format!("{colour}{glyph}{RESET} {text_style}{text}{RESET}");
+        sink.content(
+            &spine,
+            &ansi::truncate(&body, (inner + 2).saturating_sub(ansi::width(&spine))),
+            "",
+            Hit::Block(at),
+        );
     }
     if cut_count > 0 {
-        sink.push_at(
+        sink.chrome(
             format!("{spine}{FAINT}… {cut_count} tasks cut. Click to open all{RESET}"),
             Hit::Block(at),
         );
@@ -2999,7 +3106,7 @@ fn draw_questions_preview(
     let cut_rows = total_rows.saturating_sub(visual_rows.len());
 
     for line in &visual_rows {
-        sink.push_at(format!("{spine}{line}"), Hit::Block(at));
+        sink.content(&spine, line, "", Hit::Block(at));
     }
     if cut_rows > 0 {
         // One mark, one sentence: the rows that did not fit. A second line
@@ -3109,25 +3216,22 @@ fn draw_file_body(
     let shown = visual_rows.len().min(max_rows);
     let cut_count = visual_rows.len().saturating_sub(shown);
 
-    sink.push_at(
+    sink.chrome(
         format!("{spine}{}", box_top(label, box_width)),
         Hit::Block(at),
     );
     for (ink, text) in &visual_rows[..shown] {
         let line_str = format!("{ink}{text}{RESET}");
-        sink.push_at(
-            format!("{spine}{}", boxed(&line_str, box_inner)),
-            Hit::Block(at),
-        );
+        sink.boxed(&spine, &line_str, box_inner, Hit::Block(at));
     }
     if cut_count > 0 {
         let cut_msg = format!("{MUTED}{}{RESET}", super::viewport::cut_lines(cut_count));
-        sink.push_at(
+        sink.chrome(
             format!("{spine}{}", boxed(&cut_msg, box_inner)),
             Hit::Block(at),
         );
     }
-    sink.push_at(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
+    sink.chrome(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
 }
 
 /// When a tool step fails or is denied, render the error reason inside a dedicated error box.
@@ -3168,7 +3272,7 @@ fn draw_error_box(
     };
     let box_inner = box_width.saturating_sub(4);
 
-    sink.push_at(
+    sink.chrome(
         format!("{spine}{}", box_top(label, box_width)),
         Hit::Block(at),
     );
@@ -3178,20 +3282,17 @@ fn draw_error_box(
 
     for text in &visual_rows[..shown] {
         let line_str = format!("{REMOVED}{text}{RESET}");
-        sink.push_at(
-            format!("{spine}{}", boxed(&line_str, box_inner)),
-            Hit::Block(at),
-        );
+        sink.boxed(spine, &line_str, box_inner, Hit::Block(at));
     }
     if cut_count > 0 {
         let cut_msg = format!("{MUTED}{}{RESET}", super::viewport::cut_lines(cut_count));
-        sink.push_at(
+        sink.chrome(
             format!("{spine}{}", boxed(&cut_msg, box_inner)),
             Hit::Block(at),
         );
     }
 
-    sink.push_at(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
+    sink.chrome(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
 }
 
 /// Strip duplicated command lines from the beginning of output lines.
@@ -3436,7 +3537,7 @@ fn notice_rows(notices: &[&str], width: usize) -> Vec<String> {
 /// own words get (weight, never a theme hue — see [`output_prefix`]).
 fn draw_notice_rows(rows: &[String], spine: &str, sink: &mut Sink, at: usize) {
     for row in rows {
-        sink.push_at(format!("{spine}{MUTED}{row}{RESET}"), Hit::Block(at));
+        sink.content(spine, &format!("{MUTED}{row}{RESET}"), "", Hit::Block(at));
     }
 }
 
@@ -3462,6 +3563,12 @@ fn failure_label(tool: &Tool) -> &'static str {
 /// When closed, it uses a fixed uniform width (76 cols) and truncated preview.
 /// When open, it sizes relative to content, renders all output, and wraps long lines.
 fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mut Sink, at: usize) {
+    let title = tool
+        .shell
+        .as_ref()
+        .map_or("Terminal", |shell| shell.title());
+    let syntax = tool.shell.as_ref().map_or("", |shell| shell.syntax());
+    let prompt = tool.shell.as_ref().map_or(">", |shell| shell.prompt());
     let spine = spine(is_last);
     let cmds = steps::commands(tool);
     let body = if tool.state.finished() && !tool.content.is_empty() {
@@ -3523,7 +3630,7 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
     let closed_width = max_avail.min(76);
     let notice_lines = notice_rows(&parsed.notices, closed_width.saturating_sub(4));
     let box_width = if open {
-        let mut max_content_w = "Bash".len() + 6;
+        let mut max_content_w = ansi::width(title) + 6;
         for cmd in &cmds {
             for line in cmd.lines() {
                 max_content_w =
@@ -3543,60 +3650,48 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
     };
     let box_inner = box_width.saturating_sub(4);
 
-    sink.push_at(
-        format!("{spine}{}", box_top("Bash", box_width)),
+    sink.chrome(
+        format!("{spine}{}", box_top(title, box_width)),
         Hit::Block(at),
     );
 
-    // Open All reads the original commands; a non-open box has one header row.
-    if open {
+    // The shell prompt is furniture; source indentation after it is content.
+    let prompt_width = ansi::width(prompt) + 1;
+    let command_row = |sink: &mut Sink, body: &str| {
+        sink.boxed(&spine, body, box_inner, Hit::Block(at));
+        if let Some(span) = sink.copy.last_mut().and_then(|spans| spans.first_mut()) {
+            span.columns.start += prompt_width;
+        }
+    };
+    let command_width = box_inner.saturating_sub(prompt_width).max(1);
+    let omitted_commands = if open {
         for cmd in &cmds {
-            let cmd_lines = super::highlight::source_rows(
-                "bash",
-                cmd.trim_end_matches('\r'),
-                box_inner.saturating_sub(2),
-            );
-            if cmd_lines.is_empty() {
-                let cmd_str = format!("{ACCENT}${RESET} ");
-                sink.push_at(
-                    format!("{spine}{}", boxed(&cmd_str, box_inner)),
-                    Hit::Block(at),
-                );
-            } else {
-                for (i, line) in cmd_lines.into_iter().enumerate() {
-                    let prefix = if i == 0 {
-                        format!("{ACCENT}${RESET} ")
-                    } else {
-                        "  ".to_string()
-                    };
-                    let cmd_str = format!("{prefix}{TEXT}{line}{RESET}");
-                    sink.push_at(
-                        format!("{spine}{}", boxed(&cmd_str, box_inner)),
-                        Hit::Block(at),
-                    );
-                }
+            let rows = super::highlight::source_rows(syntax, cmd, command_width);
+            for (index, row) in rows.into_iter().enumerate() {
+                let prefix = if index == 0 {
+                    format!("{ACCENT}{prompt}{RESET} ")
+                } else {
+                    " ".repeat(prompt_width)
+                };
+                command_row(sink, &format!("{prefix}{TEXT}{row}{RESET}"));
             }
         }
+        0
     } else if !cmds.is_empty() {
-        let flattened = cmds
-            .iter()
-            .map(|cmd| {
-                cmd.lines()
-                    .map(str::trim)
-                    .filter(|line| !line.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .collect::<Vec<_>>()
-            .join(" && ");
-        let highlighted = super::highlight::source_line("bash", &flattened);
-        let truncated = ansi::truncate(&highlighted, box_inner.saturating_sub(2));
-        let cmd_str = format!("{ACCENT}${RESET} {TEXT}{truncated}{RESET}");
-        sink.push_at(
-            format!("{spine}{}", boxed(&cmd_str, box_inner)),
-            Hit::Block(at),
+        let preview = super::terminal_preview::command(syntax, &cmds, command_width);
+        command_row(
+            sink,
+            &format!("{ACCENT}{prompt}{RESET} {TEXT}{}{RESET}", preview.text),
         );
-    }
+        if let Some(span) = sink.copy.last_mut().and_then(|spans| spans.first_mut()) {
+            span.columns.end =
+                span.columns.start + preview.copy.last().map_or(0, |piece| piece.columns.end);
+            span.source = Some(preview.copy);
+        }
+        preview.omitted_rows
+    } else {
+        0
+    };
 
     let live = !tool.state.finished();
     let live_rows = if live {
@@ -3613,7 +3708,7 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
     // Once content arrives, retain only the live rows it actually occupied so
     // a temporary spinner erase does not make the border flicker.
     if !cmds.is_empty() && has_output {
-        sink.push_at(format!("{spine}{}", box_divider(box_width)), Hit::Block(at));
+        sink.chrome(format!("{spine}{}", box_divider(box_width)), Hit::Block(at));
     }
 
     let notices: Vec<String> = notice_lines
@@ -3639,26 +3734,28 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
         .collect();
     if open {
         for row in notices.iter().chain(&output) {
-            sink.push_at(format!("{spine}{}", boxed(row, box_inner)), Hit::Block(at));
+            sink.boxed(&spine, row, box_inner, Hit::Block(at));
         }
     } else {
         let (preview, omitted) = super::viewport::terminal_preview(&notices, &output);
         for row in &preview {
-            sink.push_at(format!("{spine}{}", boxed(row, box_inner)), Hit::Block(at));
+            sink.boxed(&spine, row, box_inner, Hit::Block(at));
         }
         for _ in preview.len()..live_rows {
-            sink.push_at(format!("{spine}{}", boxed("", box_inner)), Hit::Block(at));
+            sink.boxed(&spine, "", box_inner, Hit::Block(at));
         }
-        let omitted = omitted.saturating_add(after);
+        let omitted = omitted
+            .saturating_add(after)
+            .saturating_add(omitted_commands);
         if omitted > 0 {
             let footer = format!("{FAINT}{}{RESET}", super::viewport::cut_lines(omitted));
-            sink.push_at(
+            sink.chrome(
                 format!("{spine}{}", boxed(&footer, box_inner)),
                 Hit::Block(at),
             );
         }
     }
-    sink.push_at(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
+    sink.chrome(format!("{spine}{}", box_bottom(box_width)), Hit::Block(at));
 }
 
 // ─── The sidebar ──────────────────────────────────────────────────────────────
@@ -3680,11 +3777,15 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
 ///
 /// Every row this returns is measured against the panel, so the composition
 /// downstream can take the first `rows` of it knowing there is nothing after.
+#[cfg(test)]
 pub fn sidebar(app: &mut App, width: usize, rows: usize) -> Vec<String> {
-    let stats = stats(app, width);
-    let stats_rows = stats.len();
-    let mut out = stats;
-    out.extend(plan(app, width, rows.saturating_sub(stats_rows)));
+    sidebar_content(app, width, rows).lines
+}
+
+fn sidebar_content(app: &mut App, width: usize, rows: usize) -> Sink {
+    let mut out = stats(app, width);
+    let stats_rows = out.lines.len();
+    out.append(&plan(app, width, rows.saturating_sub(stats_rows)));
     out
 }
 
@@ -3693,9 +3794,9 @@ pub fn sidebar(app: &mut App, width: usize, rows: usize) -> Vec<String> {
 /// Kept whole and kept first. These are fixed-height and the reader is not
 /// asking to have them pushed off the screen by a long plan — they are the
 /// panel's one glance, and the plan is the thing being read.
-fn stats(app: &App, width: usize) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let row = |out: &mut Vec<String>, key: &str, value: String| {
+fn stats(app: &App, width: usize) -> Sink {
+    let mut out = Sink::default();
+    let row = |out: &mut Sink, key: &str, value: String| {
         out.push(format!(
             "{MUTED}{key:<15}{} {TEXT}{}{}",
             ansi::RESET,
@@ -3704,7 +3805,7 @@ fn stats(app: &App, width: usize) -> Vec<String> {
         ));
     };
 
-    out.push(panels::heading("SESSIONS", width));
+    panels::heading_into(&mut out, "", "SESSIONS", width);
 
     let (title_str, started_str, activity_str) = if app.turns == 0 && app.steps == 0 {
         (
@@ -3767,6 +3868,20 @@ fn stats(app: &App, width: usize) -> Vec<String> {
         Some(usd) => row(&mut out, "Spend", format!("${usd:.4}")),
         None => row(&mut out, "Spend", "not priced".to_string()),
     }
+    // Requests whose model has no price are not in the total; said here so
+    // their zero is never read as a fact (owner, 2026-10-23).
+    if let Some(unpriced) = app.unpriced_requests() {
+        let noun = if unpriced == 1 { "request" } else { "requests" };
+        out.push(format!(
+            "{:<16}{MUTED}{}{}",
+            "",
+            ansi::truncate(
+                &format!("{} {noun} not priced", thousands(unpriced)),
+                width.saturating_sub(16)
+            ),
+            ansi::RESET
+        ));
+    }
     out
 }
 
@@ -3811,13 +3926,13 @@ fn stats(app: &App, width: usize) -> Vec<String> {
 /// touched, measured against the file's state before the session first
 /// reached it — so the panel repeats no arithmetic a second renderer could get
 /// differently.
-fn plan(app: &mut App, width: usize, rows: usize) -> Vec<String> {
+fn plan(app: &mut App, width: usize, rows: usize) -> Sink {
     let has_plan = !app.tasks.is_empty();
     let has_files = !app.file_changes.is_empty();
     if !has_plan && !has_files {
         app.reset_plan_scroll();
         app.plan_max = 0;
-        return Vec::new();
+        return Sink::default();
     }
     let total = app.tasks.len();
     let done = app.tasks.iter().filter(|t| t["status"] == "done").count();
@@ -3927,7 +4042,7 @@ fn plan(app: &mut App, width: usize, rows: usize) -> Vec<String> {
         .map(|(_, lines)| lines.len())
         .sum();
     let files_active = has_plan && has_files && scrolled >= plan_rows;
-    let mut out: Vec<String> = Vec::new();
+    let mut out = Sink::default();
     if has_plan {
         out.push(String::new());
         let heading = if files_active {
@@ -3935,7 +4050,7 @@ fn plan(app: &mut App, width: usize, rows: usize) -> Vec<String> {
         } else {
             format!("PLAN {done}/{total}")
         };
-        out.push(panels::heading(&heading, width));
+        panels::heading_into(&mut out, "", &heading, width);
     }
 
     let mut skipped = 0usize;
@@ -3961,7 +4076,11 @@ fn plan(app: &mut App, width: usize, rows: usize) -> Vec<String> {
                 app.plan_anchor = Some(PlanAnchor { item: *item, row });
             }
             if !(files_active && *item == file_base && row == 1) {
-                out.push(line.clone());
+                if *item == file_base && row == 1 {
+                    panels::heading_into(&mut out, "", &file_change_heading(app), width);
+                } else {
+                    out.push(line.clone());
+                }
                 shown += 1;
             }
             body_shown += 1;
@@ -4299,7 +4418,10 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
     let mut out = Sink::default();
     let mut cursor_target = None;
 
-    let top_label = if !app.attached.is_empty() && cols < 50 {
+    let manual_shell = runeengine::session::manual_shell::command(&app.input).is_some();
+    let top_label = if manual_shell {
+        format!("[ {WARN}Shell · full access once{RESET} ]")
+    } else if !app.attached.is_empty() && cols < 50 {
         if cols < 28 {
             format!("[{}]", mode_of(&app.mode).0)
         } else {
@@ -4317,7 +4439,7 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
         let (attachments, visible, start, item_w) =
             attachment_boxes(&prefix, &app.attached, cols, true);
         if let Some(top_line) = attachments.first() {
-            out.push_at(
+            out.chrome(
                 ansi::truncate(top_line, cols),
                 Hit::Attachments {
                     start,
@@ -4332,7 +4454,7 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
                 "─".repeat(rest),
                 ansi::RESET
             );
-            out.push_at(ansi::truncate(&top_line, cols), Hit::Composer);
+            out.chrome(ansi::truncate(&top_line, cols), Hit::Composer);
         }
     } else {
         let rest = cols.saturating_sub(ansi::width(&top_label) + 5);
@@ -4341,7 +4463,7 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
             "─".repeat(rest),
             ansi::RESET
         );
-        out.push_at(ansi::truncate(&top_line, cols), Hit::Composer);
+        out.chrome(ansi::truncate(&top_line, cols), Hit::Composer);
     }
 
     for n in 0..drawn {
@@ -4373,9 +4495,17 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
         let line = boxed(&line_content, inner_w);
         let hit = app.composer_hit_rows.len();
         app.composer_hit_rows.push(projection.row(*start, text, 5));
-        out.push_at(ansi::truncate(&line, cols), Hit::ComposerText(hit));
+        out.push_ranges(
+            ansi::truncate(&line, cols),
+            Hit::ComposerText(hit),
+            vec![Span {
+                columns: 4..cols.saturating_sub(2),
+                region: Region::Input,
+                source: None,
+            }],
+        );
     }
-    out.push(box_bottom(cols));
+    out.chrome(box_bottom(cols), Hit::Composer);
     (out, cursor_target)
 }
 
@@ -4613,7 +4743,11 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
         let avail_desc = cols.saturating_sub(2 + 3 + name_col_w + 2 + 1);
         let desc = ansi::truncate(what, avail_desc);
         let line = format!("  {mark}{name_ink}{padded_name}{RESET}  {what_ink}{desc}{RESET}");
-        out.push_at(ansi::truncate(&line, cols), Hit::Palette(n));
+        out.push_ranges(
+            ansi::truncate(&line, cols),
+            Hit::Palette(n),
+            vec![Span::new(5..cols)],
+        );
     }
     let left = found.len().saturating_sub(first + shown);
     if max_rows > shown && (left > 0 || first > 0) {
@@ -4689,25 +4823,30 @@ fn state_line(app: &App, cols: usize) -> String {
     };
     let mode_pill = format!("{mode_ink}[{mode_name}]{RESET}");
     let countdown = super::undo::countdown(app);
-    let right = match countdown
-        .as_ref()
-        .or(app.retry_status.as_ref())
-        .or(app.status.as_ref())
-    {
-        Some(text) if countdown.is_some() => format!("{WARN}{text}{RESET}"),
+    let confirmation = app.confirmation_status(std::time::Instant::now());
+    let right = match confirmation.or(countdown.as_deref()).or(app.footer_text()) {
+        Some(text) if confirmation.is_none() && countdown.is_some() => {
+            format!("{WARN}{text}{RESET}")
+        }
         Some(status) if status.starts_with("Switching mode") => {
             format!("{mode_pill} {MUTED}{mode_desc}{RESET}")
         }
         Some(status) => format!("{TEXT}{status}{}", ansi::RESET),
         None => format!("{mode_pill} {MUTED}{mode_desc}{RESET}"),
     };
-    let left = if app.busy {
-        let label = if app.label.is_empty() {
+    let left = if app.working() {
+        let label = if app.compacting.is_some() {
+            "Compacting"
+        } else if app.label.is_empty() {
             "working"
         } else {
             &app.label
         };
-        let seconds = app.turn_started.map(|t| t.elapsed().as_secs()).unwrap_or(0);
+        let seconds = app
+            .compacting
+            .or(app.turn_started)
+            .map(|t| t.elapsed().as_secs())
+            .unwrap_or(0);
         let formatted = format_duration(seconds);
         let spin_char = pulse::spinner(app.frame);
         format!(
@@ -4723,6 +4862,21 @@ fn state_line(app: &App, cols: usize) -> String {
     let room = ansi::width(&version) + 1;
     if let Some(w) = cols.checked_sub(room) {
         if w >= 20 {
+            let body =
+                if confirmation.is_some() || countdown.is_some() || app.footer_text().is_some() {
+                    let left_room = w.saturating_sub(ansi::width(&right) + 5);
+                    if left_room >= 4 {
+                        format!(
+                            " {} {RULE}│{} {right}",
+                            ansi::truncate(&left, left_room),
+                            ansi::RESET
+                        )
+                    } else {
+                        format!(" {right}")
+                    }
+                } else {
+                    body
+                };
             let truncated = ansi::truncate(&body, w);
             return format!("{}{version} ", ansi::pad(&truncated, w));
         }
@@ -4865,10 +5019,10 @@ fn draw_folded_preview(
         } else {
             format!("{MUTED}{line}{RESET}")
         };
-        sink.push_at(format!("{spine}{styled}"), Hit::Block(at));
+        sink.content(spine, &styled, "", Hit::Block(at));
     }
     if cut_count > 0 {
-        sink.push_at(
+        sink.chrome(
             format!(
                 "{spine}{FAINT}{}{RESET}",
                 super::viewport::cut_lines(cut_count)
@@ -4961,8 +5115,13 @@ fn draw_capabilities_preview(
         return;
     };
     if entries.is_empty() {
-        let line = format!("{spine}{MUTED}No capabilities matched query{RESET}");
-        sink.push_at(ansi::truncate(&line, inner + 2), Hit::Block(at));
+        let body = format!("{MUTED}No capabilities matched query{RESET}");
+        sink.content(
+            spine,
+            &ansi::truncate(&body, (inner + 2).saturating_sub(ansi::width(spine))),
+            "",
+            Hit::Block(at),
+        );
         return;
     }
     let total = val
@@ -5017,14 +5176,18 @@ fn draw_capabilities_preview(
         } else {
             String::new()
         };
-        let line = format!(
-            "{spine}  {kind_colour}{kind_glyph}{RESET} {TEXT}{BOLD}{name}{RESET}{source_badge}{desc_part}",
+        let prefix = format!("{spine}  {kind_colour}{kind_glyph}{RESET} ");
+        let body = format!("{TEXT}{BOLD}{name}{RESET}{source_badge}{desc_part}");
+        sink.content(
+            &prefix,
+            &ansi::truncate(&body, (inner + 2).saturating_sub(ansi::width(&prefix))),
+            "",
+            Hit::Block(at),
         );
-        sink.push_at(ansi::truncate(&line, inner + 2), Hit::Block(at));
     }
     let remaining = cut_count + total.saturating_sub(entries.len());
     if remaining > 0 {
-        sink.push_at(
+        sink.chrome(
             format!("{spine}{FAINT}… {remaining} more capabilities. Click to open all{RESET}"),
             Hit::Block(at),
         );
@@ -5038,8 +5201,143 @@ mod tests {
 
     fn tool(name: &str, state: ToolState) -> Tool {
         let mut t = Tool::new("c1".into(), name.into(), "do the thing".into());
+        if name == "terminal_use" {
+            t.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+                "/bin/bash",
+            )));
+        }
         t.state = state;
         t
+    }
+
+    #[test]
+    fn terminal_box_uses_recorded_shell_or_an_honest_unknown_label() {
+        for (program, title, prompt) in [
+            (Some("/bin/bash"), "Bash", "$"),
+            (Some("/bin/zsh"), "zsh", "$"),
+            (Some(r"C:\pwsh.exe"), "PowerShell", "PS>"),
+            (Some(r"C:\cmd.exe"), "Cmd", ">"),
+            (None, "Terminal", ">"),
+        ] {
+            let mut terminal = tool("terminal_use", ToolState::Ok);
+            terminal.shell = program
+                .map(|program| runeengine::shell::ShellInfo::new(std::path::Path::new(program)));
+            terminal.settle(&json!({"action":"run", "command":"echo test"}));
+            let mut sink = Sink::default();
+            draw_terminal(&terminal, true, true, 100, &mut sink, 0);
+            let text = sink
+                .lines
+                .iter()
+                .map(|line| ansi::plain(line))
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(text.contains(&format!("╭─ {title}")), "{text}");
+            assert!(text.contains(&format!("{prompt} echo test")), "{text}");
+        }
+    }
+
+    #[test]
+    fn streamed_terminal_uses_engine_shell_from_first_delta_through_execution() {
+        for (program, title, prompt) in [
+            ("/bin/bash", "Bash", "$"),
+            ("/bin/zsh", "zsh", "$"),
+            (r"C:\pwsh.exe", "PowerShell", "PS>"),
+            (r"C:\cmd.exe", "Cmd", ">"),
+        ] {
+            let mut app = test_app();
+            app.session = Some(1);
+            app.busy = true;
+            let shell = runeengine::shell::ShellInfo::new(std::path::Path::new(program));
+            let check = |app: &App| {
+                let terminal = app
+                    .blocks
+                    .iter()
+                    .find_map(|block| match block {
+                        Block::Tool(tool) => Some(tool),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(terminal.shell.as_ref(), Some(&shell));
+                let mut sink = Sink::default();
+                draw_terminal(terminal, false, true, 100, &mut sink, 0);
+                let text = plain_of(&sink);
+                assert!(text.contains(&format!("╭─ {title}")), "{text}");
+                if !steps::commands(terminal).is_empty() {
+                    assert!(text.contains(&format!("{prompt} echo")), "{text}");
+                }
+            };
+            for delta in [
+                "{\"action\":\"Run command\",\"command\":\"echo",
+                " test\\necho next\",\"shell\":{\"program\":\"fake.exe\"}}",
+            ] {
+                app.on_event(runeengine::Event::ToolArgs {
+                    session: 1,
+                    id: "streamed".into(),
+                    index: 0,
+                    name: "terminal_use".into(),
+                    delta: delta.into(),
+                    shell: Some(shell.clone()),
+                });
+                check(&app);
+            }
+            app.on_event(runeengine::Event::ToolCall {
+                session: 1,
+                id: "streamed".into(),
+                name: "terminal_use".into(),
+                action: "Run command".into(),
+                args: json!({"command":"echo test\necho next", "shell":{"program":"fake.exe"}}),
+                at: 0,
+            });
+            check(&app);
+            app.on_event(runeengine::Event::ToolShell {
+                session: 1,
+                id: "streamed".into(),
+                shell: shell.clone(),
+            });
+            check(&app);
+            app.on_event(runeengine::Event::ToolResult {
+                session: 1,
+                id: "streamed".into(),
+                ok: true,
+                summary: "done".into(),
+                content: "test\nnext".into(),
+                detail: Some(json!({"shell":shell})),
+                at: 0,
+            });
+            check(&app);
+        }
+    }
+
+    #[test]
+    fn wrapped_action_argument_keeps_the_same_ink_on_every_row() {
+        let mut app = App::for_test();
+        let mut step = tool("terminal_use", ToolState::Ok);
+        step.action = "Check every component and continue checking the remaining component carefully without losing this action text".into();
+        let mut sink = Sink::default();
+        draw_step(&app, 0, &step, true, 46, &mut sink);
+        let expected = ansi::wrap(&step.action, 40);
+        assert!(expected.len() > 1);
+        for text in expected {
+            let row = sink
+                .lines
+                .iter()
+                .find(|line| ansi::plain(line).contains(&text))
+                .expect("wrapped action row");
+            assert!(row.contains(&TEXT.to_string()), "{row:?}");
+            assert!(
+                !row.contains(&MUTED.to_string()),
+                "action continuation is muted: {row:?}"
+            );
+        }
+        app.blocks.push(Block::Text {
+            text: "final words".into(),
+        });
+        let frame = compose_for_test(&mut app, 24, 80);
+        assert!(frame
+            .iter()
+            .find(|line| ansi::plain(line).contains("final words"))
+            .unwrap()
+            .contains(&ansi::RESPONSE.to_string()));
     }
 
     /// The palette's own lines, without the composer around them.
@@ -5139,6 +5437,9 @@ mod tests {
         app.blocks.push(Block::Thinking {
             text: "plan the work".into(),
             open: true,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         app.blocks
             .push(Block::Tool(Box::new(tool("terminal_use", ToolState::Ok))));
@@ -5187,10 +5488,16 @@ mod tests {
                 Block::Thinking {
                     text: "think".into(),
                     open: false,
+                    tokens: None,
+                    chase: None,
+                    round: None,
                 },
                 Block::Thinking {
                     text: "think harder".into(),
                     open: false,
+                    tokens: None,
+                    chase: None,
+                    round: None,
                 },
             ),
             (
@@ -5198,10 +5505,16 @@ mod tests {
                 Block::Thinking {
                     text: "think".into(),
                     open: false,
+                    tokens: None,
+                    chase: None,
+                    round: None,
                 },
                 Block::Thinking {
                     text: "think".into(),
                     open: true,
+                    tokens: None,
+                    chase: None,
+                    round: None,
                 },
             ),
             (
@@ -5250,6 +5563,23 @@ mod tests {
                 t.args = Some(serde_json::json!({"command": "ls"}));
                 Block::of(t)
             }),
+            (
+                "thinking is counted by its provider",
+                Block::Thinking {
+                    text: String::new(),
+                    open: false,
+                    tokens: None,
+                    chase: None,
+                    round: None,
+                },
+                Block::Thinking {
+                    text: String::new(),
+                    open: false,
+                    tokens: Some(55),
+                    chase: None,
+                    round: None,
+                },
+            ),
             ("step counters retarget", Block::of(running()), {
                 let mut t = running();
                 t.snap_counters();
@@ -5932,6 +6262,9 @@ mod tests {
         let mut app = test_app();
         app.sidebar = true;
         let mut tool = Tool::new("t1".into(), "terminal_use".into(), "run test".into());
+        tool.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         let multiline_cmd = "python3 -c '\nimport os, sys\n\nrows, cols = os.get_terminal_size()\nprint(f\"size: {rows}x{cols}\")\n'";
         tool.args = Some(json!({"command": multiline_cmd}));
         tool.output = "$ python3 -c '\nimport os, sys\n\nsize: 200x40\n[exit 0]\n".to_string();
@@ -6227,12 +6560,19 @@ mod tests {
             head: Point { row: 2, col: 4 },
             moved: true,
         };
-        let rows = vec!["abcdef".to_string(), "ghijkl".to_string()];
+        let rows = vec![
+            super::super::selection::Row::from("abcdef"),
+            super::super::selection::Row::from("ghijkl"),
+        ];
         assert_eq!(selection.selected_text(&rows), "cdef\nghij");
 
         let mut app = test_app();
         app.selection = Some(selection);
-        let frame = compose(&mut app, 18, 80);
+        let frame = finish_frame(
+            &mut app,
+            vec!["abcdef".into(), "ghijkl".into()],
+            vec![vec![Span::new(0..6)], vec![Span::new(0..6)]],
+        );
         assert!(
             frame[0].contains(ansi::REVERSE),
             "the selected cells were not highlighted"
@@ -7498,6 +7838,9 @@ mod tests {
         let mut app = test_app();
         app.busy = true;
         let mut t = Tool::new("c1".into(), "terminal_use".into(), "build it".into());
+        t.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         t.settle(&json!({ "command": "cargo build" }));
         t.output = "Compiling runecli\nFinished in 3s".into();
         t.state = ToolState::Ok;
@@ -8080,6 +8423,9 @@ mod tests {
         app.blocks.push(Block::Thinking {
             text: "one two three".into(),
             open: false,
+            tokens: Some(1_234),
+            chase: None,
+            round: None,
         });
         for n in 0..2 {
             let mut step = tool("inspect_file", ToolState::Ok);
@@ -8120,8 +8466,8 @@ mod tests {
             "the removed summary returned:\n{plain}"
         );
         assert!(
-            plain.contains("Thought · 3 words"),
-            "thinking lost its word count:\n{plain}"
+            plain.contains("Thought · 1,234 tokens") && !plain.contains("words"),
+            "thinking lost its token count:\n{plain}"
         );
 
         let response_head = rendered
@@ -8143,8 +8489,8 @@ mod tests {
             "Thought changed to a green success bullet"
         );
         assert!(
-            !ansi::plain(response_head).contains("words"),
-            "response gained a word counter"
+            !ansi::plain(response_head).contains("tokens"),
+            "response gained a token counter"
         );
         let response_body = rendered
             .lines
@@ -8189,6 +8535,9 @@ mod tests {
     fn terminal_box_renders_with_borders_and_command_prompt() {
         let app = test_app();
         let mut terminal = Tool::new("c1".into(), "terminal_use".into(), "build project".into());
+        terminal.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         terminal.settle(&json!({ "command": "cargo build --release" }));
         terminal.output = "Compiling project\nFinished".into();
         terminal.state = ToolState::Ok;
@@ -8395,8 +8744,8 @@ mod tests {
         };
         assert_eq!(
             preview(&full).len(),
-            3,
-            "without output the box is command only"
+            4,
+            "without output the box contains one command row and its fold only"
         );
         for chunk in ["one", "\r\x1b[2K", "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n"] {
             let event = runeengine::Event::ToolOutput {
@@ -8411,7 +8760,7 @@ mod tests {
             let a = preview(&ask);
             let f = preview(&full);
             assert_eq!(a.lines, f.lines);
-            assert!(a.len() <= 9);
+            assert!(a.len() <= 12);
             let plain = plain_of(&a);
             if plain.contains("lines cut") {
                 assert!(ansi::plain(&a.lines[a.len() - 2]).contains("lines cut"));
@@ -8439,7 +8788,7 @@ mod tests {
             ask.on_event(event.clone());
             full.on_event(event);
             assert_eq!(preview(&ask).lines, preview(&full).lines);
-            assert!(preview(&full).len() <= 9);
+            assert!(preview(&full).len() <= 12);
         }
     }
 
@@ -9916,6 +10265,374 @@ mod tests {
         );
     }
 
+    /// Owner, 2026-10-23: one request on a model without a price used to
+    /// leave "not priced" for the rest of the session. The engine's total is
+    /// shown as soon as any request has a price, the ones without one said
+    /// beside it, and a price filled in later reaches the panel at once.
+    #[test]
+    fn the_spend_counts_priced_requests_and_says_the_ones_without_a_price() {
+        let mut app = test_app();
+        let shown = |app: &mut App| {
+            sidebar(app, 40, 1000)
+                .iter()
+                .map(|l| ansi::plain(l))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        app.on_event(runeengine::Event::Spend {
+            session: 1,
+            spend: 0.0,
+            priced: 0,
+            unpriced: 2,
+        });
+        let text = shown(&mut app);
+        assert!(
+            text.contains("not priced") && !text.contains("$0"),
+            "{text}"
+        );
+        assert!(!text.contains("requests not priced"), "{text}");
+
+        // Another model, priced: its requests count, the others are said.
+        app.on_event(runeengine::Event::Spend {
+            session: 1,
+            spend: 0.0123,
+            priced: 1,
+            unpriced: 2,
+        });
+        let text = shown(&mut app);
+        assert!(text.contains("$0.0123"), "{text}");
+        assert!(text.contains("2 requests not priced"), "{text}");
+
+        // The first model's price filled in: every request has one.
+        app.on_event(runeengine::Event::Spend {
+            session: 1,
+            spend: 0.0456,
+            priced: 3,
+            unpriced: 0,
+        });
+        let text = shown(&mut app);
+        assert!(text.contains("$0.0456"), "{text}");
+        assert!(!text.contains("not priced"), "{text}");
+
+        // A request's own usage never adds to it: the engine's total does.
+        app.on_event(runeengine::Event::Usage {
+            session: 1,
+            input: 10,
+            output: 2,
+            cached: 0,
+            cost: Some(1.0),
+            details: Default::default(),
+        });
+        assert!(shown(&mut app).contains("$0.0456"));
+        for width in [24usize, 40] {
+            app.on_event(runeengine::Event::Spend {
+                session: 1,
+                spend: 0.5,
+                priced: 1,
+                unpriced: 12_345,
+            });
+            assert!(sidebar(&mut app, width, 1000)
+                .iter()
+                .all(|row| ansi::width(row) <= width));
+        }
+    }
+
+    /// Owner, 2026-10-23: thinking is measured by what there is of it, never
+    /// by an estimate. Text a route sends is counted in its words as it
+    /// streams, and a route that only says in its usage how much it reasoned
+    /// (gemini through 9router) gains no line of its own. Where Anthropic
+    /// counted it (Claude Code's models: no text), the line says the tokens
+    /// it reported — the sum so far while it runs, then the billed count —
+    /// and nothing before its first report. A reopened conversation shows
+    /// the same.
+    #[test]
+    fn thinking_is_its_texts_words_or_the_tokens_anthropic_reported() {
+        use std::time::{Duration, Instant};
+        let mut app = test_app();
+        app.session = Some(1);
+        app.busy = true;
+        let usage = |reasoning: Option<u64>| runeengine::Event::Usage {
+            session: 1,
+            input: 100,
+            output: 50,
+            cached: 0,
+            cost: None,
+            details: Box::new(runeengine::provider::UsageDetails {
+                reasoning,
+                ..Default::default()
+            }),
+        };
+        let head = |app: &mut App| {
+            transcript(app, 80)
+                .lines
+                .iter()
+                .map(|l| ansi::plain(l))
+                .filter(|l| l.contains("Think") || l.contains("Thought"))
+                .collect::<Vec<_>>()
+        };
+        let thinking = |delta: &str| runeengine::Event::Thinking {
+            session: 1,
+            delta: delta.into(),
+        };
+        let count = |tokens: u64, billed: bool| runeengine::Event::ThinkingTokens {
+            session: 1,
+            tokens,
+            billed,
+        };
+        let text = |delta: &str| runeengine::Event::Text {
+            session: 1,
+            delta: delta.into(),
+        };
+
+        // Streamed text: its words, live, and the usage's count changes nothing.
+        app.push_block(Block::user("first"));
+        app.on_event(thinking("let me"));
+        app.on_event(thinking(" see now"));
+        assert_eq!(head(&mut app), ["  ● Thinking · 4 words"]);
+        app.on_event(text("answer one"));
+        app.on_event(usage(Some(64)));
+        assert_eq!(head(&mut app), ["  ● Thought · 4 words"]);
+
+        // Reasoning only in the usage: no line.
+        let before = app.blocks.len();
+        app.push_block(Block::user("second"));
+        app.on_event(text("answer two"));
+        app.on_event(usage(Some(30)));
+        assert_eq!(app.blocks.len(), before + 2, "no Thought was made up");
+
+        // Anthropic counting: nothing before its first report, then the
+        // number on screen climbs to each one, one number after another,
+        // never past it.
+        app.push_block(Block::user("third"));
+        app.on_event(thinking(""));
+        let last = |app: &mut App| head(app).last().cloned().unwrap();
+        assert_eq!(last(&mut app), "  ● Thinking");
+        app.on_event(count(50, false));
+        assert_eq!(last(&mut app), "  ● Thinking", "it starts from nothing");
+        let from = Instant::now();
+        let mut shown = Vec::new();
+        for frame in 1..=40u64 {
+            app.chase_thinking(from + Duration::from_millis(frame * 50));
+            shown.push(last(&mut app));
+        }
+        let numbers: Vec<u64> = shown
+            .iter()
+            .filter_map(|l| {
+                l.strip_prefix("  ● Thinking · ")?
+                    .strip_suffix(" tokens")?
+                    .parse()
+                    .ok()
+            })
+            .collect();
+        assert!(numbers.len() > 5, "{shown:?}");
+        assert!(
+            numbers
+                .windows(2)
+                .all(|w| w[0] <= w[1] && w[1] - w[0] <= 13),
+            "{numbers:?}"
+        );
+        assert!(numbers.iter().all(|n| *n <= 50), "{numbers:?}");
+        assert_eq!(last(&mut app), "  ● Thinking · 50 tokens");
+        app.on_event(count(1_950, false));
+        app.chase_thinking(from + Duration::from_millis(2_100));
+        let midway = last(&mut app);
+        assert!(midway != "  ● Thinking · 1,950 tokens", "{midway}");
+        app.chase_thinking(from + Duration::from_millis(5_000));
+        assert_eq!(last(&mut app), "  ● Thinking · 1,950 tokens");
+        // Another thinking the message opens is the same one.
+        app.on_event(thinking(""));
+        app.on_event(text("16"));
+        app.on_event(count(2_120, true));
+        app.on_event(usage(Some(2_120)));
+        // The turn may end before the number is there: it climbs on.
+        app.busy = false;
+        app.chase_thinking(from + Duration::from_millis(9_000));
+        let lines = head(&mut app);
+        assert_eq!(lines.last().unwrap(), "  ● Thought · 2,120 tokens");
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        assert!(!lines.iter().any(|l| l.contains('~')));
+
+        // Opened, counted by nobody, said nothing: it goes.
+        let before = app.blocks.len();
+        app.push_block(Block::user("fourth"));
+        app.on_event(thinking(""));
+        app.on_event(text("five"));
+        app.on_event(usage(None));
+        assert_eq!(
+            app.blocks.len(),
+            before + 2,
+            "an empty Thought is not left behind"
+        );
+
+        // Reopened: the billed count, or the text's words.
+        app.apply_view(&json!({
+            "session": 1,
+            "history": [
+                {"id": 1, "turn": 1, "role": "user", "content": "q", "created_at": 1, "media": []},
+                {"id": 2, "turn": 1, "role": "assistant", "content": "a", "reasoning": null,
+                 "thinking_tokens": 2120, "created_at": 2, "media": []},
+                {"id": 3, "turn": 2, "role": "user", "content": "q2", "created_at": 3, "media": []},
+                {"id": 4, "turn": 2, "role": "assistant", "content": "b",
+                 "reasoning": "two words", "created_at": 4, "media": []}
+            ],
+            "toolcalls": [],
+            "live": {"first_turn": null, "events": []}
+        }));
+        assert_eq!(
+            head(&mut app),
+            ["  ● Thought · 2,120 tokens", "  ● Thought · 2 words"]
+        );
+    }
+
+    /// Owner, 2026-10-23, session 641 (cc/claude-haiku-5-5, after `/new`):
+    /// each request thought once (billed 69, 165, 305), yet the window drew
+    /// `Thought`, `Thought · 50`, tool, `Thought · 69`, `Thought · 165`, tool,
+    /// `Thought · 305` — the count looked for its thinking by a position the
+    /// cleared session had left behind. Replayed as it came: one thinking per
+    /// request, before its tool, with its own billed count; and once the
+    /// request goes on to write the tool's arguments, its count reaches what
+    /// was reported within a moment instead of ticking on beside the tool.
+    #[test]
+    fn each_request_has_one_thinking_with_its_own_count_after_a_session_switch() {
+        use std::time::{Duration, Instant};
+        let mut app = test_app();
+        app.session = Some(1);
+        // What the session before left: many blocks, then cleared.
+        for i in 0..30 {
+            app.push_block(Block::user(format!("old {i}")));
+        }
+        app.on_event(runeengine::Event::Usage {
+            session: 1,
+            input: 1,
+            output: 1,
+            cached: 0,
+            cost: None,
+            details: Default::default(),
+        });
+        app.blocks.clear();
+        app.busy = true;
+        app.push_block(Block::user("is anything stuck?"));
+        let mut now = Instant::now();
+        for (call, running, billed) in [("t1", 50u64, 69u64), ("t2", 120, 165), ("t3", 250, 305)] {
+            app.on_event(runeengine::Event::Thinking {
+                session: 1,
+                delta: String::new(),
+            });
+            app.on_event(runeengine::Event::ThinkingTokens {
+                session: 1,
+                tokens: running,
+                billed: false,
+            });
+            for _ in 0..60 {
+                now += Duration::from_millis(50);
+                app.chase_thinking(now);
+            }
+            app.on_event(runeengine::Event::ToolArgs {
+                session: 1,
+                id: call.into(),
+                index: 0,
+                name: "terminal_use".into(),
+                delta: "{\"command\":\"ps\"}".into(),
+                shell: Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+                    "/bin/bash",
+                ))),
+            });
+            app.on_event(runeengine::Event::ThinkingTokens {
+                session: 1,
+                tokens: billed,
+                billed: true,
+            });
+            // Ended: the billed count is there within a quarter of a second.
+            now += Duration::from_millis(250);
+            app.chase_thinking(now);
+            app.on_event(runeengine::Event::Usage {
+                session: 1,
+                input: 10,
+                output: 10,
+                cached: 0,
+                cost: None,
+                details: Default::default(),
+            });
+            let shown: Vec<_> = transcript(&mut app, 80)
+                .lines
+                .iter()
+                .map(|l| ansi::plain(l))
+                .filter(|l| l.contains("Thought") || l.contains("Thinking"))
+                .collect();
+            assert_eq!(
+                shown.last().map(|l| l.trim().to_string()),
+                Some(format!("● Thought · {billed} tokens")),
+                "{shown:?}"
+            );
+        }
+        let kinds: Vec<String> = app
+            .blocks
+            .iter()
+            .map(|b| match b {
+                Block::User { .. } => "user".into(),
+                Block::Thinking { tokens, .. } => format!("thought {}", tokens.unwrap_or(0)),
+                Block::Tool(_) => "tool".into(),
+                _ => "other".into(),
+            })
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                "user",
+                "thought 69",
+                "tool",
+                "thought 165",
+                "tool",
+                "thought 305",
+                "tool"
+            ]
+        );
+    }
+
+    /// A window joining a run is told the round's count as it stands; it is
+    /// drawn on the round's thinking, not added as one of its own.
+    #[test]
+    fn a_window_joining_mid_thinking_draws_the_count_reported_so_far() {
+        let mut app = test_app();
+        app.busy = true;
+        let events = [
+            runeengine::Event::TurnStart {
+                session: 1,
+                turn: 1,
+                text: Some("go".into()),
+                notification: false,
+                media: Vec::new(),
+                at: 0,
+            },
+            runeengine::Event::Thinking {
+                session: 1,
+                delta: String::new(),
+            },
+            runeengine::Event::ThinkingTokens {
+                session: 1,
+                tokens: 750,
+                billed: false,
+            },
+        ];
+        app.apply_view(&json!({
+            "session": 1,
+            "history": [],
+            "toolcalls": [],
+            "live": {"first_turn": 1, "events": events
+                .iter()
+                .map(|e| serde_json::to_value(e).unwrap())
+                .collect::<Vec<_>>()}
+        }));
+        let lines: Vec<_> = transcript(&mut app, 80)
+            .lines
+            .iter()
+            .map(|l| ansi::plain(l))
+            .filter(|l| l.contains("Think") || l.contains("Thought"))
+            .collect();
+        assert_eq!(lines.len(), 1, "{lines:?}");
+        assert!(lines[0].ends_with("· 750 tokens"), "{lines:?}");
+    }
+
     #[test]
     fn sidebar_rows_fit_within_panel_width() {
         let mut app = App::for_test_with(json!({ "context": 1_000 }));
@@ -10304,10 +11021,61 @@ mod tests {
         assert!(ansi::plain(&footer).contains("[Ask]"));
 
         // When armed: status replaces the entire mode description (no [Ask])
-        app.note("press esc again to close");
+        let questions = app.questions.as_mut().unwrap();
+        questions.esc_armed = true;
+        questions.esc_armed_at = Some(std::time::Instant::now());
         let footer_armed = state_line(&app, 120);
-        assert!(ansi::plain(&footer_armed).contains("press esc again to close"));
+        assert!(ansi::plain(&footer_armed).contains("press esc again to cancel"));
         assert!(!ansi::plain(&footer_armed).contains("[Ask]"));
+    }
+
+    #[test]
+    fn active_footer_message_keeps_space_before_long_project_metadata() {
+        let mut app = test_app();
+        app.project = "/a/very/long/project/path/that/cannot/fit/in/the/footer".into();
+        app.note("A readable status");
+        for width in [36, 60, 120] {
+            assert!(ansi::plain(&state_line(&app, width)).contains("A readable status"));
+        }
+        app.clear_status();
+        app.retry_status = Some("retrying in 9s".into());
+        for width in [36, 60, 120] {
+            assert!(ansi::plain(&state_line(&app, width)).contains("retrying in 9s"));
+        }
+    }
+
+    #[test]
+    fn retry_updates_cannot_cover_an_armed_escape_even_on_a_narrow_footer() {
+        let mut app = test_app();
+        app.busy = true;
+        app.project = "/a/very/long/project/path/that/cannot/fit/in/the/footer".into();
+        app.stop_armed = true;
+        app.stop_armed_at = Some(std::time::Instant::now());
+        for seconds in [9, 8, 7] {
+            app.on_event(runeengine::proto::Event::Retrying {
+                session: app.session.unwrap(),
+                attempt: 1,
+                of: 3,
+                wait_ms: seconds * 1000,
+                rotated: false,
+                reason: "Rate limited".into(),
+            });
+            for width in [36, 60, 120, 180] {
+                let line = state_line(&app, width);
+                let plain = ansi::plain(&line);
+                assert!(
+                    plain.contains("press esc again to stop"),
+                    "width {width}: {plain}"
+                );
+                assert!(!plain.contains("retrying in"), "{plain}");
+                assert!(ansi::width(&line) <= width);
+            }
+        }
+        app.stop_armed = false;
+        app.stop_armed_at = None;
+        let line = ansi::plain(&state_line(&app, 220));
+        assert!(line.contains("retrying in 7s"), "{line}");
+        assert!(!line.contains("press esc again to stop"));
     }
 
     /// Owner, 2026-10-10: the version a window shows is the build it runs.
@@ -10344,12 +11112,14 @@ mod tests {
         assert!(!plain_attached.contains("[Ask]"));
 
         app.note("Project draft");
+        app.show_waiting_status_for_test();
         let draft = state_line(&app, 120);
         let plain_draft = ansi::plain(&draft);
         assert!(plain_draft.contains("Project draft"));
         assert!(!plain_draft.contains("[Ask]"));
 
         app.note("Usage: /logs [all|warn|error] · what happened behind the conversation");
+        app.show_waiting_status_for_test();
         let usage = state_line(&app, 120);
         let plain_usage = ansi::plain(&usage);
         assert!(plain_usage
@@ -10447,6 +11217,94 @@ mod tests {
     }
 
     #[test]
+    fn closed_terminal_keeps_one_source_row_and_open_restores_script_without_flattening() {
+        for script in [
+            "echo tes ; echo tes2\necho tes3",
+            "if true; then\n  echo indented\n\nfi\necho fifth\necho sixth",
+            "cat <<'EOF'\n  literal body\n\nEOF",
+        ] {
+            let mut tool = tool("terminal_use", ToolState::Ok);
+            tool.settle(&json!({"command":script}));
+            tool.content = "tes\ntes2\ntes3".into();
+            let mut closed = Sink::default();
+            draw_terminal(&tool, false, true, 100, &mut closed, 0);
+            let rows: Vec<_> = closed.lines.iter().map(|row| ansi::plain(row)).collect();
+            let divider = rows.iter().position(|row| row.contains('├')).unwrap();
+            assert_eq!(divider, 2, "exactly one command row: {rows:?}");
+            assert!(rows[1].contains(&script.replace('\n', " ↵ ")));
+            assert!(rows[2].contains('├'));
+            assert!(!plain_of(&closed).contains("lines cut"));
+            let span = &closed.copy[1][0];
+            assert_eq!(
+                span.selected_text(&closed.lines[1], span.columns.clone()),
+                script
+            );
+
+            let mut open = Sink::default();
+            draw_terminal(&tool, true, true, 100, &mut open, 0);
+            let divider = open
+                .lines
+                .iter()
+                .position(|row| ansi::plain(row).contains('├'))
+                .unwrap();
+            let copied: Vec<_> = (1..divider)
+                .map(|row| {
+                    open.copy[row]
+                        .iter()
+                        .map(|span| {
+                            ansi::slice(&open.lines[row], span.columns.start, span.columns.end)
+                                .trim_end()
+                                .to_string()
+                        })
+                        .collect::<String>()
+                })
+                .collect();
+            assert_eq!(copied.join("\n"), script);
+            assert!(!plain_of(&open).contains("lines cut"));
+            assert_eq!(tool.args.as_ref().unwrap()["command"], script);
+        }
+    }
+
+    #[test]
+    fn terminal_command_stays_one_visual_row_at_every_lifecycle_and_width() {
+        let script = "cargo fmt --all; set -o pipefail; { cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings; } > target/gate.log 2>&1;\necho second";
+        for width in [40, 80, 100] {
+            for state in [
+                ToolState::Writing,
+                ToolState::Running,
+                ToolState::Ok,
+                ToolState::Backgrounded,
+                ToolState::Failed,
+            ] {
+                for output in ["", "one\ntwo\nthree\nfour\nfive\nsix"] {
+                    let mut terminal = tool("terminal_use", state);
+                    if state == ToolState::Writing {
+                        terminal.absorb(&json!({"command":script}).to_string());
+                    } else {
+                        terminal.settle(&json!({"command":script}));
+                    }
+                    terminal.state = state;
+                    terminal.output = output.into();
+                    let mut closed = Sink::default();
+                    draw_terminal(&terminal, false, true, width, &mut closed, 0);
+                    let rows: Vec<_> = closed.lines.iter().map(|row| ansi::plain(row)).collect();
+                    if output.is_empty() {
+                        assert_eq!(rows.len(), 4, "{state:?} {width}: {rows:?}");
+                    } else {
+                        assert_eq!(rows.len(), 9, "{state:?} {width}: {rows:?}");
+                        assert!(rows[2].contains('├'), "{rows:?}");
+                        assert!(rows[3].contains("one") && rows[6].contains("four"));
+                        assert!(!plain_of(&closed).contains("five"));
+                    }
+                    assert!(rows[1].contains("$ cargo"), "{rows:?}");
+                    assert!(rows[rows.len() - 2].contains("lines cut"));
+                    assert!(closed.lines.iter().all(|row| ansi::width(row) <= width));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn draw_terminal_limits_commands_and_output_when_closed() {
         let mut tool = Tool::new("t1".into(), "terminal_use".into(), "run".into());
         let cmds = (1..=6)
@@ -10466,7 +11324,7 @@ mod tests {
         assert_eq!(
             sink_closed.len(),
             9,
-            "the folded box must not grow for multiple commands"
+            "the folded box keeps one command row and four output rows"
         );
         // Folded shows the newest lines: progress while running, the outcome
         // once done (audit U8).
@@ -10676,6 +11534,9 @@ mod tests {
         app.blocks.push(Block::Thinking {
             text: "This is a thought that is open".into(),
             open: true,
+            tokens: None,
+            chase: None,
+            round: None,
         });
         let mut sink = Sink::default();
         draw_steps(&app, &[0], 80, &mut sink);
@@ -10696,6 +11557,9 @@ mod tests {
     fn last_step_terminal_tool_has_no_vertical_spine() {
         let mut app = test_app();
         let mut terminal = Tool::new("c1".into(), "terminal_use".into(), "run command".into());
+        terminal.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         terminal.settle(&json!({ "command": "ls ~/Documents" }));
         terminal.output = "file1.txt\nfile2.txt".into();
         terminal.state = ToolState::Ok;
@@ -10740,6 +11604,9 @@ mod tests {
     fn non_last_step_terminal_tool_has_vertical_spine() {
         let mut app = test_app();
         let mut terminal = Tool::new("c1".into(), "terminal_use".into(), "run command".into());
+        terminal.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         terminal.settle(&json!({ "command": "ls ~/Documents" }));
         terminal.output = "file1.txt\nfile2.txt".into();
         terminal.state = ToolState::Ok;
@@ -10771,6 +11638,9 @@ mod tests {
             "terminal_use".into(),
             "List contents of ~/Documents directory".into(),
         );
+        terminal.shell = Some(runeengine::shell::ShellInfo::new(std::path::Path::new(
+            "/bin/bash",
+        )));
         terminal.settle(&json!({ "command": "ls ~/Documents" }));
         terminal.output = "1.jpeg   Docs.zip\nDesktop.zip".into();
         terminal.state = ToolState::Ok;
@@ -11582,6 +12452,36 @@ mod tests {
 
     /// A process report comes first, aligned and tagged; folded, the head of the
     /// output is shown and the unseen suffix is counted below it.
+    #[test]
+    fn status_only_process_report_never_owns_a_copy_of_earlier_command_output() {
+        let mut command = tool("terminal_use", ToolState::Backgrounded);
+        command.settle(&json!({"command":"echo tes\nread answer"}));
+        command.content =
+            "<tool_notice>Waiting for input in the background as bg_fixture</tool_notice>\n\ntes\n==> standard input <=="
+                .into();
+        let mut report = Tool::new(
+            "check".into(),
+            "manage_process".into(),
+            "Check the waiting command".into(),
+        );
+        report.state = ToolState::Ok;
+        report.content =
+            "<tool_notice>\nProcess: Waiting for input\nPID: 42\nOutput log: background.txt\n</tool_notice>"
+                .into();
+        let mut opened = Sink::default();
+        draw_terminal(&command, true, false, 100, &mut opened, 0);
+        let earlier = plain_of(&opened);
+        assert_eq!(earlier.matches("==> standard input <==").count(), 1);
+        let mut checked = Sink::default();
+        draw_terminal(&report, true, true, 100, &mut checked, 0);
+        let later = plain_of(&checked);
+        assert!(later.contains("Process:") && later.contains("Waiting for input"));
+        assert!(!later.contains("standard input") && !later.contains("tes\n"));
+        assert!(runeengine::tools::notice::split(&report.content)
+            .rest
+            .is_empty());
+    }
+
     #[test]
     fn process_report_precedes_a_head_preview_and_the_cut_suffix_is_below() {
         let app = test_app();

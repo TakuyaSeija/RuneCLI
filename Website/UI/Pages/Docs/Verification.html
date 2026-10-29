@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">What verification establishes</h2>
+<p>The installer verifies the release signature on the checksum list, then checks the archive against that signed list before installing it. These are different checks: a checksum alone does not authenticate its publisher, and a valid signature does not prove a release has no bugs or harmful behavior.</p>
+<p>The installer also checks the selected platform, expected archive names and whether the binary runs. It installs with an atomic rename instead of exposing a partly copied executable. Review the installer source, <a href="{{url "install.sh"}}">install.sh</a> or <a href="{{url "install.ps1"}}">install.ps1</a>, before running it if you need to understand its exact behavior.</p>
+<h2 id="release-key">Release signing key</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>Published release-key fingerprint, SHA-256:</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>The public key is available as <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. Verify the fingerprint through an independently trusted channel when possible. Downloading the key and fingerprint from the same compromised origin would not independently establish trust.</p>
+{{else}}
+<p class="notice">No release signing key is published in the current catalog. A fingerprint will appear with the first signed release; do not treat a missing key as successful verification.</p>
+{{end}}
+<h2 id="manual-verification">Verify downloaded files by hand</h2>
+<p>From the <a href="{{url "install"}}">download list</a>, obtain the intended archive, SHA256SUMS, SHA256SUMS.sig and the verified public key. Releases are signed with an ECDSA P-256 key over SHA-256, which OpenSSL and the LibreSSL that macOS ships can both check. In that directory, verify the signature first, then the archive's checksum. On Linux:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>On macOS, the signature check is the same; check the archive you downloaded by its name:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>On Windows, the installer checks the signature for you. To compare a downloaded archive with the signed list yourself, print its checksum in PowerShell and find the same value on that archive's line in SHA256SUMS:</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>Replace VERSION with the release you downloaded. The signature check must print <code>Verified OK</code>, and the checksum check must name the archive you intend to use. A missing archive is not verified merely because some other listed file passed. Stop on any mismatch rather than running the download.</p>
+<h2 id="limits">Limits and updates</h2>
+<p>A signature ties bytes to a release key. It does not independently audit the source, prove reproducible builds, guarantee dependency safety or undo a compromised signing key. Keep the trust distinction visible when sharing verification instructions.</p>
+<p>Install the intended signed release and check <code>rune -version</code>. On Linux/macOS, compatible open sessions can move to a new installed build when idle. Windows windows keep their current build until a new Rune is opened. Never force-kill active work just to make a version label change.</p>
+{{end}}

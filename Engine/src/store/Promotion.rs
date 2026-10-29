@@ -29,6 +29,15 @@ impl Db {
         draft: &Draft,
         media: Vec<crate::media::Attachment>,
     ) -> Result<Promotion> {
+        self.promote_as(draft, media, false)
+    }
+
+    pub(crate) fn promote_as(
+        &self,
+        draft: &Draft,
+        media: Vec<crate::media::Attachment>,
+        manual_shell: bool,
+    ) -> Result<Promotion> {
         draft.validate()?;
         let submission = format!("{}:{}", draft.token, draft.generation);
         Drafts::new(self.jsonl.root()).locked(|registry| {
@@ -36,6 +45,7 @@ impl Db {
             let promotion = if let Some(saved) = saved {
                 let saved: Promotion = serde_json::from_str(&saved)?;
                 if saved.meta.project != draft.project { return Err(Error::invalid("Draft promotion belongs to another project.")); }
+                if saved.message.manual_shell != manual_shell { return Err(Error::invalid("Draft submission kind differs from its recorded promotion.")); }
                 saved
             } else {
                 let key = crate::project::project_key(Path::new(&draft.project));
@@ -51,7 +61,7 @@ impl Db {
                 let promotion = Promotion {
                     token: submission.clone(), generation,
                     meta: SessionMeta { id, project: draft.project.clone(), title: Some(title), created_at: now, updated_at: now, mode: draft.composer.mode.clone(), active_seconds: 0, model: Some(draft.composer.settings.model.clone()), settings: Some(settings) },
-                    message: Message { work: Some(super::sessions::Work { source: message_id, finished: false }), id: message_id, turn: 1, role: Role::User, content: draft.composer.text.clone(), tool_call_id: None, tool_name: None, tool_calls: None, reasoning: None, media, created_at: now, continuation: None, context: None },
+                    message: Message { manual_shell, work: Some(super::sessions::Work { source: message_id, finished: false }), id: message_id, turn: 1, role: Role::User, content: draft.composer.text.clone(), tool_call_id: None, tool_name: None, tool_calls: None, reasoning: None, thinking_tokens: None, media, created_at: now, continuation: None, context: None },
                 };
                 self.conn().execute("INSERT INTO promotions(token,session_id,journal,complete) VALUES(?1,?2,?3,0)", params![promotion.token, id, serde_json::to_string(&promotion)?])?;
                 transaction.commit()?;

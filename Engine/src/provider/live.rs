@@ -47,22 +47,36 @@ struct Prepared {
 }
 
 /// The half of the conversation that depends on which vendor is answering.
+/// Each wire's state on the heap: the two grow with what a usage report
+/// carries, and neither is kept beside the other.
 enum Wire {
-    OpenAi(openai::State),
-    Anthropic(anthropic::State),
+    OpenAi(Box<openai::State>),
+    Anthropic(Box<anthropic::State>),
 }
 
 impl Wire {
-    fn new(dialect: Dialect, config: &crate::settings::configuration::Configuration) -> Wire {
+    /// `router`: the request goes to 9router, whose Anthropic door hands
+    /// tool names back changed ([`anthropic::ROUTER_TOOL_SUFFIX`]).
+    /// `counted`: it went through a door that asked Anthropic to count the
+    /// thinking ([`crate::settings::providers::THINKING_TOKEN_COUNT`]).
+    fn new(
+        dialect: Dialect,
+        config: &crate::settings::configuration::Configuration,
+        req: &Request,
+        router: bool,
+        counted: bool,
+    ) -> Wire {
         match dialect {
-            Dialect::OpenAi => Wire::OpenAi(openai::State {
+            Dialect::OpenAi => Wire::OpenAi(Box::new(openai::State {
                 calls: super::assembly::Assembly::bounded(config),
                 ..Default::default()
-            }),
+            })),
             Dialect::Anthropic => {
                 let mut state = anthropic::State::default();
                 state.calls = super::assembly::Assembly::bounded(config);
-                Wire::Anthropic(state)
+                state.renamed = router.then(|| req.tools.iter().map(|t| t.name.clone()).collect());
+                state.counted = counted;
+                Wire::Anthropic(Box::new(state))
             }
         }
     }
@@ -76,8 +90,8 @@ impl Wire {
 
     fn finish(self) -> Result<Vec<Chunk>> {
         match self {
-            Wire::OpenAi(state) => state.finish(),
-            Wire::Anthropic(state) => state.finish(),
+            Wire::OpenAi(state) => (*state).finish(),
+            Wire::Anthropic(state) => (*state).finish(),
         }
     }
 
@@ -104,7 +118,10 @@ impl Wire {
 /// the first version had exactly that bug, and printed an OpenAI body under an
 /// Anthropic URL.
 pub(crate) fn shape(req: &Request, cfg: &ProviderConfig) -> Result<(String, Value)> {
-    let (url, mut body) = match cfg.dialect {
+    // The wire is the model's: one connection may reach a model through a
+    // second door of its endpoint (`ProviderConfig::dialect_for`).
+    let dialect = cfg.dialect_for(&req.settings.model);
+    let (url, mut body) = match dialect {
         Dialect::OpenAi => (openai::endpoint(cfg), openai::body(req, cfg)),
         Dialect::Anthropic => (anthropic::endpoint(cfg), anthropic::body(req, cfg)),
     };
@@ -127,7 +144,7 @@ pub(crate) fn shape(req: &Request, cfg: &ProviderConfig) -> Result<(String, Valu
     // exposes an authoritative count endpoint it belongs before this boundary;
     // otherwise the request is sent and the provider's response/usage is truth.
     let _ = model;
-    if cfg.dialect == Dialect::Anthropic
+    if dialect == Dialect::Anthropic
         && body.pointer("/thinking/type").and_then(Value::as_str) == Some("enabled")
     {
         let max = body["max_tokens"].as_u64().unwrap_or(0);
@@ -244,7 +261,10 @@ impl Live {
                 ));
             }
         }
-        let headers = settings.headers_for(cfg)?;
+        let mut headers = settings.headers_for(cfg)?;
+        if let Some(door) = cfg.door_for(&req.settings.model) {
+            ask_betas(&mut headers, door.betas);
+        }
         let cfg = cfg.clone();
         drop(settings);
         // Media loading and serialization can be expensive. The request owns its
@@ -262,6 +282,31 @@ impl Live {
         }
         let (url, body) = shape(&resolved, &cfg)?;
         Ok(Prepared { url, headers, body })
+    }
+}
+
+/// `betas` added to a request's `anthropic-beta` header, beside any the
+/// connection's own headers already name (one header, comma-separated, as
+/// Anthropic reads it).
+fn ask_betas(headers: &mut Vec<(String, String)>, betas: &[&str]) {
+    if betas.is_empty() {
+        return;
+    }
+    match headers
+        .iter_mut()
+        .find(|(name, _)| name.eq_ignore_ascii_case("anthropic-beta"))
+    {
+        Some((_, value)) => {
+            for beta in betas {
+                if !value.split(',').any(|held| held.trim() == *beta) {
+                    if !value.trim().is_empty() {
+                        value.push(',');
+                    }
+                    value.push_str(beta);
+                }
+            }
+        }
+        None => headers.push(("anthropic-beta".to_string(), betas.join(","))),
     }
 }
 
@@ -292,18 +337,31 @@ impl Live {
         let http = Http::configured(&config, timeout, req.control.clone());
         let mut sse = http.post_sse(&call.url, &call.headers, &call.body, remaining)?;
         let config_now = config.snapshot();
-        let mut wire = Wire::new(dialect, &config_now);
+        let (api, counted) = panic::lock(&self.settings)
+            .providers
+            .get(&req.settings.provider)
+            .map_or((None, false), |p| {
+                let door = p.door_for(&req.settings.model);
+                (
+                    Some(p.api_kind().to_string()),
+                    door.is_some_and(|d| {
+                        d.betas
+                            .contains(&crate::settings::providers::THINKING_TOKEN_COUNT)
+                    }),
+                )
+            });
+        let mut wire = Wire::new(
+            dialect,
+            &config_now,
+            req,
+            api.as_deref() == Some("9router"),
+            counted,
+        );
 
         let mut completed = false;
         let mut meaningful = false;
         let mut received_bytes = 0u64;
-        let markerless_commit = matches!(
-            panic::lock(&self.settings)
-                .providers
-                .get(&req.settings.provider)
-                .map(|p| p.api_kind()),
-            Some("google" | "9router")
-        );
+        let markerless_commit = matches!(api.as_deref(), Some("google" | "9router"));
         let result = (|| -> Result<()> {
             loop {
                 if req.control.cancelled() {
@@ -365,6 +423,13 @@ impl Live {
                     if sink(chunk) == Flow::Stop {
                         return Err(Error::Cancelled);
                     }
+                }
+                // Anthropic's message_stop is the terminal event, not merely
+                // a finish reason: nothing after it belongs to this message.
+                // A gateway may leave the HTTP connection open indefinitely.
+                // OpenAI still needs its trailing usage and [DONE] frames.
+                if dialect == Dialect::Anthropic && value["type"] == "message_stop" {
+                    break;
                 }
             }
             Ok(())
@@ -505,7 +570,7 @@ impl Provider for Live {
         let (secret, dialect) = {
             let settings = panic::lock(&self.settings);
             match settings.providers.get(&req.settings.provider) {
-                Some(c) => (c.secret.clone(), c.dialect),
+                Some(c) => (c.secret.clone(), c.dialect_for(&req.settings.model)),
                 None => (None, Dialect::OpenAi),
             }
         };
@@ -684,8 +749,43 @@ mod tests {
         );
         assert!(bodies[1]["messages"][0]["content"]
             .to_string()
-            .contains("never more than 256"));
+            .contains("configured output allowance is 512 tokens"));
         let _ = std::fs::remove_dir_all(home);
+    }
+
+    /// Owner, 2026-10-23: one 9router connection, one key. A Claude Code
+    /// model goes out on the router's `/v1/messages` as a Messages body —
+    /// where its cache and thinking counts come back whole — and every other
+    /// model of the same connection on `/chat/completions`, as before.
+    #[test]
+    fn one_9router_connection_sends_each_model_through_its_own_door() {
+        let mut cfg = preset("9router").unwrap().build("");
+        let row = |id: &str, owner: &str| {
+            let mut m = crate::settings::providers::ModelInfo::named(id, false);
+            m.metadata = serde_json::json!({"owned_by": owner});
+            m
+        };
+        cfg.models = vec![
+            row("cc/claude-haiku-5-5", "cc"),
+            row("ag/gemini-3.8-flash", "ag"),
+        ];
+        let request = |model: &str| Request {
+            control: Default::default(),
+            system: "sys".into(),
+            messages: vec![Message::user("hi")],
+            tools: Vec::new(),
+            settings: ModelSettings {
+                model: model.into(),
+                ..ModelSettings::for_provider(&cfg)
+            },
+        };
+        let (url, body) = shape(&request("cc/claude-haiku-5-5"), &cfg).unwrap();
+        assert_eq!(url, "http://localhost:20128/v1/messages");
+        assert!(body.get("max_tokens").is_some() && body.get("system").is_some());
+        assert!(body.get("reasoning_effort").is_none(), "{body}");
+        let (url, body) = shape(&request("ag/gemini-3.8-flash"), &cfg).unwrap();
+        assert_eq!(url, "http://localhost:20128/v1/chat/completions");
+        assert_eq!(body["messages"][0]["role"], serde_json::json!("system"));
     }
 
     #[test]
@@ -914,6 +1014,115 @@ mod tests {
         }
     }
 
+    /// Owner, 2026-10-23, found in the live window: the billed thinking
+    /// count came after the round's usage, and a window drew it as a second
+    /// thinking after the answer. Through the whole wire — Claude Code's
+    /// model on 9router, the door's beta asked for, the frames Anthropic
+    /// streamed (measured on `cc/claude-haiku-5-5`) — every count comes as
+    /// it was reported, the billed one before the usage, and another model
+    /// of the same connection asks for nothing.
+    #[test]
+    fn the_door_asks_anthropic_to_count_and_its_billed_count_comes_before_the_usage() {
+        use std::io::{Read, Write};
+        let frames = [
+            r#"{"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":45,"output_tokens":1}}}"#,
+            r#"{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":50}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":250}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"","estimated_tokens":null}}"#,
+            r#"{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"CAQS"}}"#,
+            r#"{"type":"content_block_stop","index":0}"#,
+            r#"{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}"#,
+            r#"{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"28"}}"#,
+            r#"{"type":"content_block_stop","index":1}"#,
+            r#"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":45,"output_tokens":315,"output_tokens_details":{"thinking_tokens":312}}}"#,
+            r#"{"type":"message_stop"}"#,
+        ];
+        let payload: String = frames.iter().map(|f| format!("data: {f}\n\n")).collect();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut bytes = [0u8; 65536];
+            loop {
+                let read = stream.read(&mut bytes).unwrap();
+                assert!(read > 0, "request closed before body arrived");
+                request.extend_from_slice(&bytes[..read]);
+                if let Some(end) = request.windows(4).position(|v| v == b"\r\n\r\n") {
+                    let headers = String::from_utf8_lossy(&request[..end]).to_string();
+                    let length = headers
+                        .lines()
+                        .find_map(|line| {
+                            line.split_once(':')
+                                .filter(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+                                .and_then(|(_, v)| v.trim().parse::<usize>().ok())
+                        })
+                        .unwrap_or(0);
+                    if request.len() >= end + 4 + length {
+                        write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", payload.len(), payload).unwrap();
+                        stream.shutdown(std::net::Shutdown::Write).unwrap();
+                        while stream.read(&mut bytes).is_ok_and(|read| read > 0) {}
+                        return headers;
+                    }
+                }
+            }
+        });
+        let mut settings = Settings::empty();
+        let mut cfg = preset("9router").unwrap().build("");
+        cfg.base_url = format!("http://{address}/v1");
+        let mut model = ModelInfo::named("cc/claude-haiku-5-5", true);
+        model.metadata = serde_json::json!({"owned_by": "cc"});
+        let mut other = ModelInfo::named("ag/gemini-3.8-flash-high", true);
+        other.metadata = serde_json::json!({"owned_by": "ag"});
+        cfg.models = vec![model, other];
+        assert!(cfg.door_for("ag/gemini-3.8-flash-high").is_none());
+        let mut model_settings = ModelSettings::for_provider(&cfg);
+        model_settings.model = "cc/claude-haiku-5-5".into();
+        settings.providers.list.push(cfg);
+        let live = Live::new(Arc::new(Mutex::new(settings)));
+        let request = Request {
+            control: Default::default(),
+            system: "fixture".into(),
+            messages: vec![Message::user("primes")],
+            tools: Vec::new(),
+            settings: model_settings,
+        };
+        let mut seen = Vec::new();
+        live.stream(&request, &mut |chunk| {
+            match chunk {
+                Chunk::ThinkingTokens { tokens, billed } => {
+                    seen.push(format!("count {tokens} {billed}"))
+                }
+                Chunk::Usage { .. } => seen.push("usage".into()),
+                Chunk::Text(text) => seen.push(format!("text {text}")),
+                _ => {}
+            }
+            Flow::Continue
+        })
+        .unwrap();
+        let headers = worker.join().unwrap();
+        assert!(
+            headers.lines().any(|line| line
+                .to_ascii_lowercase()
+                .starts_with("anthropic-beta: thinking-token-count-2026-05-13")),
+            "{headers}"
+        );
+        assert_eq!(
+            seen,
+            [
+                "count 50 false",
+                "count 300 false",
+                "text 28",
+                "count 312 true",
+                "usage"
+            ]
+        );
+    }
+
     #[test]
     fn structural_sse_errors_retry_but_a_models_error_text_does_not() {
         use std::io::{Read, Write};
@@ -1137,6 +1346,79 @@ mod tests {
         worker.join().unwrap();
         assert!(result.is_ok(), "{result:?}");
         assert_eq!(seen, vec!["half an ans", "<reset>", "whole answer"]);
+    }
+
+    /// Terminal protocol markers end a message even when a gateway keeps the
+    /// HTTP body open. OpenAI's finish reason still allows a trailing usage row.
+    #[test]
+    fn terminal_markers_finish_without_waiting_for_the_socket_to_close() {
+        use std::io::{Read, Write};
+        for (anthropic, payload) in [
+            (true, concat!(
+                "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10,\"output_tokens\":0}}}\n\n",
+                "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+                "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}}\n\n",
+                "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+                "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\n",
+                "data: {\"type\":\"message_stop\"}\n\n")),
+            (false, concat!(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"OK\"},\"finish_reason\":\"stop\"}]}\n\n",
+                "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":1}}\n\n",
+                "data: [DONE]\n\n")),
+        ] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let (release, held) = std::sync::mpsc::channel::<()>();
+            listener.set_nonblocking(true).unwrap();
+            let worker = std::thread::spawn(move || {
+                let until = std::time::Instant::now() + Duration::from_secs(5);
+                let (mut stream, _) = loop {
+                    match listener.accept() {
+                        Ok(stream) => break stream,
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock && std::time::Instant::now() < until => std::thread::yield_now(),
+                        other => panic!("fixture did not receive a request: {other:?}"),
+                    }
+                };
+                stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                let mut request = Vec::new();
+                let mut bytes = [0u8; 4096];
+                loop {
+                    let n = stream.read(&mut bytes).unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&bytes[..n]);
+                    if let Some(end) = request.windows(4).position(|b| b == b"\r\n\r\n") {
+                        let length = String::from_utf8_lossy(&request[..end]).lines().find_map(|line| {
+                            line.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+                                .and_then(|(_, v)| v.trim().parse::<usize>().ok())
+                        }).unwrap();
+                        if request.len() >= end + 4 + length { break; }
+                    }
+                }
+                write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n{:x}\r\n{}\r\n",payload.len(),payload).unwrap();
+                stream.flush().unwrap();
+                let _ = held.recv_timeout(Duration::from_secs(5));
+            });
+            let mut settings = Settings::empty();
+            settings.config.store(crate::settings::configuration::Configuration::from_values(
+                serde_json::json!({"network":{"stream_idle_timeout":"300ms"},"retry":{"max_attempts":0}})
+            ).unwrap());
+            let mut cfg = preset(if anthropic { "anthropic" } else { "ollama" }).unwrap().build("");
+            cfg.base_url = format!("http://{address}");
+            cfg.secret = None;
+            cfg.models = vec![ModelInfo::named("fixture", false)];
+            let mut model = ModelSettings::for_provider(&cfg);
+            model.model = "fixture".into();
+            settings.providers.list.push(cfg);
+            let live = Live::new(Arc::new(Mutex::new(settings)));
+            let request = Request {control:Default::default(), system:"fixture".into(), messages:vec![Message::user("test")], tools:vec![], settings:model};
+            let mut chunks = Vec::new();
+            let result = live.stream(&request, &mut |chunk| {chunks.push(chunk); Flow::Continue});
+            let _ = release.send(());
+            worker.join().unwrap();
+            assert!(result.is_ok(), "terminal marker was ignored (anthropic={anthropic}): {result:?}");
+            assert_eq!(chunks.iter().filter(|c| matches!(c,Chunk::Usage {..})).count(), 1);
+            assert!(chunks.iter().any(|c| matches!(c,Chunk::Usage {input:10, output:1, details,..} if details.complete)));
+        }
     }
 
     #[test]

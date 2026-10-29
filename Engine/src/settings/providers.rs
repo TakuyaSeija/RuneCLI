@@ -190,6 +190,21 @@ impl ModelInfo {
         choices
     }
 
+    /// Session choices keep the person's subset; route restrictions apply
+    /// before a frontend offers them or a request validates a retained level.
+    pub fn effort_choices(&self, api: &str) -> Vec<String> {
+        let mut levels = self
+            .reasoning_options
+            .as_ref()
+            .unwrap_or(&self.efforts)
+            .clone();
+        if api == "9router" {
+            levels.retain(|level| self.router_level_allowed(level));
+        }
+        sort_efforts(&mut levels);
+        levels
+    }
+
     /// Whether this model's thinking is translated by 9router, which passes a
     /// request that asks for no level on untouched, so the route's own level
     /// holds (9router 0.5.99, read 2026-10-15), the one a route's name carries
@@ -213,8 +228,8 @@ impl ModelInfo {
     /// Whether a session on this model starts thinking when the person has
     /// chosen nothing for it in a session: what the person set for the model
     /// (Settings › Models › Alt+C › Reasoning) first, then what the catalogue
-    /// says. Every 9router model starts Off (owner, 2026-10-15): Off is
-    /// `none`, no level shown beside a name that may carry one. One reading
+    /// says. Every 9router model starts Off (owner, 2026-10-15): no chosen
+    /// level is shown; the Off request is Low or disabled by capability. One reading
     /// for a new session and a model switch alike.
     pub fn starts_thinking(&self, api: &str) -> bool {
         if self.reasoning_support() == Some(false) {
@@ -243,7 +258,10 @@ impl ModelInfo {
     pub fn starting_effort(&self, api: &str) -> Option<String> {
         self.default_effort
             .clone()
-            .filter(|level| self.efforts.is_empty() || self.efforts.contains(level))
+            .filter(|level| {
+                (api != "9router" || self.router_level_allowed(level))
+                    && (self.efforts.is_empty() || self.efforts.contains(level))
+            })
             .or_else(|| {
                 (!self.route_default_level(api))
                     .then(|| self.efforts.first().cloned())
@@ -263,11 +281,10 @@ impl ModelInfo {
     /// was sent to every route, so `ag/gemini-3.8-flash-high` was asked for
     /// `medium` and shown as "…-high medium" (owner, 2026-10-15).
     ///
-    /// Thinking is mandatory only where the person made it so: the router
-    /// reads `none` for every model, and on one that cannot stop thinking
-    /// (`capabilities.thinkingCanDisable: false`) asks for its least instead
-    /// ([`Self::thinking_off_asks_least`]), so Off is always a request it
-    /// honours (owner, 2026-10-15).
+    /// Thinking is mandatory only where the person made it so. Off stays a
+    /// choice, but its wire request follows the explicit cannot-disable fact
+    /// ([`Self::thinking_off_requests_low`]); a router/provider may change the
+    /// request, so no capability flag promises zero upstream thinking.
     pub fn settle_router_thinking(&mut self) {
         let manual = |field: &str| self.manual_fields.iter().any(|f| f == field);
         let (efforts, default_effort, required) = (
@@ -296,6 +313,14 @@ impl ModelInfo {
             };
             sort_efforts(&mut self.efforts);
         }
+        // Keep stored overrides as choices, but never offer their disallowed
+        // level on this route. Every reader uses this effective model view.
+        self.efforts = self
+            .efforts
+            .iter()
+            .filter(|level| self.router_level_allowed(level))
+            .cloned()
+            .collect();
         if !default_effort {
             self.default_effort = None;
         }
@@ -385,22 +410,28 @@ impl ModelInfo {
         ROUTER_LEVELS
             .into_iter()
             .filter(|level| {
-                ranged
-                    || !ROUTER_REFUSED
-                        .iter()
-                        .any(|(refusing, refused)| format == Some(*refusing) && level == refused)
+                self.router_level_allowed(level)
+                    && (ranged
+                        || !ROUTER_REFUSED.iter().any(|(refusing, refused)| {
+                            format == Some(*refusing) && level == refused
+                        }))
             })
             .map(String::from)
             .collect()
     }
 
-    /// Whether Off on this route asks for its least thinking rather than
-    /// none, as the router publishes it (`capabilities.thinkingCanDisable:
-    /// false`; 9router 0.5.99 turns `none` into `minimal` there, read
-    /// 2026-10-15, and `ag/gemini-3.8-flash-low` with Off still thought and
-    /// returned its thinking, live the same day). The request is still `none`;
-    /// the screen says what it does.
-    pub fn thinking_off_asks_least(&self) -> bool {
+    /// The person's capability-based restriction (owner, 2026-10-25): a
+    /// route that cannot disable thinking offers no Minimal. This says
+    /// nothing about that level on other routes or on another adapter.
+    pub fn router_level_allowed(&self, level: &str) -> bool {
+        !(self.thinking_off_requests_low() && level.eq_ignore_ascii_case("minimal"))
+    }
+
+    /// Off is a request, not a promise about the upstream. Explicit false
+    /// asks for Low rather than `none`, which 9router may turn into an invalid
+    /// Minimal (measured 2026-10-23). True and unknown still request disabled;
+    /// 9router's executor may change that too (audited 2026-10-25).
+    pub fn thinking_off_requests_low(&self) -> bool {
         self.metadata
             .pointer("/capabilities/thinkingCanDisable")
             .and_then(Value::as_bool)
@@ -498,6 +529,20 @@ pub fn effort_rank(s: &str) -> i32 {
 /// router's to decide. `ultra` is not among them: the router reads it only as
 /// a `model(ultra)` suffix and passes it on raw where a level is copied.
 pub const ROUTER_LEVELS: [&str; 6] = ["minimal", "low", "medium", "high", "xhigh", "max"];
+
+/// The thinking budget the router asks a budget-format Claude route for at
+/// each level (`claude-budget`, 9router 0.5.104 source, read 2026-10-23):
+/// what Rune asks for itself on 9router's Anthropic door.
+pub fn router_budget(level: &str) -> u64 {
+    match level {
+        "minimal" => 512,
+        "low" => 1_024,
+        "medium" => 8_192,
+        "high" => 24_576,
+        "xhigh" => 32_768,
+        _ => 128_000,
+    }
+}
 
 /// Levels the router turns into a request its upstream refuses, by the
 /// router's thinking format, on a route that publishes no `thinkingRange` the
@@ -792,6 +837,33 @@ impl ProviderConfig {
         self.api.as_deref().unwrap_or("compatible")
     }
 
+    /// The wire a request for `model` goes out on: the connection's own,
+    /// except where its adapter's endpoint has a second door for that model's
+    /// upstream ([`ANTHROPIC_DOORS`]). The router's catalogue says whose a
+    /// model is; an id nobody published an owner for goes out on the
+    /// connection's own wire. The one answer every reader asks: the request's
+    /// shape, its parameters and its media.
+    pub fn dialect_for(&self, model: &str) -> Dialect {
+        match self.door_for(model) {
+            Some(_) => Dialect::Anthropic,
+            None => self.dialect,
+        }
+    }
+
+    /// The second door a request for `model` goes through, where it does
+    /// ([`ANTHROPIC_DOORS`]): what [`Self::dialect_for`] answers from, and
+    /// what the request asks there beyond the Messages API itself.
+    pub fn door_for(&self, model: &str) -> Option<&'static AnthropicDoor> {
+        if self.dialect != Dialect::OpenAi {
+            return None;
+        }
+        let owner = self
+            .model(model)
+            .and_then(|m| m.metadata.get("owned_by"))
+            .and_then(Value::as_str)?;
+        door(self.api_kind(), owner)
+    }
+
     /// Settle what this provider's adapter decides about its models' thinking
     /// ([`ModelInfo::settle_router_thinking`] for 9router,
     /// [`ModelInfo::settle_adapter_levels`] for an adapter level table),
@@ -1002,6 +1074,54 @@ pub struct Preset {
     /// field. Empty for a preset whose address is the same for everyone.
     pub url_hint: &'static str,
     build: fn(&str) -> ProviderConfig,
+}
+
+/// Adapters whose endpoint also answers the Anthropic Messages API, at the
+/// same address and with the same key, and the upstream whose models are sent
+/// there, by the owner the router's own catalogue names for them (`owned_by`).
+///
+/// 9router's `/v1/messages` passes Claude's events through whole — the cache
+/// read and write and the thinking tokens its OpenAI-shaped answer drops for
+/// Claude Code's models, and adds 2000 tokens to (9router 0.5.104, measured
+/// 2026-10-23). Every other route measured on both doors the same day was
+/// counted as well or better on the OpenAI door, and some came back broken on
+/// this one (events sent again after `message_stop`). So the door is chosen
+/// per model, on the one connection: one account, one key, nothing for the
+/// person to choose (owner, 2026-10-23; [`ProviderConfig::dialect_for`]).
+///
+/// The door also asks Anthropic to count the thinking as it runs
+/// ([`THINKING_TOKEN_COUNT`]): Claude Code's models return no thinking text,
+/// so what is shown of it is Anthropic's own count, never Rune's.
+const ANTHROPIC_DOORS: &[AnthropicDoor] = &[AnthropicDoor {
+    api: "9router",
+    owned_by: "cc",
+    betas: &[THINKING_TOKEN_COUNT],
+}];
+
+/// Anthropic's beta that reports a thinking's tokens while it runs: each
+/// `thinking_delta` then carries `estimated_tokens`, the tokens thought since
+/// the frame before (measured through 9router 0.5.104 on
+/// `cc/claude-haiku-5-5`, 2026-10-23: 50, 200, 250, 250, 300, 300, 300, 300
+/// a second apart, the last frame `null`, then `thinking_tokens` 2,120 in the
+/// usage). Without it the stream says nothing until the usage.
+pub const THINKING_TOKEN_COUNT: &str = "thinking-token-count-2026-05-13";
+
+/// One adapter's second door: whose models go through it, and the
+/// `anthropic-beta` features a request through it asks for.
+#[derive(Debug, PartialEq, Eq)]
+pub struct AnthropicDoor {
+    api: &'static str,
+    owned_by: &'static str,
+    pub betas: &'static [&'static str],
+}
+
+/// The door of adapter `api` for models `owned_by` that upstream, if it has
+/// one: read the same way by a request and by an upgrade reading what one
+/// stored.
+pub fn door(api: &str, owned_by: &str) -> Option<&'static AnthropicDoor> {
+    ANTHROPIC_DOORS
+        .iter()
+        .find(|door| door.api == api && door.owned_by == owned_by)
 }
 
 impl Preset {
@@ -2135,6 +2255,50 @@ impl Providers {
 mod tests {
     use super::*;
 
+    /// Owner, 2026-10-23: one 9router connection, one key. Claude Code's
+    /// models (the router's catalogue says `owned_by: cc`) go out on its
+    /// Anthropic door, where their cache and thinking counts arrive whole;
+    /// every other model, and an id nobody published an owner for, on the
+    /// connection's own wire. Another adapter, or a connection that already
+    /// speaks Anthropic, is never moved.
+    #[test]
+    fn claude_codes_models_on_9router_go_out_on_its_anthropic_door() {
+        let row = |id: &str, owner: &str| {
+            let mut m = ModelInfo::named(id, true);
+            m.metadata = serde_json::json!({"owned_by": owner});
+            m
+        };
+        let catalogue = vec![
+            row("cc/claude-sonnet-5-5", "cc"),
+            row("ag/claude-sonnet-5-5", "ag"),
+            row("cx/gpt-6-luna", "cx"),
+            ModelInfo::named("typed-by-hand", false),
+        ];
+        let mut router = preset("9router").unwrap().build("");
+        router.models = catalogue.clone();
+        let doors: Vec<_> = catalogue
+            .iter()
+            .map(|m| router.dialect_for(&m.id))
+            .collect();
+        assert_eq!(
+            doors,
+            [
+                Dialect::Anthropic,
+                Dialect::OpenAi,
+                Dialect::OpenAi,
+                Dialect::OpenAi
+            ]
+        );
+        assert_eq!(router.dialect_for("not-listed"), Dialect::OpenAi);
+        let mut gateway = preset("openrouter").unwrap().build("");
+        gateway.models = catalogue.clone();
+        assert_eq!(gateway.dialect_for("cc/claude-sonnet-5-5"), Dialect::OpenAi);
+        let mut speaking = preset("9router").unwrap().build("");
+        speaking.dialect = Dialect::Anthropic;
+        speaking.models = catalogue;
+        assert_eq!(speaking.dialect_for("cx/gpt-6-luna"), Dialect::Anthropic);
+    }
+
     /// The providers of `dir`'s `rune.toml`, with the catalogue in the
     /// database beside it — the layout of an install.
     fn load(dir: &Path) -> Result<Providers> {
@@ -3005,6 +3169,42 @@ mod tests {
     }
 
     #[test]
+    fn router_minimal_is_not_offered_only_when_the_route_cannot_disable_thinking() {
+        for can_disable in [Some(false), Some(true), None] {
+            let mut model = ModelInfo::named("arbitrary-route", true);
+            model.metadata = serde_json::json!({"capabilities":{
+                "reasoning":true, "thinkingFormat":"openai", "thinkingCanDisable":can_disable
+            }});
+            model.efforts = vec!["minimal".into(), "high".into()];
+            model.manual_fields = vec!["efforts".into()];
+            model.reasoning_options = Some(vec!["off".into(), "minimal".into(), "high".into()]);
+            model.settle_router_thinking();
+            let offered = model.reasoning_choices("9router");
+            assert_eq!(
+                offered.iter().any(|e| e == "minimal"),
+                can_disable != Some(false)
+            );
+            assert_eq!(
+                model.efforts.iter().any(|e| e == "minimal"),
+                can_disable != Some(false)
+            );
+            assert!(offered.iter().any(|e| e == "off"));
+            assert_eq!(
+                model.reasoning_options.as_ref().unwrap()[1],
+                "minimal",
+                "stored choices are not rewritten"
+            );
+            let mut other = ModelInfo::named("same-capability-elsewhere", true);
+            other.metadata = model.metadata.clone();
+            other.efforts = vec!["minimal".into(), "high".into()];
+            assert!(other
+                .reasoning_choices("openrouter")
+                .iter()
+                .any(|e| e == "minimal"));
+        }
+    }
+
+    #[test]
     fn reasoning_selection_is_separate_from_api_capability_and_effort_list() {
         let mut model = ModelInfo::named("fixture", true);
         model.reasoning_enabled = Some(false);
@@ -3063,7 +3263,11 @@ mod tests {
         let dir = home("router-thinking-doors");
         let mut providers = load(&dir).unwrap();
         providers.add(preset("9router").unwrap().build("")).unwrap();
-        let levels = ROUTER_LEVELS.map(String::from).to_vec();
+        let levels: Vec<_> = ROUTER_LEVELS
+            .into_iter()
+            .filter(|level| *level != "minimal")
+            .map(String::from)
+            .collect();
         let row = |id: &str| ModelInfo {
             id: id.into(),
             thinking: true,
@@ -3098,7 +3302,7 @@ mod tests {
             loaded.default_effort, None,
             "no level the person did not set"
         );
-        assert!(loaded.thinking_off_asks_least());
+        assert!(loaded.thinking_off_requests_low());
 
         // A fetch: the row carries no levels; the router's are its levels.
         let mut providers = providers;
@@ -3228,8 +3432,13 @@ mod tests {
             .is_none());
         assert!(providers.remember_model("9router", "ag/route").unwrap());
 
+        let levels: Vec<_> = ROUTER_LEVELS
+            .into_iter()
+            .filter(|level| *level != "minimal")
+            .map(String::from)
+            .collect();
         let mut offered = vec!["off".to_string()];
-        offered.extend(ROUTER_LEVELS.map(String::from));
+        offered.extend(levels.clone());
         for providers in [&providers, &load(&dir).unwrap()] {
             let back = providers.get("9router").unwrap().model("ag/route").unwrap();
             assert_eq!(
@@ -3237,8 +3446,8 @@ mod tests {
                 offered,
                 "the catalogue's model"
             );
-            assert_eq!(back.efforts, ROUTER_LEVELS);
-            assert!(back.thinking_off_asks_least());
+            assert_eq!(back.efforts, levels);
+            assert!(back.thinking_off_requests_low());
             assert_eq!(
                 back.reasoning_options, None,
                 "what the person set is forgotten"

@@ -71,9 +71,22 @@ struct Span {
 /// Render markdown to styled, wrapped terminal lines.
 ///
 /// `width` is the number of columns the caller has; every returned line fits.
+#[cfg(test)]
 pub fn render(text: &str, width: usize) -> Vec<String> {
+    render_content(text, width).lines
+}
+
+pub(super) fn render_content(text: &str, width: usize) -> super::draw::Sink {
+    render_with(text, width, TEXT)
+}
+
+pub(super) fn render_response(text: &str, width: usize) -> super::draw::Sink {
+    render_with(text, width, ansi::RESPONSE)
+}
+
+fn render_with(text: &str, width: usize, prose: ansi::Ink) -> super::draw::Sink {
     let width = width.max(8);
-    let mut out: Vec<String> = Vec::new();
+    let mut out = super::draw::Sink::default();
     let mut lines = text.split('\n').peekable();
     let mut table: Vec<String> = Vec::new();
 
@@ -84,7 +97,7 @@ pub fn render(text: &str, width: usize) -> Vec<String> {
             if lines.peek().is_some_and(|n| is_table_row(n)) {
                 continue;
             }
-            out.extend(self::table(&std::mem::take(&mut table), width));
+            out.append(&self::table(&std::mem::take(&mut table), width, prose));
             continue;
         }
 
@@ -96,7 +109,7 @@ pub fn render(text: &str, width: usize) -> Vec<String> {
                 }
                 body.push(line.to_string());
             }
-            out.extend(code_block(&fence, &body, width));
+            out.append(&code_content(&fence, &body, width));
             continue;
         }
 
@@ -114,16 +127,41 @@ pub fn render(text: &str, width: usize) -> Vec<String> {
             continue;
         }
 
-        out.extend(block(raw, width));
+        let rendered = block(raw, width, prose);
+        let trimmed = raw.trim_start();
+        if is_rule(trimmed) {
+            for line in rendered {
+                out.chrome(line, super::draw::Hit::None);
+            }
+        } else if let Some((depth, _)) = quoted(trimmed) {
+            for line in rendered {
+                let end = ansi::width(&line).max(depth * 2 + 1);
+                out.push_ranges(
+                    line,
+                    super::draw::Hit::None,
+                    vec![super::selection::Span::new(depth * 2..end)],
+                );
+            }
+        } else {
+            let heading_rule = heading(trimmed).is_some_and(|(level, _)| level == 1);
+            let last = rendered.len().saturating_sub(1);
+            for (index, line) in rendered.into_iter().enumerate() {
+                if heading_rule && index == last {
+                    out.chrome(line, super::draw::Hit::None);
+                } else {
+                    out.push(line);
+                }
+            }
+        }
     }
     if !table.is_empty() {
-        out.extend(self::table(&table, width));
+        out.append(&self::table(&table, width, prose));
     }
     out
 }
 
 /// One line that is not part of a multi-line construct.
-fn block(raw: &str, width: usize) -> Vec<String> {
+fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
     let trimmed = raw.trim_start();
     let indent = raw.len() - trimmed.len();
 
@@ -151,13 +189,17 @@ fn block(raw: &str, width: usize) -> Vec<String> {
                 href: None,
             },
             2 => Style {
-                colour: TEXT,
+                colour: prose,
                 bold: true,
                 italic: false,
                 href: None,
             },
             _ => Style {
-                colour: MUTED,
+                colour: if prose == ansi::RESPONSE {
+                    prose
+                } else {
+                    MUTED
+                },
                 bold: true,
                 italic: false,
                 href: None,
@@ -180,7 +222,14 @@ fn block(raw: &str, width: usize) -> Vec<String> {
         // and rendering both at one level makes the two speakers one.
         let bar = format!("{QUOTE}│{} ", ansi::RESET).repeat(depth);
         return lay_out(
-            &inline(text, Style::plain(MUTED)),
+            &inline(
+                text,
+                Style::plain(if prose == ansi::RESPONSE {
+                    prose
+                } else {
+                    MUTED
+                }),
+            ),
             width.saturating_sub(2 * depth),
             &bar,
             &bar,
@@ -192,11 +241,11 @@ fn block(raw: &str, width: usize) -> Vec<String> {
         let first = format!("{pad}{ACCENT}{marker}{} ", ansi::RESET);
         let cont = " ".repeat(indent + marker.chars().count() + 1);
         let room = width.saturating_sub(indent + marker.chars().count() + 1);
-        return lay_out(&inline(text, Style::plain(TEXT)), room, &first, &cont);
+        return lay_out(&inline(text, Style::plain(prose)), room, &first, &cont);
     }
 
     lay_out(
-        &inline(trimmed, Style::plain(TEXT)),
+        &inline(trimmed, Style::plain(prose)),
         width.saturating_sub(indent),
         &pad,
         &pad,
@@ -284,7 +333,7 @@ fn fence_of(line: &str) -> Option<String> {
 /// fenced block and a table are the same idea, a rectangle of content that is
 /// not prose, and a screen with two kinds of rectangle on it has one kind too
 /// many. The language goes in the top edge where a table's heading would be.
-pub fn code_block(language: &str, body: &[String], width: usize) -> Vec<String> {
+fn code_content(language: &str, body: &[String], width: usize) -> super::draw::Sink {
     let label = if language.is_empty() {
         "code"
     } else {
@@ -301,11 +350,15 @@ pub fn code_block(language: &str, body: &[String], width: usize) -> Vec<String> 
     let span = inner + 2;
 
     let rest = span.saturating_sub(ansi::width(label) + 4);
-    let mut out = vec![format!(
-        "  {RULE}╭─ {MUTED}{label}{RULE} {}{}",
-        "─".repeat(rest),
-        ansi::RESET
-    )];
+    let mut out = super::draw::Sink::default();
+    out.chrome(
+        format!(
+            "  {RULE}╭─ {MUTED}{label}{RULE} {}{}",
+            "─".repeat(rest),
+            ansi::RESET
+        ),
+        super::draw::Hit::None,
+    );
     let diff = language.eq_ignore_ascii_case("diff") || language.eq_ignore_ascii_case("patch");
     for line in body {
         let tamed = ansi::tame(line);
@@ -323,14 +376,18 @@ pub fn code_block(language: &str, body: &[String], width: usize) -> Vec<String> 
                 None => format!("{}{sub}{}", diff_ink(line), ansi::RESET),
             };
             offset += sub.len();
-            out.push(format!("  {RULE}│{}  {body}{}", ansi::RESET, ansi::RESET));
+            out.content(
+                &format!("  {RULE}│{}  ", ansi::RESET),
+                &body,
+                ansi::RESET,
+                super::draw::Hit::None,
+            );
         }
     }
-    out.push(format!(
-        "  {RULE}╰─{}{}",
-        "─".repeat(rest.max(4)),
-        ansi::RESET
-    ));
+    out.chrome(
+        format!("  {RULE}╰─{}{}", "─".repeat(rest.max(4)), ansi::RESET),
+        super::draw::Hit::None,
+    );
     out
 }
 
@@ -370,7 +427,7 @@ fn is_table_row(line: &str) -> bool {
 /// a grid, and a grid needs a closed frame, a header that looks like a header,
 /// and borders in an ink chosen to be visible ([`ansi::RULE`], which the theme
 /// solves for a real contrast ratio) rather than the faintest one available.
-fn table(rows: &[String], width: usize) -> Vec<String> {
+fn table(rows: &[String], width: usize, prose: ansi::Ink) -> super::draw::Sink {
     let cells: Vec<Vec<String>> = rows
         .iter()
         .map(|r| {
@@ -388,7 +445,7 @@ fn table(rows: &[String], width: usize) -> Vec<String> {
     };
     let body: Vec<&Vec<String>> = cells.iter().filter(|r| !is_divider(r)).collect();
     if body.is_empty() {
-        return Vec::new();
+        return super::draw::Sink::default();
     }
 
     let columns = body.iter().map(|r| r.len()).max().unwrap_or(0);
@@ -419,7 +476,8 @@ fn table(rows: &[String], width: usize) -> Vec<String> {
         format!("  {RULE}{left}{}{right}{}", spans.join(join), ansi::RESET)
     };
 
-    let mut out: Vec<String> = vec![edge("┌", "┬", "┐")];
+    let mut out = super::draw::Sink::default();
+    out.chrome(edge("┌", "┬", "┐"), super::draw::Hit::None);
     for (n, row) in body.iter().enumerate() {
         let rendered: Vec<Vec<String>> = widths
             .iter()
@@ -434,7 +492,7 @@ fn table(rows: &[String], width: usize) -> Vec<String> {
                         href: None,
                     }
                 } else {
-                    Style::plain(TEXT)
+                    Style::plain(prose)
                 };
                 lay_out(&inline(&cell, style), *w, "", "")
             })
@@ -442,25 +500,31 @@ fn table(rows: &[String], width: usize) -> Vec<String> {
         let height = rendered.iter().map(Vec::len).max().unwrap_or(1);
         for line_at in 0..height {
             let mut line = format!("  {RULE}│{}", ansi::RESET);
+            let mut spans = Vec::new();
             for (i, w) in widths.iter().enumerate() {
                 let drawn = rendered[i].get(line_at).cloned().unwrap_or_default();
+                let first = ansi::width(&line) + 1;
+                spans.push(super::selection::Span::new(first..first + *w));
                 line.push_str(&format!(
                     " {} {RULE}│{}",
                     ansi::pad(&drawn, *w),
                     ansi::RESET
                 ));
             }
-            out.push(line);
+            out.push_ranges(ansi::truncate(&line, width), super::draw::Hit::None, spans);
         }
         if n == 0 {
-            out.push(edge("├", "┼", "┤"));
+            out.chrome(edge("├", "┼", "┤"), super::draw::Hit::None);
         }
     }
-    out.push(edge("└", "┴", "┘"));
+    out.chrome(edge("└", "┴", "┘"), super::draw::Hit::None);
     // The squeeze is best-effort when a terminal is narrower than three columns
     // per cell plus its borders. Ordinary tables wrap their cells and keep every
     // word; only an impossible grid is cut as a final frame-safety measure.
-    out.into_iter().map(|l| ansi::truncate(&l, width)).collect()
+    for line in &mut out.lines {
+        *line = ansi::truncate(line, width);
+    }
+    out
 }
 
 // ─── Inline ───────────────────────────────────────────────────────────────────
@@ -832,6 +896,46 @@ fn join(spans: &[Span]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn response_prose_is_bright_but_thinking_and_syntax_keep_their_own_ink() {
+        let input = "ordinary **bold** words\n### small heading\n> quoted prose\n- list words\n| name | result |\n|---|---|\n| one | two |\n```rust\nfn main() {}\n```";
+        let response = render_response(input, 70);
+        let ordinary = render_content(input, 70);
+        assert_eq!(text_of(&response.lines), text_of(&ordinary.lines));
+        for word in [
+            "ordinary",
+            "small heading",
+            "quoted prose",
+            "list words",
+            "one",
+        ] {
+            assert!(
+                response
+                    .lines
+                    .iter()
+                    .find(|line| ansi::plain(line).contains(word))
+                    .unwrap()
+                    .contains(&ansi::RESPONSE.to_string()),
+                "{word}"
+            );
+        }
+        assert!(!ordinary
+            .lines
+            .iter()
+            .any(|line| line.contains(&ansi::RESPONSE.to_string())));
+        let response_code = response
+            .lines
+            .iter()
+            .find(|line| ansi::plain(line).contains("fn main"))
+            .unwrap();
+        let ordinary_code = ordinary
+            .lines
+            .iter()
+            .find(|line| ansi::plain(line).contains("fn main"))
+            .unwrap();
+        assert_eq!(response_code, ordinary_code);
+    }
 
     fn text_of(lines: &[String]) -> String {
         lines

@@ -28,7 +28,7 @@ impl Tool for TrackTasks {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "track_tasks".into(),
-            description: "Keep the plan for work with several steps. Send the whole list each time: it replaces the previous one. Exactly one task is doing; mark each task done as soon as it is. Skip it for work done in one step. Limits: plan limit in <status>."
+            description: "Keep a plan for work with several steps, not one-step work. Exactly one task is doing; mark each completed task done promptly. Limits: plan limit in <status>."
                 .into(),
             parameters: json!({
                 "type": "object",
@@ -36,7 +36,7 @@ impl Tool for TrackTasks {
                     "action": action_field(),
                     "tasks": {
                         "type": "array",
-                        "description": "The whole plan, in order. An empty list clears it.",
+                        "description": "The whole plan in order, replacing the previous list. An empty list clears it.",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -48,7 +48,7 @@ impl Tool for TrackTasks {
                                 "status": {
                                     "type": "string",
                                     "enum": ["todo", "doing", "done"],
-                                    "description": "Default todo. Only one task may be doing."
+                                    "description": "Default todo."
                                 }
                             },
                             "required": ["text"]

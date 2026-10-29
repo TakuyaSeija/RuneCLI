@@ -12,7 +12,6 @@
 //! its log continues where it stopped.
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -118,9 +117,9 @@ pub struct BackgroundTaskInfo {
     pub capture_note: Option<String>,
     /// What the process's screen shows now, as text: the rows that have not
     /// scrolled off yet, which it may still redraw (a progress bar, a status
-    /// block). Its log holds only the rows that left the screen
-    /// ([`Screen::drain`]); this is shown after them, and goes into the log
-    /// when the process ends.
+    /// block). The log already includes these rows after the final prefix;
+    /// this copy restores the terminal across handover, not a second report
+    /// body. A journal-only recovery needs only the saved file.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub tail: String,
     /// The same screen, exactly, for the build that takes the task over across
@@ -130,6 +129,12 @@ pub struct BackgroundTaskInfo {
     /// What `manage_process` last reported of it; `None` until the first report.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reported: Option<Reported>,
+    /// The final prefix and published end of the log. Its live suffix is the
+    /// screen, already on disk, not appended to a report a second time.
+    /// An older build hands over no position: its existing log is all final
+    /// scrollback, and the successor publishes its handed screen once.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub log_position: Option<super::background_log::Position>,
     /// It is running and blocked reading its terminal, as the platform saw
     /// it (`Pty::input_wait`); `None` while it runs on, or nobody can tell.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -353,6 +358,13 @@ struct Waits {
 }
 
 /// How a monitor thread ended.
+#[derive(Clone, Copy)]
+enum Publication {
+    Live,
+    Waiting,
+    Final,
+}
+
 enum Ending {
     /// The task ended and was reported.
     Finished,
@@ -366,6 +378,9 @@ enum Ending {
 }
 
 pub struct BackgroundTaskManager {
+    /// Shared only by file publication and process reports. Never held during
+    /// PTY reads, input waits, task shutdown or a notification.
+    output: Mutex<()>,
     tasks: Mutex<HashMap<String, BackgroundTaskInfo>>,
     notifier: Mutex<Option<Arc<dyn SessionWakeNotifier>>>,
     stopped: Arc<AtomicBool>,
@@ -385,6 +400,7 @@ impl Default for BackgroundTaskManager {
 impl BackgroundTaskManager {
     pub fn new() -> Self {
         BackgroundTaskManager {
+            output: Mutex::new(()),
             tasks: Mutex::new(HashMap::new()),
             notifier: Mutex::new(None),
             stopped: Arc::new(AtomicBool::new(false)),
@@ -460,8 +476,7 @@ impl BackgroundTaskManager {
             String::new()
         };
         let text = format!(
-            "<system_notification>Background task {task_id} is waiting for input.{hidden} \
-             Call manage_process with process_id: {task_id} for what it asks, then answer it with terminal_send_input.</system_notification>"
+            "<system_notification>Background task {task_id} is waiting for input.{hidden}</system_notification>"
         );
         // Sent under the lock that takes it back, so a wait that ends while
         // its wake is on its way never leaves that wake queued behind it.
@@ -621,6 +636,7 @@ impl BackgroundTaskManager {
                         tail: String::new(),
                         screen: None,
                         reported: None,
+                        log_position: None,
                         waiting: None,
                         tree,
                     };
@@ -666,13 +682,11 @@ impl BackgroundTaskManager {
             }
             let text = match &status {
                 BackgroundTaskStatus::Lost { reason, .. } => format!(
-                    "<system_notification>Background task {id} was lost: {}. \
-                     Call manage_process with process_id: {id} for the output it left.</system_notification>",
+                    "<system_notification>Background task {id} was lost: {}.</system_notification>",
                     reason.text()
                 ),
                 status => format!(
-                    "<system_notification>Background task {id} ended while this session was not open: {}. \
-                     Call manage_process with process_id: {id} for its result.</system_notification>",
+                    "<system_notification>Background task {id} ended while this session was not open: {}.</system_notification>",
                     outcome_of(status)
                 ),
             };
@@ -942,8 +956,7 @@ impl BackgroundTaskManager {
         };
 
         let notification = format!(
-            "<system_notification>Background task {task_id} finished: {outcome}. \
-             Call manage_process with process_id: {task_id} for its result.</system_notification>"
+            "<system_notification>Background task {task_id} finished: {outcome}.</system_notification>"
         );
 
         // A `manage_process` that has already printed the whole report leaves
@@ -1020,14 +1033,14 @@ impl BackgroundTaskManager {
         pid: i32,
         mut file: std::fs::File,
         pty: Arc<crate::platform::Pty>,
-        mut written: usize,
+        written: usize,
         watch: &Watch,
         release: &AtomicBool,
         rearm: &AtomicBool,
     ) -> Ending {
         let mut buf = [0u8; 8192];
         let mut exited: Option<(Instant, i32)> = None;
-        let mut capture_note = None;
+        let mut capture_note = self.get(&task_id).and_then(|task| task.capture_note);
         // Whether it waits for typed input is asked once per quiet spell, as
         // the foreground asks it; a task already known to wait (it moved
         // because it did) is not asked again until it prints or is typed into.
@@ -1056,11 +1069,38 @@ impl BackgroundTaskManager {
             None => Screen::log(rows, cols),
         };
         let mut carry: Vec<u8> = Vec::new();
-        loop {
+        let mut position = self
+            .get(&task_id)
+            .and_then(|task| task.log_position)
+            .unwrap_or(super::background_log::Position {
+                stable: written as u64,
+                end: written as u64,
+            });
+        if capture_note.is_none() {
+            if let Err(note) = self.publish_output(
+                &task_id,
+                &mut file,
+                &mut position,
+                &mut screen,
+                watch,
+                if input_asked {
+                    Publication::Waiting
+                } else {
+                    Publication::Live
+                },
+            ) {
+                capture_note = Some(note);
+            }
+        }
+        while capture_note.is_none() {
             // Let go only of a task that still runs: one that has exited is
             // drained and reported here, by the monitor that saw it end.
             if exited.is_none() && release.load(Ordering::Acquire) {
-                return Ending::Released { pty, file, written };
+                return Ending::Released {
+                    pty,
+                    file,
+                    written: position.end as usize,
+                };
             }
             match pty.read_timeout(&mut buf, 200) {
                 Ok(Some(0)) => break,
@@ -1070,14 +1110,21 @@ impl BackgroundTaskManager {
                     if std::mem::take(&mut waits) {
                         self.clear_waiting(&task_id, false);
                     }
+                    if let Ok((rows, cols)) = pty.size() {
+                        screen.resize(rows, cols);
+                    }
                     screen.feed(&crate::terminal_screen::decode_utf8(&mut carry, &buf[..n]));
-                    if let Err(note) =
-                        append_capped(&mut file, &screen.drain(), &mut written, watch)
-                    {
+                    if let Err(note) = self.publish_output(
+                        &task_id,
+                        &mut file,
+                        &mut position,
+                        &mut screen,
+                        watch,
+                        Publication::Live,
+                    ) {
                         capture_note = Some(note);
                         break;
                     }
-                    self.set_screen(&task_id, screen.shown());
                 }
                 Ok(None) => {
                     if exited.is_none() {
@@ -1108,6 +1155,17 @@ impl BackgroundTaskManager {
                         input_asked = true;
                         match pty.input_wait() {
                             Some(wait) => {
+                                if let Err(note) = self.publish_output(
+                                    &task_id,
+                                    &mut file,
+                                    &mut position,
+                                    &mut screen,
+                                    watch,
+                                    Publication::Waiting,
+                                ) {
+                                    capture_note = Some(note);
+                                    break;
+                                }
                                 waits = true;
                                 self.set_waiting(&task_id, wait);
                             }
@@ -1127,15 +1185,15 @@ impl BackgroundTaskManager {
                 }
             }
         }
-        // What the screen still showed is the log's last lines.
         if capture_note.is_none() {
-            let mut last = screen.drain();
-            let shown = screen.shown().text();
-            if !shown.is_empty() {
-                last.push_str(&shown);
-                last.push('\n');
-            }
-            if let Err(note) = append_capped(&mut file, &last, &mut written, watch) {
+            if let Err(note) = self.publish_output(
+                &task_id,
+                &mut file,
+                &mut position,
+                &mut screen,
+                watch,
+                Publication::Final,
+            ) {
                 capture_note = Some(note);
             }
         }
@@ -1192,6 +1250,41 @@ impl BackgroundTaskManager {
                 task.reported = Some(reported);
             }
         }
+    }
+
+    pub(crate) fn output_guard(&self) -> std::sync::MutexGuard<'_, ()> {
+        crate::panic::lock(&self.output)
+    }
+
+    fn publish_output(
+        &self,
+        task_id: &str,
+        file: &mut std::fs::File,
+        position: &mut super::background_log::Position,
+        screen: &mut Screen,
+        watch: &Watch,
+        publication: Publication,
+    ) -> Result<(), String> {
+        let _output = self.output_guard();
+        let drained = screen.drain();
+        let shown = screen.shown();
+        let mut text = shown.text();
+        if matches!(publication, Publication::Final) && !text.is_empty() {
+            text.push('\n');
+        }
+        let result = position.publish(file, &drained, &text, watch.max_bytes());
+        if let Ok(mut tasks) = self.tasks.lock() {
+            if let Some(task) = tasks.get_mut(task_id) {
+                task.log_position = Some(*position);
+                task.tail = shown.text();
+                task.screen = Some(shown);
+            }
+        }
+        result?;
+        if !matches!(publication, Publication::Live) {
+            super::background_log::Position::sync(file)?;
+        }
+        Ok(())
     }
 
     /// Let go of every task for the program this process is about to `exec`
@@ -1336,11 +1429,52 @@ impl BackgroundTaskManager {
                 continue;
             };
             let taken = crate::platform::Pty::adopt(handed).and_then(|pty| {
-                let file = std::fs::OpenOptions::new().append(true).open(&out_file)?;
+                let file = std::fs::OpenOptions::new().write(true).open(&out_file)?;
                 Ok((pty, file))
             });
             match taken {
-                Ok((pty, file)) => {
+                Ok((pty, mut file)) => {
+                    // The predecessor's file held scrollback only. Publish its
+                    // handed screen before admission resumes, not later when
+                    // the monitor thread happens to be scheduled.
+                    if let Some(info) = self.get(&id).filter(|info| info.log_position.is_none()) {
+                        if let Some(task) = crate::panic::lock(&self.tasks).get_mut(&id) {
+                            task.reported = None;
+                        }
+                        let (rows, cols) = pty.size().unwrap_or((
+                            crate::tools::terminal::DEFAULT_ROWS,
+                            crate::tools::terminal::DEFAULT_COLS,
+                        ));
+                        let mut screen = match &info.screen {
+                            Some(shown) => Screen::resume(rows, cols, shown),
+                            None => {
+                                let mut screen = Screen::log(rows, cols);
+                                screen.feed(&info.tail);
+                                screen
+                            }
+                        };
+                        let mut position = super::background_log::Position {
+                            stable: task.written as u64,
+                            end: task.written as u64,
+                        };
+                        let publication = if info.waiting.is_some() {
+                            Publication::Waiting
+                        } else {
+                            Publication::Live
+                        };
+                        if let Err(note) = self.publish_output(
+                            &id,
+                            &mut file,
+                            &mut position,
+                            &mut screen,
+                            &watch,
+                            publication,
+                        ) {
+                            if let Some(info) = crate::panic::lock(&self.tasks).get_mut(&id) {
+                                info.capture_note = Some(note);
+                            }
+                        }
+                    }
                     self.spawn_monitor(id, pid, file, Arc::new(pty), task.written, watch.clone());
                 }
                 Err(error) => {
@@ -1421,41 +1555,6 @@ fn lost_reason(pid: i32, identity: Option<Identity>, tree: Option<String>) -> Lo
         Some(_) => LostReason::Restart,
         None => LostReason::Unknown,
     }
-}
-
-/// Append `text` to a task's log, `written` bytes of which are already there,
-/// up to the log's limit; past it, the reason the process is stopped.
-fn append_capped(
-    file: &mut std::fs::File,
-    text: &str,
-    written: &mut usize,
-    watch: &Watch,
-) -> Result<(), String> {
-    if text.is_empty() {
-        return Ok(());
-    }
-    let max_bytes = watch.max_bytes();
-    let room = max_bytes.saturating_sub(*written);
-    let mut allowed = text.len().min(room);
-    while !text.is_char_boundary(allowed) {
-        allowed -= 1;
-    }
-    if let Err(error) = file
-        .write_all(&text.as_bytes()[..allowed])
-        .and_then(|_| file.flush())
-    {
-        return Err(format!(
-            "Output capture failed ({error}); process terminated."
-        ));
-    }
-    *written += allowed;
-    if allowed < text.len() {
-        return Err(format!(
-            "Output capture exceeded {} bytes; process terminated. Log contains the captured prefix only.",
-            max_bytes
-        ));
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -1545,6 +1644,7 @@ mod tests {
             tail: String::new(),
             screen: None,
             reported: None,
+            log_position: None,
             waiting: None,
             tree: None,
         });
@@ -1647,6 +1747,207 @@ mod tests {
         let _ = std::fs::remove_dir_all(dir);
     }
 
+    #[test]
+    fn waiting_log_survives_handover_and_keeps_the_second_question_once() {
+        if sh().is_none()
+            || !crate::platform::REPLACES_IN_PLACE
+            || crate::platform::INPUT_WAIT_DETECTION != crate::platform::InputWaitDetection::Every
+        {
+            return;
+        }
+        let dir = scratch("wait-log-handover");
+        let before = Arc::new(BackgroundTaskManager::new());
+        let (pid, log) = launch(
+            &before,
+            &dir,
+            "bg_ask",
+            "echo START; printf 'First? '; read a; printf 'Second? '; read b; echo \"DONE:$a:$b\"",
+        );
+        until("first wait saved", || {
+            before.get("bg_ask").is_some_and(|t| t.waiting.is_some())
+        });
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "START\nFirst?");
+        let handed = before.release().unwrap();
+        let position = handed[0].info.log_position.unwrap();
+        assert_eq!(position.end, std::fs::metadata(&log).unwrap().len());
+        assert!(position.stable < position.end);
+        let json = serde_json::to_vec(&handed).unwrap();
+        let handed = serde_json::from_slice::<Vec<HandedTask>>(&json).unwrap();
+        drop(before);
+        let after = Arc::new(BackgroundTaskManager::new());
+        assert!(after
+            .adopt(handed, watch(), crate::platform::SupervisedAs::Orphaned)
+            .is_empty());
+        after.send_input("bg_ask", b"one\n").unwrap();
+        until("second wait saved", || {
+            after
+                .get("bg_ask")
+                .is_some_and(|t| t.waiting.is_some() && t.tail.contains("Second?"))
+        });
+        let second = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(second, "START\nFirst? one\nSecond?");
+        assert_eq!(second.matches("First?").count(), 1);
+        after.send_input("bg_ask", b"two\n").unwrap();
+        until("task ended", || {
+            after
+                .get("bg_ask")
+                .is_some_and(|t| !matches!(t.status, BackgroundTaskStatus::Running))
+        });
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "START\nFirst? one\nSecond? two\nDONE:one:two\n"
+        );
+        until("child reaped", || state_of(pid).is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn older_waiting_handover_with_empty_log_is_normalized_before_adopt_returns() {
+        if sh().is_none()
+            || !crate::platform::REPLACES_IN_PLACE
+            || crate::platform::INPUT_WAIT_DETECTION != crate::platform::InputWaitDetection::Every
+        {
+            return;
+        }
+        let dir = scratch("old-wait-log");
+        let before = Arc::new(BackgroundTaskManager::new());
+        let (pid, log) = launch(
+            &before,
+            &dir,
+            "bg_old",
+            "printf 'Old question? '; read a; echo DONE",
+        );
+        until("old-style wait", || {
+            before.get("bg_old").is_some_and(|t| t.waiting.is_some())
+        });
+        let mut handed = before.release().unwrap();
+        handed[0].info.log_position = None;
+        handed[0].info.reported = Some(Reported {
+            log: 0,
+            tail: handed[0].info.tail.clone(),
+        });
+        handed[0].written = 0;
+        std::fs::write(&log, "").unwrap();
+        drop(before);
+        let after = Arc::new(BackgroundTaskManager::new());
+        assert!(after
+            .adopt(handed, watch(), crate::platform::SupervisedAs::Orphaned)
+            .is_empty());
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "Old question?");
+        assert!(after.get("bg_old").unwrap().log_position.is_some());
+        assert!(after.get("bg_old").unwrap().reported.is_none());
+        after.send_input("bg_old", b"yes\n").unwrap();
+        until("old task ended", || {
+            after
+                .get("bg_old")
+                .is_some_and(|t| !matches!(t.status, BackgroundTaskStatus::Running))
+        });
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "Old question? yes\nDONE\n"
+        );
+        until("old task reaped", || state_of(pid).is_none());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn journal_recovery_keeps_waiting_output_even_when_the_monitor_screen_is_gone() {
+        if sh().is_none()
+            || !crate::platform::REPLACES_IN_PLACE
+            || crate::platform::INPUT_WAIT_DETECTION != crate::platform::InputWaitDetection::Every
+        {
+            return;
+        }
+        let dir = scratch("wait-log-recovery");
+        let journal = Arc::new(MemoryJournal::default());
+        let before = Arc::new(BackgroundTaskManager::new());
+        let (pid, log) = launch(
+            &before,
+            &dir,
+            "bg_saved",
+            "echo saved; printf 'Recover me? '; read a; echo end",
+        );
+        until("question on disk", || {
+            before.get("bg_saved").is_some_and(|t| t.waiting.is_some())
+        });
+        journal.append(&BackgroundRecord::Started {
+            task_id: "bg_saved".into(),
+            pid,
+            command: "fixture".into(),
+            out_file: log.clone(),
+            started_at: 0,
+            identity: Identity::of(pid),
+            tree: None,
+        });
+        let handed = before.release().unwrap();
+        drop(before);
+        let recovered = BackgroundTaskManager::new();
+        recovered.set_journal(journal);
+        recovered.settle_unreported();
+        let lost = recovered.get("bg_saved").unwrap();
+        assert!(matches!(lost.status, BackgroundTaskStatus::Lost { .. }));
+        assert!(lost.tail.is_empty() && lost.screen.is_none());
+        assert_eq!(
+            std::fs::read_to_string(&lost.out_file).unwrap(),
+            "saved\nRecover me?"
+        );
+        until("orphan stopped", || !matches!(state_of(pid), Some(Live)));
+        let after = Arc::new(BackgroundTaskManager::new());
+        assert!(after
+            .adopt(handed, watch(), crate::platform::SupervisedAs::Orphaned)
+            .is_empty());
+        until("orphan reaped", || state_of(pid).is_none());
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "saved\nRecover me?\n"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn live_screen_output_hits_log_cap_without_needing_to_scroll() {
+        if sh().is_none() {
+            return;
+        }
+        let dir = scratch("live-screen-cap");
+        std::fs::create_dir_all(&dir).unwrap();
+        let manager = Arc::new(BackgroundTaskManager::new());
+        let log = dir.join("bg_cap.txt");
+        let file = std::fs::File::create(&log).unwrap();
+        let (pty, pid) = on_terminal(
+            &sh().unwrap(),
+            "printf 'abcdefghijklmnopqrstuvwxyz'; sleep 30",
+        );
+        let mut task = running("bg_fixture").get("bg_fixture").unwrap();
+        task.task_id = "bg_cap".into();
+        task.pid = pid;
+        task.out_file = log.clone();
+        manager.register(task);
+        manager.spawn_monitor(
+            "bg_cap".into(),
+            pid,
+            file,
+            Arc::new(pty),
+            0,
+            Watch::fixed(12, 20, Duration::from_millis(20)),
+        );
+        until("cap stopped the task", || {
+            manager
+                .get("bg_cap")
+                .is_some_and(|t| t.capture_note.is_some())
+        });
+        assert_eq!(std::fs::metadata(&log).unwrap().len(), 12);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "abcdefghijkl");
+        until("capped process reaped", || state_of(pid).is_none());
+        assert!(manager
+            .get("bg_cap")
+            .unwrap()
+            .capture_note
+            .unwrap()
+            .contains("exceeded 12 bytes"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     /// A task that ends while nobody watches it — between the old build
     /// letting go and the new one taking over — is reported by the one that
     /// takes over, with its real exit code, once, and leaves no zombie.
@@ -1732,6 +2033,7 @@ mod tests {
                     tail: String::new(),
                     screen: None,
                     reported: None,
+                    log_position: None,
                     waiting: None,
                     tree: None,
                 },
@@ -1786,6 +2088,7 @@ mod tests {
             tail: String::new(),
             screen: None,
             reported: None,
+            log_position: None,
             waiting: None,
             tree: None,
         });
@@ -2294,8 +2597,9 @@ mod tests {
             first[0]
         );
         assert!(
-            first[0].contains("Call manage_process with process_id: bg_twice for what it asks"),
-            "the wake says where the question is read: {}",
+            first[0].contains("bg_twice is waiting for input")
+                && !first[0].contains("Call manage_process"),
+            "the wake supplies identity and state, not repeated tool instructions: {}",
             first[0]
         );
         // Typed into: that wait is over, then the process asks again.
@@ -2354,6 +2658,7 @@ mod tests {
             tail: String::new(),
             screen: None,
             reported: None,
+            log_position: None,
             waiting: None,
             tree: None,
         });
@@ -2594,6 +2899,7 @@ mod tests {
             tail: String::new(),
             screen: None,
             reported: None,
+            log_position: None,
             waiting: None,
             tree: None,
         });

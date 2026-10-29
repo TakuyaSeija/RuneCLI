@@ -1,0 +1,18 @@
+{{define "article"}}
+<h2 id="access-not-selection">Access is not selection</h2>
+<p>Connections owns account addresses and API keys. It does not choose the current model, model request timeout, web-search route or page reader. Those belong to Models, Runtime and Tools respectively.</p>
+<p>A key count or Configured state means credentials are present, not that a request succeeded or that credit is available. Resting can mean a credential is temporarily unavailable. Check the actual failure instead of repeatedly replacing the account.</p>
+<h2 id="model-account">Add a model account</h2>
+<p>Each provider preset, with its key and address, is listed in <a href="{{url "docs/providers"}}">Model providers</a>.</p>
+<ol><li>Open Settings → Connections → Add connection and choose the intended model provider.</li><li>Review the form, initially marked Not connected yet. A preset with a fixed address asks for its key; an account-dependent or custom address must be supplied explicitly.</li><li>Check the connection name and key name. Enter secrets only in the credential field.</li><li>Connect. Rune tests a new model account before accepting it; the request may be billed. Cancel leaves the addition unsaved.</li><li>Select the actual provider/model under Models after connection.</li></ol>
+<p>A preset supplies compatible setup defaults. It is not an account, an API entitlement or a promise that all provider products work. Plan-specific subscriptions and regional addresses can differ from a vendor's ordinary API.</p>
+<h2 id="web-account">Add a web account</h2>
+<p>Choose a Search &amp; Fetch vendor, enter the required address/key and save the account. Saving web access alone does not enable or prove a search/page provider works. Continue in Tools → Web search or Web fetch → Provider to add, test and select the intended service.</p>
+<p>Search and fetch have independent selections. A local-model account and the same vendor's web service may require different addresses or keys. See <a href="{{url "docs/web"}}">Web search &amp; fetch</a>.</p>
+<h2 id="edit-and-remove">Edit and remove</h2>
+<p>Open an existing connection to change its Base URL or manage named keys. Model endpoint changes are tested before acceptance. Use default restores the provider's supplied address, not one guessed from an account name.</p>
+<p>Adding a key adds an alternative; it does not replace every key automatically. Review a key's name and masked preview before removal. Removing a connection may leave its credentials available for reuse; account removal is not a secure-erasure promise.</p>
+<h2 id="destination-and-testing">Destination and testing</h2>
+<p>Changing an endpoint can send both credentials and prompts to another party. Verify ownership and the intended region before connecting. Remote keyed endpoints require encrypted transport; an on-machine endpoint is a separate local case.</p>
+<p>Connection and model tests are real requests and can incur cost. A successful account test applies to the tested request, not every model, tool, context length or entitlement. Prefer a small, deliberate test after checking the exact error in logs.</p>
+{{end}}

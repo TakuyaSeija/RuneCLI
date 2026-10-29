@@ -65,10 +65,18 @@ def main():
         live.until(lambda: window.shows("MODEL PROVIDERS"), "model providers", window)
         select(window, "moonshot")
         window.send(b"\r")
-        # The key is the one thing asked for; the preset's address is shown.
-        live.until(lambda: window.shows("API key / moonshot"), "key asked first", window)
+        # The form is the step (owner, 2026-10-23): shown at once, the
+        # preset's address in it, no editor over it; Esc leaves the whole
+        # addition with nothing saved.
+        live.until(lambda: window.shows("NOT CONNECTED YET") and window.shows("Connect →")
+                   and window.shows("https://api.moonshot.ai"), "access form", window)
+        assert not window.shows("API key / moonshot"), "no editor opens by itself"
         window.send(b"\x1b")
-        live.until(lambda: window.shows("Connect →") and window.shows("https://api.moonshot.ai"), "access form", window)
+        live.until(lambda: window.shows("API key required") and not window.shows("NOT CONNECTED YET"), "Esc leaves it", window)
+        assert "moonshot" not in (live.HOME / "rune.toml").read_text(), "nothing saved"
+        select(window, "moonshot")
+        window.send(b"\r")
+        live.until(lambda: window.shows("NOT CONNECTED YET") and window.shows("https://api.moonshot.ai"), "access form again", window)
         before = tomllib.loads((live.HOME / "rune.toml").read_text())
         assert not any(p["name"] == "local-moonshot" for p in before["providers"]["list"])
         edit(window, "Connection name", "local-moonshot", "Connection name")
@@ -100,6 +108,9 @@ def main():
         live.until(lambda: window.shows("MODEL PROVIDERS"), "model providers again", window)
         select(window, "compatible")
         window.send(b"\r")
+        # Shown on the address it needs; Enter opens it.
+        live.until(lambda: window.shows("NOT CONNECTED YET"), "custom form", window)
+        window.send(b"\r")
         live.until(lambda: window.shows("Base URL / compatible"), "address asked first", window)
         window.type(f"http://127.0.0.1:{provider.port}/v1")
         window.send(b"\r")
@@ -110,7 +121,7 @@ def main():
                       if p["name"] == "compatible")
         assert custom["api"] == "compatible" and "secret" not in custom
         assert not provider.calls, "Connect checks catalogue, never model generation"
-        print("PASS key-only preset connects on the key's Enter; account address asked first; TOML choices, masked vault key, no inference")
+        print("PASS form first, Esc leaves it whole; key-only preset connects on the key's Enter; account address first; TOML choices, masked vault key, no inference")
     except BaseException:
         (live.ROOT / "FailedScreen.txt").write_text(window.screen.text())
         print("FAILED fixture:", live.ROOT)

@@ -45,6 +45,7 @@ pub(crate) const SCHEMA_VERSION: i64 = 22;
 /// (a finished toolcalls.jsonl line) when the call ends.
 #[derive(Debug, Clone)]
 pub(crate) struct PendingCall {
+    pub shell: Option<crate::shell::ShellInfo>,
     pub turn: i64,
     pub name: String,
     pub args: String,

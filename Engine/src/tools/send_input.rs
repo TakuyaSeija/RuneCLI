@@ -48,7 +48,7 @@ impl Tool for TerminalSendInput {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "terminal_send_input".into(),
-            description: "Type into a background process that is waiting for input (terminal_use, manage_process or a <system_notification> said so). It types and returns at once: it does not wait for the process and does not report its output. When the process waits for input again or ends, a <system_notification> arrives; read its output with manage_process."
+            description: "Type into a background process with an observed input wait. It returns at once after typing, without waiting for completion or reading output."
                 .into(),
             parameters: flat_schema(
                 json!({

@@ -10,6 +10,7 @@ Purpose: help the classifier identify the user's original instructions and restr
 | `sanitizer.model` |Inherit active model| Choose the model used for this work. An explicit choice needs an already configured provider/model. |
 | `sanitizer.timeout` |120s| Maximum time for an extraction request. |
 | `sanitizer.max_output_tokens` |4096| Output allowance; allowed setting 256–10000000, still constrained by the selected model. |
+| `sanitizer.max_batch_size` |64KiB| Advanced TOML/CLI choice: maximum quoted source-text bytes per extraction batch, not a model-token estimate. Smaller batches can add requests; larger ones can be refused by the provider. |
 
 ## Change or reset
 Open the row, choose/edit its value, then confirm Apply. Use default restores its default/inheritance. To inspect one key, use `rune -config explain sanitizer.enabled` with the desired key. Global CLI reset example: `rune -config reset sanitizer.model`.
@@ -31,3 +32,4 @@ These are factory values, not a claim about the current user's saved choices. In
 | `sanitizer.model` | `Inherit / unset` | Configured {provider,id}, or omit to inherit |
 | `sanitizer.timeout` | `"120s"` | Positive duration up to 24h |
 | `sanitizer.max_output_tokens` | `4096` | Whole number 256–10000000 |
+| `sanitizer.max_batch_size` | `"64KiB"` | Explicit positive byte size; inspect/set/reset through `rune -config` |

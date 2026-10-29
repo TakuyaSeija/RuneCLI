@@ -285,31 +285,27 @@ pub fn written(rt: &Runtime, st: &SessionState, shown: &str) {
 fn source_change(name: &str, now_present: bool, unknown: bool) -> String {
     if unknown {
         return match (name, now_present) {
-            (AGENTS, true) => format!(
-                "{AGENTS} may have changed since this session began: read it again with inspect_file before relying on its rules."
-            ),
-            (AGENTS, false) => format!(
-                "{AGENTS} is not in the workspace now; rules you were given from an earlier copy no longer apply."
-            ),
+            (AGENTS, true) => format!("{AGENTS} may have changed since this session began."),
+            (AGENTS, false) => format!("{AGENTS} is not in the workspace now."),
             (MEMORY_INDEX, _) => format!(
-                "Your memory index may have changed since <memory_recall>: read {}/{} again with inspect_file.",
+                "Your memory index at {}/{} may have changed since <memory_recall>.",
                 crate::memory::ALIAS,
                 crate::memory::INDEX_FILE
             ),
-            _ => "The skill list may have changed since <available_skills>: find the skills on offer now with discover_capabilities.".to_string(),
+            _ => "The skill list may have changed since <available_skills>.".to_string(),
         };
     }
     match (name, now_present) {
         (AGENTS, true) => format!(
-            "{AGENTS} changed since you read it: read it again with inspect_file before relying on its rules."
+            "{AGENTS} changed since you read it."
         ),
-        (AGENTS, false) => format!("{AGENTS} was removed from the workspace; its rules no longer apply."),
+        (AGENTS, false) => format!("{AGENTS} was removed from the workspace."),
         (MEMORY_INDEX, _) => format!(
-            "Your memory index changed since <memory_recall> (another session or the user wrote it): read {}/{} again with inspect_file.",
+            "Your memory index at {}/{} changed since <memory_recall> (another session or the user wrote it).",
             crate::memory::ALIAS,
             crate::memory::INDEX_FILE
         ),
-        _ => "The skill list changed since <available_skills>: find the skills on offer now with discover_capabilities.".to_string(),
+        _ => "The skill list changed since <available_skills>.".to_string(),
     }
 }
 
@@ -371,9 +367,7 @@ fn attachment_change(path: &str, state: &str) -> String {
     let path = crate::tools::notice::quote(path);
     match state {
         "removed" => format!("The file attached at {path} is no longer there."),
-        _ => format!(
-            "The file attached at {path} changed after it was attached: read it again with inspect_file before relying on it."
-        ),
+        _ => format!("The file attached at {path} changed after it was attached."),
     }
 }
 
@@ -607,11 +601,7 @@ pub fn restored(
         Told {
             turn: at_turn,
             kind: ContextKind::Restore,
-            text: &frame::block(
-                "system_notice",
-                &[],
-                &format!("{told} Read it again before relying on what you saw of it earlier."),
-            ),
+            text: &frame::block("system_notice", &[], &told),
             status: Default::default(),
             sources: Default::default(),
             note: note.clone(),
@@ -755,8 +745,7 @@ fn instructions_of(path: &Path, text: Option<&str>, max: usize) -> Vec<String> {
             "system_notice",
             &[],
             &format!(
-                "{} was cut after line {kept} of {total}: it is longer than {max} characters. \
-                 Read the rest with inspect_file; it is part of the project's rules.",
+                "{} was cut after line {kept} of {total}: it is longer than {max} characters.",
                 super::prompt::AGENTS_FILE
             ),
         ));
@@ -806,7 +795,7 @@ fn skill_catalogue(st: &SessionState) -> Option<String> {
     let shown = catalogue.entries.len();
     if shown < catalogue.total {
         body.push(format!(
-            "{} more are not listed here: find them with discover_capabilities.",
+            "{} more skills are not listed here.",
             catalogue.total - shown
         ));
     }
@@ -851,6 +840,7 @@ mod tests {
 
     fn row(id: i64, turn: i64, role: Role, kind: Option<ContextKind>) -> Message {
         Message {
+            manual_shell: false,
             work: None,
             continuation: None,
             id,
@@ -861,9 +851,33 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: kind.map(ContextMeta::new),
+        }
+    }
+
+    #[test]
+    fn changed_sources_report_facts_without_repeating_agent_instructions() {
+        for name in [AGENTS, MEMORY_INDEX, SKILLS] {
+            for unknown in [false, true] {
+                for present in [false, true] {
+                    let text = source_change(name, present, unknown);
+                    for repeated in [
+                        "inspect_file",
+                        "discover_capabilities",
+                        "read it again",
+                        "rules no longer apply",
+                    ] {
+                        assert!(!text.contains(repeated), "{text}");
+                    }
+                }
+            }
+        }
+        assert!(source_change(MEMORY_INDEX, true, false).contains("@memory/MEMORY.md"));
+        for state in ["changed", "removed"] {
+            assert!(!attachment_change("file.txt", state).contains("inspect_file"));
         }
     }
 
@@ -992,7 +1006,8 @@ mod tests {
         assert_eq!(blocks.len(), 2);
         assert!(blocks[1].starts_with("<system_notice>"));
         assert!(blocks[1].contains("of 30"));
-        assert!(blocks[1].contains("inspect_file"));
+        assert!(!blocks[1].contains("inspect_file"));
+        assert!(super::super::prompt::SYSTEM.contains("read their remainder"));
         for l in blocks[0].lines().filter(|l| l.starts_with("line ")) {
             assert!(
                 text.contains(&format!("{l}\n")),

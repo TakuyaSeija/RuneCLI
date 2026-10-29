@@ -306,9 +306,7 @@ impl Outcome {
                 );
                 notices.insert(
                     0,
-                    format!(
-                        "The response is {total} characters, over the {max} limit; read it with inspect_file.{kept}"
-                    ),
+                    format!("The response is {total} characters, over the {max} limit.{kept}"),
                 );
             } else {
                 notices.insert(
@@ -360,6 +358,8 @@ pub enum Reader {
 
 /// Everything a tool is allowed to reach.
 pub struct ToolCtx<'a> {
+    /// The terminal call's engine-pinned executable, stable through permission waits.
+    pub shell: Option<&'a std::path::Path>,
     pub capabilities: &'a crate::capabilities::Capabilities,
     pub registry: &'a Registry,
     pub questions: &'a crate::perm::broker::Broker<questions::Reply>,
@@ -635,21 +635,18 @@ pub(crate) fn validate_value(schema: &Value, value: &Value) -> Result<()> {
 ///
 /// A tool result is a message to the model, and a rejection that only names the
 /// violated rule leaves it nothing to act on — so it sends the same call again.
-/// The two mistakes it actually makes here, a dropped `action` and a field it
-/// invented, are answered with the replacement call. Everything else keeps the
-/// validator's own wording, which is already specific about the field.
+/// Name the violated field without repeating the agent's call-writing rules.
+/// Recovery belongs to the system prompt; the validator supplies only the
+/// specific failure, with values masked so secrets cannot enter its error.
 pub(crate) fn correction(e: &jsonschema::ValidationError<'_>) -> String {
     use jsonschema::error::ValidationErrorKind as Kind;
     match e.kind() {
         Kind::Required { property } => match property.as_str() {
-            Some("action") => {
-                format!("`action` is missing, and every call needs it. {ACTION_DESC}")
-            }
-            Some(name) => format!("`{name}` is missing. Send the call again with `{name}`."),
-            None => "A required field is missing. Send the call again with it.".to_string(),
+            Some(name) => format!("Required field `{name}` is missing."),
+            None => "A required field is missing.".to_string(),
         },
         Kind::AdditionalProperties { unexpected } => format!(
-            "unknown field(s) {}. Send only the fields this tool declares.",
+            "unknown field(s) {}.",
             unexpected
                 .iter()
                 .map(|f| format!("`{f}`"))
@@ -659,17 +656,16 @@ pub(crate) fn correction(e: &jsonschema::ValidationError<'_>) -> String {
         // Masked: the reason, never the value — an argument can carry a secret,
         // and this text reaches the audit trail and the screen.
         _ => format!(
-            "Argument at `{}` is not valid: {}. Send the call again with that field corrected.",
+            "Argument at `{}` is not valid: {}.",
             e.instance_path(),
             e.masked()
         ),
     }
 }
 
-/// The declarations a request carries, and what they cost in the estimate.
+/// Reuse the byte-static declarations without assigning them invented tokens.
 pub struct Declared {
     pub list: Vec<ToolDecl>,
-    pub tokens: usize,
 }
 
 /// Every tool the engine knows, in the order they are offered to a model.
@@ -727,7 +723,7 @@ impl Registry {
                     Arc::clone(&limits),
                     Arc::clone(&settings),
                 )),
-                Arc::new(terminal::TerminalUse(Arc::clone(&limits))),
+                Arc::new(terminal::TerminalUse::new(Arc::clone(&limits))),
                 Arc::new(monitoring::ManageProcess(Arc::clone(&limits))),
                 Arc::new(send_input::TerminalSendInput),
                 Arc::new(track::TrackTasks),
@@ -840,17 +836,14 @@ impl Registry {
         crate::panic::lock(&self.external).retain(|n, _| !n.starts_with(prefix));
     }
 
-    /// The declarations on offer now, with their estimated tokens.
+    /// The declarations on offer now, shared unchanged across requests.
     pub fn declared(&self) -> Arc<Declared> {
         let mut held = crate::panic::lock(&self.declared);
         if let Some(declared) = held.as_ref() {
             return Arc::clone(declared);
         }
         let list = self.declarations();
-        let tokens = crate::session::compact::estimate_tokens(
-            &serde_json::to_string(&list).unwrap_or_default(),
-        );
-        let declared = Arc::new(Declared { list, tokens });
+        let declared = Arc::new(Declared { list });
         *held = Some(Arc::clone(&declared));
         declared
     }
@@ -1063,27 +1056,14 @@ pub fn field_bool(item: &Value, key: &str, default: bool) -> bool {
     item.get(key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
 
-/// The one description of `action` that every tool carries.
-///
-/// `action` is the only thing a human reads before a call runs, so its wording
-/// is fixed here rather than chosen per tool. A tool that phrased it its own way
-/// asks the model for a different shape of sentence from one call to the next,
-/// and a model that has to guess is a model that drops it.
-///
-/// Short on purpose: this is read by every model on every request, and the two
-/// clauses say everything a longer instruction would.
-pub const ACTION_DESC: &str = "One short sentence: what you are about to do, and to what.";
-
-/// The `action` property, byte for byte the same on every tool.
-///
-/// One home, so no tool can drift from another — which is what made the omission
-/// uneven before, when some tools explained the field and two did not at all.
+/// Shared structure, not fifteen copies of the agent's writing instruction.
+/// The system prompt owns how `action` is written; every schema still requires
+/// it first and validates the same nonempty bounded string.
 pub fn action_field() -> Value {
     json!({
         "type": "string",
         "minLength": 1,
-        "maxLength": 200,
-        "description": ACTION_DESC
+        "maxLength": 200
     })
 }
 
@@ -1736,13 +1716,13 @@ mod tests {
         assert_eq!(cap(small.clone(), 1_000), small);
     }
 
-    /// The omission was uneven because the instruction was: two tools explained
-    /// `action` and two said nothing at all about it. One field, one wording.
+    /// Every tool keeps the same required field while the writing rule is
+    /// stated once in the agent prompt, not repeated in each schema.
     #[test]
-    fn every_tool_describes_action_identically() {
+    fn every_tool_validates_action_identically_without_repeating_its_instruction() {
         let registry = Registry::default();
         let expected = action_field();
-        assert!(!expected["description"].as_str().unwrap().is_empty());
+        assert!(expected.get("description").is_none());
         for decl in registry.declarations() {
             assert_eq!(
                 decl.parameters["properties"]["action"], expected,
@@ -1832,7 +1812,7 @@ mod tests {
     }
 
     #[test]
-    fn a_dropped_action_is_answered_with_the_call_to_send() {
+    fn a_dropped_action_names_the_missing_field_without_repeating_agent_policy() {
         let schema = Registry::default()
             .get("create_file")
             .unwrap()
@@ -1842,9 +1822,11 @@ mod tests {
         let text = err.to_string();
         assert!(text.contains("action"), "{text}");
         assert!(
-            text.contains("what you are about to do"),
-            "the remedy has to say what to write, not only that a field is missing: {text}"
+            text.contains("Required field `action` is missing"),
+            "{text}"
         );
+        assert!(!text.contains("what you are about to do"), "{text}");
+        assert!(!text.contains("Send the call again"), "{text}");
     }
 
     #[test]

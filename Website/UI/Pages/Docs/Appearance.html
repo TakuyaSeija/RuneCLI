@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Color theme</h2>
+<p>Settings → Appearance → Color theme offers Violet, Cyan and Amber. Left/Right on the row switches and saves; Enter opens the separate list, where Enter applies the selected theme. Esc leaves without applying an item you only browsed. The factory theme is Amber.</p>
+<p>Theme is presentation, not model behavior or permission. <code>/theme violet</code>, <code>/theme cyan</code> and <code>/theme amber</code> also select a theme. The global key is <code>ui.theme</code>; reset removes your override.</p>
+<h2 id="side-panel">Conversation side panel</h2>
+<p>Toggle the panel in Appearance, with Ctrl+O or <code>/panel</code>. Its factory preference is enabled. Narrow terminals can hide the side-by-side panel even with that preference on. Hiding it does not stop usage accounting, file tracking or plans.</p>
+<h2 id="terminal-owns-background">What the terminal owns</h2>
+<p>Your terminal/desktop controls wallpaper, transparency, blur, window decorations and font rendering. Rune does not have a background-image or blur setting. The same theme can look different against a light or dark terminal background.</p>
+<p>Modified keys and mouse gestures also depend on the terminal. A profile may reserve Ctrl+wheel for zoom, Alt+wheel for horizontal scrolling, or some shortcuts for its own actions.</p>
+<h2 id="advanced-options">Advanced display choices</h2>
+<p>Some color, mouse, scrolling and render-timing values are TOML-only options, not extra controls on the Appearance page. Inspect the specific documented key before changing it. Increasing refresh frequency can consume more resources; a scrolling preference cannot make a terminal report unsupported input.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>Reset is a change to the global preference. Use <code>/help</code> for reading and navigation keys rather than guessing from another terminal application.</p>
+{{end}}

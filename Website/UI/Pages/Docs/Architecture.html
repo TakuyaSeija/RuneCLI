@@ -1,0 +1,19 @@
+{{define "article"}}
+<h2 id="overview">A local engine with a terminal frontend</h2>
+<p>Rune separates the interface from the local agent engine. The terminal frontend sends user commands and renders events; the engine owns task execution, provider requests, permissions, session state and file protection. This keeps the same decisions authoritative when more than one window watches a session.</p>
+<p>A provider supplies model inference. It does not become the local execution authority. Model output is a proposal that must pass the same tool validation and execution controls as other proposed work.</p>
+<h2 id="request-cycle">The request cycle</h2>
+<ol><li>You submit work and any explicit attachments.</li><li>The engine prepares relevant context and sends a request to the selected model account.</li><li>The model returns text or proposed tool calls.</li><li>Rune validates each call and applies the current permission, access and applicable policy-review decisions.</li><li>The tool result is recorded and supplied as context for the next model step.</li><li>The frontend shows progress, failures and the final response; you review the actual result.</li></ol>
+<p>Retries, output limits and cancellation belong to the runtime. The model cannot grant itself access by writing that a gate has passed. Auxiliary jobs are separate provider requests with their own purposes and limits.</p>
+<h2 id="sessions-and-ordering">Sessions and ordering</h2>
+<p>A session has one authoritative work stream. Additional windows observe the same task, questions, accounting and file state rather than each running an independent copy. New messages and steering are admitted in order; an already-running provider request keeps the context it was sent.</p>
+<p>Conversation history is retained as an audit of what occurred, not silently rewritten to pretend a later setting or file version existed earlier. Compaction creates a model-context summary while stored history remains a separate concern.</p>
+<h2 id="tools-and-platforms">Tools and platform boundaries</h2>
+<p>Built-in file, terminal and web tools have explicit inputs, bounded outputs and one execution path through the engine. File mutations protect eligible earlier contents before replacement. Commands use OS-specific containment where available, with common permission semantics and platform limitations reported rather than hidden.</p>
+<p>External MCP tools are discovered and called through their declared interfaces. A skill is read as a guide; neither a guide nor an external response replaces the user's authorization. Network destinations and credentials remain separate from the model's text.</p>
+<h2 id="configuration-and-upgrades">Configuration and upgrades</h2>
+<p>Global configuration records choices, while defaults belong to the application version. Running processes follow configuration changes according to each setting's timing. Existing session choices and an in-flight request are not blindly replaced by every new default.</p>
+<p>Stored-data changes are handled as ordered upgrades. Optional help or an unavailable credential store must not masquerade as successful access or destroy unrelated data. A release handover waits for safe session state; installation is not a reason to kill active work.</p>
+<h2 id="design-limits">Design boundaries are not outcome guarantees</h2>
+<p>Architecture can enforce where execution is decided and how results are reported. It cannot prove the model's plan is correct, that every external system is reversible, or that a permitted command is harmless. Review, tests, least-privilege task scope and independent backups remain necessary.</p>
+{{end}}

@@ -25,7 +25,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 NEVER = {"master.key", "secrets.vault", "secrets.lock", "Configuration.lock",
-         "run", "backups", "product-skills"}
+         "run", "backups", "product-skills", "scratch"}
 
 
 def copy_home(real: Path, into: Path) -> None:
@@ -36,7 +36,7 @@ def copy_home(real: Path, into: Path) -> None:
             continue
         if entry.is_dir() and not entry.is_symlink():
             shutil.copytree(entry, into / name, symlinks=True,
-                            ignore=shutil.ignore_patterns("*.lock", "*.sock", "*.key"))
+                            ignore=shutil.ignore_patterns("*.lock", "*.sock", "*.key", "scratch"))
         elif entry.is_file():
             shutil.copy2(entry, into / name)
     db = real / "rune.db"

@@ -570,7 +570,17 @@ pub fn configure_model(
         .ok_or_else(|| Error::NotFound(format!("provider {provider}")))?;
     if let Some(options) = &model.reasoning_options {
         let choices = model.reasoning_choices(config.api_kind());
-        if options.is_empty() || options.iter().any(|option| !choices.contains(option)) {
+        let unchanged_options = config
+            .model(&model.id)
+            .is_some_and(|old| old.reasoning_options.as_ref() == Some(options));
+        if options.is_empty()
+            || options.iter().any(|option| {
+                !choices.contains(option)
+                    && !(unchanged_options
+                        && config.api_kind() == "9router"
+                        && !model.router_level_allowed(option))
+            })
+        {
             return Err(Error::invalid(
                 "Choose at least one supported reasoning option",
             ));
@@ -1052,9 +1062,9 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
         .or_else(|| row.get("thinking").and_then(Value::as_bool))
         .or_else(|| row.get("reasoning").and_then(Value::as_bool))
         .or_else(|| row.get("supports_reasoning").and_then(Value::as_bool));
-    // 9router's `capabilities.thinkingCanDisable: false` is not mandatory
-    // thinking: the router reads `none` for such a route as its least level
-    // (`ModelInfo::thinking_off_asks_least`), so Off stays a request it takes.
+    // 9router's cannot-disable fact does not make the person's switch
+    // mandatory: Off requests Low there (`thinking_off_requests_low`). A
+    // true flag still does not guarantee the upstream honours disabled.
     let thinking_required = explicit_reasoning != Some(false)
         && (row.pointer("/reasoning/mandatory").and_then(Value::as_bool) == Some(true)
             || row
@@ -1519,7 +1529,7 @@ fn probe(settings: &Shared, config: &ProviderConfig, model: &str) -> Result<()> 
         tools: Vec::new(),
         settings: generation,
     };
-    let (_, mut body) = crate::provider::live::shape(&req, config)?;
+    let (url, mut body) = crate::provider::live::shape(&req, config)?;
     body["stream"] = json!(false);
     body.as_object_mut().unwrap().remove("stream_options");
     let response = {
@@ -1530,7 +1540,7 @@ fn probe(settings: &Shared, config: &ProviderConfig, model: &str) -> Result<()> 
             Default::default(),
         )
     }
-    .post_json(&config.endpoint(), &headers, &body)?;
+    .post_json(&url, &headers, &body)?;
     if !response.ok() {
         return Err(crate::net::rejected(response.status, &response.text));
     }
@@ -1603,7 +1613,7 @@ pub fn describe(settings: &Shared, current: &ModelSettings, catalogue: bool) -> 
             "fetch": crate::web::status(&s, super::services::Service::Fetch),
         },
         "provider": current.provider,
-        "dialect": config.map(|c| c.dialect).unwrap_or_default(),
+        "dialect": config.map(|c| c.dialect_for(&current.model)).unwrap_or_default(),
         "catalogue_complete": catalogue,
         "models": if catalogue {
             config.map(|c| c.models.clone()).unwrap_or_default()
@@ -1616,6 +1626,7 @@ pub fn describe(settings: &Shared, current: &ModelSettings, catalogue: bool) -> 
         "context_usable": usable_context,
         "price": model.and_then(|m| m.price.as_ref()),
         "thinking_required": model.map(|m| m.thinking_required || m.reasoning_options.as_ref().is_some_and(|v| !v.iter().any(|s| s == "off"))).unwrap_or(false),
+        "thinking_disabled": model.map(|m| m.reasoning_support() == Some(false) || m.reasoning_options.as_ref().is_some_and(|v| !v.iter().any(|s| s != "off"))).unwrap_or(false),
         "suppressed": config
             .map(|c| current.suppressed(c))
             .unwrap_or_default()
@@ -1634,28 +1645,70 @@ pub fn describe(settings: &Shared, current: &ModelSettings, catalogue: bool) -> 
                 };
                 let mut choices_val: Option<Vec<Value>> = choices.map(|c| c.iter().map(|s| json!(*s)).collect());
                 if k.key == "thinking" {
-                    let thinking_required = model.map(|m| m.thinking_required).unwrap_or(false);
+                    let thinking_required = model
+                        .map(|m| {
+                            m.thinking_required
+                                || m.reasoning_options
+                                    .as_ref()
+                                    .is_some_and(|v| !v.iter().any(|e| e == "off"))
+                        })
+                        .unwrap_or(false);
+                    let thinking_disabled = model
+                        .map(|m| {
+                            m.reasoning_support() == Some(false)
+                                || m.reasoning_options
+                                    .as_ref()
+                                    .is_some_and(|v| !v.iter().any(|e| e != "off"))
+                        })
+                        .unwrap_or(false);
                     let choices = if thinking_required {
                         vec!["on".to_string()]
+                    } else if thinking_disabled {
+                        vec!["off".to_string()]
                     } else {
                         vec!["off".to_string(), "on".to_string()]
                     };
                     choices_val = Some(choices.into_iter().map(Value::from).collect());
                 } else if k.key == "effort" {
                     let mut list = Vec::new();
-                    let thinking_required = model.map(|m| m.thinking_required || m.reasoning_options.as_ref().is_some_and(|v| !v.iter().any(|e| e == "off"))).unwrap_or(false);
-                    if !thinking_required && !config.is_some_and(|p|current.suppressed(p).iter().any(|why|why.key=="thinking" && why.permanent)) {
+                    let thinking_required = model
+                        .map(|m| {
+                            m.thinking_required
+                                || m.reasoning_options
+                                    .as_ref()
+                                    .is_some_and(|v| !v.iter().any(|e| e == "off"))
+                        })
+                        .unwrap_or(false);
+                    let thinking_disabled = model
+                        .map(|m| {
+                            m.reasoning_support() == Some(false)
+                                || m.reasoning_options
+                                    .as_ref()
+                                    .is_some_and(|v| !v.iter().any(|e| e != "off"))
+                        })
+                        .unwrap_or(false);
+                    if !thinking_required
+                        && !config.is_some_and(|p| {
+                            current
+                                .suppressed(p)
+                                .iter()
+                                .any(|why| why.key == "thinking" && why.permanent)
+                        })
+                    {
                         list.push("off".to_string());
                     }
                     if let Some(m) = model {
-                        if m.route_default_level(config.map_or("", |c| c.api_kind())) {
+                        if !thinking_disabled
+                            && m.route_default_level(config.map_or("", |c| c.api_kind()))
+                        {
                             list.push(super::providers::ROUTE_DEFAULT.to_string());
                         }
-                        let mut effs = m.reasoning_options.as_ref().unwrap_or(&m.efforts).clone();
-                        super::providers::sort_efforts(&mut effs);
-                        list.extend(effs);
+                        if !thinking_disabled {
+                            list.extend(m.effort_choices(config.map_or("", |c| c.api_kind())));
+                        }
                     }
-                    choices_val = (list.len() > 1).then(|| list.into_iter().map(Value::from).collect());
+                    choices_val =
+                        (list.len() > 1).then(|| list.into_iter().map(Value::from).collect());
                 }
                 json!({
                     "key": k.key, "label": k.label, "help": k.help,
@@ -1941,11 +1994,11 @@ mod tests {
         assert!(router.efforts.is_empty());
         assert_eq!(router.default_effort, None);
         assert!(router.route_default_level("9router"));
-        // A route that cannot stop thinking is not mandatory: the router
-        // reads `none` there as its least level, so Off stays a choice.
+        // Cannot-disable does not make the person's switch mandatory:
+        // Off stays a choice whose request is Low on this capability.
         let fixed = catalogue_entry(&json!({"id":"router-fixed","capabilities":{"reasoning":true,"thinkingEffortSupported":false,"thinkingCanDisable":false,"thinkingFormat":"gemini-level","thinkingRange":null}})).unwrap();
         assert!(fixed.thinking && !fixed.thinking_required);
-        assert!(fixed.thinking_off_asks_least());
+        assert!(fixed.thinking_off_requests_low());
         assert!(
             router.known.iter().any(|field| field == "efforts"),
             "the published empty effort capability must be retained"
@@ -2273,6 +2326,45 @@ mod tests {
             .clone();
         assert!(!other.thinking);
         assert!(!other.starts_thinking("9router"));
+    }
+
+    #[test]
+    fn router_describe_and_alt_c_share_the_cannot_disable_level_filter() {
+        let settings = on_disk("router-capability-options");
+        let mut config = preset("9router").unwrap().build("");
+        let mut model = ModelInfo::named("capability-route", true);
+        model.metadata = json!({"capabilities":{"reasoning":true,"thinkingCanDisable":false}});
+        model.reasoning_options = Some(vec!["off".into(), "minimal".into(), "high".into()]);
+        config.models = vec![model.clone()];
+        config.settle_thinking();
+        let current = ModelSettings::for_provider(&config);
+        panic::lock(&settings).providers.list.push(config);
+        let described = describe(&settings, &current, true);
+        let effort = described["knobs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|knob| knob["key"] == "effort")
+            .unwrap();
+        assert_eq!(effort["choices"], json!(["off", "default", "high"]));
+        assert_eq!(
+            described["models"][0]["reasoning_options"],
+            json!(["off", "minimal", "high"])
+        );
+        model.context = Some(12345);
+        configure_model(&settings, "9router", model.clone()).unwrap();
+        let kept = panic::lock(&settings)
+            .providers
+            .get("9router")
+            .unwrap()
+            .model("capability-route")
+            .unwrap()
+            .clone();
+        assert_eq!(kept.context, Some(12345));
+        assert_eq!(kept.reasoning_options, model.reasoning_options);
+        model.reasoning_options = Some(vec!["off".into(), "minimal".into()]);
+        let error = configure_model(&settings, "9router", model).unwrap_err();
+        assert!(matches!(error, Error::Invalid(_)), "{error}");
     }
 
     #[test]

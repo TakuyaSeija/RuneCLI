@@ -1,49 +1,64 @@
 {{define "content"}}
-<section class="page-hero">
-  <div class="shell">
-    <span class="eyebrow">License</span>
-    <h1 class="display">RuneAgent <em>License</em>.</h1>
-    <p class="lead">RuneAgent is free to use, at home and at work. This is the agreement that comes with every official download.</p>
-  </div>
-</section>
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>License</h1>
+      <p class="article-lead">The agreement that comes with every RuneAgent download. This page is the same text as the <code>LICENSE.txt</code> file in each archive.</p>
+      <p class="meta">Effective 29 October 2026. Each release is governed by the license published with it.</p>
+    </header>
+    {{/* The text below is LICENSE.txt, word for word; a test holds the two together. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. Grant</h2>
+      <p>Atoryn grants you a free, non-exclusive, non-transferable license to download, install and use the official RuneAgent binaries published at {{.Origin}}{{url ""}}, for personal and commercial purposes, on as many of your own machines as you like.</p>
 
-<section class="section tight">
-  <div class="shell prose">
-    <p class="muted">Effective 24 October 2026. Each release is governed by the license published with it.</p>
+      <h2 id="limits">2. What you may not do</h2>
+      <ul>
+        <li>Sell, rent, lease, sublicense or redistribute RuneAgent, modified or not. Point others to the official download instead.</li>
+        <li>Modify, decompile, disassemble or reverse engineer RuneAgent, except where the law expressly allows it despite this restriction.</li>
+        <li>Remove or change any copyright, license or attribution notice.</li>
+        <li>Use the names RuneAgent, Atoryn or Atoryn Studio, or their logos, for your own products or to suggest endorsement.</li>
+      </ul>
 
-    <h2>1. Grant</h2>
-    <p>Atoryn grants you a free, non-exclusive, non-transferable license to download, install and use the official RuneAgent binaries published at {{.Origin}}{{url ""}}, for personal and commercial purposes, on as many of your own machines as you like.</p>
+      <h2 id="work">3. Your work stays yours</h2>
+      <p>Code, prompts and data you process with RuneAgent remain yours. RuneAgent does not send them to Atoryn. Anything your work sends to a model provider, a website or another service is subject to that party&#39;s own terms.</p>
 
-    <h2>2. What you may not do</h2>
-    <ul>
-      <li>Sell, rent, lease, sublicense or redistribute RuneAgent, modified or not. Point others to the official download instead.</li>
-      <li>Modify, decompile, disassemble or reverse engineer RuneAgent, except where the law expressly allows it despite this restriction.</li>
-      <li>Remove or change any copyright, license or attribution notice.</li>
-      <li>Use the names RuneAgent, Atoryn or Atoryn Studio, or their logos, for your own products or to suggest endorsement.</li>
-    </ul>
+      <h2 id="third">4. Third-party services</h2>
+      <p>You are responsible for your accounts, API keys, costs and compliance with the terms of every provider or service you connect.</p>
 
-    <h2>3. Your work stays yours</h2>
-    <p>Code, prompts and data you process with RuneAgent remain yours. RuneAgent does not send them to Atoryn. Requests go only to the model providers and services you configure, under their own terms.</p>
+      <h2 id="components">5. Open-source components</h2>
+      <p>RuneAgent includes open-source components under their own licenses. Their notices ship with every download, and those licenses govern those components.</p>
 
-    <h2>4. Third-party services</h2>
-    <p>You are responsible for your accounts, API keys, costs and compliance with the terms of every provider or service you connect.</p>
+      <h2 id="warranty">6. No warranty</h2>
+      <p>RuneAgent is provided "as is", without warranty of any kind, express or implied, including fitness for a particular purpose and non-infringement. An AI agent can make mistakes: review its work before you rely on it.</p>
 
-    <h2>5. Open-source components</h2>
-    <p>RuneAgent includes open-source components under their own licenses. Their notices ship with every download, and those licenses govern those components.</p>
+      <h2 id="liability">7. Limitation of liability</h2>
+      <p>To the maximum extent permitted by law, Atoryn is not liable for any indirect, incidental, special, consequential or punitive damages, or for loss of data, profits or business, arising from the use of or inability to use RuneAgent.</p>
 
-    <h2>6. No warranty</h2>
-    <p>RuneAgent is provided "as is", without warranty of any kind, express or implied, including fitness for a particular purpose and non-infringement. An AI agent can make mistakes: review its work before you rely on it.</p>
+      <h2 id="termination">8. Termination</h2>
+      <p>This license ends automatically if you break its terms. You must then stop using RuneAgent and delete your copies.</p>
 
-    <h2>7. Limitation of liability</h2>
-    <p>To the maximum extent permitted by law, Atoryn is not liable for any indirect, incidental, special, consequential or punitive damages, or for loss of data, profits or business, arising from the use of or inability to use RuneAgent.</p>
+      <h2 id="changes">9. Changes</h2>
+      <p>Atoryn may publish future releases under different terms, including an open-source license. A release you already have stays under the license that came with it.</p>
 
-    <h2>8. Termination</h2>
-    <p>This license ends automatically if you break its terms. You must then stop using RuneAgent and delete your copies.</p>
-
-    <h2>9. Changes</h2>
-    <p>Atoryn may publish future releases under different terms, including an open-source license. A release you already have stays under the license that came with it.</p>
-
-    <p class="muted">&copy; {{year}} Atoryn. All rights reserved.</p>
-  </div>
-</section>
+      <p class="license-copyright">Copyright (c) 2026 Atoryn. All rights reserved.</p>
+    </div>
+    <p class="license-aside">This website's own fonts are used under their licenses, <a class="link" href="{{asset "Fonts/LICENSES.txt"}}">listed here</a>.</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="On this page">
+      <p class="index-title">Contents</p>
+      <ol>
+        <li><a href="#grant">Grant</a></li>
+        <li><a href="#limits">What you may not do</a></li>
+        <li><a href="#work">Your work stays yours</a></li>
+        <li><a href="#third">Third-party services</a></li>
+        <li><a href="#components">Open-source components</a></li>
+        <li><a href="#warranty">No warranty</a></li>
+        <li><a href="#liability">Limitation of liability</a></li>
+        <li><a href="#termination">Termination</a></li>
+        <li><a href="#changes">Changes</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
 {{end}}

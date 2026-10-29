@@ -30,20 +30,20 @@ impl Tool for InspectFile {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "inspect_file".into(),
-            description: "Read one file. Text comes back with line numbers; an image, audio, video or document is attached when the model can take it. Reads workspace files, @memory/ notes, and the files of a skill."
+            description: "Read one file. Text comes back with line numbers; an image, audio, video or document is attached when the model can take it."
                 .into(),
             parameters: flat_schema(
                 json!({
                     "path": {
                         "type": "string",
-                        "description": "The file: relative to the workspace, ~/..., absolute, or @memory/..."
+                        "description": "The file to read."
                     },
                     "view_range": {
                         "type": "array",
                         "minItems": 2,
                         "maxItems": 2,
                         "items": { "type": "integer" },
-                        "description": "[first, last] line to read, 1-based and inclusive. Omit to read the whole file."
+                        "description": "[first, last] line to read, 1-based and inclusive. Omit to read the whole file; for a large file, read the lines you need."
                     }
                 }),
                 &["path"],

@@ -81,6 +81,24 @@ pub struct Ask<'a> {
     pub lifts: bool,
 }
 
+/// One terminal submission received through the frontend command door. Its
+/// construction is not exposed to model tools and it authorizes only these bytes.
+pub(crate) struct ManualShell {
+    command: String,
+}
+
+impl ManualShell {
+    pub(in crate::perm) fn matches(&self, tool: &str, command: &str) -> bool {
+        tool == "terminal_use" && self.command == command
+    }
+}
+
+pub(crate) fn manual_shell(command: &str) -> ManualShell {
+    ManualShell {
+        command: command.into(),
+    }
+}
+
 /// What an authorised call may now do that it could not a moment ago.
 ///
 /// The gate cannot widen anything itself — it holds no session — so it says
@@ -161,6 +179,29 @@ impl Gate {
                 self.ask_user(ask, remember, reason, emit, cancel)
             }
         }
+    }
+
+    pub(crate) fn authorize_manual_shell(
+        &self,
+        tool: &str,
+        command: &str,
+        submission: &ManualShell,
+        cancel: &Arc<AtomicBool>,
+    ) -> Result<Allowed> {
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(Error::Cancelled);
+        }
+        if !submission.matches(tool, command) {
+            return Err(Error::Denied(
+                "manual shell authorization does not match this exact terminal call".into(),
+            ));
+        }
+        Ok(Allowed {
+            person: true,
+            full_access: true,
+            local_services: true,
+            ..Allowed::default()
+        })
     }
 
     /// What this gate decides about `ask`, without asking anybody or changing
@@ -351,6 +392,33 @@ mod tests {
                 }
             }
         });
+    }
+
+    #[test]
+    fn manual_shell_authorization_is_exact_and_never_a_grant_for_other_calls() {
+        let (gate, db) = gate();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let submitted = manual_shell("echo exactly-this");
+        let allowed = gate
+            .authorize_manual_shell("terminal_use", "echo exactly-this", &submitted, &cancel)
+            .unwrap();
+        assert!(allowed.person && allowed.full_access && !allowed.keep);
+        assert!(gate
+            .authorize_manual_shell("terminal_use", "echo different", &submitted, &cancel)
+            .is_err());
+        assert!(gate
+            .authorize_manual_shell("create_file", "echo exactly-this", &submitted, &cancel)
+            .is_err());
+        assert!(!db
+            .lock()
+            .unwrap()
+            .is_granted("/p", "terminal_use", "echo")
+            .unwrap());
+        cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert!(matches!(
+            gate.authorize_manual_shell("terminal_use", "echo exactly-this", &submitted, &cancel),
+            Err(Error::Cancelled)
+        ));
     }
 
     /// A call running alongside others is never put to the person: what the

@@ -48,6 +48,7 @@ impl ToolState {
 }
 
 pub struct Tool {
+    pub shell: Option<runeengine::shell::ShellInfo>,
     pub id: String,
     pub name: String,
     pub action: String,
@@ -176,6 +177,7 @@ pub struct Progress {
 impl Tool {
     pub fn new(id: String, name: String, action: String) -> Tool {
         Tool {
+            shell: None,
             id,
             name,
             action,
@@ -333,6 +335,7 @@ impl Tool {
         use std::hash::Hash;
         self.id.hash(h);
         self.name.hash(h);
+        self.shell.as_ref().map(|shell| &shell.program).hash(h);
         self.action.hash(h);
         self.raw.hash(h);
         self.args.hash(h);
@@ -418,6 +421,19 @@ pub enum Block {
     Thinking {
         text: String,
         open: bool,
+        /// The tokens Anthropic reported of it, where a door asked it to
+        /// count (`Event::ThinkingTokens`): the sum so far while it runs, the
+        /// billed count once it came. `None` measures it by its text's words
+        /// (owner, 2026-10-23: no count of Rune's own).
+        tokens: Option<u64>,
+        /// The count on screen climbing to `tokens`, as Claude Code's does
+        /// ([`super::thinking_count::Chase`]); `None` shows `tokens` as it is
+        /// (a conversation opened from history).
+        chase: Option<super::thinking_count::Chase>,
+        /// The model's request this thinking came with in this window
+        /// ([`super::App::round`]); `None` from history. What a count belongs
+        /// to, whatever blocks were added or taken away around it.
+        round: Option<u64>,
     },
     Tool(Box<Tool>),
     Notice {
@@ -518,10 +534,18 @@ impl Block {
                 6u8.hash(&mut h);
                 text.hash(&mut h);
             }
-            Block::Thinking { text, open } => {
+            Block::Thinking {
+                text,
+                open,
+                tokens,
+                chase,
+                ..
+            } => {
                 2u8.hash(&mut h);
                 text.hash(&mut h);
                 open.hash(&mut h);
+                tokens.hash(&mut h);
+                chase.map(|c| c.tokens()).hash(&mut h);
             }
             Block::Tool(tool) => {
                 3u8.hash(&mut h);

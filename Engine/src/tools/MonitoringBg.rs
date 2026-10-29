@@ -31,7 +31,7 @@ impl Tool for ManageProcess {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "manage_process".into(),
-            description: "Check on, or stop, a background process that terminal_use started. It answers at once, never waiting, with the process's state and the output it printed since your last check. When the process ends, a <system_notification> arrives by itself."
+            description: "Check on, or stop, a background process that terminal_use started. It answers at once, never waiting, with the process's state and saved-log output, including its current terminal screen. The first report reads from the start, even after an input-wait handoff; later reports give only new or changed output. A report with no output body means no new output."
                 .into(),
             parameters: flat_schema(
                 json!({
@@ -133,8 +133,13 @@ fn report(
     ctx: &mut ToolCtx<'_>,
     info: &crate::session::background::BackgroundTaskInfo,
 ) -> Result<Outcome> {
+    let background = std::sync::Arc::clone(ctx.background);
+    let _output = background.output_guard();
+    let info = background
+        .get(&info.task_id)
+        .unwrap_or_else(|| info.clone());
     let task_id = info.task_id.as_str();
-    let status_desc = state_of(info);
+    let status_desc = state_of(&info);
 
     // The process's state in the one capitalised word every surface uses;
     // its exit code beside it when it exited by itself.
@@ -155,7 +160,7 @@ fn report(
         report = report.field("Input", "hidden (what is typed is not shown)");
     }
     report = report
-        .field("PID", pid_of(info))
+        .field("PID", pid_of(&info))
         .field("Output log", info.out_file.display());
     if let Some(note) = &info.capture_note {
         report = report.field("Capture", note);
@@ -169,13 +174,22 @@ fn report(
     // `Output log` read as the same thing twice (owner, 2026-10-11), and a
     // report with nothing after it says nothing new by itself.
     let from = info.reported.as_ref().map_or(0, |reported| reported.log);
-    let (log, end) = read_output(&info.out_file, from)?;
+    // Published tasks keep both final history and the current screen in one
+    // file. Its byte boundary, not a repeated string, owns the two ranges.
+    // Older handed tasks are normalized by their monitor before publication;
+    // a journal-only Lost task has no screen and reads the surviving file.
+    let stable = info
+        .log_position
+        .map_or(u64::MAX, |position| position.stable);
+    let (log, end) = read_output_to(&info.out_file, from, stable)?;
+    let (screen, _) = read_output(&info.out_file, end)?;
+    let tail_now = screen.collect::<Result<String>>()?;
     let fresh = end > from
         || info
             .reported
             .as_ref()
-            .is_none_or(|reported| reported.tail != info.tail);
-    let tail = (fresh && !info.tail.is_empty()).then(|| Ok(info.tail.clone()));
+            .is_none_or(|reported| reported.tail != tail_now);
+    let tail = (fresh && !tail_now.is_empty()).then(|| Ok(tail_now.clone()));
     let seen = info
         .reported
         .as_ref()
@@ -210,7 +224,7 @@ fn report(
             task_id,
             Reported {
                 log: end,
-                tail: info.tail.clone(),
+                tail: tail_now.clone(),
             },
         );
         if !matches!(info.status, BackgroundTaskStatus::Running) {
@@ -332,9 +346,17 @@ fn pid_of(task: &crate::session::background::BackgroundTaskInfo) -> String {
 /// The log from byte `from` to its end as it stands now, line by line, and
 /// where that end is: what is written meanwhile is the next report's.
 fn read_output(path: &Path, from: u64) -> Result<(impl Iterator<Item = Result<String>>, u64)> {
+    read_output_to(path, from, u64::MAX)
+}
+
+fn read_output_to(
+    path: &Path,
+    from: u64,
+    end: u64,
+) -> Result<(impl Iterator<Item = Result<String>>, u64)> {
     use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
     let mut file = std::fs::File::open(path)?;
-    let len = file.metadata()?.len();
+    let len = file.metadata()?.len().min(end);
     let from = from.min(len);
     file.seek(SeekFrom::Start(from))?;
     let mut reader = BufReader::new(file.take(len - from));
@@ -386,6 +408,16 @@ mod tests {
         let decl = tool.declaration();
         assert_eq!(decl.name, "manage_process");
         assert!(decl.description.contains("background process"));
+        assert!(decl.description.contains("saved-log output"));
+        assert!(decl
+            .description
+            .contains("first report reads from the start"));
+        assert!(decl
+            .description
+            .contains("later reports give only new or changed output"));
+        assert!(decl
+            .description
+            .contains("no output body means no new output"));
         assert!(!decl.parameters.to_string().contains("tail_lines"));
         assert!(!decl.parameters.to_string().contains("filter"));
         let properties = decl.parameters["properties"].as_object().unwrap();

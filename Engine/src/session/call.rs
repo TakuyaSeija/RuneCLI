@@ -101,6 +101,39 @@ impl Finished {
         }
     }
 
+    /// Model and frontend calls share one result adaptation. The resolved tool,
+    /// not user/model wording or a guessed alias, determines recovery guidance.
+    pub(crate) fn for_call(st: &SessionState, name: &str, result: Result<Outcome>) -> Finished {
+        let mut finished = Self::of(result);
+        finished.explain_terminal_recovery(st, name);
+        finished
+    }
+
+    pub(crate) fn explain_terminal_recovery(&mut self, st: &SessionState, name: &str) {
+        if st
+            .registry
+            .get(name)
+            .is_ok_and(|tool| !tool.is_external() && tool.name() == "terminal_use")
+        {
+            self.terminal_recovery("terminal_use");
+        }
+    }
+
+    fn terminal_recovery(&mut self, name: &str) {
+        if name != "terminal_use" {
+            return;
+        }
+        let refused = self
+            .detail
+            .as_ref()
+            .and_then(|detail| detail["code"].as_str())
+            .is_some_and(|code| matches!(code, "denied" | "classifier_denied" | "jail"));
+        if !refused {
+            return;
+        }
+        self.content = crate::tools::notice::with_manual_shell_option(&self.content);
+    }
+
     /// A call the user stopped. Distinct from a failure on purpose: "you stopped
     /// this" and "this went wrong" are different things to tell a model, and the
     /// audit trail is read by someone asking which of the two happened.
@@ -143,6 +176,7 @@ pub fn run(
         response_refusal,
         Company::Alone,
         crate::tools::Reader::Model,
+        None,
     )
 }
 
@@ -167,6 +201,7 @@ pub fn run_direct(
         None,
         Company::Alone,
         crate::tools::Reader::Person,
+        None,
     )
 }
 
@@ -191,6 +226,30 @@ pub fn run_alongside(
         None,
         Company::Alongside,
         crate::tools::Reader::Model,
+        None,
+    )
+}
+
+pub(super) fn run_manual_shell(
+    rt: &Runtime,
+    st: &SessionState,
+    turn: i64,
+    id: &str,
+    args: &Value,
+) -> Result<Outcome> {
+    let command = crate::tools::field_str(args, "command")?;
+    let submission = crate::perm::manual_shell(command);
+    run_as(
+        rt,
+        st,
+        turn,
+        id,
+        "terminal_use",
+        args,
+        None,
+        Company::Alone,
+        crate::tools::Reader::Model,
+        Some(&submission),
     )
 }
 
@@ -260,6 +319,7 @@ fn run_as(
     response_refusal: Option<Error>,
     company: Company,
     reader: crate::tools::Reader,
+    manual: Option<&crate::perm::ManualShell>,
 ) -> Result<Outcome> {
     let called = st.registry.get(name);
     let action = crate::tools::action_of(args).to_string();
@@ -331,11 +391,11 @@ fn run_as(
     {
         return Err(Error::Cancelled);
     }
-    if asks_person(st, made.0, made.1)? {
+    if manual.is_some() || asks_person(st, made.0, made.1)? {
         crate::perm::classifier::forget(st, id);
     }
     execute(
-        rt, st, turn, id, &tool, name, args, made, &cancel, company, reader,
+        rt, st, turn, id, &tool, name, args, made, &cancel, company, reader, manual,
     )
 }
 
@@ -352,6 +412,7 @@ fn execute(
     cancel: &Arc<AtomicBool>,
     company: Company,
     reader: crate::tools::Reader,
+    manual: Option<&crate::perm::ManualShell>,
 ) -> Result<Outcome> {
     if company == Company::Alongside && crate::perm::classifier::judges(rt, st, made.0)? {
         return Err(Error::Denied(
@@ -364,13 +425,43 @@ fn execute(
         let _ = tx.send(e);
     };
 
+    let terminal_shell = (tool.name() == "terminal_use")
+        .then(|| crate::tools::terminal::shell(&rt.limits.config.text("terminal.shell")));
+    let pinned: Option<Arc<dyn crate::tools::Tool>> = terminal_shell.as_ref().map(|program| {
+        Arc::new(crate::tools::terminal::TerminalUse::pinned(
+            rt.limits.clone(),
+            program.clone(),
+        )) as Arc<dyn crate::tools::Tool>
+    });
+    let tool = pinned.as_ref().unwrap_or(tool);
+    if let Some(program) = &terminal_shell {
+        let shell = crate::shell::ShellInfo::new(program);
+        panic::lock(&rt.db).set_toolcall_shell(st.id, id, shell.clone())?;
+        emit(
+            rt,
+            Event::ToolShell {
+                session: st.id,
+                id: id.into(),
+                shell,
+            },
+        );
+    }
     if tool.runs_commands() {
         st.capabilities.validate_active_packages()?;
     }
-    let ask = question(st, tool, name, action, args)?;
-    let mut allowed = match company {
-        Company::Alone => st.gate.authorize(st.mode(), ask, &mut emit_fn, cancel)?,
-        Company::Alongside => st.gate.authorize_silently(st.mode(), &ask)?,
+    let mut allowed = if let Some(submission) = manual {
+        st.gate.authorize_manual_shell(
+            name,
+            crate::tools::field_str(args, "command")?,
+            submission,
+            cancel,
+        )?
+    } else {
+        let ask = question(st, tool, name, action, args)?;
+        match company {
+            Company::Alone => st.gate.authorize(st.mode(), ask, &mut emit_fn, cancel)?,
+            Company::Alongside => st.gate.authorize_silently(st.mode(), &ask)?,
+        }
     };
 
     // A mode/grant may change while routing. No actual person answer means
@@ -431,6 +522,7 @@ fn execute(
         super::log::record(rt, st.id, level, name, code, message, detail)
     };
     let mut ctx = ToolCtx {
+        shell: terminal_shell.as_deref(),
         capabilities: &st.capabilities,
         registry: &st.registry,
         questions: &st.questions,
@@ -457,7 +549,11 @@ fn execute(
         (tool.mutates() && !tool.runs_commands() && !tool.is_external()).then(|| st.files.write());
     // A tool is ordinary code and can have an ordinary bug. Catching it here
     // costs this one call; letting it unwind costs the session (see `panic`).
-    let outcome = panic::catch(name, || tool.run(&mut ctx, args)).unwrap_or_else(Err);
+    let mut outcome = panic::catch(name, || tool.run(&mut ctx, args)).unwrap_or_else(Err);
+    if let (Ok(outcome), Some(program)) = (&mut outcome, &terminal_shell) {
+        outcome.detail.get_or_insert_with(|| serde_json::json!({}))["shell"] =
+            serde_json::to_value(crate::shell::ShellInfo::new(program))?;
+    }
     let changed = tool.mutates() || tool.runs_commands();
     drop(writes);
     if changed {
@@ -843,6 +939,39 @@ pub fn turn_was_cancelled(st: &SessionState, e: &Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn manual_recovery_is_offered_only_for_terminal_refusals_not_similar_error_prose() {
+        for name in [
+            "terminal_use",
+            "inspect_file",
+            "create_file",
+            "terminal_send_input",
+        ] {
+            for (error, refusal) in [
+                (Error::Denied("user refused".into()), true),
+                (
+                    Error::Classifier(Supervision::Refused("policy".into())),
+                    true,
+                ),
+                (Error::Jail("outside".into()), true),
+                (Error::Tool("denied by command".into()), false),
+                (Error::Invalid("invalid command".into()), false),
+                (Error::Cancelled, false),
+            ] {
+                let mut finished = Finished::of(Err(error));
+                finished.terminal_recovery(name);
+                finished.terminal_recovery(name);
+                assert!(finished.content.matches("submit !").count() <= 1);
+                assert_eq!(
+                    finished.content.contains("submit !"),
+                    name == "terminal_use" && refusal,
+                    "{name}: {}",
+                    finished.content
+                );
+            }
+        }
+    }
+
     /// What a failure is told and recorded as follows from what failed, not
     /// from words in its message: an error about a file named `classifier_…`
     /// is not the classifier's, and the classifier's two ways of failing keep
@@ -862,7 +991,7 @@ mod tests {
         assert_eq!(refused.detail.unwrap()["code"], "classifier_denied");
         assert_eq!(
             refused.content,
-            "<tool_notice>This call was denied (Rejected by classifier: writes outside the policy). Do not send the same call again; choose another approach or ask the user.</tool_notice>"
+            "<tool_notice>This call was denied (Rejected by classifier: writes outside the policy).</tool_notice>"
         );
 
         let undecided = Finished::of(Err(Error::Classifier(Supervision::undecided(

@@ -22,7 +22,7 @@ impl App {
         self.undo_diff = None;
         self.undo_armed = None;
         self.undo_refused = None;
-        self.selection = None;
+        self.cancel_selection();
         self.transcript_dirty = true;
     }
 

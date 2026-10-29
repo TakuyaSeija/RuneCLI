@@ -3,7 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/ed25519"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -25,19 +26,23 @@ import (
 
 // A release folder, as PublishRune.sh writes it:
 //
-//	Downloads/SigningKey.pem              the public key (PEM, Ed25519)
+//	Downloads/SigningKey.pem              the public key (PEM, ECDSA P-256)
 //	Downloads/<X.Y.Z>/release.json         date, notes, files with platform
 //	Downloads/<X.Y.Z>/rune-<v>-linux-<arch>-<libc>.tar.gz
+//	Downloads/<X.Y.Z>/rune-<v>-macos-<arch>.tar.gz
+//	Downloads/<X.Y.Z>/rune-<v>-windows-<arch>.zip
 //	Downloads/<X.Y.Z>/SHA256SUMS           every file above, release.json too
-//	Downloads/<X.Y.Z>/SHA256SUMS.sig       raw Ed25519 signature of SHA256SUMS
+//	Downloads/<X.Y.Z>/SHA256SUMS.sig       ECDSA P-256 signature (DER) of SHA256SUMS's SHA-256
 //
 // Nothing is listed or served unless the signature verifies with the
 // published key AND every file has exactly the signed size and hash. A folder
 // someone tampered with simply disappears from the site.
 
 var (
-	versionRe  = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
-	artifactRe = regexp.MustCompile(`^rune-([0-9.]+)-(linux)-(x86_64|aarch64)-(gnu|musl)\.tar\.gz$`)
+	versionRe = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
+	// An archive's name says its system and processor, and on Linux its C
+	// library; macOS and Windows archives have none (Libc stays empty).
+	artifactRe = regexp.MustCompile(`^rune-([0-9.]+)-(?:(linux)-(x86_64|aarch64)-(gnu|musl)\.tar\.gz|(macos)-(x86_64|aarch64)\.tar\.gz|(windows)-(x86_64|aarch64)\.zip)$`)
 	sumLineRe  = regexp.MustCompile(`^([0-9a-f]{64})  ([A-Za-z0-9._-]{1,128})$`)
 )
 
@@ -168,11 +173,11 @@ func (s *catalogStore) build() (*Catalog, error) {
 	if err != nil {
 		return nil, fmt.Errorf("signing key: %w", err)
 	}
-	pub, err := parsePublicKey(keyPEM)
+	pub, der, err := parsePublicKey(keyPEM)
 	if err != nil {
 		return nil, err
 	}
-	sum := sha256.Sum256(pub)
+	sum := sha256.Sum256(der)
 	cat := &Catalog{byVersion: map[string]*Release{}, KeyPEM: keyPEM, KeyFingerprint: groupHex(hex.EncodeToString(sum[:]))}
 	ents, err := fs.ReadDir(s.root.FS(), ".")
 	if err != nil {
@@ -202,23 +207,25 @@ func (s *catalogStore) build() (*Catalog, error) {
 	return cat, nil
 }
 
-func parsePublicKey(raw []byte) (ed25519.PublicKey, error) {
+// parsePublicKey reads the release key: one PEM public key, ECDSA P-256. Its
+// fingerprint is the SHA-256 of the DER form returned beside it.
+func parsePublicKey(raw []byte) (*ecdsa.PublicKey, []byte, error) {
 	block, rest := pem.Decode(raw)
 	if block == nil || block.Type != "PUBLIC KEY" || len(bytes.TrimSpace(rest)) != 0 {
-		return nil, fmt.Errorf("signing key is not one PEM public key")
+		return nil, nil, fmt.Errorf("signing key is not one PEM public key")
 	}
 	k, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	pub, ok := k.(ed25519.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("signing key is not Ed25519")
+	pub, ok := k.(*ecdsa.PublicKey)
+	if !ok || pub.Curve != elliptic.P256() {
+		return nil, nil, fmt.Errorf("signing key is not ECDSA P-256")
 	}
-	return pub, nil
+	return pub, block.Bytes, nil
 }
 
-func (s *catalogStore) loadRelease(version string, pub ed25519.PublicKey) (*Release, error) {
+func (s *catalogStore) loadRelease(version string, pub *ecdsa.PublicKey) (*Release, error) {
 	sums, err := readSmall(s.root, version+"/"+sumsFile, 64<<10)
 	if err != nil {
 		return nil, err
@@ -227,7 +234,8 @@ func (s *catalogStore) loadRelease(version string, pub ed25519.PublicKey) (*Rele
 	if err != nil {
 		return nil, err
 	}
-	if len(sig) != ed25519.SignatureSize || !ed25519.Verify(pub, sums, sig) {
+	digest := sha256.Sum256(sums)
+	if !ecdsa.VerifyASN1(pub, digest[:], sig) {
 		return nil, fmt.Errorf("signature does not verify")
 	}
 	signed := map[string]string{}
@@ -290,7 +298,8 @@ func (s *catalogStore) loadRelease(version string, pub ed25519.PublicKey) (*Rele
 			return nil, fmt.Errorf("file name %q", a.Name)
 		}
 		seen[a.Name] = true
-		if a.OS != m[2] || a.Arch != m[3] || a.Libc != m[4] {
+		system, arch, libc := m[2]+m[5]+m[7], m[3]+m[6]+m[8], m[4]
+		if a.OS != system || a.Arch != arch || a.Libc != libc {
 			return nil, fmt.Errorf("%s: platform fields disagree with its name", a.Name)
 		}
 		if signed[a.Name] == "" || a.SHA256 != signed[a.Name] || a.Size != sizes[a.Name] {

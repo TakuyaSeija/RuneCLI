@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Search and read are separate</h2>
+<p>web_search finds pages from a query. web_fetch reads one public HTTP(S) page as text. A URL supplied as a search query is searched, not automatically fetched. The built-in reader is not an interactive browser and cannot promise content behind authentication or a script-only application.</p>
+<p>Search needs a configured service. Fetch defaults to Rune's built-in page reader. The two tools have independent provider pins, timeouts and output budgets; enabling one service does not silently choose it for the other.</p>
+<h2 id="add-an-account">Add access first</h2>
+<p>In Settings → Connections, add the intended Search &amp; Fetch account with its address and credentials. Saving access alone is not proof that the service works. A provider's model endpoint and web endpoint may be different services with different entitlements.</p>
+<h2 id="add-and-select">Add and select a provider</h2>
+<ol><li>Open Settings → Tools → Web search or Web fetch → Provider.</li><li>Choose Add provider and the connected account.</li><li>For a gateway, enter the exact intended route into the empty field. Do not infer a route from an example or a model name.</li><li>Rune tests a real request before keeping the provider. This can send a query/page address and incur cost.</li><li>Return to the list and select the intended provider. Selection tests and saves that exact choice; adding alone does not explicitly pin it.</li></ol>
+<p>A failed add or selection leaves the previous choice in place. A successful test proves the tested request, not unrestricted future access to every page or service.</p>
+<h2 id="services">Services Rune can use</h2>
+<p>Each service needs your own account with it. Rune uses only the search or page-reading part named here, not every product the vendor sells. Unless a row says otherwise, the service has one fixed address and needs a key.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Service</th><th>Search</th><th>Fetch</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Yes</td><td>No</td><td>Searches Google through a SERP zone of your account.</td></tr>
+<tr><td>Exa</td><td>Yes</td><td>Yes</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Yes</td><td>Yes</td><td></td></tr>
+<tr><td>Jina AI</td><td>Yes</td><td>Yes</td><td>Search and reading use two addresses; the key starts with <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>9router</td><td>Yes</td><td>Yes</td><td>The 9router app on this computer, port 20128 by default. Its key is optional, and each search or reading service it offers is a route you name.</td></tr>
+<tr><td>Ollama Web Search</td><td>Yes</td><td>Yes</td><td>Ollama's cloud service with an ollama.com key, not a local Ollama.</td></tr>
+<tr><td>Perplexity Search</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>SearXNG</td><td>Yes</td><td>No</td><td>Your own server: enter its address; no key. It must list <code>json</code> under <code>search: formats:</code> in its settings.</td></tr>
+<tr><td>SerpApi</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Serper</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Serpex</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Serplify</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>serpstack</td><td>Yes</td><td>No</td><td></td></tr>
+<tr><td>Tavily</td><td>Yes</td><td>Yes</td><td></td></tr>
+<tr><td>TinyFish</td><td>Yes</td><td>Yes</td><td>Search and reading use two addresses.</td></tr>
+<tr><td>You.com</td><td>Yes</td><td>No</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Without any of these, web search is unavailable and web fetch uses Rune's built-in reader, which needs no account.</p>
+<h2 id="default-and-pin">Default and explicit pins</h2>
+<dl class="ref">
+<div><dt>Search default</dt><dd>When unset, use the first enabled search provider in addition order. Adding the first provider can therefore make it the default in use.</dd></div>
+<div><dt>Fetch default</dt><dd>Use the built-in reader. Adding an external reader does not automatically select it.</dd></div>
+<div><dt>Explicit choice</dt><dd>Pin one account or one account:route. If missing or unavailable, the tool does not silently send the request to a different provider.</dd></div>
+</dl>
+<p>Use default or reset <code>web_search.provider</code>/<code>web_fetch.provider</code> to remove the corresponding pin. Select another choice before deleting a provider in use. Deletion removes that tool provider, not the account or keys. A gateway service can keep at most 32 saved routes.</p>
+<h2 id="limits-and-privacy">Limits and privacy</h2>
+<p>Factory defaults are eight search results, 60 seconds per tool request and 100,000 returned characters for each tool. A per-call count can lower the search maximum. A larger output cap does not bypass access restrictions.</p>
+<p>Third-party search receives the query; an external reader receives the page address and can charge for its work. Built-in fetching contacts the requested site. Private/internal targets are refused. The optional cookie handling is limited to one redirected read and does not create a persistent browser login.</p>
+{{end}}

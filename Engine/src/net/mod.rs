@@ -331,10 +331,9 @@ pub fn rejected(status: u16, text: &str) -> Error {
 /// phrasings observed as of 2026-10. A miss costs nothing worse than before:
 /// the rejection is reported as it always was.
 fn context_overflow(status: u16, message: &str) -> bool {
-    if status == 413 {
-        return true;
-    }
-    if status != 400 {
+    // HTTP 413 alone says payload bytes, not model tokens. Only an explicit
+    // context explanation can make it a compaction signal.
+    if status != 400 && status != 413 {
         return false;
     }
     let lower = message.to_ascii_lowercase();
@@ -601,6 +600,20 @@ mod tests {
             (400, r#"{"error":{"param":"max_tokens","max_value":0}}"#),
         ] {
             assert!(!matches!(rejected(status, text), Error::OutputLimit { .. }));
+        }
+    }
+
+    #[test]
+    fn payload_too_large_alone_is_not_a_provider_token_context_rejection() {
+        assert!(matches!(
+            rejected(413, "request body too large"),
+            Error::Rejected { status: 413, .. }
+        ));
+        for status in [400, 413] {
+            assert!(matches!(
+                rejected(status, "maximum context length exceeded"),
+                Error::ContextOverflow(_)
+            ));
         }
     }
 

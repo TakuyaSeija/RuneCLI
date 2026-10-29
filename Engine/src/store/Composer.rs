@@ -8,6 +8,8 @@ use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PendingPrompt {
+    #[serde(default)]
+    pub manual_shell: bool,
     pub id: i64,
     #[serde(default)]
     pub message_id: Option<i64>,
@@ -21,6 +23,8 @@ pub struct Composer {
     pub revision: u64,
     pub operations: std::collections::BTreeMap<String, u64>,
     pub pending: Vec<PendingPrompt>,
+    /// Accepted manual submissions, keyed by a stable random frontend token.
+    pub shell_receipts: std::collections::BTreeMap<String, String>,
     pub text: String,
     pub cursor: usize,
     pub attachments: Vec<String>,
@@ -37,6 +41,7 @@ impl Default for Composer {
             revision: 0,
             operations: std::collections::BTreeMap::new(),
             pending: Vec::new(),
+            shell_receipts: std::collections::BTreeMap::new(),
             text: String::new(),
             cursor: 0,
             attachments: Vec::new(),

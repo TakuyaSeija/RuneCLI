@@ -492,9 +492,18 @@ fn ask_allow_and_full_have_the_same_four_row_preview_and_only_a_click_expands_it
                 && !text.contains("Refuse")
         });
         let live = main_terminal_box(&running);
-        assert_eq!(live.len(), 9, "{mode} live preview must have one command row, four output rows, footer and borders: {live:?}");
+        assert_eq!(
+            live.len(),
+            9,
+            "{mode} live preview must have one command row, four output rows, footer and borders: {live:?}"
+        );
         assert!(
-            live[7].contains("lines cut"),
+            live[1].contains("$ for n in $(seq 1 12)") && live[2].contains('├'),
+            "a long command must stay one visual row until explicitly opened: {live:?}"
+        );
+        assert!(!live.iter().any(|row| row.contains("printf 'PREVIEW-FINAL")));
+        assert!(
+            live[live.len() - 2].contains("lines cut"),
             "footer is BELOW all output: {live:?}"
         );
         assert!(!live
@@ -509,7 +518,7 @@ fn ask_allow_and_full_have_the_same_four_row_preview_and_only_a_click_expands_it
             live.len(),
             "completion must not change the folded size: {mode}"
         );
-        assert!(compact[7].contains("lines cut"));
+        assert!(compact[compact.len() - 2].contains("lines cut"));
         completed.push(compact);
         // Click the footer in its actual frame, without a slash /verbose toggle.
         let row = done
@@ -520,11 +529,19 @@ fn ask_allow_and_full_have_the_same_four_row_preview_and_only_a_click_expands_it
         window.send(format!("\x1b[<0;20;{row}M\x1b[<0;20;{row}m").as_bytes());
         let expanded = window.until("explicit Open All", |text| {
             text.contains("preview-01")
+                && main_terminal_box(text)
+                    .iter()
+                    .any(|line| line.contains("PREVIEW-FINAL\\n"))
                 && !main_terminal_box(text)
                     .iter()
                     .any(|line| line.contains("lines cut"))
         });
-        assert!(main_terminal_box(&expanded).len() > live.len());
+        let opened = main_terminal_box(&expanded);
+        assert!(opened.len() > live.len());
+        assert!(
+            opened.iter().any(|row| row.contains("PREVIEW-FINAL\\n")),
+            "Open All restores the command suffix, wherever it wraps: {opened:?}"
+        );
     }
     assert_eq!(
         completed[0], completed[1],

@@ -199,6 +199,37 @@ impl Engine {
             Self::ack(&self.rt.events, id, Ok(None));
             return false;
         }
+        if let Command::OpenUrl { url, .. } = &cmd {
+            let url = match crate::platform::BrowserUrl::parse(url) {
+                Ok(url) => url,
+                Err(error) => {
+                    Self::ack(&self.rt.events, id, Err(error));
+                    return true;
+                }
+            };
+            self.catalogues.retain(|worker| !worker.is_finished());
+            if self.catalogues.len() >= 16 {
+                Self::ack(
+                    &self.rt.events,
+                    id,
+                    Err(Error::invalid(
+                        "Desktop opening is busy; copy the destination instead.",
+                    )),
+                );
+                return true;
+            }
+            let events = self.rt.events.clone();
+            self.catalogues.push(std::thread::spawn(move || {
+                Self::ack(
+                    &events,
+                    id,
+                    crate::platform::open_browser(&url)
+                        .map(|_| None)
+                        .map_err(Error::from),
+                );
+            }));
+            return true;
+        }
         if let Command::CapabilityManage {
             session, request, ..
         } = &cmd
@@ -340,8 +371,12 @@ impl Engine {
             }
         };
         let mode = s.state.mode();
+        // Its own statement: a guard taken inside the literal below would be
+        // held to its end, and the classifier status takes the same lock.
+        let prices = panic::lock(&self.settings).prices();
         let standing = crate::session::view::Standing {
             settings: crate::settings::manage::describe(&self.settings, &s.state.settings(), true),
+            prices,
             file_changes: s
                 .state
                 .files
@@ -379,7 +414,16 @@ impl Engine {
 
     pub fn dispatch_local(&mut self, cmd: Command) -> Result<Option<Value>> {
         self.follow_configuration();
+        let manual_shell = matches!(
+            &cmd,
+            Command::ShellSubmit { .. } | Command::DraftShellPromote { .. }
+        );
         match cmd {
+            Command::OpenUrl { url, .. } => {
+                let url = crate::platform::BrowserUrl::parse(&url)?;
+                crate::platform::open_browser(&url)?;
+                Ok(None)
+            }
             Command::DraftOpen { project, token, .. } => {
                 let defaults = crate::store::composer::Composer {
                     settings: self.settings_for_fresh(None)?,
@@ -459,8 +503,16 @@ impl Engine {
                 )?;
                 Ok(Some(settings))
             }
-            Command::DraftPromote { draft, .. } => {
+            Command::DraftPromote { draft, .. } | Command::DraftShellPromote { draft, .. } => {
                 draft.validate()?;
+                if manual_shell {
+                    crate::session::manual_shell::validate(&draft.composer.text)?;
+                    if !draft.composer.attachments.is_empty() {
+                        return Err(Error::invalid(
+                            "Remove attachments before submitting a manual shell command.",
+                        ));
+                    }
+                }
                 let submission = format!("{}:{}", draft.token, draft.generation);
                 let saved = {
                     use rusqlite::OptionalExtension;
@@ -476,8 +528,11 @@ impl Engine {
                 if let Some(saved) = saved {
                     let promotion: crate::store::promotion::Promotion =
                         serde_json::from_str(&saved)?;
-                    let committed =
-                        panic::lock(&self.rt.db).promote(&draft, promotion.message.media)?;
+                    let committed = panic::lock(&self.rt.db).promote_as(
+                        &draft,
+                        promotion.message.media,
+                        manual_shell,
+                    )?;
                     return Ok(Some(
                         json!({"session": committed.meta.id, "promotion": committed.token}),
                     ));
@@ -512,7 +567,7 @@ impl Engine {
                     .iter()
                     .map(|path| crate::media::Attachment::at(std::path::Path::new(path)))
                     .collect::<Result<Vec<_>>>()?;
-                let committed = panic::lock(&self.rt.db).promote(&draft, media)?;
+                let committed = panic::lock(&self.rt.db).promote_as(&draft, media, manual_shell)?;
                 Ok(Some(
                     json!({"session": committed.meta.id, "promotion": committed.token}),
                 ))
@@ -612,13 +667,22 @@ impl Engine {
                 let committed = promotion.message.turn;
                 let handle = std::thread::spawn(move || {
                     let _busy = busy;
-                    let _ = turn::run(
-                        &rt,
-                        &state,
-                        &promotion.message.content,
-                        promotion.message.media,
-                        Some(committed),
-                    );
+                    if promotion.message.manual_shell {
+                        let _ = turn::run_manual_shell(
+                            &rt,
+                            &state,
+                            &promotion.message.content,
+                            committed,
+                        );
+                    } else {
+                        let _ = turn::run(
+                            &rt,
+                            &state,
+                            &promotion.message.content,
+                            promotion.message.media,
+                            Some(committed),
+                        );
+                    }
                 });
                 self.running.insert(session, handle);
                 Ok(None)
@@ -743,10 +807,11 @@ impl Engine {
                 ref project,
                 ..
             } => {
+                let prices = panic::lock(&self.settings).prices();
                 let (usage, title, created_at, steps, turns, active_seconds, session_project) = {
                     let db = panic::lock(&self.rt.db);
                     let row = db.get_session(session)?;
-                    let usage = db.session_usage(session).ok();
+                    let usage = db.session_usage(session, &prices).ok();
                     let toolcalls = db.count_toolcalls(session).unwrap_or(0);
                     let assistants = db.count_assistant_messages(session).unwrap_or(0);
                     let turns = db.max_turn(session).unwrap_or(0);
@@ -899,51 +964,13 @@ impl Engine {
                 text,
                 attach,
                 ..
-            } => {
-                if text.trim().is_empty() && attach.is_empty() {
-                    return Err(Error::invalid("prompt text is empty"));
-                }
-                // Read and identify every attachment **before** the turn starts,
-                // so a path that is wrong is one error the user sees at once
-                // rather than a turn that begins and then complains.
-                let media: Vec<crate::media::Attachment> = attach
-                    .iter()
-                    .map(|p| crate::media::Attachment::at(std::path::Path::new(p)))
-                    .collect::<Result<_>>()?;
-                let s = self.session(session)?;
-                // Queued for the turn in progress, or the session is taken for
-                // this message — decided under the lock the turn lets go by, so
-                // a steer can never land after the turn's last look at the queue.
-                let admitted = s.state.admit(|| {
-                    let committed =
-                        turn::persist_prompt(&self.rt, &s.state, &text, &media, true, None)?;
-                    Ok(crate::session::Queued {
-                        text: text.clone(),
-                        media: media.clone(),
-                        committed: Some(committed),
-                        origin: crate::session::Origin::User,
-                    })
-                })?;
-                let busy = match admitted {
-                    crate::session::Admitted::Queued => {
-                        let composer = panic::lock(&self.rt.db).jsonl.composer(session)?;
-                        return Ok(Some(json!({"composer": composer})));
-                    }
-                    crate::session::Admitted::Began(busy) => busy,
-                };
-                let committed =
-                    turn::persist_prompt(&self.rt, &s.state, &text, &media, false, None)?;
-                self.reap(&[]);
-                let rt = self.rt.clone();
-                let state = Arc::clone(&s.state);
-                let handle = std::thread::spawn(move || {
-                    let _busy = busy;
-                    let _ = turn::run(&rt, &state, &text, media, Some(committed));
-                });
-                self.running.insert(session, handle);
-                let composer = panic::lock(&self.rt.db).jsonl.composer(session)?;
-                Ok(Some(json!({"composer": composer})))
-            }
+            } => self.submit_frontend(session, text, attach, None),
+            Command::ShellSubmit {
+                session,
+                text,
+                submission,
+                ..
+            } => self.submit_frontend(session, text, Vec::new(), Some(submission)),
 
             Command::Cancel { session, call, .. } => {
                 let s = self.session(session)?;
@@ -1311,6 +1338,10 @@ impl Engine {
                 panic::lock(&self.settings).reload_providers();
                 panic::lock(&self.settings).reload_secrets();
                 let st = self.session(session)?;
+                // A window asks again whenever the configuration moved — a
+                // price filled in, in any process, included — so this is where
+                // the session's cost is priced again and sent to every window.
+                crate::session::spend::publish(&self.rt, session);
                 let mut description =
                     crate::settings::manage::describe(&self.settings, &st.state.settings(), false);
                 description["classifier_status"] =
@@ -2007,6 +2038,102 @@ impl Engine {
         })))
     }
 
+    fn submit_frontend(
+        &mut self,
+        session: i64,
+        text: String,
+        attach: Vec<String>,
+        manual_request: Option<String>,
+    ) -> Result<Option<Value>> {
+        let s = self.session(session)?;
+        let manual_shell = manual_request.is_some();
+        if manual_shell {
+            crate::session::manual_shell::validate(&text)?;
+        }
+        if let Some(request) = manual_request {
+            if !(16..=128).contains(&request.len())
+                || !request
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+            {
+                return Err(Error::invalid(
+                    "A manual submission needs a stable unique token, not an empty or invalid id.",
+                ));
+            }
+            let db = panic::lock(&self.rt.db);
+            let mut composer = db.jsonl.composer(session)?.unwrap_or_default();
+            let hash = crate::checkpoint::objects::hash_of(text.as_bytes());
+            if let Some(accepted) = composer.shell_receipts.get(&request) {
+                if accepted != &hash {
+                    return Err(Error::invalid(
+                        "This manual submission id already belongs to a different script.",
+                    ));
+                }
+                return Ok(Some(json!({"composer":composer,"already_accepted":true})));
+            }
+            composer.shell_receipts.insert(request, hash);
+            db.jsonl.write_composer(session, &composer)?;
+        }
+        if text.trim().is_empty() && attach.is_empty() {
+            return Err(Error::invalid("prompt text is empty"));
+        }
+        let media: Vec<crate::media::Attachment> = attach
+            .iter()
+            .map(|path| crate::media::Attachment::at(std::path::Path::new(path)))
+            .collect::<Result<_>>()?;
+        let persist = |queued, pending| {
+            if manual_shell {
+                turn::persist_manual_shell(&self.rt, &s.state, &text, queued, pending)
+            } else {
+                turn::persist_prompt(&self.rt, &s.state, &text, &media, queued, pending)
+            }
+        };
+        let admitted = s.state.admit(|| {
+            let committed = persist(true, None)?;
+            Ok(crate::session::Queued {
+                manual_shell,
+                text: text.clone(),
+                media: media.clone(),
+                committed: Some(committed),
+                origin: crate::session::Origin::User,
+            })
+        })?;
+        let (busy, backlog) = match admitted {
+            crate::session::Admitted::Queued => {
+                let composer = panic::lock(&self.rt.db).jsonl.composer(session)?;
+                return Ok(Some(json!({"composer":composer})));
+            }
+            crate::session::Admitted::Began(busy) => (busy, false),
+            crate::session::Admitted::Backlog(busy) => (busy, true),
+        };
+        let committed = if backlog {
+            None
+        } else {
+            Some(persist(false, None)?)
+        };
+        self.reap(&[]);
+        let rt = self.rt.clone();
+        let state = Arc::clone(&s.state);
+        let handle = std::thread::spawn(move || {
+            let _busy = busy;
+            if backlog {
+                let _ = turn::run_queued(&rt, &state);
+            } else if manual_shell {
+                let _ = turn::run_manual_shell(
+                    &rt,
+                    &state,
+                    &text,
+                    committed.expect("a new submission is committed"),
+                );
+            } else {
+                let _ = turn::run(&rt, &state, &text, media, committed);
+            }
+        });
+        self.running.insert(session, handle);
+        let composer = panic::lock(&self.rt.db).jsonl.composer(session)?;
+        Ok(Some(json!({"composer":composer})))
+    }
+
     pub fn session(&self, id: i64) -> Result<Session> {
         self.sessions
             .get(&id)
@@ -2025,14 +2152,24 @@ impl Engine {
             .map(|composer| composer.pending)
             .unwrap_or_default();
         for pending in pending {
-            turn::persist_prompt(
-                &self.rt,
-                &state.state,
-                &pending.text,
-                &pending.media,
-                false,
-                Some(pending.id),
-            )?;
+            if pending.manual_shell {
+                turn::persist_manual_shell(
+                    &self.rt,
+                    &state.state,
+                    &pending.text,
+                    false,
+                    Some(pending.id),
+                )?;
+            } else {
+                turn::persist_prompt(
+                    &self.rt,
+                    &state.state,
+                    &pending.text,
+                    &pending.media,
+                    false,
+                    Some(pending.id),
+                )?;
+            }
         }
         Ok(())
     }
@@ -2447,7 +2584,7 @@ fn run_tool_directly(rt: &Runtime, st: &SessionState, name: &str, args: &Value) 
 
     let finished = match result {
         Err(Error::Cancelled) => call::Finished::stopped(),
-        other => call::Finished::of(other),
+        other => call::Finished::for_call(st, name, other),
     };
 
     // Release the session before announcing the result, for the same reason the
@@ -2500,6 +2637,7 @@ impl crate::session::background::SessionWakeNotifier for EngineNotifier {
         }
         let admitted = state.admit(|| {
             Ok(crate::session::Queued {
+                manual_shell: false,
                 text: text.clone(),
                 media: Vec::new(),
                 committed: None,
@@ -2512,6 +2650,13 @@ impl crate::session::background::SessionWakeNotifier for EngineNotifier {
                 std::thread::spawn(move || {
                     let _busy = busy;
                     let _ = crate::session::turn::run_notification(&rt, &state, &text);
+                });
+            }
+            Ok(crate::session::Admitted::Backlog(busy)) => {
+                let rt = self.rt.clone();
+                std::thread::spawn(move || {
+                    let _busy = busy;
+                    let _ = crate::session::turn::run_queued(&rt, &state);
                 });
             }
             // The work in progress hands it to the model with its next

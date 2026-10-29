@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="what-rune-does">What Rune does</h2>
+<p>Rune is a coding agent that runs in your terminal. You describe a result; a model proposes work, and Rune reads files, runs tools and shows their results in the same conversation. It works with the model account you connect, not an included subscription or a model supplied by Atoryn.</p>
+<p>The program and session data live on your computer. This does <strong>not</strong> mean every task is offline: your selected provider receives the prompts, context and supported attachments needed for its requests. Commands and connected services can also use the network. Read <a href="{{url "docs/privacy"}}">Privacy &amp; data</a> before working with sensitive material.</p>
+<h2 id="start-in-a-project">Start in a project</h2>
+<p>Install Rune with the command on the <a href="{{url "install"}}">home page</a>; <a href="{{url "docs/install"}}">Install &amp; update</a> explains each step. Then open the folder you intend Rune to work on. Start with a small, version-controlled project and review its existing changes first.</p>
+<pre class="block"><code>cd path/to/your-workspace
+rune</code></pre>
+<p>You can also pass the folder directly with <code>rune path/to/your-workspace</code>. The working folder defines the workspace for file access, session selection and project guidance. Starting in your entire home folder grants a much wider workspace than starting in one repository.</p>
+<h2 id="connect-and-select">Connect and select a model</h2>
+<ol>
+<li>Press <kbd>Ctrl+G</kbd> and open <strong>Connections → Add connection</strong>.</li>
+<li>Choose the intended model provider. Review the destination, enter any required address and use the masked API-key field. Connecting makes a real request and may be billable.</li>
+<li>Open <strong>Models</strong>, choose the connected provider, and select a model with <kbd>Enter</kbd>. Browsing or searching alone does not switch the session.</li>
+<li>Check the model name and permission mode beside the composer before sending work.</li>
+</ol>
+<p>A provider preset is setup information, not access to an account. Available models depend on the account, endpoint and catalog. See <a href="{{url "docs/providers"}}">Model providers</a>, <a href="{{url "docs/connections"}}">Connections</a> and <a href="{{url "docs/models"}}">Models &amp; capabilities</a>.</p>
+<h2 id="give-one-bounded-task">Give one bounded task</h2>
+<p>Start in <strong>Ask</strong>, the default mode. Reads within the workspace can proceed; edits and commands ask for approval. A useful request names an outcome, constraints and a way to check it:</p>
+<blockquote>Find why the importer accepts a blank date. Explain the cause, add a regression test, and show me the proposed fix before running commands.</blockquote>
+<p>Read the actual command, file path or diff on each permission card. An approval belongs to its stated scope; it is not a general promise that the work is safe. Press <kbd>Esc</kbd> twice to stop active AI work. You can send a clarification while the agent works; it is handled at a subsequent step rather than rewriting a request already in flight.</p>
+<h2 id="review-the-result">Review the result</h2>
+<p>Read the final report and tool outcomes, inspect the changed files, and verify the result yourself. A model can misunderstand a task or claim more than the tests prove. The side panel shows actual tracked file differences, while <code>/logs</code> and <code>/context</code> help explain failures and context.</p>
+<p><code>/undo</code> can restore an eligible file to its pre-session state. It cannot reverse a deployment, a message sent to a service, or every external side effect. Treat it as a file-restoration tool, not a replacement for Git or backups.</p>
+{{end}}

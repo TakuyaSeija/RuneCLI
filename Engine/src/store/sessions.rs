@@ -66,6 +66,8 @@ impl Role {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ContextKind {
+    /// The observed input/result of one user-authorized shell submission.
+    ManualShell,
     /// What the session opens with: the memory index, `AGENTS.md`, the skill
     /// catalogue and the status. Sent before the first request it was taken for.
     Session,
@@ -141,6 +143,8 @@ pub struct Work {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual_shell: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub work: Option<Work>,
     pub continuation: Option<crate::provider::Continuation>,
@@ -159,6 +163,12 @@ pub struct Message {
     pub tool_calls: Option<Value>,
     /// The model's reasoning for this message, where the provider exposed it.
     pub reasoning: Option<String>,
+    /// How many tokens the model spent thinking for this message, as its
+    /// provider counted them: also where it returned no thinking text
+    /// (Claude Code's subscription route; owner, 2026-10-23). Absent where
+    /// nobody counted, rows written before it included.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking_tokens: Option<u64>,
     /// Files the user attached to this turn. Empty on every other row.
     pub media: Vec<crate::media::Attachment>,
     pub created_at: i64,
@@ -174,6 +184,8 @@ pub struct Message {
 /// this bounded list; only result status/code and timing are duplicated here.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolCall {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shell: Option<crate::shell::ShellInfo>,
     pub id: String,
     pub turn: i64,
     pub name: String,
@@ -208,6 +220,7 @@ pub struct NewToolCall<'a> {
 /// timestamp are the store's to assign, not the caller's.
 #[derive(Debug, Clone)]
 pub struct NewMessage<'a> {
+    pub manual_shell: bool,
     pub work: Option<Work>,
     pub id: Option<i64>,
     pub continuation: Option<&'a str>,
@@ -218,6 +231,8 @@ pub struct NewMessage<'a> {
     pub tool_name: Option<&'a str>,
     pub tool_calls: Option<&'a str>,
     pub reasoning: Option<&'a str>,
+    /// What the provider counted of the model's thinking ([`Message::thinking_tokens`]).
+    pub thinking_tokens: Option<u64>,
     /// Files the user attached, as JSON — see the `media` column.
     pub media: Option<&'a str>,
     /// Required on a [`Role::Context`] row, absent on every other.
@@ -228,6 +243,7 @@ impl<'a> NewMessage<'a> {
     /// An ordinary message: a role and its text.
     pub fn plain(turn: i64, role: Role, content: &'a str) -> NewMessage<'a> {
         NewMessage {
+            manual_shell: false,
             work: None,
             id: None,
             continuation: None,
@@ -238,6 +254,7 @@ impl<'a> NewMessage<'a> {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: None,
             context: None,
         }
@@ -578,6 +595,7 @@ impl Db {
         })?;
 
         let msg_obj = Message {
+            manual_shell: msg.manual_shell,
             work: msg.work,
             continuation: msg.continuation.and_then(|j| serde_json::from_str(j).ok()),
             id: inserted_id,
@@ -588,6 +606,7 @@ impl Db {
             tool_name: msg.tool_name.map(String::from),
             tool_calls: msg.tool_calls.and_then(|j| serde_json::from_str(j).ok()),
             reasoning: msg.reasoning.map(String::from),
+            thinking_tokens: msg.thinking_tokens,
             media: msg
                 .media
                 .and_then(|j| serde_json::from_str(j).ok())
@@ -747,6 +766,7 @@ impl Db {
         // Nothing is written to the audit trail yet — a call is not history until it
         // has an outcome.
         let pending = crate::store::PendingCall {
+            shell: None,
             turn,
             name: name.to_string(),
             args: args.to_string(),
@@ -756,6 +776,23 @@ impl Db {
             .lock()
             .map_err(|_| Error::invalid("toolcall pending lock poisoned"))?
             .insert((session, id.to_string()), pending);
+        Ok(())
+    }
+
+    pub fn set_toolcall_shell(
+        &self,
+        session: i64,
+        id: &str,
+        shell: crate::shell::ShellInfo,
+    ) -> Result<()> {
+        let mut pending = self
+            .pending_toolcalls
+            .lock()
+            .map_err(|_| Error::invalid("toolcall pending lock poisoned"))?;
+        let call = pending
+            .get_mut(&(session, id.into()))
+            .ok_or_else(|| Error::invalid("terminal call is not registered"))?;
+        call.shell = Some(shell);
         Ok(())
     }
 
@@ -778,11 +815,12 @@ impl Db {
             .lock()
             .map_err(|_| Error::invalid("toolcall pending lock poisoned"))?
             .remove(&(session, id.to_string()));
-        let (turn, name, action, started_at) = match pending {
-            Some(p) => (p.turn, p.name, action_of(&p.args), p.started_at),
-            None => (0, String::new(), String::new(), ended),
+        let (turn, name, action, started_at, shell) = match pending {
+            Some(p) => (p.turn, p.name, action_of(&p.args), p.started_at, p.shell),
+            None => (0, String::new(), String::new(), ended, None),
         };
         let call = ToolCall {
+            shell,
             id: id.to_string(),
             turn,
             name,

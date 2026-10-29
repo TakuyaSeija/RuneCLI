@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {initialState,canAdvance,wantsPlay,reduce,phase,sourceAt,readSchedule} from '../UI/Static/Scripts/TerminalReplay.js';
+import {duration,fraction,prefixAt,outputBatches} from '../UI/Static/Scripts/TerminalStream.js';
+const schedule={end:10000,hold:7000};
+let state=initialState();
+state=reduce(state,{type:'frame',now:0},schedule);state=reduce(state,{type:'frame',now:900},schedule);assert.equal(state.elapsed,900);
+state=reduce(state,{type:'visibility',visible:false,hidden:false},schedule);assert(!canAdvance(state));assert(wantsPlay(state,schedule.end));
+state=reduce(state,{type:'pause'},schedule);state=reduce(state,{type:'play'},schedule);assert(!state.paused);assert(wantsPlay(state,schedule.end));
+state=reduce(state,{type:'frame',now:100000},schedule);assert.equal(state.elapsed,900);
+state=reduce(state,{type:'visibility',visible:true,hidden:false},schedule);state=reduce(state,{type:'frame',now:100000},schedule);state=reduce(state,{type:'frame',now:100400},schedule);assert.equal(state.elapsed,1300);
+state=reduce(state,{type:'visibility',visible:true,hidden:true},schedule);state=reduce(state,{type:'frame',now:200000},schedule);assert.equal(state.elapsed,1300);
+state=reduce(state,{type:'visibility',visible:true,hidden:false},schedule);state=reduce(state,{type:'frame',now:200000},schedule);state=reduce(state,{type:'frame',now:210000},schedule);assert.equal(state.elapsed,10000);
+state=reduce(state,{type:'pause'},schedule);state=reduce(state,{type:'frame',now:310000},schedule);assert.equal(state.completeHold,0);
+state=reduce(state,{type:'play'},schedule);assert.equal(state.elapsed,0);assert(canAdvance(state));
+state=reduce(state,{type:'motion',reduced:true},schedule);assert.equal(state.elapsed,10000);assert(!wantsPlay(state,schedule.end));
+state=reduce(state,{type:'play'},schedule);assert.equal(state.elapsed,0);assert(canAdvance(state));
+for(const [seconds,want] of [[0,'0s'],[45,'45s'],[60,'1m 00s'],[178,'2m 58s'],[722,'12m 02s'],[902,'15m 02s'],[3665,'1h 01m'],[172805,'48h 00m']])assert.equal(duration(seconds),want);
+const row=[100,10000,0,1,2600,500,2600,18750,800];
+for(const [now,want] of [[0,'future'],[150,'writing'],[501,'queued'],[900,'asking'],[2600,'running'],[10100,'done']])assert.equal(phase(row,now,true),want);
+assert.equal(phase([100,1000,20,0,0,1100],700,false),'writing');assert.equal(fraction(15,10,20),.5);
+assert.deepEqual(outputBatches(['a','b','c','d','e','f','g']),[6,7]);
+assert.deepEqual(outputBatches(['x'.repeat(1024),'last']),[1,2]);
+assert.equal(prefixAt(200,.2),40);assert.equal(prefixAt(207,1),207);assert.equal(prefixAt(10,-1),0);
+// Seeking keeps Pause, clamps to the excerpt and restarts the completion hold.
+let seeking=reduce(initialState(),{type:'pause'},schedule);seeking=reduce(seeking,{type:'seek',at:4000},schedule);assert.equal(seeking.elapsed,4000);assert(seeking.paused);
+seeking=reduce(seeking,{type:'seek',at:99999},schedule);assert.equal(seeking.elapsed,10000);assert.equal(seeking.completeHold,0);
+seeking=reduce(seeking,{type:'seek',at:-5},schedule);assert.equal(seeking.elapsed,0);
+// The recorded clock holds during reading, cuts at a skipped span, never runs it.
+const clock=[[0,0],[1000,0],[1000,5000],[3000,7000],[3000,7000],[3000,20000],[4000,21000]];
+for(const [now,want] of [[0,0],[500,0],[1000,5000],[2000,6000],[3000,20000],[3500,20500],[9000,21000]])assert.equal(sourceAt(clock,now),want);
+assert.throws(()=>readSchedule('1|2|3'));
+const parsed=readSchedule('9|9|100|1200|60|7000|0,1||||0,0;9,9|0,1|0;5');assert.deepEqual(parsed.chapters,[0,5]);assert.deepEqual(parsed.counts,[[0,1]]);assert.deepEqual(parsed.clock,[[0,0],[9,9]]);
+console.log('PASS replay reducer: phases, explicit Play/offscreen/hidden, resumptions, reduced motion, hierarchy timers, seek, excerpt clock');

@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Location and scope</h2>
+<p>Global configuration is <code>rune.toml</code> in the selected Rune data home, normally <code>~/.rune/</code>. The <a href="{{url "docs/reference"}}">Settings reference</a> lists every key it can hold. <code>RUNE_HOME</code> selects a different home. A file named rune.toml inside a project is not automatically the settings file, and <code>-project</code> chooses a workspace rather than a settings home.</p>
+<p>Use <code>rune -config</code> to see the actual location. The file holds your saved choices; absent values inherit the current defaults. Its top-level <code>version = 1</code> describes the configuration format, not the application version. Do not change it to request an upgrade.</p>
+<h2 id="inspect">Inspect one thing at a time</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Read a key's effective value, description and application timing.</dd></div>
+<div><dt>-config defaults</dt><dd>Read factory defaults separately from your saved choices.</dd></div>
+<div><dt>-config check</dt><dd>Validate configuration syntax and supported values. It does not test keys, credit or connectivity.</dd></div>
+<div><dt>-config show</dt><dd>Inspect effective configuration. It may contain private account metadata; redact before sharing.</dd></div>
+<div><dt>-settings</dt><dd>Inspect model controls for the selected workspace.</dd></div>
+</dl>
+<h2 id="change-and-reset">Change and reset</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>Run the set command only when you intend that global change. Reset removes the override; it does not write a copied default. In Settings, Use default serves the same purpose for global values. Unknown or retired keys are errors, not silently supported aliases.</p>
+<p>TOML has no native null. Remove an optional key or use the supported reset command instead of writing <code>null</code>. Do not assume an empty string, “auto”, “none” or an empty list means reset for every setting.</p>
+<h2 id="types-and-units">Types and units</h2>
+<dl class="ref">
+<div><dt>Boolean</dt><dd><code>true</code> or <code>false</code>, unquoted in TOML.</dd></div>
+<div><dt>Count / tokens</dt><dd>A whole number within the setting's range. Tokens, characters and bytes are different measurements.</dd></div>
+<div><dt>Duration</dt><dd>A string with explicit units such as <code>"500ms"</code>, <code>"60s"</code> or <code>"2m"</code>. Only permission/question waits accept unlimited.</dd></div>
+<div><dt>Size</dt><dd>Use explicit binary units such as <code>"16MiB"</code>. A unitless size is interpreted as KiB, not bytes.</dd></div>
+<div><dt>List</dt><dd>Use the documented exact entries. <code>[]</code> is an explicit empty selection, not necessarily a reset.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>This is syntax guidance, not a recommended universal configuration. The stop array preserves exact strings, including commas; the session editor instead accepts comma-separated entries. Global generation defaults do not overwrite all current sessions.</p>
+<h2 id="timing-and-risk">Timing and risk</h2>
+<p>Changes normally propagate without restarting. Use explain for the particular setting: live values and next-operation values have different timing. Editing CLASSIFIER.md does not reload an already-pinned session policy; use the idle reload action.</p>
+<p>Keep account endpoints and credentials out of public examples. Validate hand edits without replacing unrelated choices. Higher limits can increase memory, disk, context and cost; they do not grant access or make an unsupported model work.</p>
+{{end}}

@@ -43,6 +43,7 @@ pub struct State {
 /// the host must hold when it is submitted (the host consumes the composer
 /// that equals the prompt).
 pub struct Submit {
+    pub manual_shell: bool,
     pub text: String,
     pub media: Vec<runeengine::media::Attachment>,
     pub composer: Composer,
@@ -70,6 +71,7 @@ impl App {
             revision: self.composition.authoritative.revision,
             operations: self.composition.authoritative.operations.clone(),
             pending: self.composition.authoritative.pending.clone(),
+            shell_receipts: self.composition.authoritative.shell_receipts.clone(),
             cleared: self.composition.authoritative.cleared
                 || self.composition.draft.is_some()
                     && self.input.is_empty()
@@ -129,6 +131,12 @@ impl App {
     /// Called after a local key action. A maximum-age disk debounce is not
     /// extended by continuous typing; session edits dispatch without debounce.
     pub fn sync_composer(&mut self, d: &mut Driver, flush: bool) -> bool {
+        // Enter already made these separate messages. A boundary may not save
+        // their text back as an unsent draft and discard the submit queue.
+        // Keep the event loop alive until the ordinary asynchronous send lands.
+        if flush && !self.composition.submits.is_empty() {
+            return false;
+        }
         if !self.composition.ready {
             return true;
         }
@@ -341,8 +349,25 @@ impl App {
         if composer.revision < self.composition.authoritative.revision {
             return;
         }
-        if self.composition.flight.is_some() {
-            if composer.revision > self.composition.authoritative.revision
+        if let Some((id, _, _)) = &self.composition.flight {
+            let id = *id;
+            if composer
+                .operations
+                .get(&(id >> 32).to_string())
+                .is_some_and(|accepted| *accepted >= id)
+            {
+                // The host's immutable operation receipt proves this edit is
+                // accepted. Its unicast ACK may arrive later; waiting for both
+                // stranded Enter's snapshot although the host already held it.
+                // Reuse the ACK reducer so peer edits and later local typing
+                // follow exactly the same rebase as an ordinary confirmation.
+                self.composer_ack(
+                    id,
+                    true,
+                    &serde_json::json!({"applied": true, "composer": composer}),
+                );
+                self.awaiting.remove(&id);
+            } else if composer.revision > self.composition.authoritative.revision
                 && self
                     .composition
                     .deferred
@@ -623,6 +648,33 @@ pub(super) fn rebase(base: &Composer, local: &Composer, remote: &Composer) -> Co
 mod tests {
     use super::*;
 
+    #[test]
+    fn manual_compaction_animates_and_can_be_stopped_without_leaving_the_session() {
+        let mut d = crate::ui::test_driver("compaction-status");
+        let mut app = App::for_test();
+        let session = app.session.unwrap();
+        app.on_event(runeengine::Event::Compacting {
+            session,
+            active: true,
+            at: 1,
+        });
+        assert!(!app.busy, "a summary is not an inference turn");
+        assert!(app.working());
+        app.frame = 5;
+        assert!(app.tick(), "a waiting summary must keep animating");
+        app.on_key(super::super::input::Key::Esc, &mut d);
+        app.on_key(super::super::input::Key::Esc, &mut d);
+        assert!(!app.quit, "Stop must not leave the session");
+        assert_eq!(app.status.as_deref(), Some("stopping…"));
+        app.on_event(runeengine::Event::Compacting {
+            session,
+            active: false,
+            at: 1,
+        });
+        assert!(!app.working());
+        d.shutdown();
+    }
+
     /// Reproduced under load with real windows (RuneLiveProviderPTY): an Enter
     /// pressed while the host had not yet confirmed an edit kept the composer,
     /// so `/undo` typed next was glued on and sent as `patch both/undo`. The
@@ -673,6 +725,131 @@ mod tests {
         assert_eq!(prompts, vec!["patch both".to_string()]);
         assert!(app.composition.submits.is_empty());
         assert_eq!(app.input, "/undo");
+    }
+
+    #[test]
+    fn a_submitted_message_blocks_boundary_flush_until_it_is_sent() {
+        let mut d = crate::ui::test_driver("submit-before-boundary");
+        let mut app = App::for_test_with(serde_json::json!({
+            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+        }));
+        app.composition.ready = true;
+        app.input = "sent before leaving".into();
+        app.cursor = app.input.len();
+        let base = app.composition.authoritative.clone();
+        let sent = app.composer_snapshot();
+        app.composition.flight = Some((1u64 << 32, base, sent));
+        app.composition.flight_started = Some(Instant::now());
+        app.on_key(super::super::input::Key::Enter, &mut d);
+        assert_eq!(app.composition.submits.len(), 1);
+        assert!(
+            !app.sync_composer(&mut d, true),
+            "exit/switch must wait for the submitted message"
+        );
+        assert!(
+            app.input.is_empty(),
+            "Enter's message never becomes an unsent draft again"
+        );
+        assert_eq!(app.composition.submits[0].text, "sent before leaving");
+        d.shutdown();
+    }
+
+    #[test]
+    fn an_engine_operation_receipt_releases_submit_before_a_late_edit_ack() {
+        let mut d = crate::ui::test_driver("submit-operation-receipt");
+        let mut app = App::for_test_with(serde_json::json!({
+            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+        }));
+        app.restore_composer(app.composer_snapshot(), true);
+        app.input = "message after final".into();
+        app.cursor = app.input.len();
+        app.on_key(super::super::input::Key::Enter, &mut d);
+        let (request, _, sent) = app.composition.flight.clone().unwrap();
+        assert_eq!(app.composition.submits.len(), 1);
+        app.input = "next typing".into();
+        app.cursor = app.input.len();
+        let mut confirmed = sent.clone();
+        confirmed.revision += 1;
+        confirmed
+            .operations
+            .insert((request >> 32).to_string(), request);
+        app.composer_event(request, confirmed.clone());
+        assert!(
+            app.composition.flight.is_none(),
+            "the state is already the host's receipt"
+        );
+        assert_eq!(app.input, "next typing");
+        assert!(!app.awaiting.contains_key(&request));
+        app.send_submits(&mut d);
+        assert!(
+            app.composition.submits.is_empty(),
+            "no extra Enter or ACK required"
+        );
+        assert!(app.awaiting.values().any(|pending| matches!(pending, Awaiting::Prompt { text, .. } if text == "message after final")));
+        assert_eq!(app.input, "next typing");
+        // A later edit is not settled by the old receipt/ACK arriving again.
+        let later = request + 10;
+        app.composition.flight = Some((later, confirmed.clone(), app.composer_snapshot()));
+        app.awaiting.insert(later, Awaiting::ComposerEdit);
+        app.on_event(runeengine::Event::Ack {
+            id: request,
+            ok: true,
+            error: None,
+            data: Some(serde_json::json!({"applied":true,"composer":confirmed})),
+        });
+        assert_eq!(app.composition.flight.as_ref().unwrap().0, later);
+        assert_eq!(app.input, "next typing");
+        d.shutdown();
+    }
+
+    #[test]
+    fn elapsed_time_is_not_an_edit_acceptance_receipt() {
+        let mut d = crate::ui::test_driver("submit-no-timeout-guess");
+        let mut app = App::for_test_with(serde_json::json!({
+            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+        }));
+        app.composition.ready = true;
+        app.input = "keep this message separate".into();
+        app.cursor = app.input.len();
+        let base = app.composition.authoritative.clone();
+        let sent = app.composer_snapshot();
+        app.composition.flight = Some((51u64 << 32, base, sent));
+        app.composition.flight_started = Some(Instant::now() - Duration::from_secs(10));
+        app.on_key(super::super::input::Key::Enter, &mut d);
+        app.send_submits(&mut d);
+        assert_eq!(app.composition.submits.len(), 1);
+        assert!(app.composition.flight.is_some());
+        assert!(
+            !app.awaiting
+                .values()
+                .any(|request| matches!(request, Awaiting::Prompt { .. })),
+            "no prompt may consume an unconfirmed composer"
+        );
+        d.shutdown();
+    }
+
+    #[test]
+    fn another_windows_edit_is_not_a_receipt_for_our_pending_submit() {
+        let mut app = App::for_test();
+        app.restore_composer(Composer::default(), true);
+        let request = (51u64 << 32) + 1;
+        let sent = Composer {
+            text: "mine".into(),
+            cursor: 4,
+            ..Default::default()
+        };
+        app.composition.flight = Some((request, Composer::default(), sent.clone()));
+        app.awaiting.insert(request, Awaiting::ComposerEdit);
+        let mut peer = Composer {
+            revision: 1,
+            text: "peer".into(),
+            ..Default::default()
+        };
+        peer.operations.insert("52".into(), (52u64 << 32) + 1);
+        app.composer_event(0, peer);
+        assert_eq!(app.composition.flight.as_ref().unwrap().0, request);
+        assert!(app.awaiting.contains_key(&request));
+        assert_eq!(app.composition.deferred.len(), 1);
     }
 
     /// The owner's report: typing `abc` then a remote snapshot with a **higher

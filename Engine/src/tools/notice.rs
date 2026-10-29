@@ -251,8 +251,7 @@ pub fn waiting_for_input(task_id: &str, pid: i32, log: &std::path::Path, hidden:
         String::new()
     };
     inline(&format!(
-        "Waiting for input in the background as {} (PID {pid}).{hidden} Answer it with terminal_send_input (process_id: {}), or stop it with manage_process. Its output so far follows; the rest is written to {}.",
-        quote(task_id),
+        "Waiting for input in the background as {} (PID {pid}).{hidden} Its output so far follows; the rest is written to {}.",
         quote(task_id),
         quote(&log.display().to_string())
     ))
@@ -291,7 +290,7 @@ pub fn command_timed_out(seconds: u64, why: &str) -> String {
 }
 
 pub fn command_stopped_by_user() -> String {
-    inline("The user stopped this command; it may not have finished, so do not assume it did.")
+    inline("The user stopped this command; completion is unverified.")
 }
 
 pub fn command_output_limit(limit: &str) -> String {
@@ -320,29 +319,37 @@ pub fn failure(kind: &str, why: &str) -> String {
     let why = reason(why);
     let text = match kind {
         status::DENIED if why.starts_with("Permission refused by the user") => {
-            "The user refused this call, so it did not run. Do not send the same call again; choose another approach or ask the user.".to_string()
+            "The user refused this call, so it did not run.".to_string()
         }
-        status::DENIED => format!(
-            "This call was denied ({why}). Do not send the same call again; choose another approach or ask the user."
-        ),
-        status::CANCELLED => {
-            "The user stopped this call; it may not have finished, so do not assume it did."
-                .to_string()
+        status::DENIED => format!("This call was denied ({why})."),
+        status::CANCELLED => "The user stopped this call; completion is unverified.".to_string(),
+        status::NOT_EXECUTED => format!("This call was not executed ({why}). Nothing ran."),
+        status::SERVICE_UNAVAILABLE => {
+            format!("A service this call needs is unavailable ({why}).")
         }
-        status::NOT_EXECUTED => format!(
-            "This call was not executed ({why}). Nothing ran; fix the request and call again."
-        ),
-        status::SERVICE_UNAVAILABLE => format!(
-            "A service this call needs is unavailable ({why}). This is not a refusal; the call can be tried again later."
-        ),
         _ => format!("This call failed ({why})."),
     };
     inline(&text)
 }
 
+/// A refusal is still a refusal. This offers only the person's separate
+/// frontend operation, never an agent flag or automatic execution path.
+pub(crate) fn with_manual_shell_option(content: &str) -> String {
+    const GUIDANCE: &str = " The person's separate manual-execution option is to submit ! followed by the command at the start of Rune's composer (full access once, no automatic Administrator elevation).";
+    if content.contains(GUIDANCE) {
+        return content.into();
+    }
+    let Some(end) = content.find(CLOSE) else {
+        return content.into();
+    };
+    let mut result = content.to_string();
+    result.insert_str(end, GUIDANCE);
+    result
+}
+
 pub fn repeated_failure(times: usize, why: &str) -> String {
     inline(&format!(
-        "This exact call has failed {times} times in this turn ({}). Change your approach or ask the user.",
+        "This exact call has failed {times} times in this turn ({}).",
         reason(why)
     ))
 }
@@ -350,6 +357,34 @@ pub fn repeated_failure(times: usize, why: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failure_notices_do_not_reissue_agent_recovery_rules() {
+        let notices = [
+            failure(status::DENIED, "Permission refused by the user"),
+            failure(status::DENIED, "policy refusal"),
+            failure(status::CANCELLED, ""),
+            failure(status::NOT_EXECUTED, "missing action"),
+            failure(status::SERVICE_UNAVAILABLE, "offline"),
+            repeated_failure(3, "same action"),
+        ];
+        for notice in notices {
+            for repeated in [
+                "Do not",
+                "fix the request",
+                "call again",
+                "ask the user",
+                "Change your approach",
+            ] {
+                assert!(!notice.contains(repeated), "{notice}");
+            }
+        }
+        let denied = failure(status::DENIED, "policy refusal");
+        let manual = with_manual_shell_option(&denied);
+        assert_eq!(manual.matches("submit !").count(), 1);
+        assert_eq!(with_manual_shell_option(&manual), manual);
+        assert!(!manual.contains("Do not retry or bypass"));
+    }
 
     #[test]
     fn a_sentence_is_one_line_and_a_report_is_a_block() {
@@ -485,10 +520,8 @@ mod tests {
                 ),
                 "{text}"
             );
-            assert!(
-                text.contains("terminal_send_input (process_id: bg_2)"),
-                "{text}"
-            );
+            assert!(!text.contains("terminal_send_input"), "{text}");
+            assert!(!text.contains("manage_process"), "{text}");
             assert!(text.contains("/tmp/bg_2.txt"), "{text}");
             assert!(!text.contains('\n'), "{text}");
         }

@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">Launch and inspect</h2>
+<p>Run these commands in your operating system's shell. Use <code>rune -help</code> for your installed build. Commands that contact providers, change accounts, delete data or start servers are operations, not harmless diagnostic flags.</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>Open the interactive agent in the current or supplied workspace.</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>Run one prompt and print the response and tool progress without the full-screen interface. Permission requests are refused rather than silently approved when there is nobody to answer.</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>Select the workspace for another command.</dd></div>
+<div><dt>-version · -help</dt><dd>Print the application version or command reference.</dd></div>
+<div><dt>-settings · -tools</dt><dd>Inspect effective model controls or the tools offered to the agent.</dd></div>
+<div><dt>-read-only</dt><dd>Restrict mutating tools. This is not a guarantee that no file is read or no data is sent.</dd></div>
+<div><dt>--no-color</dt><dd>Disable color. The NO_COLOR environment variable is also supported.</dd></div>
+</dl>
+<h2 id="configuration">Configuration</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>Show the selected settings location.</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>Show effective values, show factory defaults, or validate the file. Show can contain private account metadata; check does not prove connectivity.</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>Explain one key's effective value and application timing.</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>Save one global choice. Example: <code>rune -config set terminal.command_timeout 2m</code>.</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>Remove a global override so the current default or inheritance applies.</dd></div>
+<div><dt>-config format</dt><dd>Reformat grouped settings without intentionally changing their meaning.</dd></div>
+<div><dt>-set key=value</dt><dd>Change a supported workspace/model preference, not an arbitrary global configuration key.</dd></div>
+</dl>
+<h2 id="accounts-and-models">Accounts and models</h2>
+<p>Prefer the masked credential editor under Connections. Real keys in command arguments can leak through shell history and process listings. The syntax below deliberately uses placeholders.</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>List accounts, presets and web-service availability.</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>Add a key to an account's ring. This changes credentials.</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>Inspect masked key metadata.</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>Remove the numbered credential after reviewing its identity.</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>Choose the fallback provider for new sessions; this is not a switch for every existing conversation.</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>Remove provider configuration. Do not assume every retained credential is securely erased.</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>Send a real, potentially billed request to test the account.</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>Query the account's model catalog. Makes a network request.</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>Preview a request without sending it. The preview can include private context; do not share it wholesale.</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>Set an optional account request timeout, 5–3600 seconds; <code>default</code> removes the override.</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>Set an unreadable credential pair aside and start empty. Use only after a deliberate recovery decision; every key must be added again.</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>List or select a model for the chosen workspace.</dd></div>
+</dl>
+<h2 id="sessions-and-storage">Sessions and storage</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>Open the picker (or list when piped) or resume a known session.</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>Rename one session.</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>Permanently delete one session. Review its identity first.</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>Inspect project storage or remove eligible data belonging to projects no longer present.</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>Inspect Windows command-isolation state, explicitly set up its dedicated account, or remove Rune's sandbox access/account setup. Other platforms do not use that setup.</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">Extensions and diagnostics</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>List, show, enable, disable, install or reload reusable guides. Installation takes a reviewed folder or zip and an intended scope.</dd></div>
+<div><dt>-mcp [operation]</dt><dd>Manage, approve, validate and test external tool definitions. A connection can start a process or contact a remote service; validation alone is not a successful connection.</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>Choose the supported configuration scope for a capability change. Shared project changes affect other readers of that project.</dd></div>
+<div><dt>-doctor</dt><dd>Run diagnostics, including connectivity checks. It can make network requests; review the output before sharing.</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>Use an alternate engine store. This is separate from choosing an entire settings home with RUNE_HOME.</dd></div>
+<div><dt>-host</dt><dd>Use line-delimited JSON for frontend integration, not the interactive UI. It is not a public network server.</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>Replay a written model script. A script can propose real tools, so never run an unreviewed one against live work.</dd></div>
+</dl>
+<p>For capability setup and access, continue with <a href="{{url "docs/skills"}}">Skills</a> or <a href="{{url "docs/mcp"}}">MCP connections</a>. Do not switch to Full or delete local data simply to work around an error.</p>
+{{end}}

@@ -1,44 +1,44 @@
 {{define "content"}}
-<section class="page-hero">
-  <div class="shell">
-    <span class="eyebrow">Getting started</span>
-    <h1 class="display">Ten minutes to your <em>first session</em>.</h1>
-    <p class="lead">Everything you need to begin. Inside RuneAgent, <kbd>/help</kbd> explains every screen and setting in detail.</p>
-  </div>
-</section>
+<div class="shell docs-layout">
+  <aside class="docs-sidebar" aria-label="Documentation navigation">
+    <details class="docs-menu" open>
+      <summary>Documentation <span class="meta">Contents</span></summary>
+      <nav aria-label="Documentation">
+        {{range .DocGroups}}
+        <details class="docs-group"{{if eq .Title $.Page.Section}} open{{end}}>
+          <summary>{{.Title}}</summary>
+          <ul>{{range .Pages}}
+            <li><a href="{{url .Route}}"{{if eq .Route $.Page.Route}} aria-current="page"{{end}}>{{.Label}}</a></li>
+          {{end}}</ul>
+        </details>
+        {{end}}
+      </nav>
+      <p class="docs-version">Reference for Rune {{.DocVersion}}<br>Check your build with <code>rune -version</code>.</p>
+    </details>
+  </aside>
 
-<section class="section tight">
-  <div class="shell prose">
-    <h2>1. Install</h2>
-    <p>Run the command from the <a href="{{url "install"}}">install page</a>, then open a new terminal so <code>rune</code> is on your path.</p>
+  <article class="article">
+    <header class="article-head">
+      <p class="crumbs">Documentation<span aria-hidden="true">/</span>{{.Page.Section}}</p>
+      <h1>{{.Page.Label}}</h1>
+      <p class="article-lead">{{.Page.Lead}}</p>
+    </header>
+    <details class="article-contents">
+      <summary>On this page</summary>
+      <ol>{{range .Page.Headings}}<li><a href="#{{.ID}}">{{.Title}}</a></li>{{end}}</ol>
+    </details>
+    <div class="prose">{{template "article" .}}</div>
+    <nav class="docs-pagination" aria-label="Adjacent articles">
+      {{with .Previous}}<a href="{{url .Route}}"><span>Previous</span><strong>{{.Label}}</strong></a>{{else}}<span></span>{{end}}
+      {{with .Next}}<a href="{{url .Route}}"><span>Next</span><strong>{{.Label}}</strong></a>{{end}}
+    </nav>
+  </article>
 
-    <h2>2. Start in your project</h2>
-    <pre class="block">cd path/to/your/project
-rune</pre>
-    <p>The folder you start in is the project. It is what the agent may read freely and, with your permission, change.</p>
-
-    <h2>3. Connect a model</h2>
-    <p>Open <strong>Settings › Connections</strong> and add a model provider: pick a preset or enter any compatible endpoint, then type your API key into its key field. RuneAgent tests the connection before saving it, and stores the key encrypted on your machine. Choose the model under <strong>Settings › Models</strong>; you can add more providers and switch at any time. Never paste a key into the chat.</p>
-
-    <h2>4. Choose a mode</h2>
-    <ul>
-      <li><strong>Ask</strong>: every edit and command waits for your approval. Start here.</li>
-      <li><strong>Auto</strong>: work inside the project runs on its own, in the sandbox, and stays undoable.</li>
-      <li><strong>Full</strong>: no limits, for when you deliberately want them off.</li>
-    </ul>
-
-    <h2>5. Describe the work</h2>
-    <p>Write what you want in plain language. The agent plans, shows each step as it goes, and asks when something is unclear. You can type a follow-up while it works; it is read at the next step.</p>
-
-    <h2>6. Review and undo</h2>
-    <p>The side panel lists every file changed in the session. <kbd>/undo</kbd> shows each change with its diff and restores any of them; <kbd>/redo</kbd> brings an undone change back.</p>
-
-    <h2>One-off tasks</h2>
-    <p>For a single question or a script, run a prompt without opening the interface:</p>
-    <pre class="block">rune -p "summarise what changed in this branch"</pre>
-
-    <h2>Staying current</h2>
-    <p>Run the install command again to update. Open windows and running sessions switch to the new version by themselves when idle; nothing is lost.</p>
-  </div>
-</section>
+  <aside class="docs-toc">
+    <nav class="index" aria-label="On this page">
+      <p class="index-title">On this page</p>
+      <ol>{{range .Page.Headings}}<li><a href="#{{.ID}}">{{.Title}}</a></li>{{end}}</ol>
+    </nav>
+  </aside>
+</div>
 {{end}}

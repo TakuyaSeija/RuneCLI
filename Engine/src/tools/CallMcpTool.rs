@@ -47,17 +47,17 @@ impl Tool for CallMcpTool {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 48,
-                        "description": "The MCP server's id, as discover_capabilities lists it."
+                        "description": "The MCP server's id."
                     },
                     "tool": {
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 128,
-                        "description": "The tool's name on that server, as discover_capabilities lists it."
+                        "description": "The tool's name on that server."
                     },
                     "arguments": {
                         "type": "object",
-                        "description": "The tool's own arguments: only the fields its input schema (shown by discover_capabilities) declares, nothing of your own such as action or reason."
+                        "description": "Only the fields the external tool's input schema declares; no proxy fields such as action or reason unless that schema declares them."
                     }
                 }
             }),

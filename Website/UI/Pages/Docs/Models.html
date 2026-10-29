@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="browse-your-accounts">Browse your connected accounts</h2>
+<p>Models lists the models available from configured providers and their catalogs, plus exact IDs you add yourself. Search filters that list; it is not a search across every vendor's entire offering. Availability depends on your account, endpoint, permissions and catalog freshness.</p>
+<p>Choose a provider on the left or All providers. Browsing does not change the conversation. Select a model and press Enter to apply that <strong>provider/model pair</strong>. Ctrl+F returns to search. The active pair is shown separately from the highlighted result.</p>
+<h2 id="catalog-and-custom-id">Catalog and custom IDs</h2>
+<p>Refresh catalog makes a network request for available IDs and published information. It does not switch the active model. Enter model ID lets you add an exact identifier; adding an ID alone does not prove the account can run it.</p>
+<p>Unknown context, output limits and prices remain unknown. Do not guess capability from a word in a model's name, and do not increase a local display value to claim a larger provider limit. T on a result sends a real model test and may cost money.</p>
+<h2 id="configure-capabilities">Configure capabilities with Alt+C</h2>
+<p>Alt+C opens persistent settings for the selected model. Capability information describes what a model can accept; Generation describes what this session requests. A maximum output capability is not a requested reply length.</p>
+<dl class="ref">
+<div><dt>Context / output</dt><dd>Record known model ceilings. An override cannot expand the upstream service's true limits.</dd></div>
+<div><dt>Reasoning</dt><dd>Configure starting behavior and offered reasoning choices. A Thinking badge means support, not that the current session has it enabled.</dd></div>
+<div><dt>Media / controls</dt><dd>Use the capabilities actually supported by the endpoint. Unsupported controls may be absent or unavailable while reasoning is enabled.</dd></div>
+<div><dt>Pricing</dt><dd>Provide known input/output/cache prices for local accounting. An unknown price is not zero, and a cache price is not proof the endpoint supports prompt caching.</dd></div>
+</dl>
+<h2 id="fallback-and-removal">Fallback and removal</h2>
+<p>New-session fallback chooses a starting provider for future sessions without overriding every existing session. Delete on a model hides/removes that result and forgets its custom model settings; it does not delete the upstream model. Re-adding can use fresh catalog metadata, not necessarily the choices you removed.</p>
+<h2 id="pricing-limits">Understand accounting limits</h2>
+<p>Spend uses requests whose usage and prices are known. When an unpriced request later obtains a model price, it is priced then; already priced requests retain their recorded cost. Provider billing can differ because of rounding, caching, discounts or incomplete reported usage.</p>
+<p>The spending warning is not a hard cap. Validate prices from your provider and use its account controls for enforceable budgets. Read <a href="{{url "docs/generation"}}">Generation &amp; reasoning</a> for current-session controls rather than changing model capabilities to tune one answer.</p>
+{{end}}

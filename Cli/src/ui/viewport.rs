@@ -3,7 +3,6 @@
 //! own larger, scrollable card. A fold footer never promises wheel scrolling.
 
 pub(super) const MAIN_PREVIEW_ROWS: usize = 4;
-
 /// Reading-card density remains independent from main-chat previews and from
 /// the composer's separately specified multiline budget.
 pub(super) fn compact_rows(previous: usize) -> usize {

@@ -648,6 +648,7 @@ mod tests {
 
     fn message(id: i64, content: &str) -> Message {
         Message {
+            manual_shell: false,
             work: None,
             continuation: None,
             id,
@@ -658,6 +659,7 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: None,
@@ -870,6 +872,7 @@ mod tests {
     fn toolcalls_round_trip_per_session() {
         let (s, root) = store("toolcalls");
         let call = ToolCall {
+            shell: None,
             id: "c1".into(),
             turn: 1,
             name: "terminal_use".into(),

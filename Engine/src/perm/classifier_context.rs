@@ -41,9 +41,9 @@ pub(crate) fn context(
                 row.id,
                 row.work,
                 if active {
-                    "active work; later user sources supersede conflicting earlier ones"
+                    "active work"
                 } else {
-                    "earlier work; work-specific approvals are not current authorization"
+                    "earlier work"
                 }
             ),
             body: row.text,
@@ -124,6 +124,7 @@ mod tests {
     use super::*;
     fn row(id: i64, role: Role, text: &str) -> Message {
         Message {
+            manual_shell: false,
             work: (role == Role::User).then_some(crate::store::sessions::Work {
                 source: 1,
                 finished: false,
@@ -137,6 +138,7 @@ mod tests {
             tool_name: None,
             tool_calls: None,
             reasoning: None,
+            thinking_tokens: None,
             media: Vec::new(),
             created_at: 0,
             context: None,
