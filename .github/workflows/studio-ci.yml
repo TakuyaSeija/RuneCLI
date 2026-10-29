@@ -652,21 +652,5 @@ jobs:
           curl -fsS -o /dev/null http://127.0.0.1:18766/Studio/install.ps1
 
       - name: Install through install.ps1 and start it
-        shell: ${{ matrix.shell }}
-        run: |
-          $env:RUNE_INSTALL_DIR = Join-Path $env:RUNNER_TEMP 'bin'
-          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'local'
-          irm http://127.0.0.1:18766/Studio/install.ps1 | iex
-          if ($LASTEXITCODE -ne 0) { throw 'install.ps1 failed' }
-          $rune = Join-Path $env:RUNE_INSTALL_DIR 'rune.exe'
-          $reported = (& $rune --version | Out-String).Trim()
-          if ($reported -ne "rune $env:RUNE_TEST_VERSION") { throw "installed program says '$reported'" }
-          $env:RUNE_HOME = Join-Path $env:RUNNER_TEMP 'rune-home'
-          & $rune -config check
-          if ($LASTEXITCODE -ne 0) { throw 'rune -config check failed' }
-          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'RuneAgent\LICENSE.txt'))) { throw 'license notices missing' }
-          # A second install over the first, as an update: the earlier program is set aside, not lost.
-          irm http://127.0.0.1:18766/Studio/install.ps1 | iex
-          if ($LASTEXITCODE -ne 0) { throw 'reinstall failed' }
-          $reported = (& $rune --version | Out-String).Trim()
-          if ($reported -ne "rune $env:RUNE_TEST_VERSION") { throw "reinstalled program says '$reported'" }
+        # The shell is the matrix's: Windows PowerShell 5.1 or PowerShell 7.
+        run: ${{ matrix.shell }} -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Website/Tests/InstallerWindows.ps1
