@@ -121,7 +121,7 @@ main() {
 	say "  signature verified (key $KEY_FINGERPRINT)"
 
 	# 2. The archive must be in that signed list with exactly that hash.
-	expected=$(awk -v n="$name" '$2 == n { print $1 }' "$tmp/SHA256SUMS")
+	expected=$(tr -d '\r' <"$tmp/SHA256SUMS" | awk -v n="$name" '$2 == n { print $1 }')
 	[ -n "$expected" ] || fail "no build for $name_system $name_arch in release $version"
 	fetch "$url/$name" "$tmp/$name"
 	actual=$(sha256_of "$tmp/$name")

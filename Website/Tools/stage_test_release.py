@@ -98,7 +98,9 @@ def main() -> None:
                        "notes": ["Test release for the installers' end-to-end checks."], "files": files}, indent=2).encode() + b"\n"
     (release / "release.json").write_bytes(meta)
     sums.append(f"{hashlib.sha256(meta).hexdigest()}  release.json\n")
-    (release / "SHA256SUMS").write_text("".join(sums), encoding="ascii")
+    # Bytes, not text: on Windows text mode would end the lines with CRLF, which the
+    # publisher never writes.
+    (release / "SHA256SUMS").write_bytes("".join(sums).encode("ascii"))
 
     with tempfile.TemporaryDirectory() as keydir:
         key = os.path.join(keydir, "key.pem")

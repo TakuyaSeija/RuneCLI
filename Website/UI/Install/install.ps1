@@ -107,8 +107,15 @@ function Install-Rune {
         Say "Note: this PowerShell runs as Administrator. RuneAgent is installed for the account $env:USERNAME; start Rune itself from a normal terminal."
     }
 
+    # The machine's own processor, from the system's environment in the registry: a PowerShell that
+    # runs emulated as x64 on ARM64 is told "x64" by .NET Framework and by its process environment.
     $machine = $null
-    try { $machine = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture } catch { }
+    try {
+        $machine = (Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment' -Name PROCESSOR_ARCHITECTURE -ErrorAction Stop).PROCESSOR_ARCHITECTURE
+    } catch { }
+    if (-not $machine) {
+        try { $machine = [string][System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture } catch { }
+    }
     if (-not $machine) {
         $machine = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
     }
@@ -151,7 +158,7 @@ function Install-Rune {
 
         # 2. The archive must be in that signed list with exactly that hash.
         $expected = $null
-        foreach ($line in [System.Text.Encoding]::ASCII.GetString($sums) -split "`n") {
+        foreach ($line in [System.Text.Encoding]::ASCII.GetString($sums) -split '\r?\n') {
             if ($line -match '^([0-9a-f]{64})  (\S+)$' -and $Matches[2] -eq $name) { $expected = $Matches[1] }
         }
         if (-not $expected) { Fail "no build for Windows $archName in release $version" }

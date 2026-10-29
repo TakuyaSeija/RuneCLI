@@ -401,6 +401,21 @@ func TestWindowsInstallerCarriesTheReleaseKey(t *testing.T) {
 	}
 }
 
+// crlf rewrites a release's checksum list with CRLF line ends, as a list
+// saved on Windows has them, and signs those bytes again.
+func (f *releaseFixture) crlf(t *testing.T, version string) {
+	t.Helper()
+	path := filepath.Join(f.dir, version, sumsFile)
+	sums, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lf := bytes.ReplaceAll(sums, []byte("\r\n"), []byte("\n"))
+	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
+	os.WriteFile(path, crlf, 0o644)
+	os.WriteFile(filepath.Join(f.dir, version, sigFile), f.sign(crlf), 0o644)
+}
+
 // installerServer serves the downloads folder through the real routes on a
 // real port, as an installer reaches it.
 func installerServer(t *testing.T, downloads string) (*httptest.Server, string) {
@@ -482,6 +497,19 @@ func TestInstallerEndToEnd(t *testing.T) {
 	out, _, err = run()
 	if err == nil || !strings.Contains(out, "SIGNATURE CHECK FAILED") {
 		t.Fatalf("foreign signature accepted: %v\n%s", err, out)
+	}
+
+	// A checksum list with CRLF line ends still names its archive.
+	g := newDownloads(t)
+	publish(g, fakeRune("0.9.0"))
+	g.crlf(t, "0.9.0")
+	ts, host = installerServer(t, g.dir)
+	out, dir, err = run()
+	if err != nil {
+		t.Fatalf("CRLF checksum list refused: %v\n%s", err, out)
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") {
+		t.Fatalf("not installed from a CRLF list:\n%s", out)
 	}
 }
 
@@ -591,6 +619,19 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 	out, _, err = run(shells[0])
 	if err == nil || !strings.Contains(out, "SIGNATURE CHECK FAILED") {
 		t.Fatalf("foreign signature accepted: %v\n%s", err, out)
+	}
+
+	// A checksum list with CRLF line ends, as Windows saves text, still names its archive.
+	g := newDownloads(t)
+	g.publishArchives(t, "0.9.0", map[string][]byte{"rune-0.9.0-windows-x86_64.zip": good, "rune-0.9.0-windows-aarch64.zip": good})
+	g.crlf(t, "0.9.0")
+	ts, _ = installerServer(t, g.dir)
+	for _, shell := range shells {
+		if out, dir, err := run(shell); err != nil || !strings.Contains(out, "signature verified") {
+			t.Fatalf("%s: CRLF checksum list refused: %v\n%s", shell, err, out)
+		} else if got, err := exec.Command(filepath.Join(dir, "rune.exe"), "--version").Output(); err != nil || strings.TrimSpace(string(got)) != "rune 0.9.0" {
+			t.Fatalf("%s: program from a CRLF list says %q (%v)", shell, got, err)
+		}
 	}
 }
 

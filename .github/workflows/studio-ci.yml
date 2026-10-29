@@ -526,7 +526,7 @@ jobs:
 
       - name: Install through install.sh and start it
         run: |
-          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
           chmod 0755 "$RUNNER_TEMP/build/rune"
           python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
             --build "linux-${{ matrix.arch }}-${{ matrix.libc }}=$RUNNER_TEMP/build/rune"
@@ -579,7 +579,7 @@ jobs:
       - name: Install through install.sh and start it
         # The system's own curl, tar and LibreSSL, as a fresh Mac has them.
         run: |
-          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
           chmod 0755 "$RUNNER_TEMP/build/release/rune" "$RUNNER_TEMP/build/x86_64-apple-darwin/release/rune"
           python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
             --build "macos-aarch64=$RUNNER_TEMP/build/release/rune" \
@@ -634,7 +634,7 @@ jobs:
 
       - name: Stage and serve the release
         run: |
-          version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
+          version="$(python -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"])')"
           echo "RUNE_TEST_VERSION=$version" >> "$GITHUB_ENV"
           build="$(cygpath -u "$RUNNER_TEMP")/build"
           dl="$(cygpath -u "$RUNNER_TEMP")/dl"
