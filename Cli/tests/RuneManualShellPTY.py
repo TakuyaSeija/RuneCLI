@@ -152,6 +152,9 @@ def main():
         print("PASS resume: recorded manual command/output reappear without executing the script again", flush=True)
 
         release_arguments = threading.Event()
+        # The preview names the shell that will run the command: bash or sh
+        # (`$`) on Linux and macOS, PowerShell (`PS>`) as Windows' automatic shell.
+        prompt = "PS>" if live.WINDOWS else "$"
         command = "echo STREAM-PTY-OUTPUT\necho HIDDEN-SECOND"
         args = json.dumps({"action": "Streaming terminal preview", "command": command})
         split = args.index("HIDDEN-SECOND")
@@ -175,12 +178,13 @@ def main():
         paste(window, "Check the streaming terminal preview.")
         window.send(b"\r")
         try:
-            live.until(lambda: window.shows("$ echo STREAM-PTY-OUTPUT"), "correct prompt before arguments finish", window)
+            live.until(lambda: window.shows(f"{prompt} echo STREAM-PTY-OUTPUT"), "correct prompt before arguments finish", window)
             screen = window.screen.text()
             row = command_row(window, "echo STREAM-PTY-OUTPUT")
             assert " ↵ echo " in screen.splitlines()[row], screen
             assert "lines cut" not in "\n".join(command_box(window, "echo STREAM-PTY-OUTPUT")), screen
-            assert "> echo STREAM-PTY-OUTPUT" not in screen, screen
+            others = screen.replace(f"{prompt} echo STREAM-PTY-OUTPUT", "")
+            assert "$ echo STREAM-PTY-OUTPUT" not in others and "> echo STREAM-PTY-OUTPUT" not in others, screen
             assert "HIDDEN-SECOND" not in screen, screen
         finally:
             release_arguments.set()
@@ -191,7 +195,7 @@ def main():
         screen = window.screen.text()
         row = command_row(window, "echo STREAM-PTY-OUTPUT")
         assert "├" in screen.splitlines()[row + 1], screen
-        assert "$ echo STREAM-PTY-OUTPUT ↵ echo HIDDEN-SECOND" in screen.splitlines()[row], screen
+        assert f"{prompt} echo STREAM-PTY-OUTPUT ↵ echo HIDDEN-SECOND" in screen.splitlines()[row], screen
         assert "lines cut" not in "\n".join(command_box(window, "echo STREAM-PTY-OUTPUT")), screen
         line = screen.splitlines()[row]
         first = live.column_of(window, row, "echo STREAM-PTY-OUTPUT") + 1
@@ -201,7 +205,7 @@ def main():
         live.until(lambda: re.search(rb"\x1b\]52;c;([A-Za-z0-9+/=]+)\x07", bytes(window.raw[start:])), "projected command clipboard", window)
         encoded = re.search(rb"\x1b\]52;c;([A-Za-z0-9+/=]+)\x07", bytes(window.raw[start:])).group(1)
         assert base64.b64decode(encoded).decode() == command
-        print("PASS streaming: Bash $ from first argument delta, newline-marked one-row preview, original multiline clipboard, gate unchanged", flush=True)
+        print(f"PASS streaming: the shell's {prompt} from the first argument delta, newline-marked one-row preview, original multiline clipboard, gate unchanged", flush=True)
     finally:
         window.close()
         provider.server.shutdown()

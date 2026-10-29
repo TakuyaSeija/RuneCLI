@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stage a signed TEST release for the installers' end-to-end checks.
 
-    python3 -I Website/Tools/stage_test_release.py --version X.Y.Z --out DIR \\
+    python3 -I Website/Tools/stage_test_release.py --version X.Y.Z --out DIR [--license FILE] \\
         [--build linux-x86_64-gnu=PATH] [--build macos-aarch64=PATH] [--build windows-x86_64=PATH] ...
 
 Lays out DIR exactly as Ops/Release/PublishRune.sh lays out the website's
@@ -62,7 +62,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
     parser.add_argument("--out", required=True)
-    parser.add_argument("--license", required=True)
+    parser.add_argument("--license", help="license text to ship; a test placeholder when omitted")
     parser.add_argument("--build", action="append", default=[], help="PLATFORM=PATH, e.g. macos-aarch64=target/release/rune")
     args = parser.parse_args()
     if not VERSION.match(args.version):
@@ -74,7 +74,7 @@ def main() -> None:
     if release.exists():
         sys.exit(f"stage_test_release: {release} exists")
     release.mkdir(parents=True)
-    license_text = pathlib.Path(args.license).read_bytes()
+    license_text = pathlib.Path(args.license).read_bytes() if args.license else b"Test release: the published license comes with published builds only.\n"
 
     files, sums = [], []
     for spec in args.build:

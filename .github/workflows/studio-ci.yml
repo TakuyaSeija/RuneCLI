@@ -76,12 +76,12 @@ jobs:
           go-version-file: Website/go.mod
           cache: false
 
-      - name: Website and release signer
-        # The site, its catalog and install.sh end to end; the signer against openssl.
+      - name: Website
+        # The site, its catalog and install.sh end to end. (The release signer lives
+        # with the host operations, outside the repository, and is tested there.)
         if: always()
         run: |
           (cd Website && go vet ./... && go test -count=1 ./...)
-          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
 
   # The Linux release, as people get it: built for glibc 2.17 (every glibc
   # distribution since 2012) and as one static musl file (Alpine, any Linux
@@ -257,12 +257,11 @@ jobs:
           go-version-file: Website/go.mod
           cache: false
 
-      - name: Website and release signer
+      - name: Website
         # install.ps1 end to end in Windows PowerShell 5.1 and PowerShell 7.
         if: always()
         run: |
           (cd Website && go vet ./... && go test -count=1 ./...)
-          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
 
       - name: Keep the binaries
         if: always()
@@ -453,14 +452,13 @@ jobs:
           go-version-file: Website/go.mod
           cache: false
 
-      - name: Website and release signer
+      - name: Website
         # install.sh end to end with the LibreSSL macOS ships, not a newer openssl on PATH.
         if: always()
         run: |
           export PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
           openssl version
           (cd Website && go vet ./... && go test -count=1 ./...)
-          (cd Ops/Release/Sign && go vet ./... && go test -count=1 ./...)
 
       - name: Save build cache
         if: always()
@@ -531,7 +529,7 @@ jobs:
           version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
           chmod 0755 "$RUNNER_TEMP/build/rune"
           python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
-            --license Ops/Release/LICENSE.txt --build "linux-${{ matrix.arch }}-${{ matrix.libc }}=$RUNNER_TEMP/build/rune"
+            --build "linux-${{ matrix.arch }}-${{ matrix.libc }}=$RUNNER_TEMP/build/rune"
           (cd Website && go build -o "$RUNNER_TEMP/site" ./Server)
           printf '{"env":"Dev","basePath":"/Studio","origin":"http://127.0.0.1:18766","hosts":["127.0.0.1:18766"],"listen":["127.0.0.1:18766"],"health":"127.0.0.1:18768","downloads":"%s","indexing":false}\n' "$RUNNER_TEMP/dl" >"$RUNNER_TEMP/site.json"
           "$RUNNER_TEMP/site" --config "$RUNNER_TEMP/site.json" &
@@ -584,7 +582,6 @@ jobs:
           version="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version *= *"\([^"]*\)".*/\1/p}' Cargo.toml | head -1)"
           chmod 0755 "$RUNNER_TEMP/build/release/rune" "$RUNNER_TEMP/build/x86_64-apple-darwin/release/rune"
           python3 -I Website/Tools/stage_test_release.py --version "$version" --out "$RUNNER_TEMP/dl" \
-            --license Ops/Release/LICENSE.txt \
             --build "macos-aarch64=$RUNNER_TEMP/build/release/rune" \
             --build "macos-x86_64=$RUNNER_TEMP/build/x86_64-apple-darwin/release/rune"
           (cd Website && go build -o "$RUNNER_TEMP/site" ./Server)
@@ -642,7 +639,6 @@ jobs:
           build="$(cygpath -u "$RUNNER_TEMP")/build"
           dl="$(cygpath -u "$RUNNER_TEMP")/dl"
           python -I Website/Tools/stage_test_release.py --version "$version" --out "$dl" \
-            --license Ops/Release/LICENSE.txt \
             --build "windows-x86_64=$build/release/rune.exe" \
             --build "windows-aarch64=$build/aarch64-pc-windows-msvc/release/rune.exe"
           (cd Website && go build -o "$(cygpath -u "$RUNNER_TEMP")/site.exe" ./Server)

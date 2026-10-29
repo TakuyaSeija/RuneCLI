@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import time
 
 sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("live", Path(__file__).with_name("RuneLiveProviderPTY.py"))
@@ -50,6 +51,20 @@ def copies(window, start):
     return [base64.b64decode(value).decode() for value in re.findall(rb"\x1b\]52;c;([A-Za-z0-9+/=]+)\x07", bytes(window.raw[start:]))]
 
 
+def quiet_frame(window, after, quiet=0.4, timeout=40):
+    """Wait until output after a point exists and has paused for `quiet` s."""
+    size, since = None, time.monotonic()
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        window.drain()
+        if len(window.raw) != size:
+            size, since = len(window.raw), time.monotonic()
+        elif after() and time.monotonic() - since >= quiet:
+            return
+        time.sleep(0.03)
+    raise AssertionError("released frame\n--- screen ---\n" + window.screen.text())
+
+
 def drag(window, first, last, expected):
     start = len(window.raw)
     y, x = first
@@ -66,7 +81,13 @@ def drag(window, first, last, expected):
         data = bytes(window.raw[start:])
         match = list(re.finditer(rb"\x1b\]52;c;[A-Za-z0-9+/=]+\x07", data))[-1]
         return data[match.end():]
-    live.until(lambda: b"\x1b[5n" in released(), "released frame", window)
+    if live.WINDOWS:
+        # ConPTY answers a frame's status request itself and never passes it
+        # on, so no ESC [5n marks the frame's end here: it is complete once
+        # output after the payload has paused.
+        quiet_frame(window, released)
+    else:
+        live.until(lambda: b"\x1b[5n" in released(), "released frame", window)
     assert b"\x1b[7m" not in released(), "highlight survived copy release"
     ok(f"clipboard exact and highlight clears: {expected[:38]!r}")
 

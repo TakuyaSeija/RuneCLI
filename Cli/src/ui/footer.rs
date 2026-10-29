@@ -9,6 +9,11 @@ pub(super) struct State {
     pending: Option<String>,
     retry_at: Option<Instant>,
     paused_at: Option<Instant>,
+    /// How this window came to show its session (a live update, a
+    /// reconnect), and when that was said. The session view the transition
+    /// brings starts the footer anew; this notice is the reason for that
+    /// view, not one of the obsolete notices it drops.
+    transition: Option<(String, Instant)>,
 }
 
 #[derive(Clone, Copy)]
@@ -76,6 +81,31 @@ impl super::App {
             Timing::current(),
             self.footer_covered(now),
         );
+    }
+
+    /// Say how this window came to show its session. Shown now, and again
+    /// once the session view this transition brings has reset the footer,
+    /// while the notice is still within its readable lifetime.
+    pub(super) fn note_transition(&mut self, text: impl Into<String>) {
+        let text = text.into();
+        self.footer.transition = Some((text.clone(), Instant::now()));
+        self.note(text);
+    }
+
+    /// A session view rebuilds what the window shows: the notices, waiting
+    /// notices and timings of the state it replaces are obsolete. The notice
+    /// of the transition that brought the view is not, while it is young.
+    pub(super) fn reset_footer_for_view(&mut self) {
+        let now = Instant::now();
+        let timing = Timing::current();
+        let transition = self.footer.transition.take();
+        self.clear_status();
+        self.footer = State::default();
+        if let Some((text, at)) = transition {
+            if now.saturating_duration_since(at) < timing.lifetime {
+                self.note_at(text, now, timing, self.footer_covered(now));
+            }
+        }
     }
 
     pub(super) fn note_control(&mut self, text: impl Into<String>) {
@@ -342,5 +372,59 @@ mod tests {
         app.note_at("next".into(), now, short, false);
         app.footer_tick_at(now + Duration::from_secs(1), short, false);
         assert_eq!(app.footer_text(), Some("next"));
+    }
+
+    fn view(app: &crate::ui::App) -> serde_json::Value {
+        serde_json::json!({
+            "session": app.session.unwrap(),
+            "history": [],
+            "toolcalls": [],
+            "live": {"first_turn": null, "events": []},
+        })
+    }
+
+    /// 0.9.9 regression: a window taken over by a live update said "Rune CLI
+    /// updated to … (live)." and the session view applied right after wiped it
+    /// before any frame showed it (RuneLoaderPTY "the new build's window drawn").
+    #[test]
+    fn a_transition_notice_survives_the_session_view_it_brings() {
+        let mut app = crate::ui::App::for_test();
+        app.note_transition("Rune CLI updated to v9.9.9 (live).");
+        let view = view(&app);
+        app.apply_view(&view);
+        assert_eq!(
+            app.footer_text(),
+            Some("Rune CLI updated to v9.9.9 (live).")
+        );
+        // It was the reason for that one view: a later view does not bring it back.
+        app.clear_status();
+        app.apply_view(&view);
+        assert_eq!(app.footer_text(), None);
+    }
+
+    /// What 0.9.9 meant by resetting the footer on a view still holds: an
+    /// ordinary notice of the replaced state, and one waiting behind it, go.
+    #[test]
+    fn a_session_view_still_drops_obsolete_notices() {
+        let mut app = crate::ui::App::for_test();
+        app.note("stopped");
+        app.note("waiting behind it");
+        let view = view(&app);
+        app.apply_view(&view);
+        assert_eq!(app.footer_text(), None);
+        assert!(app.footer.pending.is_none());
+    }
+
+    /// A view that arrives after the notice had its whole readable life does
+    /// not show it again: it is no longer news.
+    #[test]
+    fn an_old_transition_notice_is_not_shown_again() {
+        let mut app = crate::ui::App::for_test();
+        app.note_transition("Updated Rune engine is active; session reconnected.");
+        let said = Instant::now() - Timing::current().lifetime;
+        app.footer.transition.as_mut().unwrap().1 = said;
+        let view = view(&app);
+        app.apply_view(&view);
+        assert_eq!(app.footer_text(), None);
     }
 }

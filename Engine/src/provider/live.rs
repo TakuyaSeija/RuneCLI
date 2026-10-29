@@ -1379,6 +1379,9 @@ mod tests {
                         other => panic!("fixture did not receive a request: {other:?}"),
                     }
                 };
+                // Windows hands an accepted socket the listener's non-blocking
+                // mode (Linux does not): this side reads with a timeout instead.
+                stream.set_nonblocking(false).unwrap();
                 stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
                 let mut request = Vec::new();
                 let mut bytes = [0u8; 4096];

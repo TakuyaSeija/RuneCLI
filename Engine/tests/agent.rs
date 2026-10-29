@@ -10303,6 +10303,14 @@ fn background_completion_after_cancel_wakes_the_still_active_session() {
         saw_start,
         "completion must automatically wake AI after Esc/cancel"
     );
+    // `Done` is said before the run has let the session go: under load the
+    // assertion below met the woken turn still finishing. The closed-session
+    // case starts from a session that is idle.
+    let idle_by = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while session.state.is_busy() && std::time::Instant::now() < idle_by {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(!session.state.is_busy(), "the woken turn never finished");
     session.state.background.stop_all();
     session.state.request_cancel();
     session.state.background.register(BackgroundTaskInfo {

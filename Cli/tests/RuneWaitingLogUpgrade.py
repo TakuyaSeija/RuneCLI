@@ -22,6 +22,12 @@ def main():
     if not RuneTerminal.LINUX:
         print("SKIP live replace/wait fixture requires Linux", flush=True)
         return
+    # An upgrade needs two builds. RunPTY.py (CI) passes one, so there it is
+    # said and skipped; the release procedure runs it with the installed
+    # release and the new build.
+    if len(sys.argv) < 3:
+        print("skip: an upgrade needs the older release and the new build (RuneWaitingLogUpgrade.py old-rune new-rune)", flush=True)
+        return
     root = Path(tempfile.mkdtemp(prefix="WaitingLogUpgrade.", dir=ROOT / "target/test-tmp"))
     home = root / "Home"
     home.mkdir()

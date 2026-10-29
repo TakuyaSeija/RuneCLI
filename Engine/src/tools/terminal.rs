@@ -961,7 +961,14 @@ mod tests {
     fn preview_shows_the_commands_verbatim() {
         let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({ "action": "x", "command": "ls -la" });
-        assert_eq!(t.preview(&args), "$ ls -la");
+        // The prompt is the configured shell's own: `$` for bash and sh, `PS>`
+        // for PowerShell (Windows' automatic shell), `>` for cmd. The command
+        // follows it unchanged.
+        let prompt = crate::shell::ShellInfo::new(&t.program()).prompt();
+        assert_eq!(t.preview(&args), format!("{prompt} ls -la"));
+        if crate::platform::OS != crate::platform::Os::Windows {
+            assert_eq!(prompt, "$");
+        }
     }
 
     #[test]

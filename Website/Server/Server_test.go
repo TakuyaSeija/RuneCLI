@@ -143,6 +143,9 @@ func newTestServer(t *testing.T, cfg *Config) *server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Windows refuses to remove a folder a handle still holds: close both
+	// before the test's temporary folders are removed (cleanups run last first).
+	t.Cleanup(func() { dl.Close(); cat.root.Close() })
 	return newServer(cfg, st, cat, dl)
 }
 
@@ -181,6 +184,7 @@ func TestCatalogListsOnlyCorrectlySignedReleases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { cs.root.Close() })
 	c := cs.get()
 	var got []string
 	for _, r := range c.Releases {
@@ -198,7 +202,11 @@ func TestCatalogWithoutKeyOffersNothing(t *testing.T) {
 	f := newDownloads(t)
 	f.publish(t, "0.9.0", fakeRune("0.9.0"))
 	os.Remove(filepath.Join(f.dir, keyFile))
-	cs, _ := openCatalog(f.dir)
+	cs, err := openCatalog(f.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cs.root.Close() })
 	if n := len(cs.get().Releases); n != 0 {
 		t.Fatalf("%d releases offered without a key", n)
 	}
@@ -730,14 +738,16 @@ func TestConfigRefusesPublicListeners(t *testing.T) {
 		"relative downloads":    func(c *Config) { c.Downloads = "Downloads" },
 		"host with credentials": func(c *Config) { c.Hosts = []string{"a@b"} },
 	}
+	// An absolute folder on every system the tests run on (`/tmp` is not one on Windows).
+	abs := t.TempDir()
 	for name, mutate := range cases {
-		c := testConfig("/tmp")
+		c := testConfig(abs)
 		mutate(c)
 		if err := c.validate(); err == nil {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	ok := testConfig("/tmp")
+	ok := testConfig(abs)
 	ok.Listen = []string{"127.0.0.1:3501", "192.168.18.10:3501"}
 	if err := ok.validate(); err != nil {
 		t.Errorf("dev on loopback + LAN refused: %v", err)

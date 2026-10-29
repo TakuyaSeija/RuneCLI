@@ -816,13 +816,13 @@ pub fn run(
 
     let mut app = App::new(session, project, &report);
     if handed.is_some() {
-        app.note(format!(
+        app.note_transition(format!(
             "Rune CLI updated to v{} (live).",
             runeengine::VERSION
         ));
     }
     if let Some(why) = refused {
-        app.note(format!(
+        app.note_transition(format!(
             "Rune was updated, but what the previous window handed over could not be read ({why}); it starts fresh."
         ));
     }
@@ -2385,8 +2385,7 @@ impl App {
         self.questions = None;
         self.mcp_input = None;
         self.retry_status = None;
-        self.clear_status();
-        self.footer = footer::State::default();
+        self.reset_footer_for_view();
         self.tasks.clear();
         let empty = Vec::new();
         self.load_history(
@@ -4040,7 +4039,7 @@ impl App {
                 self.transcript_dirty = true;
                 self.resync = true;
                 self.handover_due = true;
-                self.note("Updated Rune engine is active; session reconnected.");
+                self.note_transition("Updated Rune engine is active; session reconnected.");
             }
             Awaiting::Mode { next, .. } => {
                 self.mode = next.clone();
