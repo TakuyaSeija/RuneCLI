@@ -195,7 +195,9 @@ type pageData struct {
 	InstallCmd string
 	// Windows has no POSIX shell by default: its installer is a PowerShell script.
 	InstallCmdWindows string
-	Catalog           *Catalog
+	// Parent is where the footer's "Atoryn" leads on this host.
+	Parent  string
+	Catalog *Catalog
 	Latest            *Release
 	SiteVersion       string
 	DocGroups         []docGroup
@@ -213,6 +215,7 @@ func (s *site) data(p *page, cat *Catalog) pageData {
 		Origin:            s.cfg.Origin,
 		InstallCmd:        "curl -fsSL " + s.cfg.Origin + s.cfg.BasePath + "/install.sh | sh",
 		InstallCmdWindows: "irm " + s.cfg.Origin + s.cfg.BasePath + "/install.ps1 | iex",
+		Parent:            s.cfg.parent(),
 		Catalog:           cat, Latest: cat.Latest(), SiteVersion: s.build,
 		DocGroups: docGroups, DocVersion: documentedVersion,
 		Demo: s.demo,

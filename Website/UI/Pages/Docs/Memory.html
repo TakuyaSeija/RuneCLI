@@ -1,0 +1,18 @@
+{{define "article"}}
+<h2 id="what-memory-is">What memory is</h2>
+<p>Memory is a folder the agent keeps for one project: an index file named <code>MEMORY.md</code> and a file for each note beside it. It is written as plain text by the model itself, with the same file tools it already uses, and it survives the session that wrote it. There is no separate memory command and no distinct storage system to learn.</p>
+<p>Two projects never share notes. Each one keeps its memory inside that project's own folder under the selected Rune home, not inside your repository.</p>
+<h2 id="what-reaches-the-model">What reaches the model</h2>
+<p>Only the index is handed to the model, as reference material when a session opens. A note reaches the model when the model opens that note through its <code>@memory/</code> path, which is the moment it decided the note mattered. The rest of the folder stays unread, so one long note is never charged to every request for the rest of the project's life.</p>
+<p>The index is read when a session opens and again when its history is compacted, not continuously while it runs. A note another session saves meanwhile reaches this session at its next opening; a note this session saves is already known to the model that wrote it.</p>
+<h2 id="reading-and-writing">Reading and writing notes</h2>
+<p>There are no memory-specific tools. The model reads notes with <code>inspect_file</code> and finds them with <code>find_files</code> or <code>search_text</code>; it adds or edits them with <code>create_file</code> and <code>patch_file</code>. The <code>@memory</code> alias is translated by Rune, so a note is never addressed by a machine-specific absolute path and a project file cannot be mistaken for a note.</p>
+<p>Rune writes a memory file whole or not at all, and holds a change against other sessions for its whole read and write. A session opening while another writes therefore reads either the old index or the new one, never half of it.</p>
+<h2 id="the-budget">The budget</h2>
+<p>The index is limited by <code>memory.recall_size</code>, 20 KiB by default, and that byte budget is the only limit applied. When the index outgrows it, the oldest entries are left out and a notice says so; the model is expected to compact the index rather than let it grow. Raising the budget uses more context on every request that opens a session and does not make the notes more true.</p>
+<h2 id="what-memory-cannot-do">What memory cannot do</h2>
+<p>Nothing Rune enforces is ever read from memory. No permission, path, limit or configuration value comes from a note, because memory is text the agent wrote and therefore a place where misleading instructions can hide. It is prose for the model and nothing more, and it is delivered in a form that cannot imitate Rune's own instructions.</p>
+<p>Memory is also not a backup and not a log of commands. It holds the decisions, corrections and unfinished work worth carrying into the next session; credentials and transient command output do not belong there.</p>
+<h2 id="where-it-lives">Where it lives</h2>
+<p>Memory sits under the Rune home, in the project's own folder, and the command sandbox does not grant access to it: a shell command the AI runs cannot see it. It is reachable only through Rune's own file tools. Keeping it out of the repository is deliberate, so a commit never carries notes that were only meant for the agent.</p>
+{{end}}

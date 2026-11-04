@@ -98,11 +98,34 @@ pub fn render(app: &App, width: usize) -> Sink {
             if let Some(status) = data["status"].as_str() {
                 out.push(format!("  {}", ansi::plain(status)));
             }
-            if data["reload_required"] == true {
-                out.push("  Saved. Use /skills reload to refresh the skill catalog.".into());
+            if let Some(path) = data["installed"].as_str() {
+                let done = if data["replaced"] == true {
+                    "Updated"
+                } else {
+                    "Installed"
+                };
+                let place = if data["scope"] == "project" {
+                    "in this project"
+                } else {
+                    "for every project"
+                };
+                out.extend(ansi::wrap(
+                    &format!("  {done} {place}: {}", ansi::plain(path)),
+                    width,
+                ));
             }
-            if data["approval_required"] == true {
-                out.push("  Saved. Approve this project server before connecting.".into());
+            // Each follow-up belongs to the one kind of change that needs it:
+            // a skill's catalog is reloaded, a shared project server approved,
+            // and MCP otherwise reads its configuration afresh.
+            if data["updated"].is_string() {
+                let saved = if data["reload_required"] == true {
+                    "  Saved. Use /skills reload to refresh the skill catalog."
+                } else if data["approval_required"] == true {
+                    "  Saved. Approve this project server before connecting."
+                } else {
+                    "  Saved."
+                };
+                out.push(saved.into());
             }
             out.push("  /skills show <id> · /skill <id> · /mcp connect <id>".into());
         }
@@ -791,7 +814,7 @@ fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
             ansi::RESET,
             ansi::RESET
         );
-        for (k, line) in ansi::wrap(&ansi::plain(&entry.message), text_width)
+        for (k, line) in ansi::wrap(&ansi::plain(&ansi::tame(&entry.message)), text_width)
             .iter()
             .enumerate()
         {
@@ -814,7 +837,7 @@ fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
                 // line; only the numbers beside it are shown as data.
                 if let Some(text) = detail["text"].as_str() {
                     for line in text.lines() {
-                        for wrapped in ansi::wrap(&ansi::plain(line), text_width) {
+                        for wrapped in ansi::wrap(&ansi::plain(&ansi::tame(line)), text_width) {
                             out.push(format!("{pad}{FAINT}{wrapped}{}", ansi::RESET));
                         }
                     }
@@ -1141,6 +1164,41 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_capability_result_names_only_the_follow_up_its_own_change_needs() {
+        let shown = |data: Value| {
+            let mut app = App::for_test();
+            app.panel = Panel::Capabilities;
+            app.capability_view = data;
+            text(render(&app, 80).lines)
+        };
+        let installed = shown(
+            json!({"installed":"/home/me/.rune/skills/team-style","scope":"user","replaced":false}),
+        );
+        assert!(installed.contains("Installed for every project: /home/me/.rune/skills/team-style"));
+        let updated = shown(
+            json!({"installed":"/work/.rune/skills/team-style","scope":"project","replaced":true}),
+        );
+        assert!(updated.contains("Updated in this project: /work/.rune/skills/team-style"));
+        for skill in [&installed, &updated] {
+            assert!(
+                !skill.contains("Approve") && !skill.contains("Saved"),
+                "{skill}"
+            );
+        }
+        let server = shown(json!({"updated":"docs","scope":"private-project"}));
+        assert!(
+            server.contains("  Saved.") && !server.contains("/skills reload"),
+            "{server}"
+        );
+        let shared = shown(json!({"updated":"docs","scope":"project","approval_required":true}));
+        assert!(shared.contains("Approve this project server before connecting"));
+        let disabled = shown(
+            json!({"updated":"team-style:0123","scope":"private-project","reload_required":true}),
+        );
+        assert!(disabled.contains("Use /skills reload") && !disabled.contains("Approve"));
     }
 
     #[test]

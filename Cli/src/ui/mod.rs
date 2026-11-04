@@ -2534,6 +2534,7 @@ impl App {
                                 .as_i64()
                                 .map(term::epoch_hm)
                                 .filter(|t| !t.is_empty()),
+                            open: false,
                         }),
                         "skill" => self.blocks.push(Block::Notice {
                             text: format!("Skill {name} activated for this conversation."),
@@ -3367,6 +3368,7 @@ impl App {
                 self.push_block(Block::Notification {
                     text,
                     time: Some(time).filter(|t| !t.is_empty()),
+                    open: false,
                 });
             }
             // What Rune told the model behind the conversation draws nothing:
@@ -3412,6 +3414,7 @@ impl App {
                         self.blocks.push(Block::Notification {
                             text: t.clone(),
                             time: Some(time),
+                            open: false,
                         });
                         self.transcript_dirty = true;
                     }

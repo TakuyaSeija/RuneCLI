@@ -21,7 +21,7 @@ Location: advanced `[capabilities]` in rune.toml; management is available throug
 
 Additional roots must be absolute, bounded paths without parent traversal; no more than 64 per list. Adding a location can expose its skills/instructions to use. It is not a general file-access permission.
 
-Project options: `root` identifies the project; `servers` supplies private-project MCP definitions; `skill_roots` adds project skill locations; `disabled_skills` keeps the disabled list. `approved_servers` is maintained by explicit approval commands; do not manufacture approvals. `approved_skills` is an obsolete recorded property, not an active skill-approval setting to tune.
+Project options: `root` identifies the project; `servers` supplies private-project MCP definitions; `skill_roots` adds project skill locations; `disabled_skills` keeps the disabled list. `approved_servers` is maintained by explicit approval commands; do not manufacture approvals.
 
 ## Change and reset
 Use [skills](skills.md)/[MCP](mcp.md) management for package/server changes and approval. For advanced options edit only the intended TOML key and run `rune -config check`; removing an optional choice returns to its default. Do not reset the whole capabilities object just to reset one option, because that can remove unrelated server/project choices. Reload/reconnect when required; a live request can retain its starting settings.

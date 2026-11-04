@@ -2672,10 +2672,16 @@ impl crate::session::background::SessionWakeNotifier for EngineNotifier {
         }
     }
 
-    fn withdraw(&self, text: &str) {
-        if let Some(state) = self.state.upgrade() {
-            state.withdraw_queued(text);
-        }
+    fn withdraw(&self, text: &str) -> bool {
+        self.state
+            .upgrade()
+            .is_some_and(|state| state.withdraw_queued(text))
+    }
+
+    fn queued(&self) -> usize {
+        self.state
+            .upgrade()
+            .map_or(0, |state| state.queued_from_rune())
     }
 
     fn waiting(&self) {

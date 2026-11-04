@@ -95,13 +95,30 @@ def main():
         ack = wait(host, events, lambda e: e.get("t") == "ack" and e.get("id") == 3)
         assert ack["ok"], ack
         wait(host, events, lambda e: e.get("t") == "done")
-        send(host, {"cmd":"tool.invoke", "id":4, "session":session, "name":"manage_process", "args":{"action":"recover fixture log", "process_id":task}})
-        result = wait(host, events, lambda e: e.get("t") == "tool_result")
-        assert "Process: Lost" in result["content"], result
-        body = result["content"].split("</tool_notice>", 1)[1].strip()
+        # The end nobody saw is told by the wake the opened session carries, and
+        # that wake holds what the log kept (owner, 2026-11-03).
+        rows = [
+            json.loads(line)
+            for line in (folder / "session.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        wakes = [
+            row["content"]
+            for row in rows
+            if (row.get("context") or {}).get("kind") == "notification"
+            and task in (row.get("content") or "")
+        ]
+        assert wakes, rows
+        line, body = wakes[-1].split("</system_notification>", 1)
+        # A task Rune itself stopped keeps its PID; another boot's is unknown.
+        assert "Lost" in line, line
+        # The output is the process's words, in the block Rune closes after its line.
+        body = body.strip()
+        assert body.startswith("<process_output>\n") and body.endswith("\n</process_output>"), body
+        body = body[len("<process_output>\n"):-len("\n</process_output>")]
         assert body == expected == log.read_text(), (body, log.read_text())
         assert body.count("Durable question?") == 1
-        print("PASS restart: manage_process reads Lost task's exact saved output without the old screen or conversation", flush=True)
+        print("PASS restart: the wake carries the Lost task's exact saved output without the old screen or conversation", flush=True)
     finally:
         for host in reversed(hosts):
             if host.poll() is None:

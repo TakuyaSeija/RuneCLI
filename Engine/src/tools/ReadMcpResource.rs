@@ -10,7 +10,7 @@ impl Tool for ReadMcpResource {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Read a resource of a connected MCP server.".into(),
+            description: "Read a resource of a connected MCP server. Only for a server <status> lists as connected; a file on this machine is read with inspect_file.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,
@@ -49,8 +49,18 @@ impl Tool for ReadMcpResource {
         )
     }
     fn run(&self, ctx: &mut ToolCtx<'_>, args: &Value) -> Result<Outcome> {
-        let id = field_str(args, "server_id")?;
-        let uri = field_str(args, "uri")?;
+        let id = field_str(args, "server_id")?.trim();
+        let uri = field_str(args, "uri")?.trim();
+        // A model with no server still has to fill these fields, and fills them
+        // with a placeholder ("none", "-", an id it remembers from elsewhere).
+        // Naming the state is the one answer that lets it stop guessing: an MCP
+        // resource is not a file, and nothing was going to be read.
+        if ctx.capabilities.offered_servers().is_empty() || matches!(id, "none" | "-" | "n/a") {
+            return Err(crate::Error::NotFound(
+                "No MCP server is connected in this session, so there is no resource to read. Read a file with inspect_file, list files with find_files, search text with search_text; discover_capabilities lists the servers that are connected."
+                    .into(),
+            ));
+        }
         let result = ctx
             .capabilities
             .live(id, ctx.registry, ctx.cancel)?

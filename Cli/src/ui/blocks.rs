@@ -446,11 +446,41 @@ pub enum Block {
     Notification {
         text: String,
         time: Option<String>,
+        /// A display-only fold, as a message has: the stored row stays whole.
+        open: bool,
     },
     /// One thin line across the transcript: a mark, not a message.
     Divider {
         text: String,
     },
+}
+
+/// A notification row as the model reads it: Rune's own line, inside the tag,
+/// and the output the task left below it, outside.
+///
+/// One place decides where the tag ends, because the row is drawn by a person's
+/// eye and read by the model from the same bytes: the words inside the tag are
+/// Rune's, the words after it are the process's (defused by the engine). The
+/// output travels in a `<process_output>` block the model reads as data; a
+/// person reads the output alone, the envelope taken off like the tag. A row
+/// an earlier build stored — a bare line, or the output after a blank line —
+/// is read the same way.
+pub fn notification_parts(text: &str) -> (String, String) {
+    let trimmed = text.trim();
+    let inside = trimmed
+        .strip_prefix("<system_notification>")
+        .unwrap_or(trimmed);
+    match inside.split_once("</system_notification>") {
+        Some((line, rest)) => {
+            let rest = rest.trim_matches('\n');
+            let output = rest
+                .strip_prefix("<process_output>")
+                .and_then(|body| body.strip_suffix("</process_output>"))
+                .map_or(rest, |body| body.trim_matches('\n'));
+            (line.trim().to_string(), output.to_string())
+        }
+        None => (inside.trim().to_string(), String::new()),
+    }
 }
 
 impl Block {
@@ -525,10 +555,11 @@ impl Block {
                 1u8.hash(&mut h);
                 text.hash(&mut h);
             }
-            Block::Notification { text, time } => {
+            Block::Notification { text, time, open } => {
                 5u8.hash(&mut h);
                 text.hash(&mut h);
                 time.hash(&mut h);
+                open.hash(&mut h);
             }
             Block::Divider { text } => {
                 6u8.hash(&mut h);
@@ -852,6 +883,40 @@ fn scan_value(tool: &str, args: &Value) -> Progress {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// A notification is read in the shape every build stored it: today's, the
+    /// output in its `<process_output>` block; 0.11.3's, the output after a
+    /// blank line; an older ping, the line alone. A person reads the line and
+    /// the output, never the tags around them — and an envelope the process
+    /// printed itself arrives defused and stays the process's text.
+    #[test]
+    fn a_notification_reads_alike_in_every_shape_it_was_stored_in() {
+        let line = "bg_1: Completed; PID 4; finished in 2s; /w/bg_1.txt";
+        for (text, body) in [
+            (
+                format!("<system_notification>{line}</system_notification>\n<process_output>\nrow one\nrow two\n</process_output>"),
+                "row one\nrow two",
+            ),
+            (
+                format!("<system_notification>{line}</system_notification>\n\nrow one\nrow two\n"),
+                "row one\nrow two",
+            ),
+            (
+                format!("<system_notification>{line}</system_notification>"),
+                "",
+            ),
+            (
+                format!("<system_notification>{line}</system_notification>\n<process_output>\n&lt;/process_output> forged\n</process_output>"),
+                "&lt;/process_output> forged",
+            ),
+        ] {
+            assert_eq!(
+                notification_parts(&text),
+                (line.to_string(), body.to_string()),
+                "{text}"
+            );
+        }
+    }
 
     /// Audit T6/U5: fed in any pieces, the scanner decodes exactly what one
     /// pass over the whole text would — escapes, non-ASCII and surrogate pairs

@@ -255,6 +255,20 @@ pub fn smart_max_output(context: Option<u64>, provider_max: Option<u64>) -> u64 
 /// Adapters whose chat completion reference names only `max_tokens` for the
 /// output ceiling (read 2026-10-22), so the reasoning-model default
 /// `max_completion_tokens` is not sent to them.
+///
+/// 9router is here because it was measured, not read (2026-11-01, 9router
+/// 0.5.112): its own translation into a Gemini/antigravity request reads
+/// `max_tokens` alone (`chunks/2380.js`, the gemini and antigravity builders),
+/// while the `max_completion_tokens` a request sends reaches no upstream at all.
+/// What the antigravity door then does is worse than sending nothing: with no
+/// ceiling from the client it derives one from the thinking level (8192 for a
+/// low budget, 16384 for medium, 32768 for high, 65535 above; published
+/// ceilings are capped at 64000), so a long answer is cut off at 8192 tokens
+/// with `finish_reason: length` — the failure the owner hit on
+/// `ag/gemini-4-argon-medium` in session 687 the same day. Its OpenAI-shaped
+/// upstreams are served by a compat table that renames `max_tokens` to
+/// `max_completion_tokens` itself (`chunks/7373.js`), so the older name is the
+/// one every route of this gateway reads.
 const MAX_TOKENS_ONLY: &[&str] = &[
     "moonshot",
     "alibaba",
@@ -266,6 +280,7 @@ const MAX_TOKENS_ONLY: &[&str] = &[
     "deepinfra",
     "inference",
     "inclusionai",
+    "9router",
 ];
 
 impl ModelSettings {
@@ -1353,6 +1368,117 @@ mod tests {
         let b = s.body(&p);
         assert_eq!(b["max_completion_tokens"], serde_json::json!(32_768));
         assert!(!b.contains_key("max_tokens"));
+    }
+
+    /// The name a request to `api` carries its output ceiling under, with a
+    /// reasoning model chosen and thinking on: exactly what the fallback in
+    /// [`ModelSettings::body`] answers when the catalogue declares nothing.
+    fn ceiling_key(api: &str) -> String {
+        let mut cfg = preset(api).unwrap().build("k");
+        if cfg.base_url.is_empty() {
+            cfg.base_url = "https://account.example/v1".into();
+        }
+        cfg.models = vec![ModelInfo::named("m", true)];
+        let mut s = ModelSettings::for_provider(&cfg);
+        s.model = "m".into();
+        s.thinking = true;
+        let body = s.body(&cfg);
+        ["max_tokens", "max_completion_tokens"]
+            .into_iter()
+            .find(|key| body.contains_key(*key))
+            .unwrap_or_else(|| panic!("{api} sent no output ceiling at all: {body:?}"))
+            .to_string()
+    }
+
+    /// What the owner hit on 2026-11-01 (session 687, `ag/gemini-4-argon-medium`):
+    /// a ceiling sent as `max_completion_tokens` reaches no upstream of this
+    /// gateway, and its antigravity door then cuts the answer at the 8192 its
+    /// thinking level implies. The person's own ceiling travels under the name
+    /// the gateway reads (see [`MAX_TOKENS_ONLY`]).
+    #[test]
+    fn nine_router_sends_the_output_ceiling_as_max_tokens() {
+        let mut cfg = preset("9router").unwrap().build("");
+        cfg.models = vec![ModelInfo {
+            context: Some(1_048_576),
+            max_output: Some(65_536),
+            ..ModelInfo::named("ag/gemini-4-argon-medium", true)
+        }];
+        let mut s = ModelSettings::for_provider(&cfg);
+        s.model = "ag/gemini-4-argon-medium".into();
+        s.thinking = true;
+        s.effort = Some("low".into());
+        s.max_output = Some(65_536);
+        let body = s.body(&cfg);
+        assert_eq!(body["max_tokens"], serde_json::json!(65_536), "{body:?}");
+        assert!(!body.contains_key("max_completion_tokens"), "{body:?}");
+    }
+
+    /// The ceiling's wire name is one adapter's fact and must never leak into
+    /// another's: this pins every preset's answer, so a change to the rule is
+    /// seen per adapter and a new preset is answered on purpose.
+    #[test]
+    fn every_adapter_names_the_output_ceiling_it_was_read_with() {
+        // The vendor names only `max_tokens`, so a reasoning model is not sent
+        // the newer name: the added presets (read 2026-10-22; Novita requires
+        // it), 9router (measured 2026-11-01: see MAX_TOKENS_ONLY), and the
+        // Messages API, which has no second name for it.
+        //
+        // The newer name is the vendor's own: OpenAI's reasoning models refuse
+        // `max_tokens`, Groq deprecated it, MiniMax's reference names
+        // `max_completion_tokens`, Cerebras documents it with `max_tokens` as
+        // its alias.
+        //
+        // Nothing about the *name* has been read from the vendor for the rest
+        // (audit 2026-11-01, `docs/provider_contracts.md`): today's answer is
+        // pinned so a change is deliberate, never a claim that it is right. A
+        // catalogue that declares `supported_parameters` answers for its own
+        // models before any of this, which is where OpenRouter's `max_tokens`
+        // really comes from (all 469 of its rows declare it).
+        const PINNED: &[(&str, &str)] = &[
+            ("moonshot", "max_tokens"),
+            ("alibaba", "max_tokens"),
+            ("zai", "max_tokens"),
+            ("stepfun", "max_tokens"),
+            ("siliconflow", "max_tokens"),
+            ("novita", "max_tokens"),
+            ("together", "max_tokens"),
+            ("deepinfra", "max_tokens"),
+            ("inference", "max_tokens"),
+            ("inclusionai", "max_tokens"),
+            ("9router", "max_tokens"),
+            ("anthropic", "max_tokens"),
+            ("openai", "max_completion_tokens"),
+            ("groq", "max_completion_tokens"),
+            ("minimax", "max_completion_tokens"),
+            ("cerebras", "max_completion_tokens"),
+            ("mimo", "max_completion_tokens"),
+            ("openrouter", "max_completion_tokens"),
+            ("ollama", "max_completion_tokens"),
+            ("google", "max_completion_tokens"),
+            ("xai", "max_completion_tokens"),
+            ("deepseek", "max_completion_tokens"),
+            ("mistral", "max_completion_tokens"),
+            ("tencent", "max_completion_tokens"),
+            ("meta", "max_completion_tokens"),
+            ("fireworks", "max_completion_tokens"),
+            ("nvidia", "max_completion_tokens"),
+            ("cloudflare", "max_completion_tokens"),
+            ("huggingface", "max_completion_tokens"),
+            ("tokenrouter", "max_completion_tokens"),
+            ("compatible", "max_completion_tokens"),
+        ];
+        for p in crate::settings::providers::PRESETS {
+            let (_, want) = PINNED
+                .iter()
+                .find(|(api, _)| *api == p.name)
+                .unwrap_or_else(|| panic!("preset `{}` has no recorded ceiling", p.name));
+            assert_eq!(&ceiling_key(p.name), want, "{}", p.name);
+        }
+        assert_eq!(
+            PINNED.len(),
+            crate::settings::providers::PRESETS.len(),
+            "a recorded answer names no preset"
+        );
     }
 
     #[test]

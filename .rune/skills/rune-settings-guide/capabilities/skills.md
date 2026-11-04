@@ -2,7 +2,7 @@
 
 Skills are reusable guides/workflows. `/skills list` shows available skills, `/skills show <id>` reads one, and `/skill <id>` activates it for the conversation. The AI can also find a relevant skill through discovery and read its SKILL.md. Activation does not automatically perform its described actions or grant access.
 
-Rune includes this official help skill. No separate download is required. Official references are maintained with Rune: if its own copy is changed or damaged, Rune puts its text back automatically, so edits there are not kept. Do not edit the managed copy as your customization. Put personal/project skills in their own folders instead. A project skill of the same name can take precedence; use the exact ID from the list when distinguishing copies.
+Rune includes this official help skill. No separate download is required. Official references are maintained with Rune: if its own copy is changed or damaged, Rune puts its text back automatically, so edits there are not kept. Do not edit the managed copy as your customization. Put personal/project skills in their own folders, under their own names. The name `rune-settings-guide` belongs to this help: a package cannot be installed or updated under it, and another copy of that name in a project or personal folder never takes its place. The list shows such a copy as shadowed, and it opens only by its exact ID. Between your own skills of one name, the project's copy takes precedence; use the exact ID from the list when distinguishing copies.
 
 ## Locations and management
 - Project: `.rune/skills/<name>/SKILL.md`; portable project skills can use `.agents/skills/`.
@@ -10,7 +10,8 @@ Rune includes this official help skill. No separate download is required. Offici
 - Each package has its own SKILL.md and can include separate Markdown references. Use links relative to its folder; not one combined document.
 - `/skills disable <id>` / enable changes availability for the current project. It does not uninstall the package for every user/project.
 - `/skills reload` refreshes the available catalog after edits. Read a changed skill again before relying on it.
-- `rune -skills install <folder-or-zip> --scope project|user` installs an approved source; update is explicit. Do not install an unknown package merely because it offers help.
+- `rune -skills install <folder-or-zip>` installs a reviewed source in this project's `.rune/skills/`, so it stays with the project it serves and does not mix into other projects; it is shared with everyone who uses the project's files, a repository included. Add `--scope user` to make it a personal skill offered in every project, which suits only guidance meant for all of them.
+- `rune -skills update <folder-or-zip>` replaces an installed copy, in the scope chosen the same way. It keeps no copy of the previous version: keep your source, or use version control for a project skill. Do not install an unknown package merely because it offers help.
 
 Names use lowercase letters/digits/hyphens and match the folder. Required metadata includes name and description. Instructions should state when/how to use it, with separate references for detailed topics. Inspect an example's syntax without copying private values.
 

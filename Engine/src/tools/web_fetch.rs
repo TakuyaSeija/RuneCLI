@@ -15,7 +15,7 @@ use std::time::Instant;
 
 use serde_json::{json, Value};
 
-use super::{cap, field_bool, field_given_str, flat_schema, Outcome, Tool, ToolCtx, ToolDecl};
+use super::{cap, field_given_str, flat_schema, Outcome, Tool, ToolCtx, ToolDecl};
 use crate::error::{Error, Result};
 use crate::limits::Limits;
 use crate::net::cookies::Jar;
@@ -56,17 +56,14 @@ impl Tool for WebFetch {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "web_fetch".into(),
-            description: "Read one public web page as Markdown.".into(),
+            description: "Read one public web page as Markdown. Find a page's exact address with web_search first: a guessed documentation path answers 404."
+                .into(),
             parameters: flat_schema(
                 json!({
                     "url": {
                         "type": "string",
                         "minLength": 1,
                         "description": "The http:// or https:// page to read. Private and internal addresses are refused."
-                    },
-                    "cookies": {
-                        "type": "boolean",
-                        "description": "Keep the cookies the site sets while it redirects, for this call only. Use it when a fetch failed because the page kept redirecting. Default false."
                     }
                 }),
                 &["url"],
@@ -76,11 +73,7 @@ impl Tool for WebFetch {
 
     fn preview(&self, args: &Value) -> String {
         let url = field_given_str(args, "url").unwrap_or("?");
-        if field_bool(args, "cookies", false) {
-            format!("fetch {url:?} with cookies")
-        } else {
-            format!("fetch {url:?}")
-        }
+        format!("fetch {url:?}")
     }
 
     fn run(&self, ctx: &mut ToolCtx<'_>, args: &Value) -> Result<Outcome> {
@@ -95,10 +88,7 @@ impl Tool for WebFetch {
             web::choose(&settings, Service::Fetch)
         };
         match choice {
-            Choice::Builtin => Ok(self.outcome(
-                self.fetch(url, field_bool(args, "cookies", false), ctx.cancel)?,
-                None,
-            )),
+            Choice::Builtin => Ok(self.outcome(self.fetch(url, ctx.cancel)?, None)),
             Choice::Ready(route) => {
                 let content = self.through(&route, url, ctx.cancel, ctx.log)?;
                 Ok(self.outcome(content, Some(&route.name)))
@@ -237,7 +227,6 @@ impl WebFetch {
     fn fetch(
         &self,
         raw_url: &str,
-        cookies: bool,
         cancel: &std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<String> {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
@@ -266,9 +255,7 @@ impl WebFetch {
             ("Accept-Language".to_string(), "en-US,en;q=0.9".to_string()),
         ];
 
-        let (valid_url, response) = follow(start, cookies, &headers, |url, headers| {
-            http.get(url, headers)
-        })?;
+        let (valid_url, response) = follow(start, &headers, |url, headers| http.get(url, headers))?;
         if !response.ok() {
             return Err(Error::tool(format!(
                 "could not read {} (HTTP {})",
@@ -322,30 +309,30 @@ impl WebFetch {
 
 /// Request `start` and follow its redirects, one checked hop at a time — a
 /// public page that answers "go to http://127.0.0.1/" must not be obeyed —
-/// to the answer that is not one, and the address it came from. With
-/// `cookies`, what the site sets on the way is sent back along the same chain
-/// and dropped with it ([`Jar`]); without, a chain that set any is said to,
-/// since that is the one thing a second call could change.
+/// to the answer that is not one, and the address it came from.
+///
+/// What the site sets on the way is sent back along the same chain and dropped
+/// with it ([`Jar`]): one navigation, as a browser does it, which is what a
+/// sign-in check such as ai.google.dev's needs. The model never asks for it and
+/// cannot ask for it — a field it had to set was a second round trip for
+/// something the reader can decide on its own (owner, 2026-11-01). Nothing is
+/// kept, nothing crosses hosts, and a chain that still loops is reported as one
+/// no cookie could break.
 fn follow(
     start: String,
-    cookies: bool,
     headers: &[(String, String)],
     mut get: impl FnMut(&str, &[(String, String)]) -> Result<Response>,
 ) -> Result<(String, Response)> {
-    let mut jar = cookies.then(Jar::new);
-    let mut offered = false;
+    let mut jar = Jar::new();
     let mut url = start;
     let mut hops = 0;
     loop {
         let mut sent = headers.to_vec();
-        if let Some(cookie) = jar.as_ref().and_then(|jar| jar.header(&url)) {
+        if let Some(cookie) = jar.header(&url) {
             sent.push(("Cookie".to_string(), cookie));
         }
         let response = get(&url, &sent)?;
-        match jar.as_mut() {
-            Some(jar) => jar.store(&url, &response.set_cookies),
-            None => offered |= !response.set_cookies.is_empty(),
-        }
+        jar.store(&url, &response.set_cookies);
         let Some(next) = response
             .location
             .as_deref()
@@ -356,11 +343,9 @@ fn follow(
         let next = resolve_relative_url(&url, next);
         if hops == MAX_REDIRECTS {
             let host = host_of(&next);
-            return Err(Error::tool(if offered {
-                format!("the page kept redirecting ({MAX_REDIRECTS} redirects, last to {host}) and set cookies on the way; call web_fetch again with cookies: true")
-            } else {
-                format!("the page kept redirecting ({MAX_REDIRECTS} redirects, last to {host}); it may need a sign-in in a browser, so read another source")
-            }));
+            return Err(Error::tool(format!(
+                "the page kept redirecting ({MAX_REDIRECTS} redirects, last to {host}) even with the cookies it set; it may want a sign-in in a browser, so read another source"
+            )));
         }
         url = crate::net::validate_public_url(&next)?.1;
         hops += 1;
@@ -1425,32 +1410,24 @@ mod tests {
         let props = schema["properties"].as_object().unwrap();
         assert_eq!(
             props.keys().map(String::as_str).collect::<Vec<_>>(),
-            ["action", "url", "cookies"]
+            ["action", "url"]
         );
-        assert_eq!(props["cookies"]["type"], "boolean");
         tool.validate(&json!({"action":"read docs", "url":"https://example.com/docs"}))
             .unwrap();
-        for cookies in [true, false] {
-            tool.validate(
-                &json!({"action":"read docs", "url":"https://example.com/docs", "cookies": cookies}),
-            )
-            .unwrap();
-        }
         for args in [
             json!({"action":"read docs", "query":"https://example.com/"}),
             json!({"action":"read docs", "url":""}),
             json!({"action":"read docs", "url":"https://example.com/", "type":"fetch"}),
             json!({"action":"read docs", "url":"https://example.com/", "count":3}),
+            // The reader keeps cookies on its own now: a field that asked for
+            // them is nobody's argument and is refused like any invented one.
+            json!({"action":"read docs", "url":"https://example.com/", "cookies": true}),
         ] {
             assert!(tool.validate(&args).is_err(), "{args}");
         }
         assert_eq!(
             tool.preview(&json!({"url":"https://example.com/docs"})),
             "fetch \"https://example.com/docs\""
-        );
-        assert_eq!(
-            tool.preview(&json!({"url":"https://example.com/docs", "cookies": true})),
-            "fetch \"https://example.com/docs\" with cookies"
         );
         assert!(!tool.mutates());
         assert!(tool.concurrent());
@@ -1517,41 +1494,14 @@ mod tests {
         }
     }
 
-    /// Without cookies the sign-in check loops and the failure says the one
-    /// thing that would change it; with them the page is read, each cookie
-    /// sent back only to the host that set it, and nothing outlives the call.
+    /// The sign-in check is read in one call, with no field to set: what the
+    /// page set comes back only to the host that set it, and nothing outlives
+    /// the call.
     #[test]
-    fn a_sign_in_redirect_loop_is_read_with_cookies_and_named_without() {
-        let mut requests = Vec::new();
-        let error = follow(
-            "https://ai.site.test/page".into(),
-            false,
-            &[],
-            &mut sign_in_check(&mut requests),
-        )
-        .err()
-        .expect("the loop fails");
-        assert!(matches!(error, Error::Tool(_)), "{error:?}");
-        let said = error.to_string();
-        assert!(
-            said.contains("kept redirecting (5 redirects, last to "),
-            "{said}"
-        );
-        assert!(
-            said.contains("call web_fetch again with cookies: true"),
-            "{said}"
-        );
-        assert!(
-            !said.contains("oauth") && !said.contains("state="),
-            "only a host: {said}"
-        );
-        assert_eq!(requests.len(), MAX_REDIRECTS + 1);
-        assert!(requests.iter().all(|(_, cookie)| cookie.is_none()));
-
+    fn a_sign_in_check_is_read_and_every_cookie_returns_only_to_its_own_host() {
         let mut requests = Vec::new();
         let (url, page) = follow(
             "https://ai.site.test/page".into(),
-            true,
             &[("Accept".into(), "text/html".into())],
             &mut sign_in_check(&mut requests),
         )
@@ -1573,9 +1523,9 @@ mod tests {
         assert_eq!(requests[4].1.as_deref(), Some("csrf=1; done=1"));
     }
 
-    /// A chain that loops without setting a cookie gives a different next
-    /// step, and so does one still looping with cookies kept; every hop is
-    /// held to the public-address rule, mid-chain too.
+    /// A chain that still loops with the cookies it set is reported as one no
+    /// cookie could break — never as a field the model should have sent — and
+    /// every hop is held to the public-address rule, mid-chain too.
     #[test]
     fn a_loop_cookies_cannot_change_says_so_and_every_hop_is_checked() {
         let mut bounce = |url: &str, _: &[(String, String)]| {
@@ -1588,18 +1538,16 @@ mod tests {
                 set_cookies: Vec::new(),
             })
         };
-        for cookies in [false, true] {
-            let said = follow("https://loop.test/a".into(), cookies, &[], &mut bounce)
-                .err()
-                .expect("the loop fails")
-                .to_string();
-            assert!(said.contains("last to loop.test"), "{said}");
-            assert!(
-                said.contains("sign-in in a browser, so read another source"),
-                "{said}"
-            );
-            assert!(!said.contains("cookies: true"), "{said}");
-        }
+        let said = follow("https://loop.test/a".into(), &[], &mut bounce)
+            .err()
+            .expect("the loop fails")
+            .to_string();
+        assert!(said.contains("last to loop.test"), "{said}");
+        assert!(said.contains("even with the cookies it set"), "{said}");
+        assert!(
+            said.contains("sign-in in a browser, so read another source"),
+            "{said}"
+        );
         let mut inward = |_: &str, _: &[(String, String)]| {
             Ok(Response {
                 status: 302,
@@ -1610,13 +1558,11 @@ mod tests {
                 set_cookies: vec!["a=1".into()],
             })
         };
-        assert!(
-            follow("https://public.test/".into(), true, &[], &mut inward)
-                .err()
-                .expect("the inward hop is refused")
-                .to_string()
-                .contains("internal/private")
-        );
+        assert!(follow("https://public.test/".into(), &[], &mut inward)
+            .err()
+            .expect("the inward hop is refused")
+            .to_string()
+            .contains("internal/private"));
     }
 
     #[test]
@@ -1662,14 +1608,14 @@ mod tests {
             "http://[::1]/",
             "file:///etc/passwd",
         ] {
-            assert!(tool.fetch(url, false, &cancel).is_err(), "{url}");
+            assert!(tool.fetch(url, &cancel).is_err(), "{url}");
         }
         // A relative redirect is resolved, then held by the same URL gate.
         let redirect = resolve_relative_url("https://example.com/docs", "http://10.0.0.1/private");
         assert!(crate::net::validate_public_url(&redirect).is_err());
         cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         assert!(matches!(
-            tool.fetch("https://example.com/", false, &cancel),
+            tool.fetch("https://example.com/", &cancel),
             Err(Error::Cancelled)
         ));
     }

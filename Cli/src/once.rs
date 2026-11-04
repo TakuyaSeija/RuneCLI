@@ -5,6 +5,10 @@
 //! rendering is different, and deliberately plain — no cursor movement, no
 //! colour when the output is not a terminal, nothing that would corrupt a pipe.
 //!
+//! Each segment of answer text is printed once it is the text the session keeps:
+//! a pipe cannot take bytes back, so an attempt that is retried, or a response
+//! the repetition guard stops, is never printed twice.
+//!
 //! # Permission in a pipe
 //!
 //! There is nobody to ask. Rather than hang on a question no one will answer, a
@@ -40,13 +44,28 @@ pub fn run(mut d: Driver, project: String, text: String) -> Result<(), String> {
 
     let mut out = std::io::stdout();
     let mut stop = StopReason::End;
+    // The answer text of the segment being streamed, held until the segment can
+    // be trusted. A pipe cannot take bytes back: an attempt that fails and is
+    // repeated, or a model that starts repeating itself and is stopped, would
+    // otherwise be printed twice — once as it should not have been, once as it
+    // is. `StreamReset` says the attempt's text is void, which only a buffer can
+    // honour. Tool lines flush it first, so what is printed keeps its order.
+    let mut segment = String::new();
+    let flush = |out: &mut std::io::Stdout, segment: &mut String| {
+        if !segment.is_empty() {
+            let _ = write!(out, "{segment}");
+            let _ = out.flush();
+            segment.clear();
+        }
+    };
     while let Ok(event) = d.events.recv() {
         match event {
-            Event::Text { delta, .. } => {
-                let _ = write!(out, "{delta}");
-                let _ = out.flush();
-            }
+            Event::Text { delta, .. } => segment.push_str(&delta),
+            // Everything streamed by the attempt that just failed, or that the
+            // repetition guard stopped, is void.
+            Event::StreamReset { .. } => segment.clear(),
             Event::ToolCall { name, action, .. } => {
+                flush(&mut out, &mut segment);
                 let _ = writeln!(
                     out,
                     "\n{}",
@@ -54,6 +73,7 @@ pub fn run(mut d: Driver, project: String, text: String) -> Result<(), String> {
                 );
             }
             Event::ToolResult { ok, summary, .. } => {
+                flush(&mut out, &mut segment);
                 let mark = if ok { ansi::OK } else { ansi::REMOVED };
                 let _ = writeln!(out, "{}", tint(mark, &format!("  {summary}")));
             }
@@ -104,6 +124,8 @@ pub fn run(mut d: Driver, project: String, text: String) -> Result<(), String> {
             _ => {}
         }
     }
+    // Whatever the last segment holds is the answer the session keeps.
+    flush(&mut out, &mut segment);
 
     let _ = writeln!(out);
     d.engine.shutdown();

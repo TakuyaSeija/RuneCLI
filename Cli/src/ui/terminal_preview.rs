@@ -1,19 +1,21 @@
 //! A compact command is a labelled projection, never a rewritten shell script.
 //! Each displayed newline has an explicit mark and clipboard source of its own.
+//!
+//! A command cut at the box's edge ends in `…` and nothing more: the input's
+//! own mark is that ellipsis. A count of hidden source rows belongs to a
+//! preview of tool *output* (`viewport::cut_lines`), never to the command line,
+//! which must stay one visual row (owner, 2026-10-31).
 use super::{ansi, editor, highlight, selection::CopyPiece};
 
 pub(super) struct Preview {
     pub text: String,
     pub copy: Vec<CopyPiece>,
-    pub omitted_rows: usize,
 }
 
 struct Atom {
     text: String,
     source: String,
     width: usize,
-    command: usize,
-    end: usize,
 }
 
 pub(super) fn command(language: &str, commands: &[String], width: usize) -> Preview {
@@ -27,14 +29,7 @@ pub(super) fn command(language: &str, commands: &[String], width: usize) -> Prev
     'commands: for (command, projection) in projected.iter().enumerate() {
         if command > 0 {
             for (text, source) in [(" ", ""), ("↵", "\n"), (" ", "")] {
-                push(
-                    &mut atoms,
-                    text.into(),
-                    source.into(),
-                    command,
-                    0,
-                    &mut used,
-                );
+                push(&mut atoms, text.into(), source.into(), &mut used);
             }
             if used > width {
                 break;
@@ -64,8 +59,6 @@ pub(super) fn command(language: &str, commands: &[String], width: usize) -> Prev
                     &mut atoms,
                     highlight::paint(body, &pieces, at..end),
                     source.to_owned(),
-                    command,
-                    start + end,
                     &mut used,
                 );
                 if used > width {
@@ -86,8 +79,6 @@ pub(super) fn command(language: &str, commands: &[String], width: usize) -> Prev
                         &mut atoms,
                         format!("{}{text}{}", ansi::MUTED, ansi::RESET),
                         source.into(),
-                        command,
-                        end,
                         &mut used,
                     );
                 }
@@ -116,49 +107,19 @@ pub(super) fn command(language: &str, commands: &[String], width: usize) -> Prev
         });
         column += atom.width;
     }
-    let mut omitted_rows = 0;
     if cut {
         text.push_str(&format!("{}…{}", ansi::MUTED, ansi::RESET));
-        let (command, end) = atoms.last().map_or((0, 0), |atom| (atom.command, atom.end));
-        for (index, projection) in projected.iter().enumerate().skip(command) {
-            let suffix = if index == command {
-                let rest = &projection.text[end..];
-                if end > 0 && projection.text.as_bytes()[end - 1] != b'\n' {
-                    rest.strip_prefix('\n').unwrap_or(rest)
-                } else {
-                    rest
-                }
-            } else {
-                &projection.text
-            };
-            if !suffix.is_empty() {
-                omitted_rows += highlight::source_rows(language, suffix, width).len();
-            }
-        }
     }
-    Preview {
-        text,
-        copy,
-        omitted_rows,
-    }
+    Preview { text, copy }
 }
 
-fn push(
-    atoms: &mut Vec<Atom>,
-    text: String,
-    source: String,
-    command: usize,
-    end: usize,
-    used: &mut usize,
-) {
+fn push(atoms: &mut Vec<Atom>, text: String, source: String, used: &mut usize) {
     let width = ansi::width(&text);
     *used += width;
     atoms.push(Atom {
         text,
         source,
         width,
-        command,
-        end,
     });
 }
 
@@ -187,7 +148,6 @@ mod tests {
                     .collect::<String>(),
                 source
             );
-            assert_eq!(preview.omitted_rows, 0);
             assert!(!preview.text.contains('\n'));
         }
     }
@@ -254,7 +214,6 @@ mod tests {
     fn a_final_newline_fitting_exactly_does_not_invent_a_hidden_suffix() {
         let preview = command("sh", &["x\n".into()], 3);
         assert_eq!(ansi::plain(&preview.text), "x ↵");
-        assert_eq!(preview.omitted_rows, 0);
         assert_eq!(
             preview
                 .copy
@@ -277,22 +236,23 @@ mod tests {
                 .collect::<String>(),
             "echo\t'↵ …'\necho safe"
         );
-        assert_eq!(preview.omitted_rows, 0);
     }
 
+    /// A cut command says only that it was cut: `…` at the edge, no count.
+    /// A hidden-row count is a tool *output* fold (`viewport::cut_lines`); the
+    /// command line stays one visual row and never grows a second mark
+    /// (owner, 2026-10-31).
     #[test]
-    fn blank_source_rows_after_a_shown_newline_still_count_as_unseen() {
-        let preview = command("sh", &["a\n\nb".into()], 5);
-        assert_eq!(ansi::plain(&preview.text), "a ↵ …");
-        assert_eq!(preview.omitted_rows, 2);
-    }
-
-    #[test]
-    fn cut_count_is_only_the_unseen_source_suffix_not_each_projected_newline() {
-        let preview = command("sh", &["echo a\necho b\necho c".into()], 16);
-        assert!(ansi::plain(&preview.text).ends_with('…'));
-        assert_eq!(preview.omitted_rows, 1);
-        let all = command("sh", &["echo a\necho b\necho c".into()], 72);
-        assert_eq!(all.omitted_rows, 0);
+    fn a_cut_command_marks_the_ellipsis_only_and_never_counts_rows() {
+        for source in ["a\n\nb", "echo a\necho b\necho c"] {
+            let preview = command("sh", &[source.into()], 5);
+            let plain = ansi::plain(&preview.text);
+            assert!(plain.ends_with('…'), "{plain:?}");
+            assert!(!plain.contains("lines cut"), "{plain:?}");
+            assert!(!plain.contains("lines"), "{plain:?}");
+            assert!(!plain.contains('\n'), "{plain:?}");
+        }
+        let whole = command("sh", &["echo a\necho b\necho c".into()], 72);
+        assert!(!ansi::plain(&whole.text).ends_with('…'));
     }
 }

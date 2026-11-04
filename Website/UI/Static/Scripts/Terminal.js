@@ -139,7 +139,7 @@ if(root){
     const typing=state.elapsed<schedule.typeEnd;text(ui.typed,typing?prompt.slice(0,Math.floor(prompt.length*fraction(state.elapsed,schedule.typeStart,schedule.typeEnd))):'');show(ui.placeholder,!typing||state.elapsed<=schedule.typeStart);show(ui.user,!typing);
     const active=paintSteps();paintGate();paintPanel();const working=!typing&&state.elapsed<schedule.end;
     show(ui.spin,working);show(ui.word,working);show(ui.rule,working);
-    if(working){text(ui.spin,'⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'[Math.floor(state.elapsed/96)%10]);const words={terminal_use:'Running',create_file:'Writing',patch_file:'Patching',inspect_file:'Reading',web_search:'Looking up',search_text:'Searching',manage_process:'Managing',track_tasks:'Planning'};text(ui.word,(active?.kind==='think'?'Thinking':words[active?.node.dataset.call]||'Working')+' ['+duration(sourceElapsed()/1000)+']');}
+    if(working){text(ui.spin,'⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'[Math.floor(state.elapsed/96)%10]);const words={terminal_use:'Running',create_file:'Writing',patch_file:'Patching',inspect_file:'Reading',web_search:'Looking up',search_text:'Searching',process_control:'Controlling',manage_process:'Controlling',track_tasks:'Planning'};text(ui.word,(active?.kind==='think'?'Thinking':words[active?.node.dataset.call]||'Working')+' ['+duration(sourceElapsed()/1000)+']');}
     attr(term,'demoStage',state.elapsed>=schedule.end?'complete':gate>=0?'permission':working?'running':'idle');
     if(geometryDirty){folds.measure();viewport.restore();geometryDirty=false;}playbackUI();paintChapters();
   }

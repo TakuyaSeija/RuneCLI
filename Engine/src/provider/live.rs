@@ -593,6 +593,7 @@ impl Provider for Live {
                 wait_ms: w.wait.as_millis() as u64,
                 rotated: w.rotated,
                 reason: w.reason,
+                error: w.error,
             }) {
                 Flow::Continue => crate::retry::Go::On,
                 Flow::Stop => crate::retry::Go::Cancel,

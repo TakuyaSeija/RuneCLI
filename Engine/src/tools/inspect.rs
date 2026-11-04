@@ -36,7 +36,7 @@ impl Tool for InspectFile {
                 json!({
                     "path": {
                         "type": "string",
-                        "description": "The file to read."
+                        "description": "The exact path of the file to read. Do not guess paths: verify unseen paths with find_files or search_text first, unless explicitly provided by the user or an earlier tool result."
                     },
                     "view_range": {
                         "type": "array",
@@ -114,7 +114,8 @@ fn one(
             Ok(m) => m,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 return Err(crate::Error::NotFound(format!(
-                    "{rel} — check the path or search with find_files"
+                    "{rel} — check the path or search with find_files{}",
+                    nearby(ctx, &path)
                 )));
             }
             Err(e) => return Err(e.into()),
@@ -217,4 +218,80 @@ fn one(
         format!("=== {rel} (lines {start}-{end} of {total}) ===")
     };
     Ok((format!("{notice}{header}\n{body}\n"), None))
+}
+
+/// What the nearest existing folder holds, for a path that is not there.
+///
+/// Most missing reads name a root the project does not have (`Application/
+/// Studio/...` inside the folder itself, measured 2026-11-01). One listing of
+/// the closest folder that does exist answers that in the same step, with the
+/// person's own project files — the same names `find_files` would show — so the
+/// model can correct the path instead of guessing again.
+fn nearby(ctx: &ToolCtx<'_>, path: &std::path::Path) -> String {
+    let Some((dir, shown, more)) = nearest_folder(path) else {
+        return String::new();
+    };
+    format!(
+        "\nThe nearest folder that exists, {}, holds: {shown}{}",
+        ctx.jail.display(&dir),
+        if more { ", and more" } else { "" }
+    )
+}
+
+/// The closest ancestor of `path` that exists, with its entries: folders first
+/// marked with `/`, hidden ones left out, at most [`SHOWN`].
+fn nearest_folder(path: &std::path::Path) -> Option<(std::path::PathBuf, String, bool)> {
+    /// Enough to show the shape of a folder without turning an error into a listing.
+    const SHOWN: usize = 12;
+    let mut dir = path.parent();
+    while let Some(current) = dir {
+        if current.is_dir() {
+            let entries = std::fs::read_dir(current).ok()?;
+            let mut names: Vec<String> = entries
+                .flatten()
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with('.') {
+                        return None;
+                    }
+                    Some(if entry.path().is_dir() {
+                        format!("{name}/")
+                    } else {
+                        name
+                    })
+                })
+                .collect();
+            if names.is_empty() {
+                return None;
+            }
+            names.sort();
+            let more = names.len() > SHOWN;
+            names.truncate(SHOWN);
+            return Some((current.to_path_buf(), names.join(", "), more));
+        }
+        dir = current.parent();
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A missing path is answered with what the closest real folder holds, so a
+    /// wrong root (`Application/Studio/...`) is corrected in the same step.
+    #[test]
+    fn a_missing_path_is_answered_with_the_nearest_folder_that_exists() {
+        let base = std::env::temp_dir().join(format!("rune-nearby-{}", std::process::id()));
+        let project = base.join("project");
+        std::fs::create_dir_all(project.join("Engine/src")).unwrap();
+        std::fs::write(project.join("Cargo.toml"), "").unwrap();
+        std::fs::write(project.join(".hidden"), "").unwrap();
+        let (dir, shown, _) = nearest_folder(&project.join("Application/Studio/x.rs")).unwrap();
+        assert_eq!(dir, project);
+        assert!(shown.contains("Engine/"), "{shown}");
+        assert!(shown.contains("Cargo.toml"), "{shown}");
+        assert!(!shown.contains(".hidden"), "{shown}");
+        std::fs::remove_dir_all(&base).unwrap();
+    }
 }

@@ -90,8 +90,6 @@ pub struct Project {
     pub servers: BTreeMap<String, Server>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub approved_servers: BTreeMap<String, String>,
-    #[serde(default, skip_serializing)]
-    pub approved_skills: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disabled_skills: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

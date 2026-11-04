@@ -44,6 +44,9 @@ pub fn execute(
     }
     let mut arguments = request.arguments.clone();
     let mut explicit_scope = false;
+    // A skill stays with the project it serves, so one project's guides never
+    // mix into another's; one for every project is asked for with `--scope
+    // user` (owner, 2026-10-30).
     let mut scope = if request.group == "skills" {
         "project"
     } else {
@@ -230,7 +233,8 @@ pub fn execute(
             crate::jail::Jail::new(&cap.project)?.resolve(".rune/skills")?
         };
         let source = PathBuf::from(id);
-        let result = super::skills::install(&source, &root, &settings, op == "update")?;
+        let mut result = super::skills::install(&source, &root, &settings, op == "update")?;
+        result["scope"] = json!(scope);
         cap.refresh()?;
         return Ok(result);
     }
@@ -330,8 +334,13 @@ pub fn execute(
     )?;
     if group == "mcp" {
         cap.disconnect(id, registry);
+        // Every MCP reader loads the configuration afresh: nothing waits on a
+        // reload, and the skill catalog has nothing to do with it.
+        return Ok(json!({"updated":id,"scope":scope}));
     }
-    Ok(json!({"updated":id,"scope":scope,"reload_required":true}))
+    // Whether a skill is offered is the person's choice for this project,
+    // kept in their own configuration whatever scope holds its package.
+    Ok(json!({"updated":id,"scope":"private-project","reload_required":true}))
 }
 
 /// The `capabilities` table to write: the owner's, as written, with only what

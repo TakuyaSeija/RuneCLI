@@ -99,8 +99,10 @@ def main():
         assert "echo MANUAL-PTY-OUTPUT ↵ echo once" in box[0], window.screen.text()
         assert "├" in box[1], "closed command preview exceeds one row"
         assert "…" in box[0], "a hidden command suffix must be explicit"
-        assert any("lines cut" in line for line in box), window.screen.text()
-        click(window, "lines cut")
+        # A cut command says so with `…` only; `lines cut` counts tool *output*
+        # rows and must never appear for a command whose output is one line.
+        assert not any("lines cut" in line for line in box), window.screen.text()
+        live.click(window, row + 1, live.column_of(window, row, "echo MANUAL-PTY-OUTPUT") + 1)
         live.until(lambda: len(command_box(window, "echo MANUAL-PTY-OUTPUT")) > 1 and "echo once" in command_box(window, "echo MANUAL-PTY-OUTPUT")[1], "Open All restores multiline command", window)
         row = command_row(window, "echo MANUAL-PTY-OUTPUT")
         assert "echo once" in window.screen.text().splitlines()[row + 1], window.screen.text()

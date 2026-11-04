@@ -31,7 +31,7 @@ OUT = STUDIO / "Website/UI/Pages/Docs/Reference.html"
 # Tables in reading order: (heading, anchor, article that explains them, tables).
 GROUPS = [
     ("Terminal", "terminal", "docs/terminal", ["terminal"]),
-    ("Background processes", "processes", "docs/terminal", ["manage_process"]),
+    ("Background processes", "processes", "docs/terminal", ["process_control"]),
     ("Files and search", "files", "docs/tools", ["inspect_file", "find_files", "search_text", "scan"]),
     ("Tool calls, plans and questions", "tool-calls", "docs/tools", ["tools", "tasks", "questions", "permissions"]),
     ("Web search and fetch", "web", "docs/web", ["web_search", "web_fetch"]),

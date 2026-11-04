@@ -17,12 +17,15 @@ use std::sync::atomic::Ordering;
 
 use crate::error::{Error, Result};
 use crate::panic;
+use crate::perm::broker::Answer;
 use crate::proto::{Event, StopReason};
 use crate::provider::{CallRef, Chunk, Flow, Message, Request};
 use crate::store::sessions::{NewMessage, Role};
+use crate::tools::questions::{OptionItem, Question, Reply, Selection};
 
 use super::call::{self, Finished};
 use super::compact;
+use super::degeneration::{self, Watch};
 use super::{Runtime, SessionState};
 
 pub fn persist_prompt(
@@ -473,6 +476,18 @@ fn settle_turn(rt: &Runtime, st: &SessionState, turn: i64) -> (StopReason, i64) 
 }
 
 fn report_turn_error(rt: &Runtime, st: &SessionState, turn: i64, e: &Error) {
+    // The log keeps the failure as well: `Event::Error` ends the turn and its
+    // words reach the conversation, and `/logs error` is the other place a
+    // person looks — it used to hold nothing but the retry's category, so the
+    // cause itself was nowhere in the log. One line, tags neutralized, because
+    // a provider's body can run over several.
+    super::log::error(
+        rt,
+        st.id,
+        "turn",
+        e.code(),
+        crate::tools::notice::quote(&e.to_string()),
+    );
     emit(
         rt,
         Event::Error {
@@ -499,24 +514,198 @@ fn report_turn_error(rt: &Runtime, st: &SessionState, turn: i64, e: &Error) {
     );
 }
 
-/// Queued messages, with the completion wakes a tool result has already
-/// answered for taken back out of them.
+/// The label of the choice that keeps what the model wrote before the repeat,
+/// and of the choice that throws it away. The recommended choice ends with
+/// "(Recommended)", exactly as every form the model writes does.
+pub const KEEP_LABEL: &str = "Keep up to the repeat (Recommended)";
+pub const DISCARD_LABEL: &str = "Discard";
+
+/// The model began repeating itself and the stream is already stopped: settle
+/// the turn on what the person wants done with what it wrote before the repeat.
 ///
-/// A wake is withdrawn rather than delivered when the model has been given the
-/// whole report by `manage_process`: the queue would otherwise hand the model a
-/// second, thinner copy of a fact it is already holding. The strip runs per
-/// message, so withdrawing a wake from one never edits another, and a message
-/// that was nothing but an answered wake drops out on its own. An empty result
-/// means there is nothing left to say.
-fn speakable(st: &SessionState, queued: Vec<super::Queued>) -> Vec<super::Queued> {
+/// A turn cancelled while the form was open stays cancelled, and leaves the
+/// screen exactly as a stop pressed during any other stream does.
+fn settle_repetition(
+    rt: &Runtime,
+    st: &SessionState,
+    turn: i64,
+    hit: &degeneration::Hit,
+    text: &mut String,
+    thinking: &mut String,
+    thought: Option<u64>,
+) -> Result<(StopReason, i64)> {
+    if st.cancel.load(Ordering::Relaxed) {
+        store_answer(rt, st, turn, text, thinking, thought, false)?;
+        return Ok((StopReason::Cancelled, turn));
+    }
+    super::log::warn(
+        rt,
+        st.id,
+        "turn",
+        "output_repetition",
+        format!(
+            "Stopped a repeating response: \"{}\" repeated {} times ({} bytes).",
+            hit.unit, hit.repeats, hit.bytes
+        ),
+    );
+    let keep = ask_about_repetition(rt, st, hit)?;
+    if st.cancel.load(Ordering::Relaxed) {
+        store_answer(rt, st, turn, text, thinking, thought, false)?;
+        return Ok((StopReason::Cancelled, turn));
+    }
+    // What streamed is void — the repeat itself, and the copy of the kept text
+    // the screen already drew — so the screen is cleared and then handed back
+    // exactly what the stored row will hold. Live, view and replay agree.
+    emit(rt, Event::StreamReset { session: st.id });
+    if keep {
+        let kept = hit
+            .kept(match hit.part {
+                degeneration::Part::Answer => text,
+                degeneration::Part::Thinking => thinking,
+            })
+            .to_string();
+        match hit.part {
+            degeneration::Part::Answer => *text = kept,
+            degeneration::Part::Thinking => *thinking = kept,
+        }
+        if !thinking.trim().is_empty() {
+            emit(
+                rt,
+                Event::Thinking {
+                    session: st.id,
+                    delta: thinking.clone(),
+                },
+            );
+        }
+        if !text.is_empty() {
+            emit(
+                rt,
+                Event::Text {
+                    session: st.id,
+                    delta: text.clone(),
+                },
+            );
+        }
+        store_answer(rt, st, turn, text, thinking, thought, true)?;
+    }
+    Ok((StopReason::End, turn))
+}
+
+/// One assistant row for what the model wrote, or nothing when it wrote
+/// nothing. `finished` says whether this row completes the work the person's
+/// prompt opened.
+fn store_answer(
+    rt: &Runtime,
+    st: &SessionState,
+    turn: i64,
+    text: &str,
+    thinking: &str,
+    thought: Option<u64>,
+    finished: bool,
+) -> Result<()> {
+    if text.trim().is_empty() && thinking.trim().is_empty() {
+        return Ok(());
+    }
+    let db = panic::lock(&rt.db);
+    let work = db
+        .history_shared(st.id)
+        .ok()
+        .and_then(|history| super::work::source(&history))
+        .map(|source| crate::store::sessions::Work { source, finished });
+    db.append_message(
+        st.id,
+        NewMessage {
+            work,
+            tool_calls: None,
+            reasoning: (!thinking.trim().is_empty()).then_some(thinking),
+            thinking_tokens: thought,
+            ..NewMessage::plain(turn, Role::Assistant, text)
+        },
+    )?;
+    Ok(())
+}
+
+/// Ask, through the question form every frontend already draws, what should
+/// become of the text written before the repeat. `true` means keep it.
+///
+/// Asked as a clarification form — the same one the model's own
+/// `ask_user_questions` and a failed compaction use — rather than as a card of
+/// its own (owner, 2026-11-02). Only an explicit choice of [`DISCARD_LABEL`]
+/// throws the text away: a dismissed, blank, cancelled or timed-out form keeps
+/// it, because discarding output the person paid for has to be their choice.
+fn ask_about_repetition(rt: &Runtime, st: &SessionState, hit: &degeneration::Hit) -> Result<bool> {
+    let mut questions = vec![Question {
+        id: String::new(),
+        title: "Repeating output".into(),
+        question: format!(
+            "The model began repeating the same text ({} times, {} bytes) and the stream was stopped. What should happen to what it wrote before the repeat?",
+            hit.repeats, hit.bytes
+        ),
+        selection: Selection::Single,
+        options: vec![
+            OptionItem {
+                id: String::new(),
+                label: KEEP_LABEL.into(),
+                description: "Store the text written before the repeat as the answer, as if the model had stopped there.".into(),
+            },
+            OptionItem {
+                id: String::new(),
+                label: DISCARD_LABEL.into(),
+                description: "Store nothing: the message leaves the screen and the session keeps only your prompt.".into(),
+            },
+        ],
+    }];
+    crate::tools::questions::prepare(&mut questions);
+    let discard = questions[0].options[1].id.clone();
+    let req = st.questions.open(questions.clone());
+    emit(
+        rt,
+        Event::QuestionsRequest {
+            session: st.id,
+            // No tool call owns this form: the engine stopped the stream itself.
+            id: "repetition".into(),
+            req: req.clone(),
+            action: "Repeating output".into(),
+            questions,
+        },
+    );
+    let answer = st.questions.wait(
+        &req,
+        &st.cancel,
+        rt.limits.config.duration("questions.timeout"),
+    );
+    emit(
+        rt,
+        Event::QuestionsResolved {
+            session: st.id,
+            req,
+        },
+    );
+    Ok(!throws_away(&answer, &discard))
+}
+
+/// Whether this answer to the form throws the text away.
+fn throws_away(answer: &Answer<Reply>, discard: &str) -> bool {
+    match answer {
+        Answer::Decided(Reply::Answered { answers }) => answers
+            .iter()
+            .any(|answer| answer.selected.iter().any(|choice| choice == discard)),
+        // Nobody decided: the text that was written stays, as the person asked.
+        _ => false,
+    }
+}
+
+/// Queued messages that say something.
+///
+/// A wake used to be withdrawn from here when a `manage_process` report had
+/// already told the model the same fact; the wake carries the report itself
+/// now (owner, 2026-11-03), so nothing answers it and nothing is stripped. What
+/// is left is the one rule that still holds: a message with no words and no
+/// attachments is not a message.
+fn speakable(_st: &SessionState, queued: Vec<super::Queued>) -> Vec<super::Queued> {
     queued
         .into_iter()
-        .filter_map(|mut queued| {
-            if queued.origin == super::Origin::Rune {
-                queued.text = st.background.without_answered_wakes(&queued.text);
-            }
-            (!queued.text.is_empty() || !queued.media.is_empty()).then_some(queued)
-        })
+        .filter(|queued| !queued.text.trim().is_empty() || !queued.media.is_empty())
         .collect()
 }
 
@@ -617,8 +806,39 @@ fn take_steer_turn(rt: &Runtime, st: &SessionState) -> Result<Option<i64>> {
     Ok(last)
 }
 
-/// Failures of one exact call before its result says to stop repeating it.
-const REPEATED_FAILURES: usize = 3;
+/// Cadence B for loop warnings:
+/// - 3, 6, 9, 12 (step +3, 3 intervals)
+/// - 18, 24 (step +6, 2 intervals)
+/// - 33, 42 (step +9, 2 intervals)
+/// - 54, 66 (step +12, 2 intervals)
+/// - 81, 96 (step +15, 2 intervals)
+/// - ... (step increases by +3 every 2 intervals).
+pub fn is_loop_warning_cadence(times: usize) -> bool {
+    if times < 3 {
+        return false;
+    }
+    if matches!(times, 3 | 6 | 9 | 12) {
+        return true;
+    }
+    if times < 18 {
+        return false;
+    }
+    let mut curr = 12usize;
+    let mut step = 6usize;
+    while curr < times {
+        for _ in 0..2 {
+            curr = curr.saturating_add(step);
+            if curr == times {
+                return true;
+            }
+            if curr > times {
+                return false;
+            }
+        }
+        step = step.saturating_add(3);
+    }
+    false
+}
 
 /// What makes two calls the same call: the tool and its arguments, without the
 /// `action` sentence. The sentence is the model's words to the person, not part
@@ -630,16 +850,6 @@ fn same_call(name: &str, args: &serde_json::Value) -> (String, String) {
         fields.remove("action");
     }
     (name.to_string(), args.to_string())
-}
-
-/// A failed result, restated as a repeated failure: the sentence that says so
-/// goes first, in place of the notice the failure carried, and whatever the
-/// tool printed after it stays. What the sentence asks of the model is in the
-/// sentence itself.
-fn repeated(finished: &Finished, times: usize) -> String {
-    use crate::tools::notice;
-    let body = notice::split(&finished.content).rest;
-    notice::prepend(&[notice::repeated_failure(times, &finished.reason)], body)
 }
 
 fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, i64)> {
@@ -676,8 +886,9 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
     // was longer than the model's context.
     let mut overflow_compacted = false;
     let mut overflow_rejection = None;
-    // How often each exact call (`same_call`) has failed in this turn.
-    let mut failures: std::collections::HashMap<(String, String), usize> =
+    // How often each exact call (`same_call`) has been made in this turn,
+    // whether it worked or not.
+    let mut made: std::collections::HashMap<(String, String), usize> =
         std::collections::HashMap::new();
 
     loop {
@@ -858,252 +1069,283 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
         let mut restart_request = false;
         let mut checked_at = None;
         let mut logged_attempt: Option<u32> = None;
+        // The model repeating itself: something no legitimate output does, and
+        // the one thing a runaway response costs before it can be stopped.
+        let mut repetition = Watch::new();
         let cancel = st.cancel.clone();
 
-        let stream_res = rt.provider.stream(&request, &mut |chunk| {
-            if cancel.load(Ordering::Relaxed) && !matches!(&chunk, Chunk::Usage { .. }) {
-                return Flow::Stop;
-            }
-            match chunk {
-                Chunk::Text(delta) => {
-                    text.push_str(&delta);
-                    emit(
-                        rt,
-                        Event::Text {
-                            session: st.id,
-                            delta,
-                        },
-                    );
+        let stream_res =
+            rt.provider.stream(&request, &mut |chunk| {
+                if cancel.load(Ordering::Relaxed) && !matches!(&chunk, Chunk::Usage { .. }) {
+                    return Flow::Stop;
                 }
-                Chunk::Thinking(delta) => {
-                    thinking.push_str(&delta);
-                    emit(
-                        rt,
-                        Event::Thinking {
-                            session: st.id,
-                            delta,
-                        },
-                    );
-                }
-                Chunk::ToolArgs {
-                    id,
-                    index,
-                    name,
-                    delta,
-                } => {
-                    let shell = st
-                        .registry
-                        .get(&name)
-                        .ok()
-                        .filter(|tool| tool.name() == "terminal_use")
-                        .map(|_| {
-                            terminal_preview_shell
-                                .get_or_insert_with(|| {
-                                    crate::shell::ShellInfo::new(&crate::tools::terminal::shell(
-                                        &rt.limits.config.text("terminal.shell"),
-                                    ))
-                                })
-                                .clone()
-                        });
-                    emit(
-                        rt,
-                        Event::ToolArgs {
-                            session: st.id,
-                            id,
-                            index,
-                            name,
-                            delta,
-                            shell,
-                        },
-                    );
-                }
-                Chunk::ThinkingTokens { tokens, billed } => {
-                    if billed {
-                        thought = Some(tokens);
+                match chunk {
+                    Chunk::Text(delta) => {
+                        // Watched before it is stored or drawn: once the end of
+                        // the answer has become a loop, what follows is nobody's
+                        // answer, and a few kilobytes of it are already on
+                        // screen.
+                        if repetition
+                            .push(degeneration::Part::Answer, &delta)
+                            .is_some()
+                        {
+                            return Flow::Stop;
+                        }
+                        text.push_str(&delta);
+                        emit(
+                            rt,
+                            Event::Text {
+                                session: st.id,
+                                delta,
+                            },
+                        );
                     }
-                    emit(
-                        rt,
-                        Event::ThinkingTokens {
-                            session: st.id,
-                            tokens,
-                            billed,
-                        },
-                    );
-                }
-                Chunk::ToolCall { id, name, args } => calls.push((id, name, args)),
-                Chunk::InvalidToolCall { id, name, reason } => {
-                    invalid_calls.insert(id.clone(), reason);
-                    calls.push((id, name, serde_json::json!({})));
-                    continuation = None;
-                }
-                Chunk::Continuation(native) => continuation = Some(native),
-                Chunk::Finished(end) => {
-                    completion = Some(end.clone());
-                    emit(
-                        rt,
-                        Event::Completion {
-                            session: st.id,
-                            completion: end,
-                        },
-                    );
-                }
-                Chunk::Usage {
-                    input,
-                    output,
-                    cached,
-                    details,
-                } => {
-                    let cost = panic::lock(&rt.settings).price_of(
-                        &settings.provider,
-                        &settings.model,
+                    Chunk::Thinking(delta) => {
+                        if repetition
+                            .push(degeneration::Part::Thinking, &delta)
+                            .is_some()
+                        {
+                            return Flow::Stop;
+                        }
+                        thinking.push_str(&delta);
+                        emit(
+                            rt,
+                            Event::Thinking {
+                                session: st.id,
+                                delta,
+                            },
+                        );
+                    }
+                    Chunk::ToolArgs {
+                        id,
+                        index,
+                        name,
+                        delta,
+                    } => {
+                        let shell = st
+                            .registry
+                            .get(&name)
+                            .ok()
+                            .filter(|tool| tool.name() == "terminal_use")
+                            .map(|_| {
+                                terminal_preview_shell
+                                    .get_or_insert_with(|| {
+                                        crate::shell::ShellInfo::new(
+                                            &crate::tools::terminal::shell(
+                                                &rt.limits.config.text("terminal.shell"),
+                                            ),
+                                        )
+                                    })
+                                    .clone()
+                            });
+                        emit(
+                            rt,
+                            Event::ToolArgs {
+                                session: st.id,
+                                id,
+                                index,
+                                name,
+                                delta,
+                                shell,
+                            },
+                        );
+                    }
+                    Chunk::ThinkingTokens { tokens, billed } => {
+                        if billed {
+                            thought = Some(tokens);
+                        }
+                        emit(
+                            rt,
+                            Event::ThinkingTokens {
+                                session: st.id,
+                                tokens,
+                                billed,
+                            },
+                        );
+                    }
+                    Chunk::ToolCall { id, name, args } => calls.push((id, name, args)),
+                    Chunk::InvalidToolCall { id, name, reason } => {
+                        invalid_calls.insert(id.clone(), reason);
+                        calls.push((id, name, serde_json::json!({})));
+                        continuation = None;
+                    }
+                    Chunk::Continuation(native) => continuation = Some(native),
+                    Chunk::Finished(end) => {
+                        completion = Some(end.clone());
+                        emit(
+                            rt,
+                            Event::Completion {
+                                session: st.id,
+                                completion: end,
+                            },
+                        );
+                    }
+                    Chunk::Usage {
                         input,
                         output,
                         cached,
-                        &details,
-                    );
-                    if let Err(error) = panic::lock(&rt.db).record_usage_role(
-                        st.id,
-                        turn,
-                        input,
-                        output,
-                        cached,
-                        cost,
-                        &settings.provider,
-                        &settings.model,
-                        "agent",
-                        &details,
-                    ) {
-                        accounting_error = Some(error);
-                    }
-                    super::log::usage(
-                        rt,
-                        st.id,
-                        "agent",
-                        &settings.model,
-                        input,
-                        output,
-                        cached,
-                        cost,
-                        details.reasoning,
-                    );
-                    let warm = warm_route.as_ref().is_some_and(|(provider, model, tools)| {
-                        provider == &settings.provider
-                            && model == &settings.model
-                            && *tools == request.tools.len()
-                    });
-                    if let Some(message) = panic::lock(&st.cache_watch).observe(
-                        &settings.provider,
-                        &settings.model,
-                        warm,
-                        input,
-                        cached,
-                    ) {
-                        super::log::warn(rt, st.id, "cache", "cache_miss", message);
-                    }
-                    emit(
-                        rt,
-                        Event::Usage {
-                            session: st.id,
+                        details,
+                    } => {
+                        let cost = panic::lock(&rt.settings).price_of(
+                            &settings.provider,
+                            &settings.model,
+                            input,
+                            output,
+                            cached,
+                            &details,
+                        );
+                        if let Err(error) = panic::lock(&rt.db).record_usage_role(
+                            st.id,
+                            turn,
                             input,
                             output,
                             cached,
                             cost,
-                            details: Box::new(details),
-                        },
-                    );
-                    super::spend::publish(rt, st.id);
-                }
-                Chunk::Reset => {
-                    text.clear();
-                    thinking.clear();
-                    thought = None;
-                    calls.clear();
-                    terminal_preview_shell = None;
-                    invalid_calls.clear();
-                    continuation = None;
-                    completion = None;
-                    emit(rt, Event::StreamReset { session: st.id });
-                }
-                Chunk::Retrying {
-                    attempt,
-                    of,
-                    wait_ms,
-                    rotated,
-                    reason,
-                } => {
-                    // Once per attempt: the countdown repeats this chunk ten
-                    // times a second, and the log is not a clock.
-                    if logged_attempt != Some(attempt) {
-                        logged_attempt = Some(attempt);
-                        super::log::warn(
+                            &settings.provider,
+                            &settings.model,
+                            "agent",
+                            &details,
+                        ) {
+                            accounting_error = Some(error);
+                        }
+                        super::log::usage(
                             rt,
                             st.id,
-                            "retry",
-                            "retrying",
-                            format!(
-                                "The request failed ({reason}); attempt {attempt} of {of} in {}s{}.",
+                            "agent",
+                            &settings.model,
+                            input,
+                            output,
+                            cached,
+                            cost,
+                            details.reasoning,
+                        );
+                        let warm = warm_route.as_ref().is_some_and(|(provider, model, tools)| {
+                            provider == &settings.provider
+                                && model == &settings.model
+                                && *tools == request.tools.len()
+                        });
+                        if let Some(message) = panic::lock(&st.cache_watch).observe(
+                            &settings.provider,
+                            &settings.model,
+                            warm,
+                            input,
+                            cached,
+                        ) {
+                            super::log::warn(rt, st.id, "cache", "cache_miss", message);
+                        }
+                        emit(
+                            rt,
+                            Event::Usage {
+                                session: st.id,
+                                input,
+                                output,
+                                cached,
+                                cost,
+                                details: Box::new(details),
+                            },
+                        );
+                        super::spend::publish(rt, st.id);
+                    }
+                    Chunk::Reset => {
+                        text.clear();
+                        thinking.clear();
+                        thought = None;
+                        calls.clear();
+                        terminal_preview_shell = None;
+                        invalid_calls.clear();
+                        continuation = None;
+                        completion = None;
+                        // The failed attempt's text is void, so nothing watched
+                        // of it belongs to the response that replaces it.
+                        repetition.clear();
+                        emit(rt, Event::StreamReset { session: st.id });
+                    }
+                    Chunk::Retrying {
+                        attempt,
+                        of,
+                        wait_ms,
+                        rotated,
+                        reason,
+                        error,
+                    } => {
+                        // Once per attempt: the countdown repeats this chunk ten
+                        // times a second, and the log is not a clock.
+                        if logged_attempt != Some(attempt) {
+                            logged_attempt = Some(attempt);
+                            // The message is the failure itself; the short reason a
+                            // frontend shows as a status stays beside it, so a
+                            // person reading `/logs` reads the provider's words.
+                            super::log::record(
+                                rt,
+                                st.id,
+                                crate::proto::LogLevel::Warn,
+                                "retry",
+                                "retrying",
+                                format!(
+                                "The request failed: {error}; attempt {attempt} of {of} in {}s{}.",
                                 wait_ms.div_ceil(1000),
                                 if rotated { " with the next API key" } else { "" }
                             ),
+                                Some(serde_json::json!({ "reason": reason })),
+                            );
+                        }
+                        // A countdown sends this ten times a second; the selection —
+                        // which the user may change while waiting — is read at most
+                        // twice a second, not on every tick (audit RT9).
+                        let due = checked_at.is_none_or(|at: std::time::Instant| {
+                            at.elapsed() >= std::time::Duration::from_millis(500)
+                        });
+                        let latest = due
+                            .then(|| {
+                                checked_at = Some(std::time::Instant::now());
+                                panic::lock(&rt.db).settings_json(st.id).ok().flatten()
+                            })
+                            .flatten();
+                        if let Some(latest) = latest.and_then(|json| {
+                            serde_json::from_str::<crate::settings::ModelSettings>(&json).ok()
+                        }) {
+                            // The failed attempt's output is void either way, so a
+                            // new selection takes over at once.
+                            if latest != settings {
+                                if !(text.is_empty() && thinking.is_empty() && calls.is_empty()) {
+                                    text.clear();
+                                    thinking.clear();
+                                    calls.clear();
+                                    invalid_calls.clear();
+                                    emit(rt, Event::StreamReset { session: st.id });
+                                }
+                                continuation = None;
+                                completion = None;
+                                restart_request = true;
+                                emit(
+                                    rt,
+                                    Event::Retrying {
+                                        session: st.id,
+                                        attempt,
+                                        of,
+                                        wait_ms: 0,
+                                        rotated: false,
+                                        reason: "Request settings changed".into(),
+                                    },
+                                );
+                                return Flow::Stop;
+                            }
+                        }
+                        emit(
+                            rt,
+                            Event::Retrying {
+                                session: st.id,
+                                attempt,
+                                of,
+                                wait_ms,
+                                rotated,
+                                reason,
+                            },
                         );
                     }
-                    // A countdown sends this ten times a second; the selection —
-                    // which the user may change while waiting — is read at most
-                    // twice a second, not on every tick (audit RT9).
-                    let due = checked_at.is_none_or(|at: std::time::Instant| {
-                        at.elapsed() >= std::time::Duration::from_millis(500)
-                    });
-                    let latest = due
-                        .then(|| {
-                            checked_at = Some(std::time::Instant::now());
-                            panic::lock(&rt.db).settings_json(st.id).ok().flatten()
-                        })
-                        .flatten();
-                    if let Some(latest) = latest.and_then(|json| {
-                        serde_json::from_str::<crate::settings::ModelSettings>(&json).ok()
-                    }) {
-                        // The failed attempt's output is void either way, so a
-                        // new selection takes over at once.
-                        if latest != settings {
-                            if !(text.is_empty() && thinking.is_empty() && calls.is_empty()) {
-                                text.clear();
-                                thinking.clear();
-                                calls.clear();
-                                invalid_calls.clear();
-                                emit(rt, Event::StreamReset { session: st.id });
-                            }
-                            continuation = None;
-                            completion = None;
-                            restart_request = true;
-                            emit(
-                                rt,
-                                Event::Retrying {
-                                    session: st.id,
-                                    attempt,
-                                    of,
-                                    wait_ms: 0,
-                                    rotated: false,
-                                    reason: "Request settings changed".into(),
-                                },
-                            );
-                            return Flow::Stop;
-                        }
-                    }
-                    emit(
-                        rt,
-                        Event::Retrying {
-                            session: st.id,
-                            attempt,
-                            of,
-                            wait_ms,
-                            rotated,
-                            reason,
-                        },
-                    );
                 }
-            }
-            Flow::Continue
-        });
+                Flow::Continue
+            });
 
         // Token accounting records what a turn cost; it is not the turn. A database
         // that refused the write has already refused the work, so taking the turn
@@ -1128,6 +1370,13 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
             // results, then rebuild route, generation settings, history and
             // compaction admission together rather than resending the stale body.
             continue;
+        }
+        // The model repeated itself: the stream is already stopped, and the run
+        // of repeated bytes is not an answer. What it wrote before the repeat is
+        // the person's to keep or discard, so the turn settles on their answer
+        // rather than on an error nobody can act on.
+        if let Some(hit) = repetition.hit().cloned() {
+            return settle_repetition(rt, st, turn, &hit, &mut text, &mut thinking, thought);
         }
         match stream_res {
             Ok(()) => {}
@@ -1215,6 +1464,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                 // Before anything reads the arguments: validation below, the
                 // history row after it, and the tool itself all have to see the
                 // same thing, and the sentence has to exist before any of them.
+                crate::tools::canonical_args(tool.as_ref(), &mut call.args);
                 crate::tools::ensure_action(&mut call.args, tool.as_ref());
             }
             // Keep the variant, not prose: Invalid/NotFound never mean that
@@ -1387,24 +1637,34 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     // same shape: a failed tool result it can read and correct.
                     other => Finished::for_call(st, &call.name, other),
                 };
-                // The same call failing again and again is a loop, not progress:
-                // the third time, the result says so (audit H4).
-                if !finished.ok {
-                    let repeats = failures
-                        .entry(same_call(&call.name, &call.args))
-                        .or_insert(0usize);
-                    *repeats += 1;
-                    if *repeats >= REPEATED_FAILURES {
-                        finished.content = repeated(&finished, *repeats);
-                        let status = crate::tools::notice::status::REPEATED_FAILURE;
-                        finished.status = Some(status.to_string());
-                        if let Some(detail) = finished
-                            .detail
-                            .as_mut()
-                            .and_then(serde_json::Value::as_object_mut)
-                        {
-                            detail.insert("status".into(), serde_json::json!(status));
-                        }
+                // The same call again and again is a loop, not progress:
+                // tracked per exact call, warning emitted via <system_notice>
+                // on Cadence B (3, 6, 9, 12, 18, 24, 33, 42, 54, 66, 81, 96, ...)
+                // so tool results remain completely pure and unpolluted.
+                let times = made
+                    .entry(same_call(&call.name, &call.args))
+                    .or_insert(0usize);
+                *times += 1;
+                if is_loop_warning_cadence(*times) {
+                    let firm = *times >= 6;
+                    // A repeated process_control is not a report being polled:
+                    // there is no report left to ask for, only a wake to await.
+                    let is_bg_poll = call.name == "process_control";
+                    let _ = super::context::loop_warning(
+                        rt, st, turn, &call.name, *times, firm, is_bg_poll,
+                    );
+                }
+                // The kind is a label beside the call, never text the model
+                // reads: only a failure carries one.
+                if !finished.ok && *times >= 3 {
+                    let status = crate::tools::notice::status::REPEATED_FAILURE;
+                    finished.status = Some(status.to_string());
+                    if let Some(detail) = finished
+                        .detail
+                        .as_mut()
+                        .and_then(serde_json::Value::as_object_mut)
+                    {
+                        detail.insert("status".into(), serde_json::json!(status));
                     }
                 }
 
@@ -2196,5 +2456,24 @@ mod tests {
         assert_eq!(msgs[2].tool_call_id.as_deref(), Some("call_1"));
         assert_eq!(msgs[2].content, "first done");
         assert_eq!(msgs[3].tool_call_id.as_deref(), Some("call_2"));
+    }
+
+    #[test]
+    fn cadence_b_matches_exact_progression() {
+        let expected = [
+            3, 6, 9, 12, 18, 24, 33, 42, 54, 66, 81, 96, 114, 132, 153, 174,
+        ];
+        for &num in &expected {
+            assert!(is_loop_warning_cadence(num), "{num} should be in Cadence B");
+        }
+        let not_expected = [
+            0, 1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 25, 30, 32, 34, 40,
+        ];
+        for &num in &not_expected {
+            assert!(
+                !is_loop_warning_cadence(num),
+                "{num} should NOT be in Cadence B"
+            );
+        }
     }
 }

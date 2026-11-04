@@ -567,6 +567,10 @@ mod tests {
             drop(pty);
             std::fs::read_to_string(&out).unwrap()
         };
+        // This test binary itself may run under a Rune terminal, which exports
+        // the tree mark. A launch inherits the ambient environment by design, so
+        // with no placement mark the value seen is the ambient one (or `none`).
+        let ambient = std::env::var(TREE_VAR).ok();
         let base = || {
             sh(&script)
                 .arg("first arg")
@@ -578,10 +582,11 @@ mod tests {
             kept.starts_with(&format!("first arg|{}|set|", dir.display())),
             "{kept}"
         );
-        assert!(
-            !kept.contains("|gone|") && kept.ends_with("|none"),
-            "the environment was kept, no mark: {kept}"
-        );
+        assert!(!kept.contains("|gone|"), "the environment was kept: {kept}");
+        match &ambient {
+            Some(mark) => assert!(kept.ends_with(&format!("|{mark}")), "{kept}"),
+            None => assert!(kept.ends_with("|none"), "{kept}"),
+        }
         let cleared = run(
             base().clear_env().env("RUNE_TEST_SET", "set"),
             Placement::default(),

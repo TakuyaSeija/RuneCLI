@@ -9,7 +9,7 @@ import (
 
 // Documentation is ordinary server-rendered pages. Navigation, pagination and
 // the sitemap share this catalogue; JavaScript never decides what can be read.
-const documentedVersion = "0.10.0"
+const documentedVersion = "0.11.4"
 
 type docGroup struct {
 	Title string
@@ -34,6 +34,7 @@ var docGroups = []docGroup{
 		{Route: "docs/keyboard", File: "Keyboard", Label: "Keyboard & mouse", Lead: "Canonical shortcuts for editing, navigation, questions and the conversation."},
 		{Route: "docs/shell", File: "Shell", Label: "Manual commands", Lead: "Run a command yourself with a leading ! — what it may do, when it runs and what the AI sees."},
 		{Route: "docs/instructions", File: "Instructions", Label: "Instructions & attachments", Lead: "Supply project guidance, attach files and keep durable project memory."},
+		{Route: "docs/memory", File: "Memory", Label: "Memory", Lead: "What project memory holds, what actually reaches the model, its one byte budget, and what it may never decide."},
 		{Route: "docs/undo", File: "Undo", Label: "Review, undo & redo", Lead: "Review actual file diffs and understand what a session restore can and cannot reverse."},
 	}},
 	{Title: "Configure", Pages: []*page{

@@ -1,4 +1,4 @@
-"""Saved waiting output and manage_process agree in a real isolated terminal.
+"""Saved waiting output and the task's notification agree in a real isolated terminal.
 python3 -I -B Cli/tests/RuneWaitingLogPTY.py [path/to/rune]
 """
 import importlib.util
@@ -17,6 +17,26 @@ os.environ["HOME"] = str(live.HOME)
 binary = live.ROOT / ("waiting-log.exe" if live.WINDOWS else "waiting-log")
 shutil.copy2(live.BIN, binary)
 live.BIN = str(binary)
+
+
+def notifications():
+    return [
+        row["content"]
+        for row in live.transcript()
+        if row.get("context", {}).get("kind") == "notification"
+    ]
+
+
+def manual_shell_output():
+    """What the model was told by the person's own call: its settled result."""
+    for row in live.transcript():
+        context = row.get("context") or {}
+        if context.get("kind") != "manual_shell":
+            continue
+        recorded = json.loads(context["note"])
+        if recorded.get("args", {}).get("command", "").startswith("echo SAVED-WAIT"):
+            return recorded.get("content")
+    return None
 
 
 def task_and_log():
@@ -52,38 +72,29 @@ def main():
     window = live.Window(["-project", str(live.PROJECT)], rows=60, cols=160)
     try:
         live.until(lambda: window.shows("fake-model"), "initial paint", window)
-        def read_saved(h, stream):
-            task, path = task_and_log()
-            assert path.read_text() == "SAVED-WAIT\nQuestion?"
-            live.tool("manage_process", {"action":"Read the saved waiting log", "process_id":task})(h, stream)
-        provider.queue(read_saved, live.text("SAVED LOG VERIFIED."))
+        # Nothing is asked for: the wait's own notification carries the saved
+        # output, so the model answers straight from what it was handed.
+        provider.queue(live.text("SAVED LOG VERIFIED."))
         script = "! echo SAVED-WAIT\nprintf 'Question? '; read answer; echo FINAL:$answer"
         window.send(b"\x1b[200~" + script.encode() + b"\x1b[201~")
         window.send(b"\r")
-        live.until(lambda: window.shows("SAVED LOG VERIFIED."), "manual input wait and report", window)
+        live.until(lambda: window.shows("SAVED LOG VERIFIED."), "manual input wait", window)
         live.settled(window)
         task, path = task_and_log()
-        reports = [row["content"] for row in live.transcript() if row.get("tool_name") == "manage_process"]
-        assert len(reports) == 1, reports
-        report = reports[0]
-        assert "Process: Waiting for input" in report
-        body = report.split("</tool_notice>", 1)[1].strip()
-        assert body == path.read_text() == "SAVED-WAIT\nQuestion?", (body, path.read_text())
+        # A person's own call tells the model through its settled result, so the
+        # saved output and what the model reads are the same words.
+        told = manual_shell_output()
+        assert told is not None, "the model was never told"
+        notice, text = told.split("</tool_notice>", 1)
+        assert "Waiting for input" in notice, told
+        expected = "SAVED-WAIT\nQuestion?"
+        assert text.strip() == path.read_text() == expected, (text, path.read_text())
         screen = window.screen.text()
-        at = screen.index("Read the saved waiting log")
-        assert "SAVED-WAIT" in screen[at:] and "Question?" in screen[at:], screen
-        print("PASS real PTY: terminal handoff, file and manage_process contain the same waiting output once", flush=True)
-
-        live.ask(window, provider, "verify again without new output",
-                 live.tool("manage_process", {"action":"Check unchanged waiting process", "process_id":task}),
-                 live.text("NO NEW OUTPUT VERIFIED."), expect="NO NEW OUTPUT VERIFIED.")
-        live.settled(window)
-        reports = [row["content"] for row in live.transcript() if row.get("tool_name") == "manage_process"]
-        assert not reports[-1].split("</tool_notice>", 1)[1].strip(), reports[-1]
-        print("PASS repeated report: status remains waiting, no duplicate body or additional execution", flush=True)
+        assert "SAVED-WAIT" in screen and "Question?" in screen, screen
+        print("PASS real PTY: terminal handoff, file and the notification carry the same waiting output once", flush=True)
 
         provider.queue(
-            live.tool("terminal_send_input", {"action":"Answer the fixture", "process_id":task, "text":"yes", "submit":"enter"}),
+            live.tool("process_control", {"action":"Answer the fixture", "process_id":task, "do":"type", "text":"yes", "submit":"enter"}),
             live.text("ANSWER SENT."))
         window.type("answer the fixture with yes")
         window.send(b"\r")
@@ -92,7 +103,17 @@ def main():
         live.until(lambda: window.shows("ANSWER SENT."), "answer sent", window)
         live.until(lambda: path.read_text() == "SAVED-WAIT\nQuestion? yes\nFINAL:yes\n", "final log contents", window)
         assert path.read_text() == "SAVED-WAIT\nQuestion? yes\nFINAL:yes\n", path.read_text()
-        print("PASS final disk log: answered question updates in place, no duplicate saved rows", flush=True)
+        # The end wakes it once. A task that began with a handoff carries its
+        # log from the start in the first wake by contract (the result that
+        # handed it over may be compacted away), and what the terminal echoes
+        # onto the answered row replaces that row rather than adding one.
+        told = notifications()
+        assert len(told) == 1, told
+        line, body = told[0].split("</system_notification>", 1)
+        assert "Completed" in line, line
+        assert "FINAL:yes" in body, body
+        assert body.count("Durable") == 0
+        print("PASS final disk log: answered question updates in place, and the end wake carries it", flush=True)
     finally:
         window.close()
         provider.server.shutdown()

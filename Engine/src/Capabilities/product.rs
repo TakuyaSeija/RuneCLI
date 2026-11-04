@@ -48,7 +48,7 @@ fn plain_directory(path: &Path) -> bool {
 
 /// Remove whatever is at `path` without following a link: a link goes, never
 /// what it points at.
-fn discard(path: &Path) -> std::io::Result<()> {
+pub(super) fn discard(path: &Path) -> std::io::Result<()> {
     let remove = || crate::platform::remove_entry(path);
     match remove() {
         // A read-only file (Windows refuses to delete one) or a folder that

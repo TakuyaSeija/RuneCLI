@@ -1,6 +1,76 @@
 /* Reading and navigation work without scripts; these are enhancements only. */
 (() => {
   "use strict";
+  // The product name arrives from the left once the page has moved 48px: the
+  // same moment, curve and clip as atoryn.com.
+  const header = document.querySelector(".top");
+  if (header) {
+    let queued = false;
+    const readHeader = () => {
+      queued = false;
+      header.classList.toggle("is-scrolled", (window.scrollY || 0) > 48);
+    };
+    addEventListener("scroll", () => {
+      if (!queued) { queued = true; requestAnimationFrame(readHeader); }
+    }, { passive: true });
+    readHeader();
+  }
+  // The manual keeps the chapters the reader opened, so choosing another
+  // article never closes them all (owner, 2026-11-03).
+  const groups = [...document.querySelectorAll(".docs-group")];
+  const OPENED = "rune.docs.opened";
+  const stored = (key, fallback) => {
+    try { return JSON.parse(sessionStorage.getItem(key)) ?? fallback; } catch { return fallback; }
+  };
+  const remember = (key, value) => {
+    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* storage refused */ }
+  };
+  if (groups.length) {
+    const opened = stored(OPENED, []);
+    for (const group of groups) {
+      const title = group.querySelector("summary").textContent.trim();
+      if (opened.includes(title)) group.open = true;
+      group.addEventListener("toggle", () => {
+        remember(OPENED, groups.filter((one) => one.open).map((one) => one.querySelector("summary").textContent.trim()));
+      });
+    }
+  }
+  // Any link that leads to another page of this site remembers where the
+  // reader was; the next page starts there and glides to its top, so no article
+  // ever jumps to the top at once (owner, 2026-11-03).
+  const FROM = "rune.from";
+  const SIDEBAR_SCROLL = "rune.sidebar.scroll";
+  const sidebar = document.querySelector(".docs-sidebar");
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  for (const link of document.querySelectorAll("a[href]")) {
+    const href = link.getAttribute("href") || "";
+    if (!href || href.startsWith("#") || link.target === "_blank" || link.hasAttribute("download")) continue;
+    let target;
+    try { target = new URL(link.href, location.href); } catch { continue; }
+    if (target.origin !== location.origin || target.hash || target.pathname === location.pathname) continue;
+    link.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      remember(FROM, Math.round(window.scrollY));
+      if (sidebar) remember(SIDEBAR_SCROLL, Math.round(sidebar.scrollTop));
+    });
+  }
+  if (sidebar) {
+    try {
+      const sbScroll = Number(sessionStorage.getItem(SIDEBAR_SCROLL)) || 0;
+      if (sbScroll > 0) sidebar.scrollTop = sbScroll;
+    } catch { /* storage refused */ }
+  }
+  let from = 0;
+  try { from = Number(sessionStorage.getItem(FROM)) || 0; sessionStorage.removeItem(FROM); } catch { /* storage refused */ }
+  if (from > 0 && !location.hash) {
+    const start = Math.min(from, document.documentElement.scrollHeight - innerHeight);
+    if (start > 0) {
+      window.scrollTo({ top: start, behavior: "instant" });
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: reduce.matches ? "instant" : "smooth" }));
+    }
+  }
+  // Restore.js held the page back before its first paint; it is ready now.
+  document.documentElement.style.visibility = "";
   // One click copies. The asynchronous clipboard exists only in secure
   // contexts; a plain-http preview still copies through the selection
   // command. Only if both fail is the text selected for Ctrl+C.
@@ -121,6 +191,37 @@
   const system = /^mac/i.test(platform) ? "os-macos" : /^win/i.test(platform) ? "os-windows" : "";
   const choice = system && document.getElementById(system);
   if (choice) choice.checked = true;
+  // Phones keep the manual's index in a drawer: the three lines — or the mark —
+  // open it from the left, the way the rest of the web does, and the chapters
+  // are already open inside it (owner, 2026-11-03).
   const menu = document.querySelector(".docs-menu");
-  if (menu && matchMedia("(max-width: 820px)").matches) menu.open = false;
+  if (menu) menu.open = true;
+  const drawer = document.getElementById("docs-nav");
+  const toggle = document.querySelector(".menu-toggle");
+  const scrim = document.querySelector(".scrim");
+  const narrow = matchMedia("(max-width: 820px)");
+  if (drawer && toggle) {
+    const setDrawer = (open) => {
+      drawer.classList.toggle("is-open", open);
+      if (scrim) scrim.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", String(open));
+      document.body.style.overflow = open ? "hidden" : "";
+    };
+    const closeDrawer = () => { setDrawer(false); toggle.focus({ preventScroll: true }); };
+    toggle.addEventListener("click", () => setDrawer(!drawer.classList.contains("is-open")));
+    const close = drawer.querySelector(".drawer-close");
+    if (close) close.addEventListener("click", closeDrawer);
+    if (scrim) scrim.addEventListener("click", closeDrawer);
+    addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && drawer.classList.contains("is-open")) closeDrawer();
+    });
+    // On a phone the mark opens the manual's menu instead of leaving the article.
+    const brand = document.querySelector(".brand");
+    if (brand) brand.addEventListener("click", (event) => {
+      if (!narrow.matches) return;
+      event.preventDefault();
+      setDrawer(true);
+    });
+    narrow.addEventListener("change", () => { if (!narrow.matches) setDrawer(false); });
+  }
 })();

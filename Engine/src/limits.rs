@@ -13,6 +13,29 @@ use crate::settings::configuration::Shared;
 /// Safe buffer ceiling (8 MiB) for tool JSON argument accumulation & host stdin.
 pub const MAX_TOOL_ARG_BYTES: usize = 8 * 1024 * 1024;
 
+/// Fewest bytes an exact repeating unit must cover at the end of a model
+/// response before it counts as the model repeating itself (4 KiB).
+///
+/// Chosen from what legitimate output actually holds, never from what a broken
+/// model emits: the longest run of one character that real text, code or data
+/// produces is a Markdown rule or a table separator (tens to a couple of hundred
+/// bytes), and the longest single token — a base64 data URI, a minified script,
+/// a JWT — varies its characters, so it never repeats a unit at all. Nothing
+/// legitimate repeats one unit sixteen times across four kilobytes.
+pub const REPETITION_MIN_BYTES: usize = 4 * 1024;
+
+/// The same, for a unit that is only whitespace. Blank lines and indentation
+/// repeat on purpose far longer than anything else, so they get room (16 KiB).
+pub const REPETITION_MIN_WHITESPACE_BYTES: usize = 16 * 1024;
+
+/// Longest repeating unit examined, in bytes: one character, a short pattern
+/// (`}"`), a word, or a whole short line with its newline.
+pub const REPETITION_MAX_UNIT: usize = 64;
+
+/// Fewest consecutive repeats of that unit. A period that divides the floor
+/// poorly still needs a real run behind it, so a coincidence is not enough.
+pub const REPETITION_MIN_REPEATS: u64 = 16;
+
 #[derive(Debug, Clone, Default)]
 pub struct Limits {
     /// The one hot-reloadable configuration, shared with `crate::settings::Settings`.

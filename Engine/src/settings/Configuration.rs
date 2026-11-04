@@ -68,9 +68,9 @@ Field { key:"search_text.max_output_chars", default:"30000", kind:Count(100,1000
 Field { key:"discover_capabilities.max_output_chars", default:"30000", kind:Count(100,10000000), help:"Maximum model-visible characters for capability discovery results." },
 Field { key:"discover_capabilities.page_size", default:"12", kind:Count(1,100), help:"Default capability results returned per page." },
 Field { key:"read_mcp_resource.max_output_chars", default:"50000", kind:Count(100,10000000), help:"Maximum model-visible characters for MCP resource content." },
-Field { key:"manage_process.max_output_chars", default:"30000", kind:Count(100,10000000), help:"Maximum model-visible payload characters for managing background processes." },
-Field { key:"manage_process.truncate_head_bytes", default:"1536", kind:Count(100,1000000), help:"Beginning payload bytes preserved when truncated." },
-Field { key:"manage_process.truncate_tail_bytes", default:"1536", kind:Count(100,1000000), help:"Ending payload bytes preserved when truncated." },
+Field { key:"process_control.max_output_chars", default:"30000", kind:Count(100,10000000), help:"Maximum characters of a background task's output carried in its notification." },
+Field { key:"process_control.truncate_head_bytes", default:"1536", kind:Count(100,1000000), help:"Beginning payload bytes preserved when truncated." },
+Field { key:"process_control.truncate_tail_bytes", default:"1536", kind:Count(100,1000000), help:"Ending payload bytes preserved when truncated." },
 Field { key:"tools.max_actions_per_response", default:"20", kind:Count(1,100), help:"Maximum tool calls allowed per response." },
 Field { key:"scan.max_entries", default:"200000", kind:Count(1,10000000), help:"Most files one find_files or search_text call goes through, however many of them match; past it the search stops there. A limit on work, apart from the result limits (matches)." },
 Field { key:"scan.max_depth", default:"32", kind:Count(1,256), help:"Deepest folder level find_files and search_text descend into; folders below it are not searched." },
@@ -1188,7 +1188,7 @@ fn layout_keeping(document: &mut toml_edit::DocumentMut, keep: Option<&str>) -> 
         "inspect_file",
         "find_files",
         "search_text",
-        "manage_process",
+        "process_control",
         "web_search",
         "web_fetch",
         "discover_capabilities",
@@ -1856,7 +1856,7 @@ mod tests {
     /// switch for it, and the retired one is refused like any unknown key.
     #[test]
     fn persistence_is_not_a_disableable_configuration() {
-        for section in ["terminal", "manage_process"] {
+        for section in ["terminal", "process_control"] {
             let key = format!("{section}.persisted_output");
             assert!(!FIELDS.iter().any(|field| field.key == key));
             assert!(
@@ -2211,7 +2211,7 @@ mod tests {
     fn the_key_families_built_at_run_time_exist() {
         for section in [
             "terminal",
-            "manage_process",
+            "process_control",
             "discover_capabilities",
             "read_mcp_resource",
         ] {
@@ -2220,7 +2220,7 @@ mod tests {
                 "{section}"
             );
         }
-        for section in ["terminal", "manage_process"] {
+        for section in ["terminal", "process_control"] {
             for key in ["truncate_head_bytes", "truncate_tail_bytes"] {
                 assert!(
                     field(&format!("{section}.{key}")).is_some(),
@@ -2253,7 +2253,7 @@ mod tests {
         assert!(c.get("sanitizer.model").is_null());
         assert_eq!(c.duration("sanitizer.timeout").as_secs(), 120);
         assert!(field("classifier.max_user_messages").is_none());
-        assert!(!crate::perm::classifier::excluded(&c, "manage_process"));
+        assert!(!crate::perm::classifier::excluded(&c, "process_control"));
     }
 
     /// A field always answers, even when the value is missing: with the default

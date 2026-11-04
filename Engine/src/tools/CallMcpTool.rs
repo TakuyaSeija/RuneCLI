@@ -36,7 +36,7 @@ impl Tool for CallMcpTool {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: NAME.into(),
-            description: "Call a tool that a connected MCP server offers. Find the tool and its input schema with discover_capabilities first.".into(),
+            description: "Call a tool that a connected MCP server offers. Find the tool and its input schema with discover_capabilities first; when <status> lists no MCP server there is nothing to call, and the built-in tools do the work.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,

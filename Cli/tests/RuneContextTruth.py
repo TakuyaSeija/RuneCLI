@@ -88,10 +88,16 @@ def run_case(root, binary, name, display, native):
         send({"cmd": "session.context", "id": 20, "session": sid})
         context, _ = wait(lambda e: e.get("t") == "ack" and e.get("id") == 20)
         system = context["data"]["system"]
-        for expected in ["polling/wait loop", "another background process and add model cost", "loops that perform the task's actual work are different"]:
+        for expected in ["polling/wait loop", "wastes model cost, and can become another background process", "loops that perform the task's actual work are different"]:
             assert expected in system, expected
         assert system.count("Every call starts with action") == 1
-        assert all("description" not in tool["parameters"]["properties"]["action"] for tool in context["data"]["tools"])
+        # The parameter carries its own one-line description again (owner,
+        # 2026-10-31): models that read only the JSON schema filled `action`
+        # with a generic word ("run", "read") when it had none. The agent rule
+        # stays stated once, in the system prompt above.
+        described = [tool["parameters"]["properties"]["action"].get("description")
+                     for tool in context["data"]["tools"]]
+        assert all(d == "One short sentence: what you are about to do, and to what." for d in described), described
     finally:
         close()
     session = next(home.glob("projects/*/sessions/" + str(sid)))

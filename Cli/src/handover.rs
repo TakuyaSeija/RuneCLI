@@ -408,7 +408,6 @@ mod tests {
                         status: runeengine::session::background::BackgroundTaskStatus::Running,
                         surfaced: false,
                         answered: false,
-                        wake_text: None,
                         capture_note: None,
                         tail: String::new(),
                         screen: None,

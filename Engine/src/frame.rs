@@ -45,6 +45,9 @@ pub const TAGS: &[&str] = &[
     "session_summary",
     "system_notice",
     "system_notification",
+    // A background task's output, after its notification's tag: the
+    // process's words in a block only Rune closes.
+    "process_output",
     "skill_activation",
     "mcp_prompt",
     "manual_shell",

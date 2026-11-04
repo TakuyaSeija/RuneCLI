@@ -1,8 +1,9 @@
 //! `find_files` — locate files by path pattern.
 //!
 //! A pattern with no `/` is matched at any depth, because that is what someone
-//! means by `*.rs`. Anything with a `/` is matched against the path as written,
-//! where `**` is the only wildcard that crosses directories.
+//! means by `*.rs`. Anything with a `/` — relative or absolute — is matched
+//! against the path as written, where `**` is the only wildcard that crosses
+//! directories; the walk starts in the folders it names (`tools::Scope`).
 
 use serde_json::{json, Value};
 
@@ -10,7 +11,6 @@ use super::{
     field_opt_str, field_opt_u64, field_str, flat_schema, plural, Outcome, Tool, ToolCtx, ToolDecl,
 };
 use crate::error::Result;
-use crate::scan::glob::Glob;
 use crate::scan::walk::{self, Options};
 
 pub struct FindFiles(pub std::sync::Arc<crate::limits::Limits>);
@@ -38,11 +38,7 @@ impl Tool for FindFiles {
                 json!({
                     "pattern": {
                         "type": "string",
-                        "description": "Glob pattern, e.g. *.rs, src/**/mod.rs, Cargo.toml."
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "The directory to search."
+                        "description": "Glob pattern from the workspace root, e.g. *.rs, src/**/mod.rs, Cargo.toml."
                     },
                     "limit": {
                         "type": "integer",
@@ -56,7 +52,7 @@ impl Tool for FindFiles {
     }
 
     fn reaches(&self, args: &Value) -> Vec<String> {
-        super::outside_paths(args, &["pattern", "path"])
+        super::outside_paths(args, &["pattern"])
     }
 
     fn preview(&self, args: &Value) -> String {
@@ -78,70 +74,58 @@ impl Tool for FindFiles {
             .map(|l| (l as usize).min(max_matches))
             .unwrap_or(max_matches);
 
-        let (search_dir, pattern_str) = match super::field_given_str(args, "path") {
-            Some(p) => (
-                ctx.jail.resolve(p)?,
-                if raw.contains('/') {
-                    raw.to_string()
-                } else {
-                    format!("**/{raw}")
-                },
-            ),
-            None => {
-                if raw.starts_with('/') || raw.starts_with('~') {
-                    if let Some(last_slash) = raw.rfind('/') {
-                        let dir_part = &raw[..last_slash];
-                        let file_part = &raw[last_slash + 1..];
-                        let resolved_dir =
-                            ctx.jail
-                                .resolve(if dir_part.is_empty() { "/" } else { dir_part })?;
-                        (
-                            resolved_dir,
-                            if file_part.is_empty() {
-                                "**/*".to_string()
-                            } else if file_part.contains('/') {
-                                file_part.to_string()
-                            } else {
-                                format!("**/{file_part}")
-                            },
-                        )
-                    } else {
-                        (ctx.jail.root().to_path_buf(), format!("**/{raw}"))
-                    }
-                } else {
-                    (
-                        ctx.jail.root().to_path_buf(),
-                        if raw.contains('/') {
-                            raw.to_string()
-                        } else {
-                            format!("**/{raw}")
-                        },
-                    )
-                }
-            }
-        };
-        let glob = Glob::new(&pattern_str);
+        // One root, the workspace (owner, 2026-11-03): a directory is part of
+        // the pattern (`src/**/*.rs`), which is how a model already spells one;
+        // the old `path` argument was read as a file's path instead. The walk
+        // starts in the folder the pattern names, and every match is named as
+        // every tool names a path (`Jail::display`): from the workspace root,
+        // or whole when it lies outside it.
+        let scope = super::Scope::of(ctx.jail, raw)?;
 
         let mut hits: Vec<String> = Vec::new();
-        walk::walk(&search_dir, &Options::configured(&self.0.config), |e| {
-            if glob.matches(&e.rel) {
-                hits.push(e.rel);
+        let mut stats = None;
+        match &scope.file {
+            Some(file) => hits.push(ctx.jail.display(file)),
+            None => {
+                stats = Some(walk::walk(
+                    &scope.dir,
+                    &Options::configured(&self.0.config),
+                    |e| {
+                        if scope.glob.as_ref().is_none_or(|glob| glob.matches(&e.rel)) {
+                            hits.push(ctx.jail.display(&e.path));
+                        }
+                        hits.len() < limit && !ctx.cancelled()
+                    },
+                )?);
             }
-            hits.len() < limit && !ctx.cancelled()
-        })?;
+        }
 
         let mut out = format!("=== {raw} — {} match(es) ===\n", hits.len());
         for h in &hits {
             out.push_str(h);
             out.push('\n');
         }
-        let notice = if hits.len() == limit {
-            format!(
-                "{}\n\n",
-                super::notice::inline(&format!("The search stopped at {limit} matches."))
+        let mut notices: Vec<String> = Vec::new();
+        if hits.len() == limit {
+            notices.push(super::notice::inline(&format!(
+                "The search stopped at {limit} matches."
+            )));
+        }
+        // A walk that ran out of its bounds found less than there is, and says
+        // so: a silent stop reads as "no such file".
+        if let Some(cut) = stats.as_ref().and_then(|stats| {
+            super::walk_stopped(
+                &self.0.config,
+                stats,
+                "name a folder in the pattern, as in src/**/*.rs, to look only there.",
             )
-        } else {
+        }) {
+            notices.push(cut);
+        }
+        let notice = if notices.is_empty() {
             String::new()
+        } else {
+            format!("{}\n\n", notices.join("\n"))
         };
 
         let max_chars = self.0.config.number("find_files.max_output_chars") as usize;

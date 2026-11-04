@@ -1247,7 +1247,12 @@ fn draw_group(app: &App, group: &Group, width: usize, cache: &mut StepCache) -> 
                 inner
             };
             draw_block(&app.blocks[*i], available, &mut sink);
-            if matches!(app.blocks[*i], Block::User { .. }) {
+            // A message and a notification both fold: the row that offers
+            // "Click to open all" must answer a click (owner, 2026-11-03).
+            if matches!(
+                app.blocks[*i],
+                Block::User { .. } | Block::Notification { .. }
+            ) {
                 for owner in sink.owner.iter_mut().skip(1) {
                     *owner = Hit::Block(*i);
                 }
@@ -1661,8 +1666,28 @@ impl BlockMeasure {
                 shown: (0, 0),
                 elapsed: 0,
             },
-            Block::Notification { text, .. } | Block::Divider { text } => BlockMeasure {
-                kind: 4,
+            // A notification folds as a message does, so whether it is open is
+            // part of what its drawing reads: left out, a click that opened it
+            // kept the stamp of the folded one and the frame never changed.
+            Block::Notification { text, open, .. } => BlockMeasure {
+                kind: 5,
+                text: text.len(),
+                output: (0, 0),
+                content: 0,
+                summary: 0,
+                raw: 0,
+                action: 0,
+                args: false,
+                detail: false,
+                ask: false,
+                bad: false,
+                open: *open,
+                state: 0,
+                shown: (0, 0),
+                elapsed: 0,
+            },
+            Block::Divider { text } => BlockMeasure {
+                kind: 6,
                 text: text.len(),
                 output: (0, 0),
                 content: 0,
@@ -2045,13 +2070,15 @@ fn group(blocks: &[Block]) -> Vec<Group> {
     for (i, block) in blocks.iter().enumerate() {
         match block {
             Block::Tool(_) | Block::Thinking { .. } => run.push(i),
-            Block::Text { .. } => {
+            Block::Text { text, .. } => {
                 let turn_end = next_rule[i + 1];
                 let followed_by_activity = blocks[i + 1..turn_end]
                     .iter()
                     .any(|next| matches!(next, Block::Tool(_) | Block::Thinking { .. }));
                 if followed_by_activity {
-                    run.push(i);
+                    if !text.trim().is_empty() {
+                        run.push(i);
+                    }
                 } else {
                     flush(&mut run, &mut out);
                     out.push(Group::One(i));
@@ -2111,18 +2138,36 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
             }
             sink.chrome(box_bottom(inner), Hit::None);
         }
-        Block::Notification { text, time } => {
+        Block::Notification { text, time, open } => {
             sink.blank();
             let text_wrap = inner.saturating_sub(4).max(8);
             sink.chrome(rule_system_notification(time.as_deref(), inner), Hit::None);
-            // The model reads the tag; a person reads the sentence inside it.
-            let shown = text
-                .trim()
-                .trim_start_matches("<system_notification>")
-                .trim_end_matches("</system_notification>")
-                .trim();
-            for line in ansi::wrap(shown, text_wrap) {
-                sink.boxed("", &format!("{TEXT}{line}{RESET}"), text_wrap, Hit::None);
+            // Rune's own line, then the output the task left. The model reads
+            // one row with the tag around its first part; a person reads the
+            // same words with the tag taken off, folded at the same hard limit
+            // a message has — how long Rune's line happens to be never buys it
+            // rows (owner, 2026-11-03).
+            let (line, body) = super::blocks::notification_parts(text);
+            let mut rows: Vec<String> = ansi::wrap(&line, text_wrap);
+            if !body.is_empty() {
+                rows.push(String::new());
+                for row in body.lines() {
+                    rows.extend(ansi::wrap(&ansi::tame(row), text_wrap));
+                }
+            }
+            let shown = rows.len().min(super::viewport::preview_rows(*open));
+            for row in &rows[..shown] {
+                sink.boxed("", &format!("{TEXT}{row}{RESET}"), text_wrap, Hit::None);
+            }
+            let omitted = rows.len() - shown;
+            if omitted > 0 {
+                sink.chrome(
+                    boxed(
+                        &format!("{MUTED}{}{RESET}", super::viewport::cut_lines(omitted)),
+                        text_wrap,
+                    ),
+                    Hit::None,
+                );
             }
             sink.chrome(box_bottom(inner), Hit::None);
         }
@@ -2301,8 +2346,8 @@ fn draw_one_step(app: &App, i: usize, is_last: bool, inner: usize, sink: &mut Si
             inner,
             sink,
         ),
-        Block::Text { text } => {
-            draw_work_text(app, i, "response", text, None, true, is_last, inner, sink)
+        Block::Text { text } if !text.trim().is_empty() => {
+            draw_work_text(app, i, "response", text, None, true, is_last, inner, sink);
         }
         _ => {}
     }
@@ -2365,7 +2410,7 @@ fn draw_work_text(
         owner,
     );
     if open {
-        let clean_text = text.trim_start_matches(['\r', '\n']);
+        let clean_text = text.trim_matches(['\r', '\n']);
         let rendered = if is_response {
             markdown::render_response(clean_text, inner.saturating_sub(6))
         } else {
@@ -2377,12 +2422,16 @@ fn draw_work_text(
             format!("  {RULE}│{RESET}   ")
         };
         let offset = ansi::width(&prefix);
-        for (line, mut spans) in rendered
+        let mut pairs: Vec<(String, Vec<Span>)> = rendered
             .lines
             .into_iter()
             .zip(rendered.copy)
             .skip_while(|(line, _)| line.trim().is_empty())
-        {
+            .collect();
+        while pairs.last().is_some_and(|(line, _)| line.trim().is_empty()) {
+            pairs.pop();
+        }
+        for (line, mut spans) in pairs {
             for span in &mut spans {
                 span.columns.start += offset;
                 span.columns.end += offset;
@@ -3445,90 +3494,17 @@ fn spine(is_last: bool) -> String {
     }
 }
 
-/// The `Key: value` lines of a report with the colons in one column, long
-/// values (a path) broken after a `/` and carried under the value column. A line
-/// that is not `Key: value` is kept as it is. Only the drawing is aligned: what
-/// the model was sent stays compact.
-fn report_rows(body: &str, width: usize) -> Vec<String> {
-    let parsed: Vec<(Option<(String, String)>, &str)> = body
-        .lines()
-        .map(|line| {
-            let field = line.split_once(':').and_then(|(key, value)| {
-                let key = key.trim();
-                (!key.is_empty() && key.split_whitespace().count() <= 2)
-                    .then(|| (key.to_string(), value.trim().to_string()))
-            });
-            (field, line)
-        })
-        .collect();
-    let key_width = parsed
-        .iter()
-        .filter_map(|(field, _)| field.as_ref().map(|(key, _)| key.chars().count()))
-        .max()
-        .unwrap_or(0);
-    let mut rows = Vec::new();
-    for (field, line) in parsed {
-        match field {
-            Some((key, value)) => {
-                let head = format!("{:<w$} ", format!("{key}:"), w = key_width + 1);
-                let room = width.saturating_sub(ansi::width(&head)).max(8);
-                let mut parts = break_value(&value, room).into_iter();
-                rows.push(format!("{head}{}", parts.next().unwrap_or_default()));
-                let pad = " ".repeat(ansi::width(&head));
-                for part in parts {
-                    rows.push(format!("{pad}{part}"));
-                }
-            }
-            None => rows.extend(ansi::wrap(line, width)),
-        }
-    }
-    rows
-}
-
-/// `value` in pieces of at most `room` columns, cut after a `/` (a path) or at a
-/// space when there is one, and mid-word only when there is nothing better.
-fn break_value(value: &str, room: usize) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = value;
-    while ansi::width(rest) > room {
-        let mut cut = 0;
-        let mut used = 0;
-        for (at, c) in rest.char_indices() {
-            let w = ansi::width(&c.to_string());
-            if used + w > room && cut > 0 {
-                break;
-            }
-            used += w;
-            cut = at + c.len_utf8();
-        }
-        let piece = &rest[..cut];
-        let at = piece
-            .rfind('/')
-            .map(|i| i + 1)
-            .or_else(|| piece.rfind(' ').map(|i| i + 1))
-            .filter(|&i| i > 0)
-            .unwrap_or(cut);
-        out.push(rest[..at].trim_end().to_string());
-        rest = rest[at..].trim_start();
-    }
-    out.push(rest.to_string());
-    out
-}
-
-/// The notices of a result as they were sent, one row each: a sentence is a
-/// single `<tool_notice>…</tool_notice>` row; a report is its two tags with the
-/// aligned `Key: value` rows between them. Wrapped to `width`.
+/// The notices of a result as they were sent, one row each: every notice is a
+/// single `<tool_notice>...</tool_notice>` sentence, wrapped to `width`.
+///
+/// The aligned `Key: value` block this used to draw went with the background
+/// report it belonged to (owner, 2026-11-03): a task's state and output arrive
+/// in its `<system_notification>`, so no result carries a field block any more.
 fn notice_rows(notices: &[&str], width: usize) -> Vec<String> {
-    use runeengine::tools::notice::{is_report, CLOSE, OPEN};
+    use runeengine::tools::notice::{CLOSE, OPEN};
     let mut rows = Vec::new();
     for body in notices {
-        if is_report(body) {
-            rows.push(OPEN.to_string());
-            rows.extend(report_rows(body, width));
-            rows.push(CLOSE.to_string());
-        } else {
-            rows.extend(ansi::wrap(&format!("{OPEN}{body}{CLOSE}"), width));
-        }
+        rows.extend(ansi::wrap(&format!("{OPEN}{body}{CLOSE}"), width));
     }
     rows
 }
@@ -3664,7 +3640,7 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
         }
     };
     let command_width = box_inner.saturating_sub(prompt_width).max(1);
-    let omitted_commands = if open {
+    if open {
         for cmd in &cmds {
             let rows = super::highlight::source_rows(syntax, cmd, command_width);
             for (index, row) in rows.into_iter().enumerate() {
@@ -3676,7 +3652,6 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
                 command_row(sink, &format!("{prefix}{TEXT}{row}{RESET}"));
             }
         }
-        0
     } else if !cmds.is_empty() {
         let preview = super::terminal_preview::command(syntax, &cmds, command_width);
         command_row(
@@ -3688,10 +3663,7 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
                 span.columns.start + preview.copy.last().map_or(0, |piece| piece.columns.end);
             span.source = Some(preview.copy);
         }
-        preview.omitted_rows
-    } else {
-        0
-    };
+    }
 
     let live = !tool.state.finished();
     let live_rows = if live {
@@ -3744,9 +3716,7 @@ fn draw_terminal(tool: &Tool, open: bool, is_last: bool, inner: usize, sink: &mu
         for _ in preview.len()..live_rows {
             sink.boxed(&spine, "", box_inner, Hit::Block(at));
         }
-        let omitted = omitted
-            .saturating_add(after)
-            .saturating_add(omitted_commands);
+        let omitted = omitted.saturating_add(after);
         if omitted > 0 {
             let footer = format!("{FAINT}{}{RESET}", super::viewport::cut_lines(omitted));
             sink.chrome(
@@ -7428,13 +7398,14 @@ mod tests {
     }
 
     /// A notification is Rune's, drawn in a closed box under its own header —
-    /// the sentence a person reads, without the tag the model reads it by.
+    /// the line a person reads, without the tag the model reads it by.
     #[test]
     fn system_notification_renders_as_a_closed_box_with_system_header() {
         let mut app = test_app();
         app.blocks.push(Block::Notification {
-            text: "<system_notification>Background task bg_12345 finished: Completed. Call manage_process with process_id: bg_12345 for its result.</system_notification>".into(),
+            text: "<system_notification>bg_12345: Completed; PID 99; finished in 2s; /work/bg_12345.txt</system_notification>".into(),
             time: Some("15:30".into()),
+            open: false,
         });
         let rows = transcript(&mut app, 120)
             .lines
@@ -7448,7 +7419,7 @@ mod tests {
         assert!(rows[top].starts_with('╭') && rows[top].ends_with('╮'));
         assert!(rows
             .iter()
-            .any(|line| line.contains("Background task bg_12345 finished: Completed.")));
+            .any(|line| line.contains("bg_12345: Completed; PID 99; finished in 2s")));
         assert!(
             !rows
                 .iter()
@@ -7461,6 +7432,89 @@ mod tests {
             .position(|line| line.starts_with('╰') && line.ends_with('╯'))
             .expect("Box must close with bottom border");
         assert!(bottom > 0);
+    }
+
+    /// The wake carries the report: Rune's line first, then the output the task
+    /// left. A person sees the four rows a message gets and no more, the rest
+    /// behind a cut marker; opening it shows every row, and how long Rune's own
+    /// line happens to be never buys it a row (owner, 2026-11-03).
+    #[test]
+    fn a_notification_folds_its_output_at_the_same_hard_limit_a_message_has() {
+        let mut app = test_app();
+        app.blocks.push(Block::Notification {
+            text: "<system_notification>bg_1a2b: Completed; PID 4321; finished in 14s; /work/bg_1a2b.txt</system_notification>\n\nline one\nline two\nline three\nline four\nline five\nline six\n".into(),
+            time: Some("15:30".into()),
+            open: false,
+        });
+        let closed = transcript(&mut app, 120)
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect::<Vec<_>>();
+        let body: Vec<&String> = closed.iter().filter(|line| line.starts_with('│')).collect();
+        assert_eq!(
+            body.len(),
+            5,
+            "four rows, then the marker that says how many are cut: {closed:?}"
+        );
+        assert!(
+            body[0].contains("bg_1a2b: Completed; PID 4321"),
+            "the line is the first row: {:?}",
+            body[0]
+        );
+        assert!(body[4].contains("lines cut"), "{:?}", body[4]);
+        assert!(!closed
+            .iter()
+            .any(|line| line.contains("system_notification>")));
+
+        if let Block::Notification { open, .. } = &mut app.blocks[0] {
+            *open = true;
+        }
+        let opened = transcript(&mut app, 120)
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect::<Vec<_>>();
+        assert!(
+            opened.iter().any(|line| line.contains("line six")),
+            "opening shows every row: {opened:?}"
+        );
+        assert!(
+            !opened.iter().any(|line| line.contains("lines cut")),
+            "nothing is cut once it is open: {opened:?}"
+        );
+    }
+
+    /// Today's notification carries its output in a `<process_output>` block,
+    /// the model's envelope for the process's words: a person reads the same
+    /// line and rows the earlier shape drew, never the envelope.
+    #[test]
+    fn a_notifications_output_block_is_drawn_as_its_rows_alone() {
+        let mut app = test_app();
+        app.blocks.push(Block::Notification {
+            text: "<system_notification>bg_1a2b: Completed; PID 4321; finished in 14s; /work/bg_1a2b.txt</system_notification>\n<process_output>\nline one\nline two\n</process_output>".into(),
+            time: Some("15:30".into()),
+            open: false,
+        });
+        let drawn = transcript(&mut app, 120)
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect::<Vec<_>>();
+        let body: Vec<&String> = drawn.iter().filter(|line| line.starts_with('│')).collect();
+        assert_eq!(body.len(), 4, "the line, a blank row, two rows: {drawn:?}");
+        assert!(
+            body[0].contains("bg_1a2b: Completed; PID 4321"),
+            "{drawn:?}"
+        );
+        assert!(
+            body[2].contains("line one") && body[3].contains("line two"),
+            "{drawn:?}"
+        );
+        assert!(
+            !drawn.iter().any(|line| line.contains("process_output")),
+            "{drawn:?}"
+        );
     }
 
     /// A rule's name and its time are words on the screen, so they are neutral
@@ -7505,6 +7559,7 @@ mod tests {
         app.blocks.push(Block::Notification {
             text: "<system_notification>Background task bg_1 finished: Completed.</system_notification>".into(),
             time: Some("15:30".into()),
+            open: false,
         });
         let rows = transcript(&mut app, 120).lines;
         let body = rows
@@ -8011,66 +8066,16 @@ mod tests {
         );
     }
 
-    /// A `manage_process` step used to carry a bullet row saying
-    /// `Manage bg_456 …` above a report that named the same task three more
-    /// times — in `Process ID :`, in the log path, and in the path's filename.
-    /// The word and the id were both repeats of what the report said properly,
-    /// so the row is gone and the report is what is left.
-    #[test]
-    fn a_manage_process_step_is_its_report_and_nothing_repeated() {
-        let app = test_app();
-        let mut manage = Tool::new(
-            "m2".into(),
-            "manage_process".into(),
-            "read the result".into(),
-        );
-        manage.settle(&json!({ "process_id": "bg_456" }));
-        manage.state = ToolState::Ok;
-        manage.open = true;
-        manage.summary = "Completed".into();
-        manage.content =
-            "PID        : 99\nStatus     : Completed\nOutput log : /tmp/bg_456.txt\n\nhi".into();
-        let mut sink = Sink::default();
-        draw_step(&app, 0, &manage, true, 100, &mut sink);
-        let text = sink
-            .lines
-            .iter()
-            .map(|line| ansi::plain(line))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        assert!(
-            !text.contains("Manage"),
-            "the heading already says what is being done:\n{text}"
-        );
-        assert!(
-            !text.contains("Process ID :"),
-            "the report does not open by naming the task it is about:\n{text}"
-        );
-        assert_eq!(
-            text.matches("Completed").count(),
-            1,
-            "the status is said once, as the report's own field:\n{text}"
-        );
-        assert!(
-            text.contains("Status     : Completed") && text.contains("PID        : 99"),
-            "and the report itself is intact:\n{text}"
-        );
-    }
-
-    /// Owner, 2026-10-11: a `terminal_send_input` step showed a process
-    /// report and the log under its notice, the same as `manage_process`. It
-    /// only types now: its step is the heading and the one sentence of what
-    /// it typed — no report, no output, no fold.
+    /// Owner, 2026-10-11: a typing step showed a process report and the log
+    /// under its notice, as the old report tool did. `process_control` only
+    /// types: its step is the heading and the one sentence of what it typed —
+    /// no report, no output, no fold, and no `Control process_control` row
+    /// (the bug of 2026-11-04).
     #[test]
     fn a_typing_step_is_its_one_sentence() {
         let app = test_app();
-        let mut typing = Tool::new(
-            "t1".into(),
-            "terminal_send_input".into(),
-            "answer yes".into(),
-        );
-        typing.settle(&json!({ "process_id": "bg_1", "text": "y" }));
+        let mut typing = Tool::new("t1".into(), "process_control".into(), "answer yes".into());
+        typing.settle(&json!({ "process_id": "bg_1", "do": "type", "text": "y" }));
         typing.state = ToolState::Ok;
         typing.summary = "typed into bg_1".into();
         typing.content = runeengine::tools::notice::typed(
@@ -8092,7 +8097,15 @@ mod tests {
             text.contains("Typed the text, then Enter, into bg_1."),
             "{text}"
         );
-        for absent in ["Process:", "PID:", "Output", "lines cut", "\"y\""] {
+        for absent in [
+            "Process:",
+            "PID:",
+            "Output",
+            "lines cut",
+            "\"y\"",
+            "Control process_control",
+            "process_control",
+        ] {
             assert!(!text.contains(absent), "{absent} in:\n{text}");
         }
         assert!(
@@ -8101,20 +8114,20 @@ mod tests {
         );
     }
 
-    /// `manage_process` was the one tool that took its summary as the bullet
-    /// note *and* as the error text, so a failed call said the same sentence on
-    /// two consecutive lines — once after the pid, once inside the error box.
+    /// A tool used to take its summary as the bullet note *and* as the error
+    /// text, so a failed call said the same sentence on two consecutive lines —
+    /// once after the pid, once inside the error box.
     #[test]
-    fn a_failed_manage_process_says_its_summary_once() {
+    fn a_failed_process_control_says_its_summary_once() {
         let app = test_app();
         let mut manage = Tool::new(
             "m1".into(),
-            "manage_process".into(),
-            "check the build".into(),
+            "process_control".into(),
+            "stop the build".into(),
         );
-        manage.settle(&json!({ "process_id": "bg_123" }));
+        manage.settle(&json!({ "process_id": "bg_123", "do": "stop" }));
         manage.state = ToolState::Failed;
-        manage.summary = "background process 'bg_123' not found".into();
+        manage.summary = "background task 'bg_123' is not tracked".into();
         let mut sink = Sink::default();
         draw_step(&app, 0, &manage, false, 100, &mut sink);
         let text = sink
@@ -8124,7 +8137,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         assert_eq!(
-            text.matches("not found").count(),
+            text.matches("not tracked").count(),
             1,
             "one failure is one sentence:\n{text}"
         );
@@ -8414,6 +8427,136 @@ mod tests {
         assert_eq!(groups.len(), 2);
         assert!(matches!(&groups[0], Group::Steps { indices } if indices == &[0, 1, 2]));
         assert!(matches!(&groups[1], Group::One(3)));
+    }
+
+    #[test]
+    fn empty_or_whitespace_intermediate_responses_do_not_join_timeline_or_render_empty_heading() {
+        // Test single, double, mixed newlines, spaces, tabs, and hundreds of whitespace chars
+        let hundreds = "\n".repeat(100);
+        let mixed = " \n \t \r\n ".repeat(50);
+        let whitespace_cases = [
+            "",
+            "\n",
+            "\n\n",
+            "\r\n\r\n",
+            "   ",
+            "\t\t\n  \n",
+            &hundreds,
+            &mixed,
+        ];
+
+        for ws in whitespace_cases {
+            let mut step1 = tool("inspect_file", ToolState::Ok);
+            step1.action = "inspect config".into();
+            let mut step2 = tool("patch_file", ToolState::Ok);
+            step2.action = "patch config".into();
+            let blocks = vec![
+                Block::of(step1),
+                Block::Text {
+                    text: ws.to_string(),
+                },
+                Block::of(step2),
+                Block::Text {
+                    text: "everything is ready".into(),
+                },
+            ];
+            let groups = group(&blocks);
+            assert_eq!(groups.len(), 2);
+            // The empty/whitespace text at index 1 is not collected into steps timeline
+            assert!(
+                matches!(&groups[0], Group::Steps { indices } if indices == &[0, 2]),
+                "whitespace text was wrongly added to steps timeline for: {:?}",
+                ws
+            );
+            assert!(matches!(&groups[1], Group::One(3)));
+
+            // Also verify rendering through transcript
+            let mut app = test_app();
+            app.blocks = blocks;
+            let rendered = transcript(&mut app, 120);
+            let plain = rendered
+                .lines
+                .iter()
+                .map(|line| ansi::plain(line))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            // Must NOT contain an empty "Response" bullet heading
+            assert!(
+                !plain.contains("● Response"),
+                "rendered empty Response heading for whitespace case {:?}:\n{}",
+                ws,
+                plain
+            );
+            // Must contain actual steps and final answer
+            assert!(plain.contains("inspect config"));
+            assert!(plain.contains("patch config"));
+            assert!(plain.contains("everything is ready"));
+        }
+
+        // Test meaningful intermediate response with newlines inside: MUST be preserved
+        let meaningful = "\n\nLet me check the config first.\n\nThen I will proceed.\n\n\n\n";
+        let mut step1 = tool("inspect_file", ToolState::Ok);
+        step1.action = "inspect config".into();
+        let mut step2 = tool("patch_file", ToolState::Ok);
+        step2.action = "patch config".into();
+        let blocks = vec![
+            Block::of(step1),
+            Block::Text {
+                text: meaningful.to_string(),
+            },
+            Block::of(step2),
+            Block::Text {
+                text: "All done.".into(),
+            },
+        ];
+        let groups = group(&blocks);
+        assert_eq!(groups.len(), 2);
+        assert!(matches!(&groups[0], Group::Steps { indices } if indices == &[0, 1, 2]));
+        assert!(matches!(&groups[1], Group::One(3)));
+
+        let mut app = test_app();
+        app.blocks = blocks;
+        let rendered = transcript(&mut app, 120);
+        let plain = rendered
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(plain.contains("Response"));
+        assert!(plain.contains("Let me check the config first."));
+        assert!(plain.contains("Then I will proceed."));
+        assert!(plain.contains("All done."));
+
+        // Verify that trailing empty spine lines (gap) are strictly trimmed:
+        // Between "Then I will proceed." and the next step bullet, there must NOT be
+        // multiple empty spine lines.
+        let lines: Vec<String> = rendered
+            .lines
+            .iter()
+            .map(|line| ansi::plain(line))
+            .collect();
+        let proceed_idx = lines
+            .iter()
+            .position(|l| l.contains("Then I will proceed."))
+            .expect("must contain second paragraph");
+        let patch_idx = lines
+            .iter()
+            .position(|l| l.contains("patch config"))
+            .expect("must contain patch step");
+
+        // Distance between last text line and the next step is exactly 2:
+        // [proceed_idx]     "  │   Then I will proceed."
+        // [proceed_idx + 1] "  │" (step separator)
+        // [proceed_idx + 2] "  ● patch config" (next step bullet)
+        assert_eq!(
+            patch_idx - proceed_idx,
+            2,
+            "gap between intermediate response and next step is too large ({}), lines:\n{:#?}",
+            patch_idx - proceed_idx,
+            &lines[proceed_idx..=patch_idx]
+        );
     }
 
     #[test]
@@ -8744,8 +8887,8 @@ mod tests {
         };
         assert_eq!(
             preview(&full).len(),
-            4,
-            "without output the box contains one command row and its fold only"
+            3,
+            "without output the box is one command row between its borders; the command's own `…` is the only cut mark"
         );
         for chunk in ["one", "\r\x1b[2K", "1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n"] {
             let event = runeengine::Event::ToolOutput {
@@ -9906,10 +10049,6 @@ mod tests {
     fn what_rune_told_the_model_about_a_call_is_on_the_screen_in_the_same_words() {
         use runeengine::tools::notice::{self, status};
         let log = std::path::Path::new("/tmp/session/tools_result/bg_1.log");
-        let report = notice::Notice::default()
-            .field("Process", "Completed")
-            .field("Exit code", 0)
-            .render();
         // (tool, state, arguments, what the model was given)
         let cases: Vec<(&str, ToolState, serde_json::Value, String)> = vec![
             (
@@ -9999,10 +10138,12 @@ mod tests {
                 notice::repeated_failure(3, "exit 1"),
             ),
             (
-                "manage_process",
+                "process_control",
                 ToolState::Ok,
-                json!({"action":"status","process_id":"bg_1"}),
-                format!("{report}\nline one\nline two"),
+                json!({"action":"stop it","process_id":"bg_1","do":"stop"}),
+                notice::inline(
+                    "Stopped bg_1 (PID 42) after 2s; its output so far is in /tmp/session/tools_result/terminal_use/bg_1.txt — read it with inspect_file.",
+                ),
             ),
         ];
         let norm = |text: &str| -> String {
@@ -11289,15 +11430,21 @@ mod tests {
                     draw_terminal(&terminal, false, true, width, &mut closed, 0);
                     let rows: Vec<_> = closed.lines.iter().map(|row| ansi::plain(row)).collect();
                     if output.is_empty() {
-                        assert_eq!(rows.len(), 4, "{state:?} {width}: {rows:?}");
+                        // No output: top, one command row, bottom. A truncated
+                        // command shows its own `…`, never an output cut footer.
+                        assert_eq!(rows.len(), 3, "{state:?} {width}: {rows:?}");
+                        assert!(
+                            !plain_of(&closed).contains("lines cut"),
+                            "{state:?} {width}: command-only box must not cut output rows"
+                        );
                     } else {
                         assert_eq!(rows.len(), 9, "{state:?} {width}: {rows:?}");
                         assert!(rows[2].contains('├'), "{rows:?}");
                         assert!(rows[3].contains("one") && rows[6].contains("four"));
                         assert!(!plain_of(&closed).contains("five"));
+                        assert!(rows[rows.len() - 2].contains("lines cut"));
                     }
                     assert!(rows[1].contains("$ cargo"), "{rows:?}");
-                    assert!(rows[rows.len() - 2].contains("lines cut"));
                     assert!(closed.lines.iter().all(|row| ansi::width(row) <= width));
                 }
             }
@@ -11354,6 +11501,24 @@ mod tests {
         assert!(
             text_big.contains("… 996 lines cut. Click to open all"),
             "{text_big}"
+        );
+
+        // A multiline command with single-line output has its command truncated
+        // with `…` in the command line, and must NEVER add an output fold footer.
+        let mut multiline_cmd = Tool::new("t2".into(), "terminal_use".into(), "run".into());
+        multiline_cmd.settle(&json!({
+            "command": "echo line 1 && echo very long multiline command part 1\necho line 2 && echo very long multiline command part 2\necho line 3"
+        }));
+        multiline_cmd.output = "single line output".into();
+        multiline_cmd.state = ToolState::Ok;
+        let mut sink_multiline = Sink::default();
+        draw_terminal(&multiline_cmd, false, false, 80, &mut sink_multiline, 0);
+        let text_multiline = plain_of(&sink_multiline);
+        assert!(text_multiline.contains("single line output"));
+        assert!(text_multiline.contains('…'));
+        assert!(
+            !text_multiline.contains("lines cut"),
+            "single line output must not get lines cut footer: {text_multiline}"
         );
     }
 
@@ -12385,138 +12550,6 @@ mod tests {
             1,
             "{rendered}"
         );
-    }
-
-    #[test]
-    fn a_report_has_its_colons_in_one_column_and_a_path_breaks_after_a_slash() {
-        let rows = notice_rows(
-            &["Process: Completed\nExit code: 0\nPID: 1139359\nOutput log: /home/noire/.rune/projects/-home-noire-Project-Clode/sessions/537/tools_result/terminal_use/bg_pEdiPAS1.txt"],
-            60,
-        );
-        assert_eq!(rows[0], "<tool_notice>");
-        assert_eq!(rows[1], "Process:    Completed");
-        assert_eq!(rows[2], "Exit code:  0");
-        assert_eq!(rows[3], "PID:        1139359");
-        assert!(rows[4].starts_with("Output log: /home/noire/"), "{rows:?}");
-        assert!(rows.last().unwrap() == "</tool_notice>");
-        let path_rows = &rows[4..rows.len() - 1];
-        assert!(path_rows.len() >= 2, "a long path wraps: {rows:?}");
-        for row in &path_rows[..path_rows.len() - 1] {
-            assert!(
-                row.ends_with('/'),
-                "cut after a slash, not inside a word: {row:?}"
-            );
-        }
-        assert!(
-            path_rows.last().unwrap().ends_with("bg_pEdiPAS1.txt"),
-            "{rows:?}"
-        );
-        for row in &rows {
-            assert!(ansi::width(row) <= 60, "{row:?}");
-        }
-        // A sentence is one row, tags and all.
-        assert_eq!(
-            notice_rows(&["Exit code 101"], 60),
-            vec!["<tool_notice>Exit code 101</tool_notice>".to_string()]
-        );
-    }
-
-    #[test]
-    fn additional_information_is_one_report_field_with_aligned_continuations() {
-        let body = "Process: Completed\nExit code: 0\nPID: 42\nOutput log: /project/output/background.txt\nAdditional information: The output is 40000 characters, over the 30000 limit; the middle is left out. The full output is saved at /project/output/full.txt.";
-        for width in [40, 60, 100] {
-            let rows = notice_rows(&[body], width);
-            assert_eq!(rows.iter().filter(|row| *row == "<tool_notice>").count(), 1);
-            assert_eq!(
-                rows.iter().filter(|row| *row == "</tool_notice>").count(),
-                1
-            );
-            assert!(rows.iter().all(|row| ansi::width(row) <= width), "{rows:?}");
-            let at = rows
-                .iter()
-                .position(|row| row.starts_with("Additional information:"))
-                .unwrap();
-            let column = "Additional information: ".len();
-            for row in &rows[at + 1..rows.len() - 1] {
-                assert!(row.starts_with(&" ".repeat(column)), "{row:?}");
-            }
-            let restored = rows[at..rows.len() - 1]
-                .iter()
-                .map(|row| row[column..].trim())
-                .collect::<Vec<_>>()
-                .join(" ");
-            assert!(restored.contains("over the 30000 limit"), "{restored}");
-            assert!(restored.contains("full.txt."), "{restored}");
-        }
-    }
-
-    /// A process report comes first, aligned and tagged; folded, the head of the
-    /// output is shown and the unseen suffix is counted below it.
-    #[test]
-    fn status_only_process_report_never_owns_a_copy_of_earlier_command_output() {
-        let mut command = tool("terminal_use", ToolState::Backgrounded);
-        command.settle(&json!({"command":"echo tes\nread answer"}));
-        command.content =
-            "<tool_notice>Waiting for input in the background as bg_fixture</tool_notice>\n\ntes\n==> standard input <=="
-                .into();
-        let mut report = Tool::new(
-            "check".into(),
-            "manage_process".into(),
-            "Check the waiting command".into(),
-        );
-        report.state = ToolState::Ok;
-        report.content =
-            "<tool_notice>\nProcess: Waiting for input\nPID: 42\nOutput log: background.txt\n</tool_notice>"
-                .into();
-        let mut opened = Sink::default();
-        draw_terminal(&command, true, false, 100, &mut opened, 0);
-        let earlier = plain_of(&opened);
-        assert_eq!(earlier.matches("==> standard input <==").count(), 1);
-        let mut checked = Sink::default();
-        draw_terminal(&report, true, true, 100, &mut checked, 0);
-        let later = plain_of(&checked);
-        assert!(later.contains("Process:") && later.contains("Waiting for input"));
-        assert!(!later.contains("standard input") && !later.contains("tes\n"));
-        assert!(runeengine::tools::notice::split(&report.content)
-            .rest
-            .is_empty());
-    }
-
-    #[test]
-    fn process_report_precedes_a_head_preview_and_the_cut_suffix_is_below() {
-        let app = test_app();
-        let mut tool = Tool::new(
-            "m1".into(),
-            "manage_process".into(),
-            "wait for the build".into(),
-        );
-        tool.state = ToolState::Ok;
-        let output: String = (1..=20).map(|i| format!("line {i}\n")).collect();
-        tool.content = format!(
-            "<tool_notice>\nProcess: Completed\nExit code: 0\nPID: 42\nOutput log: /tmp/bg_1.txt\n</tool_notice>\n\n{output}"
-        );
-        let mut sink = Sink::default();
-        draw_step(&app, 0, &tool, true, 100, &mut sink);
-        let text = plain_of(&sink);
-        assert!(text.contains("Process:    Completed"), "{text}");
-        assert!(text.contains("Exit code:  0"), "{text}");
-        assert!(
-            text.contains("<tool_notice>") && text.contains("</tool_notice>"),
-            "{text}"
-        );
-        assert!(text.contains("line 1") && text.contains("line 4"), "{text}");
-        assert!(
-            !text.contains("line 5\n") && !text.contains("line 20\n"),
-            "{text}"
-        );
-        assert!(text.contains("… 16 lines cut. Click to open all"), "{text}");
-        let notice_at = text.find("Process:").unwrap();
-        assert!(notice_at < text.find("line 1").unwrap(), "{text}");
-        assert!(text.find("line 4").unwrap() < text.find("lines cut").unwrap());
-        assert!(
-            ansi::plain(sink.lines.last().unwrap()).contains("… 16 lines cut. Click to open all")
-        );
-        assert!(!text.contains("rows hidden") && !text.contains("wheel here"));
     }
 
     #[test]

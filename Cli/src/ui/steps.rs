@@ -137,37 +137,45 @@ pub fn heading(tool: &Tool) -> String {
                 "Running a command".to_string()
             }
         }
-        "manage_process" | "manage_processes" | "monitoring_bg" => {
-            let pid = tool
-                .args
-                .as_ref()
+        "process_control"
+        | "manage_process"
+        | "manage_processes"
+        | "monitoring_bg"
+        | "terminal_send_input" => {
+            let args = tool.args.as_ref();
+            let id = args
                 .and_then(|a| a.get("process_id").or_else(|| a.get("task_id")))
-                .and_then(|v| v.as_str());
-            if let Some(id) = pid {
-                if tool
-                    .args
-                    .as_ref()
-                    .and_then(|a| a.get("kill"))
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(false)
-                {
-                    format!("Stop process {id}")
-                } else {
-                    format!("Manage process {id}")
-                }
-            } else {
-                "Managing background process".to_string()
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|id| !id.is_empty());
+            // `do` is what `process_control` says. An older session's
+            // transcript says `kill` (a stop), `terminal_send_input` (typing),
+            // or neither — a status report, which only the old report tool
+            // gave — and each is drawn as it was meant, never as typing.
+            let says = args.and_then(|a| a.get("do")).and_then(|v| v.as_str());
+            let killed = args
+                .and_then(|a| a.get("kill"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let act = match says.map(str::trim) {
+                Some("stop") => "stop",
+                Some("type") => "type",
+                _ if killed => "stop",
+                _ if tool.name == "terminal_send_input" => "type",
+                _ if tool.name == "process_control" => "control",
+                _ => "check",
+            };
+            match (act, id) {
+                ("stop", Some(id)) => format!("Stop process {id}"),
+                ("stop", None) => "Stopping a background process".to_string(),
+                ("type", Some(id)) => format!("Type into process {id}"),
+                ("type", None) => "Typing into a background process".to_string(),
+                ("control", Some(id)) => format!("Control process {id}"),
+                ("control", None) => "Controlling a background process".to_string(),
+                ("check", Some(id)) if id != "all" => format!("Check process {id}"),
+                _ => "Check background processes".to_string(),
             }
         }
-        "terminal_send_input" => match tool
-            .args
-            .as_ref()
-            .and_then(|a| a.get("process_id"))
-            .and_then(|v| v.as_str())
-        {
-            Some(id) => format!("Type into process {id}"),
-            None => "Typing into a background process".to_string(),
-        },
         "ask_user_questions" => "Asking you".to_string(),
         "track_tasks" => "Planning".to_string(),
         "discover_capabilities" => "Discovering capabilities".to_string(),
@@ -520,17 +528,19 @@ pub fn bullets(tool: &Tool) -> Vec<Bullet> {
             }
             vec![bullet]
         }
-        // `manage_process` gets no bullet row at all.
+        // `process_control` gets no bullet row at all, and neither do the
+        // names an older session's transcript holds for it.
         //
-        // The step's heading is the model's own sentence about what it is doing,
-        // so a row saying `Manage` says it again in smaller words; and the task
-        // id it would carry is already the subject of the report underneath and
-        // the last word of the log path. The row was three repetitions of
-        // something the next line said properly.
-        "manage_process" | "manage_processes" | "monitoring_bg" => Vec::new(),
-        // Its body is the one sentence of what it typed — it neither waits
-        // nor reports — and the heading already names the process.
-        "terminal_send_input" => Vec::new(),
+        // The step's heading is the model's own sentence about what it is
+        // doing, or `Stop process bg_x` / `Type into process bg_x`; its body is
+        // the one sentence of what it did — it neither waits nor reports. A
+        // row saying `Control process_control` under that said the same thing
+        // a second time in smaller words, on every step.
+        "process_control"
+        | "manage_process"
+        | "manage_processes"
+        | "monitoring_bg"
+        | "terminal_send_input" => Vec::new(),
         "track_tasks" | "ask_user_questions" => Vec::new(),
         "discover_capabilities" => {
             let q = str_of("query").or_else(|| str_of("id")).unwrap_or_default();
@@ -584,8 +594,11 @@ fn verb_of(tool: &str, ranged: bool) -> &'static str {
         "web_fetch" => "Fetch",
         "discover_capabilities" => "Discover",
         "read_mcp_resource" => "Read",
-        "manage_process" | "manage_processes" | "monitoring_bg" => "Manage",
-        "terminal_send_input" => "Type",
+        "process_control"
+        | "manage_process"
+        | "manage_processes"
+        | "monitoring_bg"
+        | "terminal_send_input" => "Control",
         "terminal_use" => "Run",
         "track_tasks" => "Plan",
         "ask_user_questions" => "Ask",
@@ -613,8 +626,11 @@ pub fn label(tool: &str) -> &'static str {
         "web_fetch" => "Fetching",
         "discover_capabilities" => "Discovering",
         "read_mcp_resource" => "Reading",
-        "manage_process" | "manage_processes" | "monitoring_bg" => "Managing",
-        "terminal_send_input" => "Typing",
+        "process_control"
+        | "manage_process"
+        | "manage_processes"
+        | "monitoring_bg"
+        | "terminal_send_input" => "Controlling",
         "ask_user_questions" => "Asking you",
         "track_tasks" => "Planning",
         other if other.starts_with("mcp__") || other.contains("_mcp_") => "Running MCP",
@@ -634,6 +650,69 @@ mod tests {
         t.state = ToolState::Ok;
         t.snap_counters();
         t
+    }
+
+    /// A process step names what it did to which task — and a step an older
+    /// session's transcript holds under a former name is drawn as it was
+    /// meant: a report is a check, never typing (the bug of 2026-11-04 drew
+    /// every old report as `Type into process`). No step carries a bullet row
+    /// repeating the tool's own name (`Control process_control`).
+    #[test]
+    fn a_process_step_says_what_it_did_and_to_which_task() {
+        for (name, args, said) in [
+            (
+                "process_control",
+                json!({"process_id": "bg_1", "do": "stop"}),
+                "Stop process bg_1",
+            ),
+            (
+                "process_control",
+                json!({"process_id": "bg_1", "do": "type", "text": "y"}),
+                "Type into process bg_1",
+            ),
+            (
+                "process_control",
+                json!({"process_id": "bg_1"}),
+                "Control process bg_1",
+            ),
+            (
+                "process_control",
+                json!({"do": "stop"}),
+                "Stopping a background process",
+            ),
+            (
+                "manage_process",
+                json!({"process_id": "bg_2", "kill": true}),
+                "Stop process bg_2",
+            ),
+            (
+                "manage_process",
+                json!({"process_id": "bg_2"}),
+                "Check process bg_2",
+            ),
+            (
+                "manage_process",
+                json!({"process_id": "all"}),
+                "Check background processes",
+            ),
+            ("monitoring_bg", json!({}), "Check background processes"),
+            (
+                "terminal_send_input",
+                json!({"process_id": "bg_3", "text": "y"}),
+                "Type into process bg_3",
+            ),
+        ] {
+            let step = tool(name, "", args);
+            assert_eq!(heading(&step), said, "{name}");
+            assert!(bullets(&step).is_empty(), "{name} draws a bullet row");
+        }
+        // The model's own sentence is the heading when it gave one.
+        let step = tool(
+            "process_control",
+            "stop the dev server",
+            json!({"process_id": "bg_1", "do": "stop"}),
+        );
+        assert_eq!(heading(&step), "stop the dev server");
     }
 
     #[test]

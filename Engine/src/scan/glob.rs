@@ -64,6 +64,48 @@ impl Glob {
     }
 }
 
+/// A path pattern split where a walk can start: the folders it names before
+/// its first wildcard, and the rest, which is matched below them —
+/// `src/**/*.rs` is (`src`, `**/*.rs`), `/etc/*.conf` is (`/etc`, `*.conf`),
+/// `*.rs` is (``, `*.rs`). The last name is always part of the rest, since it
+/// names what is looked for: `src/main.rs` starts in `src`.
+///
+/// A walk that starts there sees what a walk of the whole workspace filtered
+/// by the pattern would, without going through every other folder first —
+/// the difference between a search that answers and one that runs out of its
+/// entry budget in `node_modules` before it reaches the folder it was asked
+/// about.
+pub fn split_walk_root(pattern: &str) -> (&str, &str) {
+    let mut start = 0;
+    let mut root_end = None;
+    for (at, _) in pattern.match_indices('/') {
+        let segment = &pattern[start..at];
+        if is_wild(segment) {
+            break;
+        }
+        // A leading `/` is the filesystem's root, itself a place to start.
+        root_end = Some(if at == 0 { 1 } else { at });
+        start = at + 1;
+    }
+    match root_end {
+        None => ("", pattern),
+        Some(end) => {
+            let rest = pattern[end..].trim_start_matches('/');
+            (&pattern[..end], rest)
+        }
+    }
+}
+
+/// Whether a segment holds anything [`Glob`] reads as other than itself.
+fn is_wild(segment: &str) -> bool {
+    segment.contains(['*', '?', '[', '\\'])
+}
+
+/// Whether a whole pattern is a path with no wildcard in it.
+pub fn is_literal(pattern: &str) -> bool {
+    !is_wild(pattern)
+}
+
 fn segs_match(pat: &[Seg], path: &[&str]) -> bool {
     match pat.first() {
         None => path.is_empty(),
@@ -221,5 +263,33 @@ mod tests {
     fn empty_segments_are_ignored() {
         assert!(g("src//main.rs", "src/main.rs"));
         assert!(g("./main.rs", "main.rs"));
+    }
+
+    /// A walk starts in the folders a pattern names before its first
+    /// wildcard; the name it looks for is always matched, never walked into.
+    #[test]
+    fn a_pattern_starts_its_walk_in_the_folders_it_names() {
+        for (pattern, root, rest) in [
+            ("*.rs", "", "*.rs"),
+            ("Cargo.toml", "", "Cargo.toml"),
+            ("src/main.rs", "src", "main.rs"),
+            ("src/**/*.rs", "src", "**/*.rs"),
+            ("Engine/src/tools/*.rs", "Engine/src/tools", "*.rs"),
+            ("src/*/mod.rs", "src", "*/mod.rs"),
+            ("**/mod.rs", "", "**/mod.rs"),
+            ("/etc/*.conf", "/etc", "*.conf"),
+            ("/*.conf", "/", "*.conf"),
+            ("/home/me/proj/src/**/x.rs", "/home/me/proj/src", "**/x.rs"),
+            ("~/notes/**/*.md", "~/notes", "**/*.md"),
+            ("~/x.md", "~", "x.md"),
+            (".rune/skills/**/SKILL.md", ".rune/skills", "**/SKILL.md"),
+            ("a[bc]/d.rs", "", "a[bc]/d.rs"),
+            ("src//main.rs", "src/", "main.rs"),
+        ] {
+            assert_eq!(split_walk_root(pattern), (root, rest), "{pattern}");
+        }
+        assert!(is_literal("src/main.rs"));
+        assert!(!is_literal("src/*.rs"));
+        assert!(!is_literal("a\\*b"));
     }
 }

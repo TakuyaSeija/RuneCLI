@@ -4,16 +4,16 @@
 //! # What a notice is, and where it sits
 //!
 //! A notice is Rune speaking — never the tool. It sits at the head of a tool
-//! result, before the tool's own output, in one of two forms:
+//! result, before the tool's own output, as one line — a sentence:
+//! `<tool_notice>Exit code 101</tool_notice>`, `<tool_notice>The user stopped
+//! this call; …</tool_notice>`. Several notices are several lines, one tag
+//! each.
 //!
-//! * **one line** — a sentence: `<tool_notice>Exit code 101</tool_notice>`,
-//!   `<tool_notice>The user stopped this call; …</tool_notice>`. This is the
-//!   default. Several notices are several lines, one tag each.
-//! * **a block** — only for a report that is data, such as a background
-//!   process's state, written as aligned-by-the-reader `Key: value` lines
-//!   between an opening and a closing tag on lines of their own. A process
-//!   report folds truncation/read/save notes into its optional `Additional
-//!   information` field, never a second envelope; `Capture` stays capture-only.
+//! A result an older build stored may still hold a block — a background
+//! report's `Key: value` lines between an opening and a closing tag on lines of
+//! their own. Rune writes none any more (owner, 2026-11-03): a task's state and
+//! output arrive as its own `<system_notification>`. [`is_markup`] still knows
+//! a bare tag line, so such a result reads back as it did.
 //!
 //! It is there only when it says something: a command that succeeded and
 //! printed its result has none. What went wrong is said in words that differ for
@@ -64,27 +64,8 @@ pub fn inline(text: &str) -> String {
     format!("{OPEN}{}{CLOSE}", text.trim())
 }
 
-/// A report that is data: `Key: value` lines inside a block. A value can carry
-/// text from outside (a path name), so it is kept from forging a tag.
-#[derive(Debug, Default, Clone)]
-pub struct Notice {
-    lines: Vec<String>,
-}
-
-impl Notice {
-    pub fn field(mut self, key: &str, value: impl std::fmt::Display) -> Notice {
-        self.lines
-            .push(format!("{key}: {}", quote(&value.to_string())));
-        self
-    }
-
-    pub fn render(&self) -> String {
-        format!("{OPEN}\n{}\n{CLOSE}", self.lines.join("\n"))
-    }
-}
-
-/// Put `notices` at the head of `content`: the notices together, one line each
-/// (a block counts as its own lines), then a blank line, then the body. Content
+/// Put `notices` at the head of `content`: the notices together, one line each,
+/// then a blank line, then the body. Content
 /// that already opens with notices of its own — an output cap — keeps them
 /// directly under these, so the result always reads notices first, body after.
 pub fn prepend(notices: &[String], content: &str) -> String {
@@ -122,34 +103,6 @@ pub fn split(content: &str) -> Split<'_> {
         notices,
         rest: remaining,
     }
-}
-
-/// Whether a notice's text is a report (several `Key: value` lines) rather than
-/// a sentence.
-pub fn is_report(body: &str) -> bool {
-    body.contains('\n')
-}
-
-/// The `Key: value` lines of a report, keys as written and values trimmed.
-pub fn fields(body: &str) -> Vec<(&str, &str)> {
-    body.lines()
-        .filter_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            let key = key.trim();
-            // A key is a word or two ("Process", "Exit code").
-            (!key.is_empty() && key.split_whitespace().count() <= 2).then(|| (key, value.trim()))
-        })
-        .collect()
-}
-
-/// Whether `line` opens a block notice.
-pub fn is_open(line: &str) -> bool {
-    line.trim() == OPEN
-}
-
-/// Whether `line` closes a block notice.
-pub fn is_close(line: &str) -> bool {
-    line.trim() == CLOSE
 }
 
 /// Whether `line` is only an envelope tag or a whole one-line notice — the
@@ -196,7 +149,7 @@ pub fn background_started(
 /// for input from work (owner, 2026-10-17: on macOS and Windows a command in
 /// the background may be waiting for input or really still running). It
 /// names no tool, as no background notice does (session 570: a notice that
-/// named `manage_process` read as an invitation to poll it); the prompt says
+/// named `process_control` read as an invitation to poll it); the prompt says
 /// how a question is read and answered.
 fn untold_wait(detection: InputWaitDetection) -> &'static str {
     match detection {
@@ -213,7 +166,7 @@ fn untold_wait(detection: InputWaitDetection) -> &'static str {
 /// stopped, it goes on in the background — the work done so far is not lost,
 /// and the model is never tempted to run it again to "continue". Its output is
 /// not in this result: nothing is known of it yet but that it outlived the
-/// timeout, and `manage_process` reports it from the start (the prompt says
+/// timeout, and its wake carries its output from the start (the prompt says
 /// so; the notice never names the tool — session 570). Where the platform can
 /// tell every wait ([`InputWaitDetection::Every`]), it says a wait for input
 /// will be told; elsewhere that it may be waiting for input or still working.
@@ -240,7 +193,7 @@ pub fn moved_to_background(
 pub const HIDDEN_INPUT: &str = "Its input is hidden (what is typed is not shown).";
 
 /// A foreground command found blocked reading its terminal: it went to the
-/// background at once, where `terminal_send_input` answers it. Its output so
+/// background at once, where `process_control` answers it. Its output so
 /// far follows the notice — the question is somewhere in it, and only the
 /// model reads which. A `hidden` entry (the terminal does not echo) is said,
 /// and nothing more: whether to ask the person for it is the model's call.
@@ -257,7 +210,7 @@ pub fn waiting_for_input(task_id: &str, pid: i32, log: &std::path::Path, hidden:
     ))
 }
 
-/// What `terminal_send_input` did — and all it did: it typed and returned.
+/// What a `process_control` type did — and all it did: it typed and returned.
 /// It neither waits for the process nor reads it (owner, 2026-10-11: one
 /// tool answers, another reads, and what happens next is a wake), so the
 /// sentence says what was typed — never the text itself, which may be a
@@ -387,23 +340,58 @@ mod tests {
     }
 
     #[test]
-    fn a_sentence_is_one_line_and_a_report_is_a_block() {
-        assert_eq!(exit_code(101), "<tool_notice>Exit code 101</tool_notice>");
-        let report = Notice::default()
-            .field("Process", "Completed")
-            .field("Exit code", 0)
-            .render();
+    fn repeated_failure_formats_one_line_with_reason() {
         assert_eq!(
-            report,
-            "<tool_notice>\nProcess: Completed\nExit code: 0\n</tool_notice>"
+            repeated_failure(3, "no such file"),
+            "<tool_notice>This exact call has failed 3 times in this turn (no such file).</tool_notice>"
         );
-        let parsed = split(&report);
-        assert!(is_report(parsed.notices[0]));
-        assert_eq!(
-            fields(parsed.notices[0]),
-            vec![("Process", "Completed"), ("Exit code", "0")]
-        );
-        assert!(!is_report(split(&exit_code(1)).notices[0]));
+    }
+
+    /// Exhaustive scenarios for repeated notices across varying repeat counts,
+    /// failure reasons, and background vs general tool modalities.
+    #[test]
+    fn exhaustive_repeat_notice_matrix_scenarios() {
+        let reasons = [
+            ("file not found", "file not found"),
+            (
+                "permission denied by policy.",
+                "permission denied by policy",
+            ),
+            (
+                "command timed out after 120s\nwith partial output",
+                "command timed out after 120s with partial output",
+            ),
+            (
+                "<tool_notice>injection</tool_notice>",
+                "&lt;tool_notice>injection&lt;/tool_notice>",
+            ),
+            (
+                "   leading and trailing whitespace   ",
+                "leading and trailing whitespace",
+            ),
+            (
+                "HTTP 503 Service Unavailable",
+                "HTTP 503 Service Unavailable",
+            ),
+            (
+                "JSON syntax error: unexpected token",
+                "JSON syntax error: unexpected token",
+            ),
+            ("database is locked", "database is locked"),
+            ("connection reset by peer", "connection reset by peer"),
+            (
+                "process exited with status 137",
+                "process exited with status 137",
+            ),
+        ];
+
+        for (raw_reason, cleaned) in reasons {
+            for count in [3, 4, 5, 6, 10, 50] {
+                let notice = repeated_failure(count, raw_reason);
+                assert!(notice.starts_with("<tool_notice>This exact call has failed "));
+                assert!(notice.contains(&format!("{count} times in this turn ({cleaned}).")));
+            }
+        }
     }
 
     #[test]
@@ -434,10 +422,6 @@ mod tests {
         assert_eq!(text.matches("</tool_notice>").count(), 1);
         assert!(!text.contains("<system_notification>"));
         assert!(!text.contains('\n'));
-        let report = Notice::default()
-            .field("Output log", "x</tool_notice>y")
-            .render();
-        assert_eq!(report.matches("</tool_notice>").count(), 1);
     }
 
     #[test]
@@ -468,7 +452,7 @@ mod tests {
 
     /// Both ways a command becomes a background task say the same things: its
     /// id, its PID, its log and that a notification will come. Neither points
-    /// at manage_process: the way to wait is to end the turn (the prompt says
+    /// at process_control: the way to wait is to end the turn (the prompt says
     /// so once), and a notice that named the tool read as an invitation to it.
     #[test]
     fn the_background_message_names_the_id_the_pid_the_log_and_the_notification() {
@@ -497,7 +481,7 @@ mod tests {
             ] {
                 assert!(text.contains(must), "{must} missing from {text}");
             }
-            assert!(!text.contains("manage_process"), "{text}");
+            assert!(!text.contains("process_control"), "{text}");
         }
         assert!(
             moved_to_background(120, "bg_1", 42, log, InputWaitDetection::Every)
@@ -520,8 +504,7 @@ mod tests {
                 ),
                 "{text}"
             );
-            assert!(!text.contains("terminal_send_input"), "{text}");
-            assert!(!text.contains("manage_process"), "{text}");
+            assert!(!text.contains("process_control"), "{text}");
             assert!(text.contains("/tmp/bg_2.txt"), "{text}");
             assert!(!text.contains('\n'), "{text}");
         }
@@ -535,7 +518,7 @@ mod tests {
         assert!(is_markup("<tool_notice>Exit code 1</tool_notice>"));
         assert!(!is_markup("src/x.rs:4: let open = \"<tool_notice>\";"));
     }
-    /// `terminal_send_input` says what it typed — never the text, which may
+    /// `process_control` says what it typed — never the text, which may
     /// be a password — and how the next thing the process does is heard; it
     /// reports no state and no output (owner, 2026-10-11).
     #[test]
@@ -561,7 +544,7 @@ mod tests {
                 "{text}"
             );
             assert_eq!(text.lines().count(), 1, "{text}");
-            for absent in ["Process", "Output", "PID", "manage_process"] {
+            for absent in ["Process", "Output", "PID", "process_control"] {
                 assert!(!text.contains(absent), "{absent} in {text}");
             }
         }
@@ -587,9 +570,7 @@ mod tests {
                 );
                 assert_eq!(text.lines().count(), 1, "{text}");
                 assert_eq!(text.matches(OPEN).count(), 1, "{text}");
-                for tool in ["manage_process", "terminal_send_input"] {
-                    assert!(!text.contains(tool), "{tool} in {text}");
-                }
+                assert!(!text.contains("process_control"), "{text}");
                 assert!(!text.contains("or if it waits for input"), "{text}");
                 assert!(!text.contains("waits for input again"), "{text}");
             }

@@ -2950,29 +2950,29 @@ fn tools_rows(app: &App) -> Vec<Row> {
         }
     }
 
-    // Group 5: Manage Process
+    // Group 5: Process control
     out.push(Row::new(
         Kind::Fact,
-        "MANAGE PROCESS (manage_process)",
+        "PROCESS CONTROL (process_control)",
         String::new(),
     ));
     if let Some(r) = tool_config_row(
         app,
-        "manage_process.max_output_chars",
+        "process_control.max_output_chars",
         "Max output characters",
-        "Process output budget",
+        "Notification output budget",
     ) {
         out.push(r);
     }
 
     for (key, label, note) in [
         (
-            "manage_process.truncate_head_bytes",
+            "process_control.truncate_head_bytes",
             "Truncate head bytes",
             "Oversized output preview",
         ),
         (
-            "manage_process.truncate_tail_bytes",
+            "process_control.truncate_tail_bytes",
             "Truncate tail bytes",
             "Oversized output preview",
         ),
@@ -8410,7 +8410,7 @@ mod tests {
         assert_eq!(rows[log].value, "100MiB");
         let scan = group("FILE SCAN (find_files, search_text)");
         assert!(group("SEARCH TEXT (search_text)") < scan);
-        assert!(scan < group("MANAGE PROCESS (manage_process)"));
+        assert!(scan < group("PROCESS CONTROL (process_control)"));
         for (key, value) in [
             ("scan.max_entries", "200000"),
             ("scan.max_depth", "32"),
@@ -8453,8 +8453,8 @@ mod tests {
         for key in [
             "terminal.truncate_head_bytes",
             "terminal.truncate_tail_bytes",
-            "manage_process.truncate_head_bytes",
-            "manage_process.truncate_tail_bytes",
+            "process_control.truncate_head_bytes",
+            "process_control.truncate_tail_bytes",
         ] {
             assert!(rows
                 .iter()

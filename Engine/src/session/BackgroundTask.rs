@@ -104,14 +104,11 @@ pub struct BackgroundTaskInfo {
     /// Whether the wake for this completion has been settled already.
     #[serde(default)]
     pub surfaced: bool,
-    /// A tool result has reported this completion in full, so the wake has
-    /// nothing left to say and is withdrawn before it is spoken.
+    /// Whether the model has been told how this task ended — by its own wake,
+    /// by the result of a kill that ended it, or by the session's opening
+    /// after a restart. Settled once, never said twice.
     #[serde(default)]
     pub answered: bool,
-    /// The wake text queued for this task, so it can be recognised and
-    /// withdrawn out of a steer that carries more than one notification.
-    #[serde(default)]
-    pub wake_text: Option<String>,
     /// Capture failure or buffer-limit termination, never mixed into stdout.
     #[serde(default)]
     pub capture_note: Option<String>,
@@ -126,7 +123,9 @@ pub struct BackgroundTaskInfo {
     /// an upgrade. A build that handed on only `tail` is resumed from that.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub screen: Option<Shown>,
-    /// What `manage_process` last reported of it; `None` until the first report.
+    /// How far the model has been given its output: by the wakes delivered so
+    /// far, or by the result that moved it to the background while it waited
+    /// (`terminal_use`). `None` until something gave any of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reported: Option<Reported>,
     /// The final prefix and published end of the log. Its live suffix is the
@@ -181,8 +180,8 @@ pub enum BackgroundRecord {
         task_id: String,
         status: BackgroundTaskStatus,
     },
-    /// The model was told how it ended: a wake was sent, a `manage_process`
-    /// report said so, or the session's opening said it was lost.
+    /// The model was told how it ended: a wake was sent, the result of the
+    /// stop that ended it said so, or the session's opening said it was lost.
     Told { task_id: String },
 }
 
@@ -219,11 +218,31 @@ pub trait SessionWakeNotifier: Send + Sync {
     fn notify(&self, text: String);
     /// Take back a wake [`Self::notify`] gave, while it still waits unread for
     /// the work in progress: what it said is over. One already read, or one
-    /// that began a turn of its own, stays where it is.
-    fn withdraw(&self, _text: &str) {}
+    /// that began a turn of its own, stays where it is. Whether it was taken
+    /// back unread — the model then never read what it carried.
+    fn withdraw(&self, _text: &str) -> bool {
+        false
+    }
+    /// How many characters of Rune's own notifications wait unread for the
+    /// next request — what a notification raised now shares the output
+    /// ceiling with, so tasks that end together cost about one ceiling, not
+    /// one each.
+    fn queued(&self) -> usize {
+        0
+    }
     /// Messages are waiting and the work that held the session ended without
     /// taking them: start the work that answers them.
     fn waiting(&self) {}
+}
+
+/// A task that is still running, as `<status>` names it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunningTask {
+    pub task_id: String,
+    pub pid: i32,
+    pub log: PathBuf,
+    /// Epoch milliseconds; zero or less for a record whose start nobody wrote.
+    pub started_at: i64,
 }
 
 /// A task as one build hands it to the next across `exec`.
@@ -350,11 +369,19 @@ struct Monitor {
 #[derive(Default)]
 struct Waits {
     /// Tasks whose present wait the model knows: a wake said it, or a
-    /// result did (`terminal_use` moving a waiting command, a
-    /// `manage_process` report).
+    /// result did (`terminal_use` moving a waiting command).
     told: std::collections::HashSet<String>,
     /// The wake sent for each present wait, until it is taken back.
-    wakes: HashMap<String, String>,
+    wakes: HashMap<String, Wake>,
+}
+
+/// A wake sent for a wait, and the ledger it moved: what the model had been
+/// given before it, and what it says the model was given with it. Taken back
+/// unread, the ledger goes back — what it carried was never read.
+struct Wake {
+    text: String,
+    before: Option<Reported>,
+    after: Reported,
 }
 
 /// How a monitor thread ended.
@@ -389,6 +416,13 @@ pub struct BackgroundTaskManager {
     /// The session's unreported tasks were settled once already.
     settled: AtomicBool,
     waits: Mutex<Waits>,
+    /// Held from a report's reading to its wake's sending, so two tasks that
+    /// end at the same moment share the output ceiling the way two that end
+    /// apart do: the second is read once the first waits in the queue.
+    telling: Mutex<()>,
+    /// The configuration as it stands, for the one thing a wake cannot ask for
+    /// later: how much of a log it may carry (`process_control.*`).
+    config: std::sync::OnceLock<crate::settings::configuration::Shared>,
 }
 
 impl Default for BackgroundTaskManager {
@@ -408,7 +442,25 @@ impl BackgroundTaskManager {
             journal: Mutex::new(None),
             settled: AtomicBool::new(false),
             waits: Mutex::new(Waits::default()),
+            telling: Mutex::new(()),
+            config: std::sync::OnceLock::new(),
         }
+    }
+
+    /// The session hands its configuration over once, before any task can end:
+    /// a wake is built where nobody can ask for a limit afterwards.
+    pub fn set_config(&self, config: crate::settings::configuration::Shared) {
+        let _ = self.config.set(config);
+    }
+
+    /// The configuration, or the defaults for a manager nobody set one on (a
+    /// test's registry, an engine opened without a home).
+    fn config(&self) -> crate::settings::configuration::Shared {
+        self.config.get().cloned().unwrap_or_else(|| {
+            crate::settings::configuration::Shared::new(
+                crate::settings::configuration::Configuration::default(),
+            )
+        })
     }
 
     /// The notifier's word, when the session has one.
@@ -416,17 +468,23 @@ impl BackgroundTaskManager {
         self.notifier.lock().ok().and_then(|lock| lock.clone())
     }
 
+    /// Characters of Rune's notifications waiting unread for the next request.
+    fn queued(&self) -> usize {
+        self.notifier().map_or(0, |notifier| notifier.queued())
+    }
+
     /// The model was told, in a result, that `task_id` waits for input: a
     /// wake still unread about that wait would say it a second time, so it
-    /// is taken back.
+    /// is taken back. The result gave the output too, and its caller owns the
+    /// ledger of what it gave (`terminal_use` registers the task with it).
     pub fn wait_told(&self, task_id: &str) {
         let Ok(mut waits) = self.waits.lock() else {
             return;
         };
         waits.told.insert(task_id.to_string());
-        if let Some(text) = waits.wakes.remove(task_id) {
+        if let Some(wake) = waits.wakes.remove(task_id) {
             if let Some(notifier) = self.notifier() {
-                notifier.withdraw(&text);
+                notifier.withdraw(&wake.text);
             }
         }
     }
@@ -464,29 +522,63 @@ impl BackgroundTaskManager {
     }
 
     /// The wake for `task_id`'s present wait, unless it was told already.
-    /// It is a ping, as an end's wake is: what the process asks is in its
-    /// output, which `manage_process` reports.
+    /// What the task asks is in its output, and its output travels with the
+    /// wake (owner, 2026-11-03): the model answers in the turn it woke in
+    /// instead of spending one request asking what the process wanted.
     fn tell_wait(&self, task_id: &str, wait: crate::platform::InputWait) {
         if self.is_stopped() {
             return;
         }
-        let hidden = if wait.hidden {
-            format!(" {}", crate::tools::notice::HIDDEN_INPUT)
-        } else {
-            String::new()
+        let _telling = crate::panic::lock(&self.telling);
+        let config = self.config().snapshot();
+        let Some((mut told, ledger)) =
+            crate::session::background_report::report(self, &config, task_id, self.queued())
+        else {
+            return;
         };
-        let text = format!(
-            "<system_notification>Background task {task_id} is waiting for input.{hidden}</system_notification>"
-        );
+        if wait.hidden {
+            // A hidden entry's typed text is never shown; the wake says so in
+            // Rune's own line, where a process cannot overwrite it.
+            told.line
+                .push_str("; input hidden (what is typed is not shown)");
+        }
+        let text = told.text();
         // Sent under the lock that takes it back, so a wait that ends while
         // its wake is on its way never leaves that wake queued behind it.
         let Ok(mut waits) = self.waits.lock() else {
             return;
         };
-        if !waits.told.insert(task_id.to_string()) {
+        if waits.told.contains(task_id) {
             return;
         }
-        waits.wakes.insert(task_id.to_string(), text.clone());
+        // Still waiting, now that the report is read: a task stopped meanwhile
+        // was told by the stop's own result, and a wake built from it would
+        // say `Killed` a second time; one that went on by itself asks nothing.
+        // A stop or an end that comes after this check takes the wake back
+        // under this same lock, unread.
+        let before = {
+            let Ok(mut tasks) = self.tasks.lock() else {
+                return;
+            };
+            let Some(task) = tasks.get_mut(task_id) else {
+                return;
+            };
+            if !matches!(task.status, BackgroundTaskStatus::Running) || task.waiting.is_none() {
+                return;
+            }
+            // The output is in the wake now: the next one says only what
+            // follows it — unless this one is taken back unread.
+            task.reported.replace(ledger.clone())
+        };
+        waits.told.insert(task_id.to_string());
+        waits.wakes.insert(
+            task_id.to_string(),
+            Wake {
+                text: text.clone(),
+                before,
+                after: ledger,
+            },
+        );
         if let Some(notifier) = self.notifier() {
             notifier.notify(text);
         }
@@ -511,14 +603,33 @@ impl BackgroundTaskManager {
     /// Forget that `task_id`'s wait was told — input was typed into it, or it
     /// ended — and take its wake back if it is still unread: the next wait,
     /// whose wake says the very same words, is a new one.
+    ///
+    /// A wake taken back unread never reached the model, and neither did the
+    /// output it carried: the ledger goes back to where it was before it, so
+    /// the next wake (the next wait, or the end) says that output after all.
+    /// Left advanced, everything the task printed before its question was lost
+    /// to the model the moment the question was answered or the task ended
+    /// before the model read it.
     fn forget_wait(&self, task_id: &str) {
         let Ok(mut waits) = self.waits.lock() else {
             return;
         };
         waits.told.remove(task_id);
-        if let Some(text) = waits.wakes.remove(task_id) {
-            if let Some(notifier) = self.notifier() {
-                notifier.withdraw(&text);
+        let Some(wake) = waits.wakes.remove(task_id) else {
+            return;
+        };
+        let unread = self
+            .notifier()
+            .is_some_and(|notifier| notifier.withdraw(&wake.text));
+        if unread {
+            if let Ok(mut tasks) = self.tasks.lock() {
+                if let Some(task) = tasks.get_mut(task_id) {
+                    // Only while the ledger is still the one this wake set:
+                    // nothing told after it is ever taken back with it.
+                    if task.reported.as_ref() == Some(&wake.after) {
+                        task.reported = wake.before;
+                    }
+                }
             }
         }
     }
@@ -590,10 +701,10 @@ impl BackgroundTaskManager {
 
     /// Rebuild, once per opening of the session, every task its journal
     /// knows that this program does not hold (a task handed on by an upgrade
-    /// is watched here already), with the last state the journal saw — so
-    /// `manage_process` answers for a task of an earlier opening exactly as it
-    /// did then: Completed stays Completed with its exit code, whatever
-    /// happened to the machine after. A task whose end nobody saw (the host
+    /// is watched here already), with the last state the journal saw — so a
+    /// task of an earlier opening is said exactly as it ended then, by its
+    /// wake and by `process_control`: Completed stays Completed with its exit
+    /// code, whatever happened to the machine after. A task whose end nobody saw (the host
     /// crashed, the power went) is Lost, recorded as such once, with the
     /// reason its identity tells. The model is told of every end it was never
     /// told, once.
@@ -631,7 +742,6 @@ impl BackgroundTaskManager {
                         status: BackgroundTaskStatus::Running,
                         surfaced: true,
                         answered: false,
-                        wake_text: None,
                         capture_note: None,
                         tail: String::new(),
                         screen: None,
@@ -680,17 +790,19 @@ impl BackgroundTaskManager {
             if was_told {
                 continue;
             }
-            let text = match &status {
-                BackgroundTaskStatus::Lost { reason, .. } => format!(
-                    "<system_notification>Background task {id} was lost: {}.</system_notification>",
-                    reason.text()
-                ),
-                status => format!(
-                    "<system_notification>Background task {id} ended while this session was not open: {}.</system_notification>",
-                    outcome_of(status)
-                ),
+            // The same shape as every other wake (owner, 2026-11-03): Rune's
+            // line — which says how it ended, that its end was never seen, and
+            // why — and the output its log still holds.
+            let _telling = crate::panic::lock(&self.telling);
+            let config = self.config().snapshot();
+            let Some((told, ledger)) =
+                crate::session::background_report::report(self, &config, &id, self.queued())
+            else {
+                continue;
             };
+            self.mark_reported(&id, ledger);
             self.told(&id);
+            let text = told.text();
             if let Ok(lock) = self.notifier.lock() {
                 if let Some(notifier) = lock.as_ref() {
                     notifier.notify(text);
@@ -754,8 +866,8 @@ impl BackgroundTaskManager {
     /// (its wake, unread, taken back). `told` when the model reads the result
     /// of the call that stops it: that end is then told in the same step that
     /// makes it, so the monitor that sees the process go has nothing to wake
-    /// the session for (the bug of 2026-10-11: a `manage_process` kill was
-    /// followed by "finished: Killed"). A stop the model does not read — a
+    /// the session for (the bug of 2026-10-11: a kill by the old process tool
+    /// was followed by "finished: Killed"). A stop the model does not read — a
     /// person's own call — is still the model's to hear, by that wake. False
     /// when it was not running.
     pub fn stop(&self, task_id: &str, told: bool) -> bool {
@@ -873,12 +985,41 @@ impl BackgroundTaskManager {
         self.stopped.load(Ordering::Relaxed)
     }
 
+    /// The tasks still running, by id, PID, log path and when each started,
+    /// oldest first: what `<status>` names so the model keeps the ids a
+    /// compaction took away, and what a later `process_control` call has to be
+    /// pointed at. Cheap on purpose — the status is read before every request —
+    /// and in a fixed order, so the same tasks are the same value.
+    pub fn running(&self) -> Vec<RunningTask> {
+        let mut running: Vec<RunningTask> = self
+            .tasks
+            .lock()
+            .map(|tasks| {
+                tasks
+                    .values()
+                    .filter(|task| matches!(task.status, BackgroundTaskStatus::Running))
+                    .map(|task| RunningTask {
+                        task_id: task.task_id.clone(),
+                        pid: task.pid,
+                        log: task.out_file.clone(),
+                        started_at: task.started_at,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        running.sort_by(|a, b| {
+            (a.started_at, a.task_id.as_str()).cmp(&(b.started_at, b.task_id.as_str()))
+        });
+        running
+    }
+
     /// Settle this task's completion wake. Returns true for whoever gets here
     /// first, false for everyone after.
     ///
-    /// The wake is a ping, not the report, so this is not about who says the
-    /// result — `manage_process` always prints it. It is about the wake itself
-    /// being said once: the claim stops a second wake for one process.
+    /// The wake is the report — the only telling an end gets, carrying its
+    /// output (owner, 2026-11-03) — so it is said once: the claim stops a
+    /// second wake for one process, whichever path saw the end first (its
+    /// monitor, or a delivery held while nobody watched the session).
     fn claim_surface(&self, task_id: &str) -> bool {
         if let Ok(mut tasks) = self.tasks.lock() {
             if let Some(task) = tasks.get_mut(task_id) {
@@ -894,46 +1035,6 @@ impl BackgroundTaskManager {
         false
     }
 
-    /// Record that a tool result has reported this task's completion in full.
-    ///
-    /// The wake exists to tell the model that something finished. Once the model
-    /// has the whole report, the wake is a second telling of the same fact, so
-    /// it is withdrawn rather than delivered.
-    pub fn answer_wake(&self, task_id: &str) {
-        let wake = self.tasks.lock().ok().and_then(|mut tasks| {
-            let task = tasks.get_mut(task_id)?;
-            task.answered = true;
-            task.wake_text.clone()
-        });
-        self.told(task_id);
-        // Taken back now while it waits unread; one queued after this, in the
-        // instant between the wake's claim and its sending, is taken out when
-        // the queue is read ([`Self::without_answered_wakes`]).
-        if let (Some(text), Some(notifier)) = (wake, self.notifier()) {
-            notifier.withdraw(&text);
-        }
-    }
-
-    /// A queued steer with every answered wake taken back out of it.
-    ///
-    /// One steer can carry several wakes, and only some of them may have been
-    /// answered, so the text is edited rather than the whole message dropped.
-    /// An empty result means there is nothing left to say.
-    pub fn without_answered_wakes(&self, text: &str) -> String {
-        let Ok(tasks) = self.tasks.lock() else {
-            return text.trim().to_string();
-        };
-        let mut out = text.to_string();
-        for task in tasks.values() {
-            if task.answered {
-                if let Some(wake) = &task.wake_text {
-                    out = out.replace(wake.as_str(), "");
-                }
-            }
-        }
-        out.trim().to_string()
-    }
-
     /// Wake the session that a background task has ended, unless something has
     /// already settled it.
     pub fn notify_completed(&self, task_id: &str) {
@@ -947,35 +1048,26 @@ impl BackgroundTaskManager {
             return;
         }
 
-        // A ping, not a report. It says the task finished and how it ended, and
-        // points at the tool that answers for it. The id / pid / status / log
-        // block is `manage_process`'s to print, and printing it here too put the
-        // same four lines on screen a second time.
-        let Some(outcome) = self.get(task_id).map(|task| outcome_of(&task.status)) else {
+        // A stop whose own result already told the model how it ended leaves
+        // the wake nothing to add: the `Killed` it printed is the telling.
+        if self.get(task_id).is_none_or(|task| task.answered) {
+            return;
+        }
+
+        // The report itself, not a ping (owner, 2026-11-03): how it ended, its
+        // PID, how long it ran, the path of its log, and the output the model
+        // has not been given — so the answer needs no request in between.
+        let _telling = crate::panic::lock(&self.telling);
+        let config = self.config().snapshot();
+        let Some((told, ledger)) =
+            crate::session::background_report::report(self, &config, task_id, self.queued())
+        else {
             return;
         };
+        let notification = told.text();
 
-        let notification = format!(
-            "<system_notification>Background task {task_id} finished: {outcome}.</system_notification>"
-        );
-
-        // A `manage_process` that has already printed the whole report leaves
-        // the wake nothing to say, so it is not sent at all. Otherwise it is
-        // remembered by its text: a steer can carry more than one wake, and a
-        // later `manage_process` must be able to find and withdraw only its
-        // own without touching the others.
-        {
-            let Ok(mut tasks) = self.tasks.lock() else {
-                return;
-            };
-            let Some(task) = tasks.get_mut(task_id) else {
-                return;
-            };
-            if task.answered {
-                return;
-            }
-            task.wake_text = Some(notification.clone());
-        }
+        // The output is in the wake now: nothing after an end says it again.
+        self.mark_reported(task_id, ledger);
 
         self.told(task_id);
         if let Ok(lock) = self.notifier.lock() {
@@ -1243,7 +1335,7 @@ impl BackgroundTaskManager {
         }
     }
 
-    /// `manage_process` gave the model `task_id`'s output this far.
+    /// The model was given `task_id`'s output this far: a wake carried it.
     pub fn mark_reported(&self, task_id: &str, reported: Reported) {
         if let Ok(mut tasks) = self.tasks.lock() {
             if let Some(task) = tasks.get_mut(task_id) {
@@ -1500,7 +1592,7 @@ impl BackgroundTaskManager {
 }
 
 /// How a task stands, in the words its wake, the task list and
-/// `manage_process` use — one word each, capitalised, the same everywhere.
+/// `process_control` use — one word each, capitalised, the same everywhere.
 pub fn outcome_of(status: &BackgroundTaskStatus) -> String {
     match status {
         BackgroundTaskStatus::Running => "Running".to_string(),
@@ -1639,7 +1731,6 @@ mod tests {
             status: BackgroundTaskStatus::Running,
             surfaced: false,
             answered: false,
-            wake_text: None,
             capture_note: None,
             tail: String::new(),
             screen: None,
@@ -2028,7 +2119,6 @@ mod tests {
                     status: BackgroundTaskStatus::Running,
                     surfaced: false,
                     answered: false,
-                    wake_text: None,
                     capture_note: None,
                     tail: String::new(),
                     screen: None,
@@ -2083,7 +2173,6 @@ mod tests {
             status: BackgroundTaskStatus::Running,
             surfaced: false,
             answered: false,
-            wake_text: None,
             capture_note: None,
             tail: String::new(),
             screen: None,
@@ -2197,12 +2286,15 @@ mod tests {
         let texts = notifier.0.lock().unwrap().clone();
         assert_eq!(texts.len(), 2, "{texts:?}");
         assert!(
-            texts[0].contains("bg_lost was lost") && texts[0].contains("unknown"),
+            texts[0].starts_with("<system_notification>bg_lost: Lost;")
+                && texts[0].contains("PID unknown")
+                && texts[0].contains("lost: "),
             "{}",
             texts[0]
         );
         assert!(
-            texts[1].contains("bg_ended ended while this session was not open: Completed"),
+            texts[1].starts_with("<system_notification>bg_ended: Completed;")
+                && texts[1].contains("finished in "),
             "{}",
             texts[1]
         );
@@ -2239,7 +2331,12 @@ mod tests {
         reopened.settle_unreported();
         let texts = notifier.0.lock().unwrap().clone();
         assert_eq!(texts.len(), 3, "{texts:?}");
-        assert!(texts[2].contains("bg_held was lost"), "{}", texts[2]);
+        assert!(
+            texts[2].starts_with("<system_notification>bg_held: Lost;")
+                && texts[2].contains("lost: "),
+            "{}",
+            texts[2]
+        );
     }
 
     /// What the journal learns as a task lives: its start, its end once (not
@@ -2310,8 +2407,8 @@ mod tests {
 
     /// The bug of 2026-10-11: a task that Completed (exit 0) and whose end
     /// the model was told was forgotten when the session was opened again —
-    /// after a restart, say — and `manage_process` then called it failed with
-    /// PID unknown. Its end is in the journal, and it stays that end.
+    /// after a restart, say — and the old process tool then called it failed
+    /// with PID unknown. Its end is in the journal, and it stays that end.
     #[test]
     fn a_task_that_ended_before_a_restart_keeps_its_end_and_is_not_told_again() {
         let journal = Arc::new(MemoryJournal::default());
@@ -2413,7 +2510,8 @@ mod tests {
         assert_eq!(texts.len(), 3, "{texts:?}");
         assert!(texts
             .iter()
-            .any(|t| t.contains("bg_restart was lost: the computer restarted")));
+            .any(|t| t.starts_with("<system_notification>bg_restart: Lost;")
+                && t.contains("lost: the computer restarted")));
 
         let mut child = child;
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -2571,16 +2669,14 @@ mod tests {
         );
         manager.set_waiting("bg_ask", wait);
         assert_eq!(queue.sent(), 2, "answered, the next wait is new");
-        assert!(queue.unread()[0].contains("bg_ask is waiting for input"));
+        assert!(queue.unread()[0].starts_with("<system_notification>bg_ask: Waiting for input;"));
     }
 
-    /// The bug behind "is terminal_send_input woken?": every wait of one task
-    /// is told in the very same words, and the words of a wait that was over
-    /// used to be kept to strip later steers by — so the next wait's wake,
-    /// word for word the same, was stripped too and the model never heard it.
-    /// Read, answered, and asked again: the second wake reaches the model.
+    /// Every wait of one task is told. A wait that was typed into and asked
+    /// again is a new telling, and nothing strips it on its way to the model —
+    /// no tool answers a wake any more (owner, 2026-11-03).
     #[test]
-    fn the_next_wait_after_an_answer_is_told_though_its_words_are_the_same() {
+    fn the_next_wait_after_an_answer_is_told_again() {
         let manager = running("bg_twice");
         let queue = Arc::new(QueueNotifier::default());
         manager.set_notifier(queue.clone());
@@ -2592,26 +2688,279 @@ mod tests {
         let first = queue.read_all();
         assert_eq!(first.len(), 1);
         assert!(
-            first[0].contains("Its input is hidden (what is typed is not shown)."),
+            first[0].starts_with("<system_notification>bg_twice: Waiting for input;"),
             "{}",
             first[0]
         );
         assert!(
-            first[0].contains("bg_twice is waiting for input")
-                && !first[0].contains("Call manage_process"),
-            "the wake supplies identity and state, not repeated tool instructions: {}",
+            first[0].contains("input hidden (what is typed is not shown)"),
+            "{}",
+            first[0]
+        );
+        assert!(
+            !first[0].contains("process_control"),
+            "the wake carries the report itself, never a tool to call: {}",
             first[0]
         );
         // Typed into: that wait is over, then the process asks again.
         manager.clear_waiting("bg_twice", true);
         manager.set_waiting("bg_twice", wait);
         let second = queue.unread();
-        assert_eq!(second, first, "the same words, a new wait");
-        assert_eq!(
-            manager.without_answered_wakes(&second[0]),
-            second[0],
-            "and nothing strips it on its way to the model"
+        assert_eq!(second.len(), 1, "a new wait is a new telling");
+        assert!(
+            second[0].starts_with("<system_notification>bg_twice: Waiting for input;"),
+            "{}",
+            second[0]
         );
+    }
+
+    /// The ledger: a wake carries only the output the model has not been given
+    /// (owner, 2026-11-03). A wait's wake says what the task printed; the end's
+    /// wake that follows says only what came after it.
+    #[test]
+    fn the_second_wake_says_only_what_the_first_did_not() {
+        let dir = scratch("wake-ledger");
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("bg_ledger.txt");
+        std::fs::write(&log, "one\n").unwrap();
+        let manager = Arc::new(BackgroundTaskManager::new());
+        manager.register(BackgroundTaskInfo {
+            task_id: "bg_ledger".into(),
+            pid: 1,
+            command: "job".into(),
+            out_file: log.clone(),
+            started_at: crate::store::now_ms(),
+            status: BackgroundTaskStatus::Running,
+            surfaced: false,
+            answered: false,
+            capture_note: None,
+            tail: String::new(),
+            screen: None,
+            reported: None,
+            log_position: None,
+            waiting: None,
+            tree: None,
+        });
+        let queue = Arc::new(QueueNotifier::default());
+        manager.set_notifier(queue.clone());
+        let wait = crate::platform::InputWait {
+            hidden: false,
+            line: true,
+        };
+        manager.set_waiting("bg_ledger", wait);
+        let first = queue.read_all().join("\n");
+        assert!(first.contains("one"), "the wait's wake says it: {first}");
+
+        // It asks again after one more line, then ends by itself.
+        std::fs::write(&log, "one\ntwo\n").unwrap();
+        manager.update_status(
+            "bg_ledger",
+            BackgroundTaskStatus::Completed {
+                exit_code: 0,
+                finished_at: crate::store::now_ms(),
+            },
+        );
+        manager.notify_completed("bg_ledger");
+        let second = queue.unread().join("\n");
+        assert!(second.contains("two"), "the end's wake says it: {second}");
+        assert!(
+            !second.contains("one"),
+            "the first wake already said that line: {second}"
+        );
+    }
+
+    /// A task whose log says `text`, watched by a queue that reads nothing
+    /// until asked.
+    fn logged(id: &str, text: &str) -> (Arc<BackgroundTaskManager>, PathBuf, Arc<QueueNotifier>) {
+        let dir = scratch(&format!("logged-{id}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let log = dir.join(format!("{id}.txt"));
+        std::fs::write(&log, text).unwrap();
+        let manager = Arc::new(BackgroundTaskManager::new());
+        manager.register(BackgroundTaskInfo {
+            task_id: id.into(),
+            pid: i32::MAX,
+            command: "job".into(),
+            out_file: log.clone(),
+            started_at: crate::store::now_ms(),
+            status: BackgroundTaskStatus::Running,
+            surfaced: false,
+            answered: false,
+            capture_note: None,
+            tail: String::new(),
+            screen: None,
+            reported: None,
+            log_position: None,
+            waiting: None,
+            tree: None,
+        });
+        let queue = Arc::new(QueueNotifier::default());
+        manager.set_notifier(queue.clone());
+        (manager, log, queue)
+    }
+
+    const ASKS: crate::platform::InputWait = crate::platform::InputWait {
+        hidden: false,
+        line: true,
+    };
+
+    fn completed(manager: &BackgroundTaskManager, id: &str) {
+        manager.update_status(
+            id,
+            BackgroundTaskStatus::Completed {
+                exit_code: 0,
+                finished_at: crate::store::now_ms(),
+            },
+        );
+    }
+
+    /// The bug of 2026-11-04: a wait's wake said what the task printed before
+    /// its question and was taken back unread when the task ended — and the
+    /// ledger it had moved stayed moved, so the end's wake began after that
+    /// output and the model never read it. Taken back unread, a wake gives its
+    /// output to the next one.
+    #[test]
+    fn a_wake_taken_back_unread_gives_its_output_to_the_next() {
+        let (manager, log, queue) = logged("bg_unread", "BUILD-LOG-BEFORE-QUESTION\nContinue? ");
+        manager.set_waiting("bg_unread", ASKS);
+        assert!(
+            queue
+                .unread()
+                .join("\n")
+                .contains("BUILD-LOG-BEFORE-QUESTION"),
+            "{:?}",
+            queue.unread()
+        );
+        // The wait is over — it ended, or was typed into — before the model
+        // read its wake.
+        manager.clear_waiting("bg_unread", true);
+        assert!(queue.unread().is_empty(), "the unread wake is taken back");
+        std::fs::write(&log, "BUILD-LOG-BEFORE-QUESTION\nContinue? y\nDONE\n").unwrap();
+        completed(&manager, "bg_unread");
+        manager.notify_completed("bg_unread");
+        let end = queue.unread().join("\n");
+        assert!(end.contains("BUILD-LOG-BEFORE-QUESTION"), "lost: {end}");
+        assert!(end.contains("DONE"), "{end}");
+        let _ = std::fs::remove_dir_all(log.parent().unwrap());
+    }
+
+    /// And a wake the model did read keeps its ledger: the end says only what
+    /// followed it, never the question's output a second time.
+    #[test]
+    fn a_wake_read_before_its_wait_ended_is_not_told_again() {
+        let (manager, log, queue) = logged("bg_read", "BUILD-LOG-BEFORE-QUESTION\nContinue? ");
+        manager.set_waiting("bg_read", ASKS);
+        assert_eq!(queue.read_all().len(), 1, "the model read the wait's wake");
+        manager.clear_waiting("bg_read", true);
+        std::fs::write(&log, "BUILD-LOG-BEFORE-QUESTION\nContinue? y\nDONE\n").unwrap();
+        completed(&manager, "bg_read");
+        manager.notify_completed("bg_read");
+        let end = queue.unread().join("\n");
+        assert!(end.contains("DONE"), "{end}");
+        assert!(
+            !end.contains("BUILD-LOG-BEFORE-QUESTION"),
+            "said twice: {end}"
+        );
+        let _ = std::fs::remove_dir_all(log.parent().unwrap());
+    }
+
+    /// A wait found over once its report is read wakes nobody: a stop that
+    /// landed meanwhile was told by its own result, and a wake built from the
+    /// report would say `Killed` a second time; a task that went on by itself
+    /// asks nothing.
+    #[test]
+    fn a_wait_found_over_once_its_report_is_read_wakes_nobody() {
+        let (manager, log, queue) = logged("bg_race", "Proceed? ");
+        // Stopped between the wait being seen and its wake being sent: the
+        // registry says Killed while the wait the monitor saw is still set.
+        if let Ok(mut tasks) = manager.tasks.lock() {
+            let task = tasks.get_mut("bg_race").unwrap();
+            task.status = BackgroundTaskStatus::Killed {
+                finished_at: crate::store::now_ms(),
+            };
+            task.waiting = Some(ASKS);
+        }
+        manager.tell_wait("bg_race", ASKS);
+        assert_eq!(queue.sent(), 0, "a Killed wake after the stop's result");
+        assert_eq!(manager.get("bg_race").unwrap().reported, None);
+        // Running again, no longer waiting: nothing to ask.
+        let (manager, _, queue) = logged("bg_went_on", "working\n");
+        manager.tell_wait("bg_went_on", ASKS);
+        assert_eq!(queue.sent(), 0);
+        let _ = std::fs::remove_dir_all(log.parent().unwrap());
+    }
+
+    /// Tasks that end together share the output ceiling: a wake raised while
+    /// another waits unread for the next request carries less, never a second
+    /// ceiling's worth — yet still the start and the end of its output.
+    #[test]
+    fn tasks_that_end_together_share_the_output_ceiling() {
+        let rows = |tag: &str| -> String {
+            (0..700)
+                .map(|n| format!("{tag} row {n} of a build log\n"))
+                .collect()
+        };
+        let (manager, log_a, queue) = logged("bg_first", &rows("first"));
+        let dir = log_a.parent().unwrap().to_path_buf();
+        let log_b = dir.join("bg_second.txt");
+        std::fs::write(&log_b, rows("second")).unwrap();
+        manager.register(BackgroundTaskInfo {
+            task_id: "bg_second".into(),
+            out_file: log_b.clone(),
+            ..manager.get("bg_first").unwrap()
+        });
+        completed(&manager, "bg_first");
+        completed(&manager, "bg_second");
+        manager.notify_completed("bg_first");
+        manager.notify_completed("bg_second");
+        let wakes = queue.unread();
+        assert_eq!(wakes.len(), 2, "{wakes:?}");
+        let size = rows("first").chars().count();
+        assert!(size < 30_000, "each fits the ceiling alone: {size}");
+        assert!(
+            !wakes[0].contains("cut"),
+            "the first alone is whole: {}",
+            wakes[0]
+        );
+        assert!(wakes[0].contains("first row 699"), "{}", wakes[0]);
+        assert!(
+            wakes[1].contains("lines cut, read the log with inspect_file"),
+            "the second shares what is left: {}",
+            wakes[1]
+        );
+        assert!(
+            wakes[1].contains("second row 0 of"),
+            "its start: {}",
+            wakes[1]
+        );
+        assert!(
+            wakes[1].contains("second row 699 of"),
+            "its end: {}",
+            wakes[1]
+        );
+        assert!(
+            wakes[0].chars().count() + wakes[1].chars().count() < 30_000 + 8_000,
+            "two ceilings' worth"
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// `<status>` names the running tasks in the order they started, so the
+    /// same tasks are the same value and no request is told a change that is
+    /// only a map's iteration order.
+    #[test]
+    fn the_running_tasks_are_named_in_the_order_they_started() {
+        let manager = BackgroundTaskManager::new();
+        for (id, started_at) in [("bg_c", 30), ("bg_a", 10), ("bg_b", 20), ("bg_d", 20)] {
+            manager.register(BackgroundTaskInfo {
+                task_id: id.into(),
+                started_at,
+                status: BackgroundTaskStatus::Running,
+                ..finished(id).get(id).unwrap()
+            });
+        }
+        let ids: Vec<String> = manager.running().into_iter().map(|t| t.task_id).collect();
+        assert_eq!(ids, ["bg_a", "bg_b", "bg_d", "bg_c"]);
     }
 
     /// A report that says the task waits is the telling: a wake about that
@@ -2653,7 +3002,6 @@ mod tests {
             status: BackgroundTaskStatus::Running,
             surfaced: false,
             answered: false,
-            wake_text: None,
             capture_note: None,
             tail: String::new(),
             screen: None,
@@ -2713,15 +3061,27 @@ mod tests {
             self.sent.fetch_add(1, Ordering::Relaxed);
             self.queue.lock().unwrap().push(text);
         }
-        fn withdraw(&self, text: &str) {
+        fn withdraw(&self, text: &str) -> bool {
             let mut queue = self.queue.lock().unwrap();
-            if let Some(at) = queue.iter().position(|queued| queued == text) {
-                queue.remove(at);
+            match queue.iter().position(|queued| queued == text) {
+                Some(at) => {
+                    queue.remove(at);
+                    true
+                }
+                None => false,
             }
+        }
+        fn queued(&self) -> usize {
+            self.queue
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|text| text.chars().count())
+                .sum()
         }
     }
 
-    /// The bug of 2026-10-11: `manage_process` killed a task, and a moment
+    /// The bug of 2026-10-11: the old process tool killed a task, and a moment
     /// later the model was woken with "finished: Killed" — the monitor saw
     /// the process go before the kill's result marked its end told. A stop
     /// is told by the call that stops it, in the same step: no wake, ever,
@@ -2812,23 +3172,11 @@ mod tests {
         let wakes = queue.unread();
         assert_eq!(wakes.len(), 1, "{wakes:?}");
         assert!(
-            wakes[0].contains("bg_unread finished: Lost"),
+            wakes[0].starts_with("<system_notification>bg_unread: Lost;")
+                && wakes[0].contains("lost: "),
             "{}",
             wakes[0]
         );
-    }
-
-    /// A report that answers an end's wake takes it back out of the queue
-    /// while it is still unread.
-    #[test]
-    fn an_answered_wake_is_taken_back_out_of_the_queue() {
-        let manager = finished("bg_report");
-        let queue = Arc::new(QueueNotifier::default());
-        manager.set_notifier(queue.clone());
-        announce(&manager, "bg_report");
-        assert_eq!(queue.unread().len(), 1);
-        manager.answer_wake("bg_report");
-        assert!(queue.unread().is_empty());
     }
 
     #[test]
@@ -2894,7 +3242,6 @@ mod tests {
             status: BackgroundTaskStatus::Running,
             surfaced: false,
             answered: false,
-            wake_text: None,
             capture_note: None,
             tail: String::new(),
             screen: None,
@@ -2920,65 +3267,5 @@ mod tests {
             1,
             "one finished process is one wake, however many times it is asked for"
         );
-    }
-
-    /// A steer can carry two wakes, and only one of them may have been
-    /// answered. The answered one is taken out; the other survives, because it
-    /// still has something to say.
-    #[test]
-    fn an_answered_wake_is_withdrawn_from_a_steer_that_carries_others() {
-        let manager = finished("bg_answered");
-        let other = finished("bg_untouched");
-        let wakes = Arc::new(RecordingNotifier::default());
-        manager.set_notifier(wakes.clone());
-        other.set_notifier(wakes.clone());
-
-        announce(&manager, "bg_answered");
-        announce(&other, "bg_untouched");
-        manager.answer_wake("bg_answered");
-
-        let steer = format!(
-            "model said something\n{}\n{}\n",
-            wakes.text(0),
-            wakes.text(1)
-        );
-        let left = manager.without_answered_wakes(&steer);
-
-        assert!(
-            left.contains("bg_untouched"),
-            "the other wake survives: {left}"
-        );
-        assert!(
-            !left.contains("bg_answered"),
-            "the answered one is gone: {left}"
-        );
-        assert!(
-            left.contains("model said something"),
-            "and so does the model's own words"
-        );
-    }
-
-    #[test]
-    fn a_steer_that_was_only_an_answered_wake_has_nothing_left_to_say() {
-        let manager = finished("bg_only");
-        let wakes = Arc::new(RecordingNotifier::default());
-        manager.set_notifier(wakes.clone());
-        announce(&manager, "bg_only");
-        manager.answer_wake("bg_only");
-
-        assert_eq!(manager.without_answered_wakes(&wakes.text(0)), "");
-    }
-
-    /// Once a tool has answered, the monitor does not send a wake at all.
-    #[test]
-    fn a_task_answered_before_its_wake_is_never_woken_for() {
-        let manager = finished("bg_race");
-        let wakes = Arc::new(CountingNotifier(AtomicUsize::new(0)));
-        manager.set_notifier(wakes.clone());
-        manager.answer_wake("bg_race");
-
-        announce(&manager, "bg_race");
-
-        assert_eq!(wakes.0.load(Ordering::Relaxed), 0);
     }
 }

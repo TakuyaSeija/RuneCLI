@@ -610,6 +610,46 @@ pub fn restored(
     )
 }
 
+/// Tell the model that an identical call is repeating in this turn.
+/// Carried as a `<system_notice>` context row before the next request,
+/// so the tool result itself stays completely untouched.
+pub fn loop_warning(
+    rt: &Runtime,
+    st: &SessionState,
+    turn: i64,
+    tool_name: &str,
+    times: usize,
+    firm: bool,
+    is_bg_poll: bool,
+) -> Result<()> {
+    let guidance = if firm {
+        if is_bg_poll {
+            " A task's next state and its output arrive by their own <system_notification>; asking again tells you nothing new. Proceed with independent work, or end your turn and answer when it wakes you."
+        } else {
+            " Repeating this call will not change the outcome; switch to an alternative approach, inspect prerequisites, or ask the person."
+        }
+    } else {
+        ""
+    };
+    let told = format!(
+        "Loop detected: {tool_name} has been called {times} times in this turn with the same arguments and outcome.{guidance}"
+    );
+    let note = format!("Loop warning ({tool_name} x{times}); told via system_notice.");
+    tell(
+        rt,
+        st,
+        Told {
+            turn,
+            kind: ContextKind::Restore,
+            text: &frame::block("system_notice", &[], &told),
+            status: Default::default(),
+            sources: Default::default(),
+            note: note.clone(),
+            log: ("loop", "warning", note),
+        },
+    )
+}
+
 /// The name a memory notice stores its verdict under.
 const MEMORY: &str = "memory index";
 const OVER: &str = "over budget";

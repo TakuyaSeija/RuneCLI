@@ -962,18 +962,15 @@ fn web_fetch_is_a_separate_tool_in_the_real_host_without_search_credentials() {
     props.sort();
     assert_eq!(props, ["action", "count", "query"]);
     assert_eq!(fetch["parameters"]["required"], json!(["action", "url"]));
-    // Owner, 2026-10-21: `cookies` is optional, kept for one call's redirects.
+    // Owner, 2026-11-01: the reader keeps a site's cookies for one call on its
+    // own, so the field the model had to set is gone.
     let mut props: Vec<&String> = fetch["parameters"]["properties"]
         .as_object()
         .unwrap()
         .keys()
         .collect();
     props.sort();
-    assert_eq!(props, ["action", "cookies", "url"]);
-    assert_eq!(
-        fetch["parameters"]["properties"]["cookies"]["type"],
-        "boolean"
-    );
+    assert_eq!(props, ["action", "url"]);
     assert_eq!(fetch["mutates"], false);
     h.send(json!({"cmd":"session.open", "id":1, "project":h.project}));
     let ack = h.until("ack");
@@ -1250,10 +1247,44 @@ fn through_turn(
     }
 }
 
+/// The tasks the session started, read from its own journal: the registry's
+/// record, since `process_control` offers no listing (owner, 2026-11-03).
+fn started_tasks(home: &std::path::Path, session: i64) -> Vec<Value> {
+    // A plain engine home keeps sessions beside the database; a home driven by
+    // a window keeps them under the project it opened.
+    let mut candidates = vec![home
+        .join("sessions")
+        .join(session.to_string())
+        .join("background.jsonl")];
+    if let Ok(projects) = std::fs::read_dir(home.join("projects")) {
+        for entry in projects.flatten() {
+            candidates.push(
+                entry
+                    .path()
+                    .join("sessions")
+                    .join(session.to_string())
+                    .join("background.jsonl"),
+            );
+        }
+    }
+    let text = candidates
+        .iter()
+        .find_map(|path| std::fs::read_to_string(path).ok())
+        .unwrap_or_default();
+    text.lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+        .filter(|record| record["event"] == "started")
+        .collect()
+}
+
+/// The wake carries the report through the frontend's own door: one line of
+/// Rune's (task, how it ended, PID, run time, log path), the output below it,
+/// and a long one cut with the whole of it still readable at the path the line
+/// names (owner, 2026-11-03). No tool is asked for it.
 #[test]
-fn a_manage_process_result_keeps_additional_information_inside_its_report() {
+fn a_completion_notification_carries_the_output_and_names_the_whole_of_it() {
     let mut h = start(
-        "one-process-report",
+        "one-notification",
         Some(json!({"responses":[
             {"chunks":[{"text":"completion noted"}]},
             {"chunks":[{"text":"completion noted"}]}
@@ -1269,7 +1300,7 @@ fn a_manage_process_result_keeps_additional_information_inside_its_report() {
     {
         h.send(
             json!({"cmd":"tool.invoke","id":10 + i,"session":session,"name":"terminal_use",
-            "args":{"action":"print report fixture", "command":command, "run_in_background":true}}),
+            "args":{"action":"print notification fixture", "command":command, "run_in_background":true}}),
         );
         let mut asked = Vec::new();
         let launch = loop {
@@ -1293,77 +1324,49 @@ fn a_manage_process_result_keeps_additional_information_inside_its_report() {
             .next()
             .unwrap()
             .to_string();
+
         // An idle completion starts a notification turn, rather than emitting
         // the busy-only Notification event. Its Done releases admission.
-        h.until("done");
-        h.send(
-            json!({"cmd":"tool.invoke","id":20 + i,"session":session,"name":"manage_process",
-            "args":{"action":"read report fixture", "process_id":task}}),
-        );
-        let result = h.until("tool_result");
-        assert_eq!(result["ok"], true, "{result}");
-        let content = result["content"].as_str().unwrap();
-        assert_eq!(content.matches("<tool_notice>").count(), 1, "{content}");
-        assert_eq!(content.matches("</tool_notice>").count(), 1, "{content}");
-        let split = runeengine::tools::notice::split(content);
-        assert_eq!(split.notices.len(), 1);
-        assert!(
-            split.notices[0].contains("Process: Completed"),
-            "asked with full access: {asked:?}\n{content}"
-        );
-        assert_eq!(split.notices[0].contains("Additional information:"), i == 1);
-        assert!(!split.notices[0].contains("Capture:"));
+        let mut wake = None;
+        loop {
+            let e = h.next();
+            if e["t"] == "turn_start" && e["notification"] == true {
+                wake = e["text"].as_str().map(str::to_string);
+            }
+            if e["t"] == "done" {
+                break;
+            }
+        }
+        let wake = wake.unwrap_or_else(|| panic!("the completion was never told: {asked:?}"));
+        let (line, body) = wake
+            .split_once("</system_notification>")
+            .unwrap_or_else(|| panic!("an unclosed notification: {wake}"));
+        assert!(line.contains(&task), "{wake}");
+        for said in ["Completed", "PID ", "finished in ", ".txt"] {
+            assert!(line.contains(said), "{said} missing: {wake}");
+        }
+        // The output is the process's words, in the block Rune closes.
+        let output = body
+            .trim()
+            .strip_prefix("<process_output>")
+            .and_then(|rest| rest.strip_suffix("</process_output>"))
+            .unwrap_or_else(|| panic!("the output is not in its block: {wake}"));
         if i == 1 {
-            assert!(split.notices[0].contains("over the 30000 limit"));
-            assert!(split.rest.starts_with("<preview_head"));
-            assert!(split.rest.contains("<preview_tail"));
+            // One 40 000-character line: the cut is counted in characters.
+            assert!(
+                line.contains("characters cut, read the log with inspect_file"),
+                "{wake}"
+            );
+            assert!(
+                output.len() < 40_000,
+                "the body is bounded and the rest is the log: {}",
+                output.len()
+            );
         } else {
-            assert_eq!(split.rest.trim(), "short output");
+            assert_eq!(output.trim(), "short output", "{wake}");
         }
     }
     h.finish();
-}
-
-/// `manage_process` through the frontend's door — the same one call the
-/// model's path runs — and its result.
-fn manage(
-    client: &mut runeengine::platform::LocalStream,
-    reader: &mut BufReader<runeengine::platform::LocalStream>,
-    session: i64,
-    id: u64,
-    args: Value,
-) -> Value {
-    let invoke =
-        json!({"cmd":"tool.invoke","id":id,"session":session,"name":"manage_process","args":args});
-    writeln!(client, "{invoke}").unwrap();
-    let mut refused = false;
-    loop {
-        let e = event(reader);
-        // Refused while a turn still holds the session: sent again at its
-        // `done`, as a frontend does.
-        if e["t"] == "ack" && e["id"] == id && e["ok"] == false {
-            let error = e["error"].as_str().unwrap_or_default();
-            assert!(error.contains("already running a turn"), "{e}");
-            refused = true;
-            continue;
-        }
-        if refused && e["t"] == "done" {
-            refused = false;
-            writeln!(client, "{invoke}").unwrap();
-            continue;
-        }
-        if e["t"] == "permission_request" {
-            writeln!(
-                client,
-                "{}",
-                json!({"cmd":"permission.reply","id":91,"req":e["req"],"decision":"allow_once"})
-            )
-            .unwrap();
-        }
-        if e["t"] == "tool_result" {
-            return e;
-        }
-    }
 }
 
 /// What the kernel says of `pid`: its state and its parent.
@@ -1448,14 +1451,7 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     .unwrap();
     through_turn(&mut client, &mut reader);
 
-    let listed = manage(
-        &mut client,
-        &mut reader,
-        session,
-        3,
-        json!({"action":"list them","process_id":"all"}),
-    );
-    let tasks = listed["detail"]["processes"].as_array().unwrap().clone();
+    let tasks = started_tasks(&home, session);
     let of = |needle: &str| {
         tasks
             .iter()
@@ -1562,8 +1558,12 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
         let rows = transcript(&home, session);
+        // The wake, not the status row that also names a running task.
         let woke = rows.iter().find(|row| {
-            row["role"] == "context" && row["content"].as_str().unwrap_or("").contains(&later_id)
+            let content = row["content"].as_str().unwrap_or("");
+            row["role"] == "context"
+                && content.starts_with("<system_notification>")
+                && content.contains(&later_id)
         });
         if let Some(woke) = woke {
             let said = woke["content"].as_str().unwrap();
@@ -1587,8 +1587,8 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
     // would hear when its server ends, and it does: the wake is answered by a
     // turn of its own once the call lets the session go — never stored for
     // nobody. Which of the two is said first is the threads' business.
-    let kill = json!({"cmd":"tool.invoke","id":5,"session":session,"name":"manage_process",
-                      "args":{"action":"stop the server","process_id":serve["task_id"],"kill":true}});
+    let kill = json!({"cmd":"tool.invoke","id":5,"session":session,"name":"process_control",
+                      "args":{"action":"stop the server","process_id":serve["task_id"],"do":"stop"}});
     writeln!(client, "{kill}").unwrap();
     let mut refused = false;
     let (mut stopped, mut woke, mut answered) = (None, None, Vec::new());
@@ -1666,14 +1666,7 @@ fn a_background_task_runs_on_through_a_live_upgrade() {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
-    let listed = manage(
-        &mut client,
-        &mut reader,
-        session,
-        6,
-        json!({"action":"list them","process_id":"all"}),
-    );
-    let after = listed["detail"]["processes"].as_array().unwrap();
+    let after = started_tasks(&home, session);
     assert_eq!(after.len(), 2, "both tasks are still known: {after:?}");
 
     client.shutdown().unwrap();
@@ -1770,15 +1763,12 @@ fn the_stdio_host_becomes_the_installed_release_in_place() {
     )
     .unwrap();
     until("done", &mut stdin);
-    writeln!(
-        stdin,
-        "{}",
-        json!({"cmd":"tool.invoke","id":3,"session":1,"name":"manage_process",
-               "args":{"action":"list","process_id":"all"}})
-    )
-    .unwrap();
-    let listed = until("tool_result", &mut stdin);
-    let task = listed["detail"]["processes"][0].clone();
+    // The task the session started, read from its own journal: no tool lists
+    // them any more (owner, 2026-11-03).
+    let task = started_tasks(&base, 1)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("the journal names no started task under {}", base.display()));
     let pid = task["pid"].as_i64().unwrap();
     let log = std::path::PathBuf::from(task["out_file"].as_str().unwrap());
 
@@ -1822,8 +1812,8 @@ fn the_stdio_host_becomes_the_installed_release_in_place() {
     writeln!(
         stdin,
         "{}",
-        json!({"cmd":"tool.invoke","id":5,"session":1,"name":"manage_process",
-               "args":{"action":"stop","process_id":task["task_id"],"kill":true}})
+        json!({"cmd":"tool.invoke","id":5,"session":1,"name":"process_control",
+               "args":{"action":"stop","process_id":task["task_id"],"do":"stop"}})
     )
     .unwrap();
     let stopped = until("tool_result", &mut stdin);
@@ -1856,7 +1846,7 @@ fn a_window_coming_back_keeps_the_sessions_work_running() {
     let marker = format!("rune-returning-tick-{}", std::process::id());
     let Served {
         cleanup: _cleanup,
-        home: _,
+        home,
         fixture: _,
         project: _,
         session,
@@ -1885,14 +1875,8 @@ fn a_window_coming_back_keeps_the_sessions_work_running() {
     )
     .unwrap();
     through_turn(&mut client, &mut reader);
-    let listed = manage(
-        &mut client,
-        &mut reader,
-        session,
-        3,
-        json!({"action":"list","process_id":"all"}),
-    );
-    let pid = listed["detail"]["processes"][0]["pid"].as_i64().unwrap();
+    let tasks = started_tasks(&home, session);
+    let pid = tasks[0]["pid"].as_i64().unwrap();
     let running = |pid: i64| {
         process(pid)
             .is_some_and(|(state, _)| state == runeengine::platform::fixture::ProcessState::Live)
@@ -1970,5 +1954,66 @@ fn a_window_coming_back_keeps_the_sessions_work_running() {
         left.elapsed() >= Duration::from_secs(3),
         "stopped after {:?}, before the idle lifetime",
         left.elapsed()
+    );
+}
+
+/// `rune -p` over a response the repetition guard stops: a pipe cannot take back
+/// what was already written, so the answer is printed once — the text the
+/// session keeps — and never the run that was cut (session 698's shape).
+#[test]
+fn a_one_shot_answer_that_repeats_itself_is_printed_once_and_clean() {
+    let leaked = " to=functions.patch_file  *json\n";
+    let fixture = json!({"responses":[{"chunks":[
+        {"text": leaked},
+        {"text": "\"}".repeat(5_000)},
+        {"text": "NEVER-A-REPEAT-MARKER"}
+    ]}]});
+    let h = start("repetition-once", Some(fixture));
+    let base = h.project.parent().unwrap().to_path_buf();
+    let project = h.project.clone();
+    h.finish();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rune"))
+        .env("RUNE_HOME", &base)
+        .arg("-project")
+        .arg(project)
+        .arg("-script")
+        .arg(base.join("fixture.json"))
+        .arg("-p")
+        .arg("fix the stage")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("one-shot loop hung instead of being stopped");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let output = child.wait_with_output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        stdout.matches("to=functions.patch_file").count(),
+        1,
+        "the kept text was printed more than once: {stdout}"
+    );
+    assert!(
+        !stdout.contains("\"}\"}\""),
+        "the stopped run reached the pipe: {stdout}"
+    );
+    assert!(
+        !stdout.contains("NEVER-A-REPEAT-MARKER"),
+        "the stream was read to its end: {stdout}"
     );
 }

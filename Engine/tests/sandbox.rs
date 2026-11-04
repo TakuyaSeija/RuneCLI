@@ -435,10 +435,10 @@ fn a_command_that_hangs_moves_to_the_background_at_the_timeout() {
     let (ok, stopped) = invoke(
         &mut p,
         2,
-        "manage_process",
-        json!({ "action": "stop", "process_id": task_id_in(&content), "kill": true }),
+        "process_control",
+        json!({ "action": "stop", "process_id": task_id_in(&content), "do": "stop" }),
     );
-    assert!(ok && stopped.contains("Process: Killed"), "{stopped}");
+    assert!(ok && stopped.contains("Stopped "), "{stopped}");
 }
 
 /// Stopping a command stops everything it started: a command that moved to
@@ -473,10 +473,10 @@ fn killing_a_command_kills_what_it_spawned() {
     let (ok, stopped) = invoke(
         &mut p,
         2,
-        "manage_process",
-        json!({ "action": "stop", "process_id": task_id_in(&moved), "kill": true }),
+        "process_control",
+        json!({ "action": "stop", "process_id": task_id_in(&moved), "do": "stop" }),
     );
-    assert!(ok && stopped.contains("Process: Killed"), "{stopped}");
+    assert!(ok && stopped.contains("Stopped "), "{stopped}");
 
     // The child had 3 seconds to write; its group was killed at about 1.
     std::thread::sleep(std::time::Duration::from_secs(4));
@@ -791,43 +791,53 @@ fn a_path_grant_persisted_by_another_process_reaches_this_session() {
 }
 
 #[test]
-fn terminal_use_respects_path_parameter() {
+fn terminal_use_runs_in_the_workspace_root_and_refuses_a_path_argument() {
     let mut p = probe("term_path");
     let sub = p.project.join("subdir");
     std::fs::create_dir_all(&sub).unwrap();
 
-    p.engine.handle(Command::ToolInvoke {
-        id: 10,
-        session: p.session,
-        name: "terminal_use".into(),
-        args: json!({
-            "action": "check pwd with path",
-            "command": "pwd",
-            "path": "subdir"
-        }),
-    });
-    loop {
-        let e = p
-            .events
-            .recv_timeout(std::time::Duration::from_secs(30))
-            .unwrap();
-        match e {
-            Event::PermissionRequest { req, .. } => {
-                p.engine.handle(Command::PermissionReply {
-                    id: 11,
-                    req,
-                    decision: Decision::AllowOnce,
-                });
+    // The working directory is no argument any more (owner, 2026-11-03): `cd`
+    // inside the command is the shell's own way to say it.
+    for (id, args, ok_expected, must) in [
+        (
+            10,
+            json!({"action":"go into subdir","command":"cd subdir && pwd"}),
+            true,
+            "subdir",
+        ),
+        (
+            20,
+            json!({"action":"check pwd with path","command":"pwd","path":"subdir"}),
+            false,
+            "cd <dir> && ...",
+        ),
+    ] {
+        p.engine.handle(Command::ToolInvoke {
+            id,
+            session: p.session,
+            name: "terminal_use".into(),
+            args,
+        });
+        loop {
+            let e = p
+                .events
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .unwrap();
+            match e {
+                Event::PermissionRequest { req, .. } => {
+                    p.engine.handle(Command::PermissionReply {
+                        id: id + 100,
+                        req,
+                        decision: Decision::AllowOnce,
+                    });
+                }
+                Event::ToolResult { content, ok, .. } => {
+                    assert_eq!(ok, ok_expected, "{content}");
+                    assert!(content.contains(must), "{must} missing: {content}");
+                    break;
+                }
+                _ => {}
             }
-            Event::ToolResult { content, ok, .. } => {
-                assert!(ok);
-                assert!(
-                    content.contains("subdir"),
-                    "pwd should be inside subdir: {content}"
-                );
-                break;
-            }
-            _ => {}
         }
     }
 }

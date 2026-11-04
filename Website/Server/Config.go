@@ -23,6 +23,10 @@ type Config struct {
 	Health    string   `json:"health"`    // health listener, loopback only
 	Downloads string   `json:"downloads"` // published releases, read-only
 	Indexing  bool     `json:"indexing"`  // let search engines index the pages
+	// ParentURL is where the footer's "Atoryn" leads. Production serves the
+	// family from one origin, so it is "/" there; a dev site lives on its own
+	// port, where "/" is this site, so dev names the landing's address.
+	ParentURL string `json:"parentUrl"`
 }
 
 var basePathRe = regexp.MustCompile(`^/[A-Za-z][A-Za-z0-9]{0,31}$`)
@@ -83,7 +87,22 @@ func (c *Config) validate() error {
 	if c.Env == "Dev" && c.Indexing {
 		return fmt.Errorf("dev is never indexed")
 	}
+	if c.ParentURL != "" && !strings.HasPrefix(c.ParentURL, "/") {
+		p, err := url.Parse(c.ParentURL)
+		if err != nil || p.Host == "" || (p.Scheme != "http" && p.Scheme != "https") || p.RawQuery != "" || p.Fragment != "" || p.User != nil {
+			return fmt.Errorf("parentUrl must be an absolute http(s) address or a path starting with /")
+		}
+	}
 	return nil
+}
+
+// parent is the footer's "Atoryn" destination: the same origin in production,
+// the landing's own address where this site is served from its own port.
+func (c *Config) parent() string {
+	if c.ParentURL == "" {
+		return "/"
+	}
+	return c.ParentURL
 }
 
 // checkListen accepts loopback only — and, for DEV, a private LAN address

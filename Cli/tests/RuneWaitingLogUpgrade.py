@@ -36,7 +36,7 @@ def main():
     installed = root / "rune-installed"
     shutil.copy2(sys.argv[1], installed)
     fixture = root / "provider.json"
-    fixture.write_text('{"responses":[{"chunks":[{"text":"Old manual result received."}]}]}')
+    fixture.write_text('{"responses":[{"chunks":[{"text":"Old manual result received."}]},{"chunks":[{"text":"Upgraded end noted."}]}]}')
     (home / "rune.toml").write_text('[terminal]\ninput_wait_delay = "200ms"\ncommand_timeout = "10s"\n[classifier]\nenabled = false\n')
     env = dict(os.environ, RUNE_HOME=str(home), HOME=str(home))
     env.pop("RUNE_PROCESS_TREE", None)
@@ -93,20 +93,27 @@ def main():
         wait(lambda e: e.get("t") == "upgrading")
         wait(lambda e: e.get("t") == "ready")
         assert host.poll() is None
-        send({"cmd":"tool.invoke", "id":3, "session":session, "name":"manage_process", "args":{"action":"read upgraded waiting process", "process_id":task}})
-        result = wait(lambda e: e.get("t") == "tool_result")
-        assert "Process: Waiting for input" in result["content"], result
+        # Nothing is asked for after the upgrade: the saved output is the log's,
+        # and what the model was told stays what it was told.
         expected = "HANDOVER-SAVED\nUpgrade question?"
-        body = result["content"].split("</tool_notice>", 1)[1].strip()
-        assert body == path.read_text() == expected, (before, body, path.read_text())
+        assert path.read_text() == expected, (before, path.read_text())
         assert marker.read_text() == "once\n"
-        send({"cmd":"tool.invoke", "id":4, "session":session, "name":"terminal_send_input", "args":{"action":"answer upgraded process", "process_id":task, "text":"yes", "submit":"enter"}})
+        send({"cmd":"tool.invoke", "id":4, "session":session, "name":"process_control", "args":{"action":"answer upgraded process", "process_id":task, "do":"type", "text":"yes", "submit":"enter"}})
         wait(lambda e: e.get("t") == "tool_result")
+        # What the new build tells the model of the task the old one started:
+        # its end, as one notification — Rune's line in the tag, the output
+        # after it in its own block, and nothing the model had already read.
+        wake = wait(lambda e: e.get("t") == "turn_start" and e.get("notification") is True)
+        told = wake.get("text") or ""
+        assert told.startswith("<system_notification>%s: Completed; PID " % task), told
+        assert str(path) in told, told
+        assert "<process_output>" in told and told.rstrip().endswith("</process_output>"), told
+        assert "FINAL:yes" in told, told
         wait(lambda e: e.get("t") == "done")
         assert path.read_text() == "HANDOVER-SAVED\nUpgrade question? yes\nFINAL:yes\n", path.read_text()
         assert marker.read_text() == "once\n"
-        print("PASS two-binary live upgrade: same task continues, old waiting output read from file, no command replay or duplicate log rows", flush=True)
-        print("PASS upgraded task input/end: question updates once, final output saved", flush=True)
+        print("PASS two-binary live upgrade: same task continues, waiting output intact on disk, no command replay or duplicate log rows", flush=True)
+        print("PASS upgraded task input/end: question updates once, final output saved, its end told by the new build", flush=True)
     finally:
         if host.poll() is None:
             host.terminate()

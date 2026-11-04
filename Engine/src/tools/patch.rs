@@ -34,7 +34,7 @@ impl Tool for PatchFile {
                     },
                     "old_str": {
                         "type": "string",
-                        "description": "The text to replace, exactly as in the file, spaces and line breaks included. It must appear exactly once."
+                        "description": "The exact text to replace, spaces and line breaks included. Quote it from the most recent read or patch in this turn (never from memory), and include enough surrounding lines so it appears exactly once."
                     },
                     "new_str": {
                         "type": "string",
@@ -132,15 +132,17 @@ fn patch_one(
     let count = text.matches(old).count();
     match count {
         0 => {
-            return Err(Error::tool(
-                "Exact match not found; file unchanged. Re-read the target and verify whitespace before retrying.",
-            ));
+            return Err(Error::tool(format!(
+                "Exact match not found; file unchanged.{} Re-read the target and verify whitespace before retrying.",
+                nearest(&text, old)
+            )));
         }
         1 => {}
         n => {
             return Err(Error::tool(format!(
-                "old_str appears {n} times — include more surrounding context so it is unique"
-            )))
+                "old_str appears {n} times (lines {}) — include more surrounding context so it is unique",
+                occurrence_lines(&text, old).join(", ")
+            )));
         }
     }
 
@@ -151,4 +153,81 @@ fn patch_one(
     let patched = text.replacen(old, new, 1);
     held.write(&path, patched.as_bytes())?;
     Ok((rel, path))
+}
+
+/// The file line that comes closest to the first line of `old`.
+///
+/// A patch that misses by whitespace is the most common failed call (audit
+/// 2026-11-01: 65 in one month, none of them acted on), and the plain "exact
+/// match not found" leaves a blind retry as the only next step. Naming the
+/// nearest line — and the line number, which every later call refers to — turns
+/// that into one correction. A line too different to be the same text says
+/// nothing: a misleading hint costs more than no hint.
+fn nearest(text: &str, old: &str) -> String {
+    let want = old.lines().next().unwrap_or("").trim();
+    if want.is_empty() {
+        return String::new();
+    }
+    let mut best: Option<(usize, usize, &str)> = None;
+    for (index, line) in text.lines().enumerate() {
+        let have = line.trim();
+        if have.is_empty() {
+            continue;
+        }
+        let score = want
+            .chars()
+            .zip(have.chars())
+            .take_while(|(a, b)| a == b)
+            .count();
+        if best.is_none_or(|(best_score, _, _)| score > best_score) {
+            best = Some((score, index + 1, line));
+        }
+    }
+    let Some((score, at, line)) = best else {
+        return String::new();
+    };
+    // Fewer than half the opening characters in common: another line entirely.
+    if score * 2 < want.chars().count() {
+        return String::new();
+    }
+    let shown: String = line.trim().chars().take(120).collect();
+    format!(
+        "\nNearest match is line {at}: {}",
+        crate::net::redact::scrub(&shown)
+    )
+}
+
+/// The lines an ambiguous `old_str` starts on — the one thing a call that names
+/// no context can act on (measured 2026-11-01: 36 such calls in one month, each
+/// answered with "appears N times" and nothing else).
+fn occurrence_lines(text: &str, old: &str) -> Vec<String> {
+    text.match_indices(old)
+        .map(|(at, _)| (text[..at].matches('\n').count() + 1).to_string())
+        .take(8)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A miss names the closest line, with the number every later call refers
+    /// to; a line too different to be the same text says nothing, because a
+    /// misleading hint costs more than none.
+    #[test]
+    fn a_miss_names_the_closest_line_and_never_a_far_one() {
+        let file = "fn main() {}\n\nfn helper() -> u8 {\n    1\n}\n";
+        let hint = nearest(file, "fn helper() -> u16 {");
+        assert!(hint.contains("line 3"), "{hint}");
+        assert!(hint.contains("fn helper"), "{hint}");
+        assert_eq!(nearest(file, "completely different words here"), "");
+        // Whitespace is the usual cause: the hint shows the line as the file has it.
+        assert!(nearest(file, "    fn main() {}").contains("fn main() {}"));
+    }
+
+    #[test]
+    fn every_occurrence_is_named_so_the_next_call_can_be_specific() {
+        let file = "a\nsame\nb\nsame\nc\nsame\n";
+        assert_eq!(occurrence_lines(file, "same"), vec!["2", "4", "6"]);
+    }
 }

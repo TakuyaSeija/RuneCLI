@@ -113,9 +113,11 @@ pub struct ModelInfo {
     pub thinking_modes: Vec<String>,
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub metadata: Value,
-    /// Largest `max_completion_tokens` this model accepts. The settings panel
-    /// clamps to it rather than letting the user type a number that is rejected
-    /// only after a request has been paid for.
+    /// Largest output this model accepts, in whichever name its adapter sends
+    /// the ceiling under (`max_tokens` or `max_completion_tokens` — one
+    /// adapter's is not another's; see `settings::model::MAX_TOKENS_ONLY`). The
+    /// settings panel clamps to it rather than letting the user type a number
+    /// that is rejected only after a request has been paid for.
     ///
     /// `None` when nobody has published it — most `/models` endpoints return an
     /// id and nothing else. An unknown ceiling clamps nothing, which is right:

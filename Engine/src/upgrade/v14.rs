@@ -33,7 +33,7 @@ mod tests {
     use super::*;
     #[test]
     fn retirement_removes_only_the_retired_key_and_keeps_every_choice() {
-        let text="[classifier]\nmax_user_messages = 8\nmax_evidence_size = \"512KiB\"\nexcluded_tools = [\"manage_process\", \"inspect_file\"]\n[compact]\nkeep_recent_turns = 7\nmax_output_tokens = 32000\nmessage_chars = 50000\n";
+        let text="[classifier]\nmax_user_messages = 8\nmax_evidence_size = \"512KiB\"\nexcluded_tools = [\"process_control\", \"inspect_file\"]\n[compact]\nkeep_recent_turns = 7\nmax_output_tokens = 32000\nmessage_chars = 50000\n";
         let next = config(text).unwrap();
         let c = crate::settings::configuration::Configuration::from_values(
             toml_edit::de::from_str(&next).unwrap(),
@@ -45,7 +45,7 @@ mod tests {
         assert_eq!(c.number("classifier.max_evidence_size"), 512 * 1024);
         assert_eq!(
             c.get("classifier.excluded_tools"),
-            &serde_json::json!(["manage_process", "inspect_file"])
+            &serde_json::json!(["process_control", "inspect_file"])
         );
         assert!(!next.contains("max_user_messages"));
         assert_eq!(config(&next).unwrap(), next);

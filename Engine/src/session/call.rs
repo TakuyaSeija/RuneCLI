@@ -945,7 +945,7 @@ mod tests {
             "terminal_use",
             "inspect_file",
             "create_file",
-            "terminal_send_input",
+            "process_control",
         ] {
             for (error, refusal) in [
                 (Error::Denied("user refused".into()), true),

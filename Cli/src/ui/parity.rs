@@ -793,7 +793,7 @@ fn a_window_that_opens_after_a_real_run_shows_what_one_that_watched_it_shows() {
 #[test]
 fn a_notification_shown_at_once_and_a_status_update_are_shown_alike() {
     let s = SESSION;
-    let wake = "<system_notification>Background task bg_9 finished: Completed. Call manage_process with process_id: bg_9 for its result.</system_notification>";
+    let wake = "<system_notification>bg_9: Completed; PID 42; finished in 3s; /work/bg_9.txt</system_notification>\n\nthe build passed";
     let events = vec![
         Event::TurnStart {
             session: s,
@@ -976,7 +976,7 @@ fn write_titles_and_patch_failure_details_survive_finished_history_replay() {
 #[test]
 fn a_notification_raised_between_turns_waits_for_the_turn_that_reads_it() {
     let s = SESSION;
-    let wake = "<system_notification>Background task bg_8 finished: Completed. Call manage_process with process_id: bg_8 for its result.</system_notification>";
+    let wake = "<system_notification>bg_8: Completed; PID 41; finished in 2s; /work/bg_8.txt</system_notification>\n\nthe tests passed";
     let events = vec![
         Event::Notification {
             session: s,

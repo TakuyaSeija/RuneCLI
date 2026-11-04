@@ -814,8 +814,13 @@ fn lay_out(spans: &[Span], width: usize, first: &str, rest: &str) -> Vec<String>
                 }
             }
             if w > width {
-                // One unbreakable run — a path, a hash — chopped at the margin.
-                for chunk in chop(word, width - used.min(width - 1)) {
+                // One unbreakable run — a path, a hash, a data URI, an answer
+                // that has degenerated into one endless token — wrapped to the
+                // margin like any other text, so every row it becomes fits the
+                // screen. It used to be cut once and then left whole, which put
+                // a 134,018-byte row in front of a terminal whose own column
+                // arithmetic overflowed on it (session 698, 2026-11-02).
+                for chunk in chop(word, width - used.min(width - 1), width) {
                     push_word(&mut lines, &mut used, &chunk, span, width);
                 }
                 continue;
@@ -861,16 +866,26 @@ fn push_word(lines: &mut Vec<Vec<Span>>, used: &mut usize, word: &str, span: &Sp
     *used += ansi::width(word);
 }
 
-fn chop(word: &str, first: usize) -> Vec<String> {
+/// One unbreakable run split into rows that fit: `first` columns on the row it
+/// starts on, `rest` on every row after it.
+///
+/// Every row is measured as it grows, so the result can never be wider than the
+/// measurement it was cut for — which is the whole point: a run of any length,
+/// however degenerate, becomes rows a terminal can draw.
+fn chop(word: &str, first: usize, rest: usize) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
+    let mut used = 0usize;
     let mut room = first.max(1);
     for c in word.chars() {
-        if ansi::width(&cur) + 1 > room {
+        let w = ansi::char_width(c);
+        if used > 0 && used + w > room {
             out.push(std::mem::take(&mut cur));
-            room = usize::MAX;
+            used = 0;
+            room = rest.max(1);
         }
         cur.push(c);
+        used += w;
     }
     if !cur.is_empty() {
         out.push(cur);
@@ -943,6 +958,84 @@ mod tests {
             .map(|l| ansi::plain(l))
             .collect::<Vec<_>>()
             .join("\n")
+    }
+
+    /// Session 698: the model's leaked tool syntax followed by 66,818 repeats of
+    /// `}"` — one row of 134,018 bytes. It reached a terminal as a single row,
+    /// wider than the terminal's own column arithmetic, and took the screen with
+    /// it. Every row of it is now one the screen can draw, and not one byte of
+    /// what the model wrote is thrown away to achieve that.
+    #[test]
+    fn a_degenerate_row_becomes_rows_the_screen_can_draw() {
+        let text = format!(
+            " to=functions.patch_file  *json\n{{\"action\":\"the model's own words\"}}{}",
+            "\"}".repeat(66_817)
+        );
+        for width in [80, 120, 40] {
+            let out = render_response(&text, width);
+            for (n, line) in out.lines.iter().enumerate() {
+                assert!(
+                    ansi::width(line) <= width,
+                    "row {n} is {} columns wide at width {width}",
+                    ansi::width(line)
+                );
+            }
+            let drawn = text_of(&out.lines);
+            assert!(
+                drawn.contains("to=functions.patch_file"),
+                "the model's own words survive"
+            );
+            // Every byte of the run is still drawn, wrapped: only the spaces a
+            // line break lands on are dropped, as for any wrapped paragraph.
+            assert_eq!(
+                drawn.matches('}').count(),
+                66_818,
+                "every repeated unit is still there, wrapped"
+            );
+        }
+    }
+
+    /// A legitimate 100 KB base64 data URI is one unbroken run too. It is not a
+    /// loop and nothing may be cut from it: the same wrapping that makes a
+    /// degenerate row drawable must keep this one whole.
+    #[test]
+    fn a_long_data_uri_is_wrapped_whole_and_never_cut() {
+        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut uri = String::from("background-image: url(\"data:image/png;base64,");
+        let mut seed = 7u32;
+        for _ in 0..100_000 {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+            uri.push(alphabet.as_bytes()[(seed >> 16) as usize % alphabet.len()] as char);
+        }
+        uri.push_str("\");");
+        let out = render_response(&uri, 90);
+        for line in &out.lines {
+            assert!(ansi::width(line) <= 90, "a row overran the measure");
+        }
+        let drawn: String = text_of(&out.lines)
+            .chars()
+            .filter(|c| *c != '\n' && *c != ' ')
+            .collect();
+        let whole: String = uri.chars().filter(|c| *c != ' ').collect();
+        assert_eq!(drawn, whole, "every byte of the data URI survived");
+    }
+
+    /// A single token that is exactly as wide as the measure, and one that is
+    /// one column wider, both come out as rows that fit.
+    #[test]
+    fn the_margin_itself_is_never_overrun() {
+        for len in [80usize, 81, 160, 161] {
+            let token = "x".repeat(len);
+            let out = render_response(&token, 80);
+            for line in &out.lines {
+                assert!(ansi::width(line) <= 80, "{len}: {}", ansi::width(line));
+            }
+            assert_eq!(
+                text_of(&out.lines).replace('\n', ""),
+                token,
+                "{len}: the token is intact"
+            );
+        }
     }
 
     #[test]

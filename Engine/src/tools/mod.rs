@@ -42,14 +42,12 @@ pub mod create;
 pub mod discovery;
 pub mod find;
 pub mod inspect;
-#[path = "MonitoringBg.rs"]
-pub mod monitoring;
 pub mod notice;
 pub mod patch;
+pub mod process_control;
 #[path = "ReadMcpResource.rs"]
 pub mod resource;
 pub mod search;
-pub mod send_input;
 pub mod terminal;
 pub mod track;
 pub mod web_fetch;
@@ -101,40 +99,25 @@ pub(super) struct ProcessOutput {
 }
 
 impl ProcessOutput {
-    /// Rune's word about the process, ahead of what the capture has to say:
-    /// it goes in the same `Additional information` field, never a second
-    /// envelope.
-    pub(super) fn inform_first(mut self, sentence: &str) -> ProcessOutput {
-        self.information.insert(0, sentence.to_string());
-        self
-    }
-
-    pub(super) fn into_outcome(mut self, report: Option<notice::Notice>) -> Outcome {
-        self.outcome.content = match report {
-            Some(mut report) => {
-                if !self.information.is_empty() {
-                    report = report.field("Additional information", self.information.join(" "));
-                }
-                if self.outcome.content.is_empty() {
-                    report.render()
-                } else {
-                    format!("{}\n\n{}", report.render(), self.outcome.content)
-                }
-            }
-            None => {
-                let notices: Vec<_> = self
-                    .information
-                    .iter()
-                    .map(|text| notice::inline(text))
-                    .collect();
-                if notices.is_empty() {
-                    self.outcome.content
-                } else if self.outcome.content.is_empty() {
-                    notices.join("\n")
-                } else {
-                    format!("{}\n\n{}", notices.join("\n"), self.outcome.content)
-                }
-            }
+    /// The result as the model reads it: Rune's notices, one line each, then
+    /// the tool's own output.
+    ///
+    /// The `Key: value` envelope this used to write belongs to the background
+    /// report, and the report is gone (owner, 2026-11-03): a task's state and
+    /// its output arrive as its own `<system_notification>`, so no tool writes
+    /// a field block any more.
+    pub(super) fn into_outcome(mut self) -> Outcome {
+        let notices: Vec<_> = self
+            .information
+            .iter()
+            .map(|text| notice::inline(text))
+            .collect();
+        self.outcome.content = if notices.is_empty() {
+            self.outcome.content
+        } else if self.outcome.content.is_empty() {
+            notices.join("\n")
+        } else {
+            format!("{}\n\n{}", notices.join("\n"), self.outcome.content)
         };
         self.outcome
     }
@@ -165,7 +148,7 @@ impl Outcome {
         results: &std::path::Path,
     ) -> Outcome {
         Self::capture_process_output(summary, payload, metadata, config, section, tool, results)
-            .into_outcome(None)
+            .into_outcome()
     }
 
     pub(super) fn capture_process_output(
@@ -724,8 +707,7 @@ impl Registry {
                     Arc::clone(&settings),
                 )),
                 Arc::new(terminal::TerminalUse::new(Arc::clone(&limits))),
-                Arc::new(monitoring::ManageProcess(Arc::clone(&limits))),
-                Arc::new(send_input::TerminalSendInput),
+                Arc::new(process_control::ProcessControl),
                 Arc::new(track::TrackTasks),
                 Arc::new(questions::AskUserQuestions),
                 Arc::new(create::CreateFile(Arc::clone(&limits))),
@@ -896,6 +878,100 @@ pub fn outside_paths(args: &Value, fields: &[&str]) -> Vec<String> {
     out
 }
 
+/// Where a path pattern's search runs — `find_files`' pattern, `search_text`'s
+/// include: the folder the pattern names before its first wildcard, reached
+/// through the jail like any path a tool is given, and the glob matched below
+/// it. A pattern with no `/` matches a name at any depth of the workspace; one
+/// with a `/`, relative or absolute, is matched as written.
+///
+/// One root, the workspace, unless the pattern names another (owner,
+/// 2026-11-03: the tools lost their `path`, and a folder is part of the
+/// pattern). The walk starts in the named folder instead of the workspace
+/// root: what it finds is what a walk of the whole workspace filtered by the
+/// pattern finds, but the entry budget is spent there, not in every other
+/// folder first, and a folder no walk enters on its own (`.git`, `.rune`) is
+/// searched when the pattern names it.
+pub struct Scope {
+    /// Where the walk starts.
+    pub dir: std::path::PathBuf,
+    /// Matched against each path below `dir`; `None` matches every file.
+    pub glob: Option<crate::scan::glob::Glob>,
+    /// The pattern is one file's own path and that file is there: the search
+    /// is that file alone, not a walk of its folder.
+    pub file: Option<std::path::PathBuf>,
+}
+
+impl Scope {
+    /// Every file of the workspace.
+    pub fn workspace(jail: &crate::jail::Jail) -> Scope {
+        Scope {
+            dir: jail.root().to_path_buf(),
+            glob: None,
+            file: None,
+        }
+    }
+
+    pub fn of(jail: &crate::jail::Jail, pattern: &str) -> Result<Scope> {
+        use crate::scan::glob::{is_literal, split_walk_root, Glob};
+        let pattern = pattern.trim();
+        let (root, rest) = split_walk_root(pattern);
+        if root.is_empty() {
+            let glob = if rest.contains('/') {
+                Glob::new(rest)
+            } else {
+                Glob::new(&format!("**/{rest}"))
+            };
+            return Ok(Scope {
+                dir: jail.root().to_path_buf(),
+                glob: Some(glob),
+                file: None,
+            });
+        }
+        let dir = jail.resolve(root)?;
+        // A link is never followed — the walk would not have followed it
+        // either — so only a regular file is taken as the one to search.
+        let file = (!rest.is_empty() && is_literal(rest))
+            .then(|| dir.join(rest))
+            .filter(|path| std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file()));
+        Ok(Scope {
+            dir,
+            glob: Some(Glob::new(rest)),
+            file,
+        })
+    }
+}
+
+/// What a search that stopped at the person's scan bounds says: which bound,
+/// that some files were not looked at, and how to look at them — never a
+/// result that only seems complete (`scan.max_entries`, `scan.max_depth`).
+pub fn walk_stopped(
+    config: &crate::settings::configuration::Shared,
+    stats: &crate::scan::walk::Stats,
+    narrow: &str,
+) -> Option<String> {
+    let entries = || {
+        format!(
+            "scan.max_entries ({} files)",
+            config.number("scan.max_entries")
+        )
+    };
+    let depth = || {
+        format!(
+            "scan.max_depth ({} folders deep)",
+            config.number("scan.max_depth")
+        )
+    };
+    let bound = match (stats.too_many, stats.too_deep) {
+        (true, true) => format!("{} and {}", entries(), depth()),
+        (true, false) => entries(),
+        (false, true) => depth(),
+        (false, false) => return None,
+    };
+    Some(notice::inline(&format!(
+        "The search stopped at {bound} before every file was looked at; {narrow}"
+    )))
+}
+
 pub fn action_of(args: &Value) -> &str {
     args.get("action").and_then(|v| v.as_str()).unwrap_or("")
 }
@@ -981,6 +1057,95 @@ pub fn ensure_action(args: &mut Value, tool: &dyn Tool) {
     }
 }
 
+/// How long the one sentence a call carries may be.
+///
+/// `action` is a label the person and the classifier read before anything runs,
+/// not payload. A paragraph there is a mistake, but refusing the call costs a
+/// whole round trip for a field no tool reads — so the sentence is cut, never
+/// the call. The history row keeps exactly what the model sent minus the tail.
+pub const ACTION_MAX: usize = 200;
+
+/// Fold the spelling a model reaches for into the argument this build declares.
+///
+/// Measured (audit 2026-11-01): a call written by another agent's habits arrives
+/// with `content` beside `text`, `pending` beside `todo`, or a question whose
+/// label sits under `label`. Every entry is the same argument under another
+/// name — never a different capability — folded before validation, the history
+/// row and the tool all read the arguments, so the call runs as if it had been
+/// written the declared way and nothing is ever lifted out of prose. A name
+/// that is nobody's synonym is still refused: a guess between two meanings is
+/// worse than an error.
+pub fn canonical_args(tool: &dyn Tool, args: &mut Value) {
+    let Some(map) = args.as_object_mut() else {
+        return;
+    };
+    match tool.name() {
+        "create_file" => fold_field(map, "content", "text"),
+        "track_tasks" => {
+            if let Some(tasks) = map.get_mut("tasks").and_then(Value::as_array_mut) {
+                for task in tasks {
+                    let Some(item) = task.as_object_mut() else {
+                        continue;
+                    };
+                    let folded = match item.get("status").and_then(Value::as_str) {
+                        Some("pending") => Some("todo"),
+                        Some("in_progress") => Some("doing"),
+                        Some("completed") => Some("done"),
+                        _ => None,
+                    };
+                    if let Some(status) = folded {
+                        item.insert("status".into(), json!(status));
+                    }
+                }
+            }
+        }
+        "ask_user_questions" => {
+            if let Some(list) = map.get_mut("questions").and_then(Value::as_array_mut) {
+                for question in list {
+                    let Some(item) = question.as_object_mut() else {
+                        continue;
+                    };
+                    fold_field(item, "label", "title");
+                    if item.get("type").is_none() {
+                        item.insert("type".into(), json!("single"));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    if let Some(Value::String(said)) = map.get_mut("action") {
+        if said.chars().count() > ACTION_MAX {
+            *said = said.chars().take(ACTION_MAX).collect();
+        }
+    }
+}
+
+/// The same field under the name another agent's tool gives it.
+///
+/// Adopted only where the declared field is absent or blank; a call that carries
+/// both (`content` empty beside a real `text`) keeps the declared one and drops
+/// the stray, so the strict schema does not refuse a call whose meaning is
+/// already clear.
+fn fold_field(item: &mut serde_json::Map<String, Value>, from: &str, to: &str) {
+    let Some(value) = item.get(from).cloned() else {
+        return;
+    };
+    let declared = item
+        .get(to)
+        .and_then(Value::as_str)
+        .is_some_and(|text| !text.trim().is_empty());
+    if declared {
+        item.remove(from);
+        return;
+    }
+    if value.as_str().is_some_and(|text| text.trim().is_empty()) {
+        return;
+    }
+    item.insert(to.to_string(), value);
+    item.remove(from);
+}
+
 /// The tool's own opening sentence — what it does, in the words it declares.
 fn first_sentence(description: &str) -> String {
     let trimmed = description.trim();
@@ -1005,7 +1170,18 @@ fn synonym(name: &str) -> Option<&'static str> {
         "inspect_files" | "read_file" | "read_files" | "read_image" => "inspect_file",
         "create_files" | "write_file" | "write_files" => "create_file",
         "patch_files" | "edit_file" | "edit_files" | "modify_file" => "patch_file",
-        "monitoring_bg" | "manage_processes" | "manage_process_list" => "manage_process",
+        // `manage_process` and `terminal_send_input` were this tool's two
+        // former names until 2026-11-03; a transcript, a stored row or a model
+        // that learned them still resolves to the one tool that replaced them.
+        "monitoring_bg"
+        | "manage_processes"
+        | "manage_process_list"
+        | "manage_process"
+        | "terminal_send_input"
+        | "send_terminal_input"
+        | "send_input"
+        | "kill_process"
+        | "stop_process" => "process_control",
         "terminal" | "run_command" | "run_terminal_cmd" | "bash" | "shell" => "terminal_use",
         "grep" | "search" | "search_file" => "search_text",
         "glob" | "find" | "find_file" => "find_files",
@@ -1056,6 +1232,10 @@ pub fn field_bool(item: &Value, key: &str, default: bool) -> bool {
     item.get(key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
 
+/// Short on purpose: this is read by every model on every request, and the two
+/// clauses say everything a longer instruction would.
+pub const ACTION_DESC: &str = "One short sentence: what you are about to do, and to what.";
+
 /// Shared structure, not fifteen copies of the agent's writing instruction.
 /// The system prompt owns how `action` is written; every schema still requires
 /// it first and validates the same nonempty bounded string.
@@ -1063,7 +1243,8 @@ pub fn action_field() -> Value {
     json!({
         "type": "string",
         "minLength": 1,
-        "maxLength": 200
+        "maxLength": 200,
+        "description": ACTION_DESC
     })
 }
 
@@ -1174,7 +1355,7 @@ mod tests {
         let mut values = crate::settings::configuration::Configuration::default()
             .values()
             .clone();
-        for section in ["terminal", "manage_process"] {
+        for section in ["terminal", "process_control"] {
             values[section]["max_output_chars"] = json!(100);
             values[section]["truncate_head_bytes"] = json!(100);
             values[section]["truncate_tail_bytes"] = json!(100);
@@ -1198,8 +1379,8 @@ mod tests {
             raw.chars().map(|c| Ok(c.to_string())),
             metadata,
             &config,
-            "manage_process",
-            "manage_process",
+            "process_control",
+            "process_control",
             &config.home.join("sessions/0/tools_result"),
         );
         // The saved copy's path differs per tool; everything else must not.
@@ -1217,7 +1398,7 @@ mod tests {
             normalized(&second.content),
             "chunk boundaries must not alter output"
         );
-        for tool in ["terminal_use", "manage_process"] {
+        for tool in ["terminal_use", "process_control"] {
             let dir = config.home.join("sessions/0/tools_result").join(tool);
             let files: Vec<_> = std::fs::read_dir(dir)
                 .unwrap()
@@ -1365,18 +1546,12 @@ mod tests {
         let registry = Registry::default();
         for blank in ["", "  ", "\t\n"] {
             for (name, mut args) in [
-                (
-                    "find_files",
-                    json!({"action":"find","pattern":"*.rs","path":blank}),
-                ),
+                ("find_files", json!({"action":"find","pattern":"*.rs"})),
                 (
                     "search_text",
-                    json!({"action":"search","pattern":"hello","path":blank,"include":blank}),
+                    json!({"action":"search","pattern":"hello","include":blank}),
                 ),
-                (
-                    "terminal_use",
-                    json!({"action":"run","command":"pwd","path":blank}),
-                ),
+                ("terminal_use", json!({"action":"run","command":"pwd"})),
                 (
                     "track_tasks",
                     json!({"action":"plan","tasks":[{"text":"first","status":"doing"},{"text":"later","status":blank}]}),
@@ -1439,11 +1614,10 @@ mod tests {
                 "discover_capabilities",
                 "find_files",
                 "inspect_file",
-                "manage_process",
                 "patch_file",
+                "process_control",
                 "read_mcp_resource",
                 "search_text",
-                "terminal_send_input",
                 "terminal_use",
                 "track_tasks",
                 "web_fetch",
@@ -1722,7 +1896,7 @@ mod tests {
     fn every_tool_validates_action_identically_without_repeating_its_instruction() {
         let registry = Registry::default();
         let expected = action_field();
-        assert!(expected.get("description").is_none());
+        assert_eq!(expected["description"], ACTION_DESC);
         for decl in registry.declarations() {
             assert_eq!(
                 decl.parameters["properties"]["action"], expected,
@@ -1751,6 +1925,92 @@ mod tests {
             .is_err());
     }
 
+    /// The spellings another agent's tools use, measured in the owner's sessions
+    /// (audit 2026-11-01): each one is the same argument under another name, so
+    /// the call runs instead of costing a round trip. Nothing else is forgiven —
+    /// a name that is nobody's synonym is still refused.
+    #[test]
+    fn the_spelling_another_agent_uses_is_folded_before_validation() {
+        let registry = Registry::default();
+        let create = registry.get("create_file").unwrap();
+        let mut args = json!({"action": "write it", "path": "README.md", "content": "hello"});
+        canonical_args(create.as_ref(), &mut args);
+        assert_eq!(args["text"], json!("hello"));
+        assert!(args.get("content").is_none(), "{args}");
+        create.validate(&args).unwrap();
+        // The measured shape: an empty `content` beside a real `text`.
+        let mut both = json!({"action":"write it","path":"a","content":"","text":"real"});
+        canonical_args(create.as_ref(), &mut both);
+        assert_eq!(both["text"], json!("real"));
+        assert!(both.get("content").is_none(), "{both}");
+        // A blank alias never becomes the body.
+        let mut blank = json!({"action":"write it","path":"a","content":"  "});
+        canonical_args(create.as_ref(), &mut blank);
+        assert!(blank.get("text").is_none(), "{blank}");
+        // Still a refusal, and still the schema's own words.
+        let mut invented = json!({"action":"write it","path":"a","body":"hello"});
+        canonical_args(create.as_ref(), &mut invented);
+        assert!(create.validate(&invented).is_err(), "{invented}");
+
+        let track = registry.get("track_tasks").unwrap();
+        let mut plan = json!({"action":"plan the work","tasks":[
+            {"text":"one","status":"in_progress"},
+            {"text":"two","status":"pending"},
+            {"text":"three","status":"completed"},
+            {"text":"four"}]});
+        canonical_args(track.as_ref(), &mut plan);
+        assert_eq!(plan["tasks"][0]["status"], json!("doing"));
+        assert_eq!(plan["tasks"][1]["status"], json!("todo"));
+        assert_eq!(plan["tasks"][2]["status"], json!("done"));
+        assert!(plan["tasks"][3].get("status").is_none(), "{plan}");
+        track.validate(&plan).unwrap();
+
+        let ask = registry.get("ask_user_questions").unwrap();
+        let mut form = json!({"action":"ask the owner","questions":[
+            {"question":"Which layout do you prefer for the new page?","label":"Layout","options":[
+                {"label":"A","description":"the dense one"},
+                {"label":"B","description":"the open one"}]},
+            {"question":"Which font?","type":"multiple","title":"Font","options":[
+                {"label":"A","description":"serif"}]}]});
+        canonical_args(ask.as_ref(), &mut form);
+        assert_eq!(form["questions"][0]["title"], json!("Layout"));
+        assert_eq!(form["questions"][0]["type"], json!("single"));
+        assert_eq!(form["questions"][1]["title"], json!("Font"));
+        assert_eq!(form["questions"][1]["type"], json!("multiple"));
+        ask.validate(&form).unwrap();
+        // A question with neither label nor title passes: `title` is a label the
+        // engine fills from the question itself, not a field to insist on.
+        let mut untitled = json!({"action":"ask","questions":[
+            {"question":"Which layout do you prefer for the page?","options":[
+                {"label":"A","description":"one"}]}]});
+        canonical_args(ask.as_ref(), &mut untitled);
+        ask.validate(&untitled).unwrap();
+        assert!(
+            untitled["questions"][0].get("title").is_none(),
+            "{untitled}"
+        );
+    }
+
+    /// The sentence a card shows is a label, not payload: a paragraph is cut to
+    /// the declared length instead of costing a whole round trip.
+    #[test]
+    fn a_sentence_too_long_to_read_is_cut_not_refused() {
+        let registry = Registry::default();
+        let tool = registry.get("inspect_file").unwrap();
+        let mut args = json!({"action": "x".repeat(400), "path": "a"});
+        assert!(
+            tool.validate(&args).is_err(),
+            "the schema still asks for less"
+        );
+        canonical_args(tool.as_ref(), &mut args);
+        assert_eq!(
+            args["action"].as_str().unwrap().chars().count(),
+            ACTION_MAX,
+            "cut, not refused"
+        );
+        tool.validate(&args).unwrap();
+    }
+
     #[test]
     fn a_name_the_model_reached_for_still_finds_the_tool() {
         let registry = Registry::default();
@@ -1767,6 +2027,128 @@ mod tests {
                 "{said} did not reach {meant}"
             );
         }
+    }
+
+    /// The two tools `process_control` replaced (owner, 2026-11-03) are still
+    /// names: an older session's transcript, a stored row and a model that
+    /// learned them all reach the one tool that does their work now — and no
+    /// registry holds them under their old names any more.
+    #[test]
+    fn every_former_name_of_process_control_reaches_it() {
+        let registry = Registry::default();
+        for said in [
+            "manage_process",
+            "manage_processes",
+            "manage_process_list",
+            "monitoring_bg",
+            "terminal_send_input",
+            "send_terminal_input",
+            "send_input",
+            "kill_process",
+            "stop_process",
+            "Manage_Process",
+            "TERMINAL_SEND_INPUT",
+        ] {
+            assert_eq!(
+                registry.get(said).unwrap().name(),
+                "process_control",
+                "{said} did not reach process_control"
+            );
+        }
+        for gone in ["manage_process", "terminal_send_input"] {
+            assert!(
+                !registry.names().contains(&gone),
+                "{gone} is a tool of its own again"
+            );
+        }
+        assert!(registry.names().contains(&"process_control"));
+    }
+
+    fn workspace(tag: &str) -> (std::path::PathBuf, crate::jail::Jail) {
+        let root = std::env::temp_dir().join(format!("rune-scope-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("src/ui")).unwrap();
+        std::fs::create_dir_all(root.join(".rune/skills/one")).unwrap();
+        std::fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(root.join("src/ui/draw.rs"), "// draw\n").unwrap();
+        std::fs::write(root.join(".rune/skills/one/SKILL.md"), "# one\n").unwrap();
+        let root = crate::platform::canonical(&root).unwrap();
+        let jail = crate::jail::Jail::new(&root).unwrap();
+        (root, jail)
+    }
+
+    /// A pattern's walk starts in the folders it names, a pattern that is one
+    /// file's path — relative or absolute — is that file, and a name with no
+    /// folder matches at any depth from the workspace root.
+    #[test]
+    fn a_pattern_is_searched_where_it_names() {
+        let (root, jail) = workspace("names");
+        let scope = Scope::of(&jail, "src/**/*.rs").unwrap();
+        assert_eq!(scope.dir, root.join("src"));
+        assert!(scope.glob.as_ref().unwrap().matches("ui/draw.rs"));
+        assert!(scope.file.is_none());
+
+        for one in [
+            "src/main.rs".to_string(),
+            root.join("src/main.rs").display().to_string(),
+        ] {
+            let scope = Scope::of(&jail, &one).unwrap();
+            assert_eq!(
+                scope.file.as_deref(),
+                Some(root.join("src/main.rs").as_path()),
+                "{one}"
+            );
+        }
+
+        let bare = Scope::of(&jail, "*.rs").unwrap();
+        assert_eq!(bare.dir, root);
+        assert!(bare.glob.as_ref().unwrap().matches("src/ui/draw.rs"));
+
+        // Named, a folder no walk enters on its own is searched.
+        let skills = Scope::of(&jail, ".rune/skills/**/SKILL.md").unwrap();
+        assert_eq!(skills.dir, root.join(".rune/skills"));
+        assert!(skills.glob.as_ref().unwrap().matches("one/SKILL.md"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A link is never followed by a walk, so a pattern naming one is not taken
+    /// as a file to search: what it points at may lie outside the workspace.
+    #[test]
+    fn a_pattern_naming_a_link_is_not_its_target() {
+        // A link needs a right Windows may not grant a test.
+        if crate::platform::OS == crate::platform::Os::Windows {
+            return;
+        }
+        let (root, jail) = workspace("link");
+        crate::platform::fixture::symlink("/etc/hostname", root.join("src/host")).unwrap();
+        let scope = Scope::of(&jail, "src/host").unwrap();
+        assert!(scope.file.is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// A walk cut at a bound says which bound and how to go on; one that ran
+    /// whole says nothing.
+    #[test]
+    fn a_walk_cut_at_its_bounds_says_so() {
+        let config = crate::settings::configuration::Shared::new(
+            crate::settings::configuration::Configuration::default(),
+        );
+        let stats = |too_many, too_deep| crate::scan::walk::Stats {
+            truncated: too_many || too_deep,
+            too_many,
+            too_deep,
+            ..Default::default()
+        };
+        assert_eq!(walk_stopped(&config, &stats(false, false), "x."), None);
+        let many = walk_stopped(&config, &stats(true, false), "name a folder.").unwrap();
+        assert_eq!(
+            many,
+            "<tool_notice>The search stopped at scan.max_entries (200000 files) before every file was looked at; name a folder.</tool_notice>"
+        );
+        let deep = walk_stopped(&config, &stats(false, true), "go.").unwrap();
+        assert!(deep.contains("scan.max_depth (32 folders deep)"), "{deep}");
+        let both = walk_stopped(&config, &stats(true, true), "go.").unwrap();
+        assert!(both.contains("200000 files) and scan.max_depth"), "{both}");
     }
 
     /// Separators and case are spelling and resolve on their own. A plural or a

@@ -41,7 +41,7 @@ pub fn current(rt: &Runtime, st: &SessionState, settings: &ModelSettings) -> Val
     let config = rt.limits.config.snapshot();
     let size = |key: &str| crate::media::human(config.number(key));
     let count = |key: &str| config.number(key).to_string();
-    vec![
+    let mut values = vec![
         ("date", crate::platform::local_date().unwrap_or_default()),
         ("model", settings.model.clone()),
         ("workspace", st.project.clone()),
@@ -101,8 +101,56 @@ pub fn current(rt: &Runtime, st: &SessionState, settings: &ModelSettings) -> Val
                 servers.join(", ")
             }
         }),
-    ]
+    ];
+    // The tasks still running. Named here because nothing else can name them
+    // after a compaction: `process_control` has no listing (owner, 2026-11-03),
+    // and the notification that announced an id is history by then. When they
+    // started, never for how long: a duration moves every second, and a value
+    // that moves makes every request a status change. Empty while none runs,
+    // which is told as `none` once the model holds a list ([`changes`]).
+    values.push(("background tasks", running_tasks(&st.background.running())));
+    values
 }
+
+/// `bg_1 (PID 42, started 2026-11-04 09:30:12, log /path); bg_2 (…)`, or
+/// nothing.
+fn running_tasks(tasks: &[crate::session::background::RunningTask]) -> String {
+    tasks
+        .iter()
+        .map(|task| {
+            format!(
+                "{} (PID {}, started {}, log {})",
+                task.task_id,
+                task.pid,
+                started(task.started_at),
+                task.log.display()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// When a task started, on the person's own clock; `unknown` for a record
+/// whose start nobody wrote.
+fn started(epoch_ms: i64) -> String {
+    (epoch_ms > 0)
+        .then(|| crate::platform::local_time(epoch_ms / 1000))
+        .flatten()
+        .map_or_else(
+            || "unknown".to_string(),
+            |t| {
+                format!(
+                    "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                    t.year, t.month, t.day, t.hour, t.minute, t.second
+                )
+            },
+        )
+}
+
+/// What a value that is gone is told as: a list the model holds whose last
+/// entry ended is not left standing (the model would point a later call at a
+/// task that is over).
+const GONE: &str = "none";
 
 /// A platform limitation matters before launch too: a quiet interactive
 /// command may need an explicit background request to be answered promptly.
@@ -177,13 +225,28 @@ pub struct Change {
 }
 
 /// Every value that differs from what the model holds.
+///
+/// An empty value is one there is nothing to say of now: never told while the
+/// model holds nothing for it, and told [`GONE`] once when it holds something —
+/// the last background task ending is a change, and a list left as it was
+/// would name tasks that are over.
 pub fn changes(held: &Held, now: &Values) -> Vec<Change> {
     now.iter()
-        .filter(|(name, value)| held.get(*name) != Some(value))
-        .map(|(name, value)| Change {
-            name,
-            now: value.clone(),
-            before: held.get(*name).cloned(),
+        .filter_map(|(name, value)| {
+            let before = held.get(*name);
+            if value.is_empty() {
+                let before = before.filter(|b| !b.is_empty() && b.as_str() != GONE)?;
+                return Some(Change {
+                    name,
+                    now: GONE.to_string(),
+                    before: Some(before.clone()),
+                });
+            }
+            (before != Some(value)).then(|| Change {
+                name,
+                now: value.clone(),
+                before: before.cloned(),
+            })
         })
         .collect()
 }
@@ -330,6 +393,65 @@ mod tests {
         assert_eq!(seconds(std::time::Duration::from_secs(120)), "120s");
         assert_eq!(seconds(std::time::Duration::from_millis(1500)), "1.5s");
         assert_eq!(seconds(std::time::Duration::ZERO), "none");
+    }
+
+    /// The bug of 2026-11-04: the list of running tasks was only ever told
+    /// while it held one, so when the last task ended the model kept the old
+    /// list and could point a later call at a task that was over. Gone is
+    /// told once, as `none`; a list the model never held is never told.
+    #[test]
+    fn the_last_task_ending_is_told_once_as_none() {
+        let running = vec![(
+            "background tasks",
+            "bg_1 (PID 42, started 2026-11-04 09:30:12, log /x/bg_1.txt)".to_string(),
+        )];
+        let none = vec![("background tasks", String::new())];
+        let seed = context_row(1, stored(&running));
+        let held_now = held(None, &[&seed]);
+        let gone = changes(&held_now, &none);
+        assert_eq!(gone.len(), 1);
+        assert_eq!(
+            render_update(&gone),
+            "<status_update>\nbackground tasks: none (was bg_1 (PID 42, started 2026-11-04 09:30:12, log /x/bg_1.txt))\n</status_update>"
+        );
+        let told = context_row(2, stored_changes(&gone));
+        assert!(
+            changes(&held(None, &[&seed, &told]), &none).is_empty(),
+            "said once"
+        );
+        // Never held: nothing to take back, and nothing in the opening block.
+        assert!(changes(&Held::new(), &none).is_empty());
+        assert_eq!(render(&none), "<status>\n\n</status>");
+        // A task that starts after `none` is a change again.
+        let again = changes(&held(None, &[&seed, &told]), &running);
+        assert_eq!(again.len(), 1);
+        assert_eq!(again[0].before.as_deref(), Some("none"));
+    }
+
+    /// A task is named with when it started, on the person's clock, and a
+    /// record with no start says so rather than 1970.
+    #[test]
+    fn a_running_task_is_named_with_its_start() {
+        let task = |started_at| crate::session::background::RunningTask {
+            task_id: "bg_9".into(),
+            pid: 7,
+            log: std::path::PathBuf::from("/x/bg_9.txt"),
+            started_at,
+        };
+        assert_eq!(
+            running_tasks(&[task(0)]),
+            "bg_9 (PID 7, started unknown, log /x/bg_9.txt)"
+        );
+        let named = running_tasks(&[task(1_700_000_000_000), task(1_700_000_060_000)]);
+        let at = crate::platform::local_time(1_700_000_000).unwrap();
+        assert!(
+            named.starts_with(&format!(
+                "bg_9 (PID 7, started {:04}-{:02}-{:02} {:02}:{:02}:{:02}, log /x/bg_9.txt); bg_9",
+                at.year, at.month, at.day, at.hour, at.minute, at.second
+            )),
+            "{named}"
+        );
+        assert_eq!(running_tasks(&[]), "");
     }
 
     /// A value read from outside (a workspace path, a model name) cannot close

@@ -13,9 +13,9 @@ Location: Settings → Tools → FIND FILES. Scope: global.
 Open a row, edit and Apply. Use default restores its default. Inspect with `rune -config explain <key>`; use `rune -config set <key> <value>` or `rune -config reset <key>` only for an intended global change.
 
 ## Effects and risks
-File-scan depth/work limits also bound the search independently. Ignore files and hidden names do not generally hide results; .git and .rune are skipped by these searches. An incomplete-search notice means there may be more matches. Do not claim a file cannot exist just because a limited search did not find it.
+File-scan depth/work limits also bound the search independently. Ignore files and hidden names do not generally hide results; .git and .rune are searched only when the pattern names a folder inside them. An incomplete-search notice means there may be more matches. Do not claim a file cannot exist just because a limited search did not find it.
 
-Larger values can cost more search time/output context; smaller values can miss useful results. Narrow the directory/pattern when possible. To find content rather than names, use [search text](search-text.md).
+Larger values can cost more search time/output context; smaller values can miss useful results. Name a folder in the pattern (such as src/**/*.rs) when possible: the search then starts there. To find content rather than names, use [search text](search-text.md).
 
 ## Default and input reference
 

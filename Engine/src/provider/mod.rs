@@ -293,6 +293,9 @@ pub enum Chunk {
         wait_ms: u64,
         rotated: bool,
         reason: String,
+        /// The failure as it arrived, one line, beside the short `reason`: the
+        /// log line keeps what actually failed, never the category alone.
+        error: String,
     },
     /// Everything streamed since the last attempt began is void: that attempt
     /// failed and the next one starts over. A consumer drops the partial text,

@@ -226,6 +226,24 @@ fn parse_chunk(c: &Value) -> Result<Chunk> {
             args,
         });
     }
+    if let Some(r) = c.get("retrying") {
+        return Ok(Chunk::Retrying {
+            attempt: r.get("attempt").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
+            of: r.get("of").and_then(|v| v.as_u64()).unwrap_or(1) as u32,
+            wait_ms: r.get("wait_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+            rotated: r.get("rotated").and_then(|v| v.as_bool()).unwrap_or(false),
+            reason: r
+                .get("reason")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unavailable")
+                .to_string(),
+            error: r
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string(),
+        });
+    }
     if let Some(u) = c.get("usage") {
         return Ok(Chunk::Usage {
             details: crate::provider::UsageDetails {

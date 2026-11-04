@@ -870,7 +870,7 @@ fn denied_human_permission_never_calls_reviewer_or_writes() {
 }
 
 #[test]
-fn manage_process_is_reviewed_in_auto_instead_of_default_excluded() {
+fn process_control_is_reviewed_in_auto_instead_of_default_excluded() {
     let mut h = Harness::new("manage-review", false, 60000);
     std::fs::write(
         h.project.join("CLASSIFIER.md"),
@@ -878,14 +878,17 @@ fn manage_process_is_reviewed_in_auto_instead_of_default_excluded() {
     )
     .unwrap();
     h.auto();
-    assert!(h.invoke(
+    // It reaches the tool, which is what review means here: the task id does
+    // not exist in this harness, so the tool itself is what answers.
+    let (_, summary) = h.submit(
         42,
-        "manage_process",
-        json!({"action":"report","process_id":"all"})
-    ));
+        "process_control",
+        json!({"action":"stop it","process_id":"bg_x","do":"stop"}),
+    );
+    assert!(summary.contains("not tracked"), "{summary}");
     assert!(h.input().messages[0]
         .content
-        .contains("Tool: manage_process"));
+        .contains("Tool: process_control"));
 }
 
 #[test]

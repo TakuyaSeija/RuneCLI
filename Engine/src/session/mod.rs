@@ -16,11 +16,13 @@ pub mod auxiliary;
 #[path = "BackgroundTask.rs"]
 pub mod background;
 pub mod background_log;
+pub mod background_report;
 pub mod cache_watch;
 pub mod call;
 pub mod compact;
 pub(crate) mod compact_input;
 pub mod context;
+pub mod degeneration;
 pub mod file_changes;
 pub mod live;
 pub mod log;
@@ -361,7 +363,14 @@ impl SessionState {
             memory_written: AtomicBool::new(false),
             sources_known: Mutex::new(Default::default()),
             attachment_prints: Default::default(),
-            background: Arc::new(background::BackgroundTaskManager::new()),
+            background: {
+                // A wake is built where nobody can ask for a limit afterwards
+                // (`process_control.*`), so the session hands the live
+                // configuration over once, here.
+                let background = Arc::new(background::BackgroundTaskManager::new());
+                background.set_config(n.config.clone());
+                background
+            },
             configuration_seen: std::sync::atomic::AtomicU64::new(n.config.generation()),
         }
     }
@@ -760,6 +769,18 @@ impl SessionState {
         let mut admission = panic::lock(&self.admission);
         queued.append(&mut admission.queue);
         admission.queue = queued;
+    }
+
+    /// How many characters of Rune's own notifications wait unread in the
+    /// queue: what the next request carries already, so a notification raised
+    /// now spends less of the output ceiling (`background_report`).
+    pub fn queued_from_rune(&self) -> usize {
+        panic::lock(&self.admission)
+            .queue
+            .iter()
+            .filter(|queued| queued.origin == Origin::Rune)
+            .map(|queued| queued.text.chars().count())
+            .sum()
     }
 
     /// Take a notification of Rune's back out of the queue while it still

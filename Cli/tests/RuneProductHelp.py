@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -56,6 +57,37 @@ with tempfile.TemporaryDirectory(prefix="ProductHelp-", dir=BASE) as temp:
     assert next(s for s in listed["skills"] if s["id"] == help_skill["id"])["disabled"]
     run("-skills", "enable", help_skill["id"])
     print("PASS fresh home, standalone binary, official discovery/show and disable/enable")
+
+    # Owner, 2026-10-30: an install without a scope stays with its project,
+    # never mixed into every other one; an update keeps nothing beside it; and
+    # the official help's name is never taken, by an install or by a copy.
+    def write_skill(folder, name, text):
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text(f"---\nname: {name}\ndescription: Fixture guide\n---\n{text}\n")
+    source = base / "sources" / "team-style"
+    write_skill(source, "team-style", "Follow the team style.")
+    installed = json.loads(run("-skills", "install", str(source)))
+    assert installed["scope"] == "project" and "approval_required" not in installed, installed
+    assert os.path.samefile(installed["installed"], project / ".rune" / "skills" / "team-style")
+    assert not (home / "skills").exists(), "nothing was offered to every other project"
+    updated = json.loads(run("-skills", "update", str(source)))
+    assert updated["replaced"] is True
+    assert [p.name for p in (project / ".rune" / "skills").iterdir()] == ["team-style"], "an update keeps no copy beside it"
+    personal = json.loads(run("-skills", "install", str(source), "--scope", "user"))
+    assert personal["scope"] == "user"
+    assert os.path.samefile(personal["installed"], home / "skills" / "team-style")
+    official_name = help_skill["name"]
+    write_skill(base / "sources" / official_name, official_name, "Not the official help.")
+    for scope in ("user", "project"):
+        run("-skills", "install", str(base / "sources" / official_name), "--scope", scope, ok=False)
+    assert not (home / "skills" / official_name).exists()
+    write_skill(project / ".rune" / "skills" / official_name, official_name, "Not the official help.")
+    named = [s for s in json.loads(run("-skills", "list"))["skills"] if s["name"] == official_name]
+    assert sorted((s["id"] == help_skill["id"], s["shadowed"]) for s in named) == [(False, True), (True, False)], named
+    assert "Rune user settings guide" in json.loads(run("-skills", "show", official_name))["content"]
+    shutil.rmtree(project / ".rune")
+    shutil.rmtree(home / "skills")
+    print("PASS installs stay with their project unless --scope user, updates keep no copy, the official name is never taken")
 
     # An old home gets the managed bundle but keeps its chosen configuration/personal files.
     upgraded = base / "old-home"

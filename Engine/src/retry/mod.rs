@@ -55,6 +55,10 @@ pub struct Waiting {
     pub rotated: bool,
     /// Human-readable reason for the retry (e.g. rate limit, bad request, connection failure).
     pub reason: String,
+    /// The failure as it arrived, on one line: the session log keeps this, so a
+    /// person reading `/logs` is told what actually happened and not the
+    /// category `reason` names it by.
+    pub error: String,
 }
 
 /// What a failure means for the next attempt.
@@ -107,6 +111,9 @@ pub fn run<T>(
         }
 
         let reason = reason_for(&error);
+        // Built once, not once per countdown tick: the sentence the log keeps
+        // is the provider's own, never a category standing in for it.
+        let failure = one_line(&error.to_string());
         let backoff = backoff(
             retries,
             config.duration("retry.initial_delay"),
@@ -143,6 +150,7 @@ pub fn run<T>(
                 wait,
                 rotated,
                 reason: reason.clone(),
+                error: failure.clone(),
             }) {
                 Go::On => None,
                 Go::Cancel => Some(Error::Cancelled),
@@ -166,6 +174,12 @@ pub fn run<T>(
             }
         }
     }
+}
+
+/// A failure as one line for the log: white space collapsed, so a provider's
+/// multi-line body stays one sentence in a panel that draws one row per line.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Describe the specific failure condition for user status display across all error types.
@@ -256,6 +270,37 @@ fn backoff(attempt: u32, step: Duration, cap: Duration) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_retry_carries_the_failures_own_words_beside_its_category() {
+        let s = shared("purity", r#"{"p":["k1","k2"]}"#);
+        let mut seen = None;
+        let mut first = true;
+        let out = run(
+            &s,
+            Some("p"),
+            &mut |w| {
+                seen = Some(w);
+                Go::On
+            },
+            &mut || {
+                if first {
+                    first = false;
+                    Err(crate::net::rejected(
+                        429,
+                        r#"{"error":{"message":"slow down\nthere"}}"#,
+                    ))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+        assert!(out.is_ok(), "{out:?}");
+        let w = seen.expect("the wait was announced");
+        assert_eq!(w.reason, "Rate limited (HTTP 429)");
+        assert!(w.error.contains("slow down there"), "{}", w.error);
+        assert!(!w.error.contains('\n'), "one line: {}", w.error);
+    }
 
     /// A backoff value handed to [`fault`]; any value works, it is only echoed.
     const STEP: Duration = Duration::from_secs(3);

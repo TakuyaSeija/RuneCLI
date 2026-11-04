@@ -158,7 +158,8 @@ pub fn discover(
                         source,
                         hash_of(package.to_string_lossy().as_bytes())
                     );
-                    let id = if builtin.as_ref() == Some(&package) {
+                    let official = builtin.as_ref() == Some(&package);
+                    let id = if official {
                         super::product::ID.to_string()
                     } else {
                         format!("{}:{}", meta.name, &hash_of(identity.as_bytes())[..16])
@@ -166,7 +167,12 @@ pub fn discover(
                     let disabled = settings
                         .project(project)
                         .is_some_and(|p| p.disabled_skills.contains(&id));
-                    let shadowed = !disabled && !names.insert(meta.name.clone());
+                    // Official help's name is the build's alone (owner,
+                    // 2026-10-30): another package of that name — hand-made,
+                    // or arriving with a cloned project — is never offered in
+                    // its place, only opened by its exact id.
+                    let reserved = !official && meta.name == super::product::NAME;
+                    let shadowed = !disabled && (reserved || !names.insert(meta.name.clone()));
                     found.push(Skill {
                         id,
                         name: meta.name,
@@ -372,7 +378,11 @@ pub fn package_revision(root: &Path, settings: &Settings) -> Result<String> {
     Ok(hash_of(&serde_json::to_vec(&manifest)?))
 }
 
-/// Installs a complete verified package atomically; updates retain the previous directory as a backup.
+/// Installs a complete verified package atomically. An update swaps the new
+/// copy in whole and then removes the previous one rather than keeping it
+/// beside the skills, where every update left another hidden folder (inside
+/// a project, untracked files of its repository); a swap that fails puts the
+/// previous copy back (owner, 2026-10-30).
 pub fn install(
     source: &Path,
     destination_root: &Path,
@@ -478,6 +488,12 @@ pub fn install(
             }
         };
         let (meta, _) = metadata(&package.join("SKILL.md"), settings.max_skill_bytes, true)?;
+        if meta.name == super::product::NAME {
+            return Err(Error::invalid(format!(
+                "{} is the name of Rune's official help, which comes with Rune; give the skill another name",
+                super::product::NAME
+            )));
+        }
         let files = package_files(&package, settings)?;
         let target = destination_root.join(&meta.name);
         if target.exists() && !update {
@@ -513,12 +529,16 @@ pub fn install(
             }
             return Err(error.into());
         }
+        if update {
+            // Tidying only, like the staging folder: the update has succeeded.
+            let _ = super::product::discard(&backup);
+        }
         let manifest: Vec<_> = files
             .iter()
             .map(|(path, bytes)| (path, hash_of(bytes)))
             .collect();
         Ok(
-            json!({"installed":target,"revision":hash_of(&serde_json::to_vec(&manifest)?),"source":source,"backup":update.then_some(backup),"approval_required":true}),
+            json!({"installed":target,"revision":hash_of(&serde_json::to_vec(&manifest)?),"source":source,"replaced":update}),
         )
     })();
     let _ = std::fs::remove_dir_all(&staging);

@@ -10,7 +10,6 @@ use super::{
     ToolCtx, ToolDecl,
 };
 use crate::error::Result;
-use crate::scan::glob::Glob;
 use crate::scan::rx::Regex;
 use crate::scan::walk::{self, Options};
 
@@ -40,10 +39,6 @@ impl Tool for SearchText {
                         "type": "string",
                         "description": "The text to find, or a regular expression when regex is true. In both, | separates alternatives."
                     },
-                    "path": {
-                        "type": "string",
-                        "description": "The file or directory to search."
-                    },
                     "regex": {
                         "type": "boolean",
                         "description": "Treat pattern as a regular expression. Default false."
@@ -54,7 +49,7 @@ impl Tool for SearchText {
                     },
                     "include": {
                         "type": "string",
-                        "description": "Search only files whose name matches this glob, e.g. *.rs."
+                        "description": "Search only files whose name or path matches this glob, e.g. *.rs or Engine/src/main.rs."
                     },
                     "limit": {
                         "type": "integer",
@@ -68,7 +63,13 @@ impl Tool for SearchText {
     }
 
     fn reaches(&self, args: &Value) -> Vec<String> {
-        super::outside_paths(args, &["path"])
+        // `include` names the files searched, and so the one place outside the
+        // workspace a search can reach. `pattern` is the text looked for,
+        // never a place: a search for `/api/v1/users` or `// TODO` reads only
+        // the files `include` names, and asking the person to allow the text
+        // as a path (with "full access" for a leading `/`) refused every such
+        // search that ran beside another call.
+        super::outside_paths(args, &["include"])
     }
 
     fn preview(&self, args: &Value) -> String {
@@ -91,14 +92,17 @@ impl Tool for SearchText {
         let limit = field_opt_u64(args, "limit")
             .map(|l| (l as usize).min(max_matches))
             .unwrap_or(max_matches);
-        let include = super::field_given_str(args, "include").map(Glob::new);
-
         let needle = needle_of(pattern, as_regex, case_sensitive)?;
 
         let needle = needle.with_step_budget(self.0.config.number("scan.regex_steps") as u32);
-        let root = match super::field_given_str(args, "path") {
-            Some(p) => ctx.jail.resolve(p)?,
-            None => ctx.jail.root().to_path_buf(),
+        // One root, the workspace (owner, 2026-11-03): a `path` argument was
+        // read as a target by a model that meant a file, and `include` is what
+        // names one target today. The walk starts in the folder `include`
+        // names (`tools::Scope`), and an include that is one file's path —
+        // relative or absolute — searches that file alone.
+        let scope = match super::field_given_str(args, "include") {
+            Some(include) => super::Scope::of(ctx.jail, include)?,
+            None => super::Scope::workspace(ctx.jail),
         };
 
         let mut hits: Vec<String> = Vec::new();
@@ -107,42 +111,18 @@ impl Tool for SearchText {
         // (relative path, line number, why) for the lines that could not be
         // searched. Reported, never fatal.
         let mut skipped: Vec<(String, usize, String)> = Vec::new();
+        let mut stats = None;
 
-        if root.is_file() {
-            let mut here = Vec::new();
-            files_hit += scan_file(
-                &root,
-                &ctx.jail.display(&root),
-                &needle,
-                limit,
-                &mut hits,
-                &mut here,
-                &mut notices,
-                &self.0.config,
-            )?;
-            skipped.extend(
-                here.into_iter()
-                    .map(|(n, why)| (ctx.jail.display(&root).to_string(), n, why)),
-            );
-        } else {
+        {
             let mut err: Option<crate::error::Error> = None;
-            walk::walk(&root, &Options::configured(&self.0.config), |e| {
-                if let Some(g) = &include {
-                    let name = e.rel.rsplit('/').next().unwrap_or(&e.rel);
-                    if !(g.matches(&e.rel) || g.matches(name)) {
-                        return true;
-                    }
-                }
-                // Named as every tool names a workspace path: with `/` on
-                // every OS (`Jail::display`), never `build\Out.txt` beside
-                // `find_files`' `build/Out.txt`.
-                let rel = match e.path.strip_prefix(ctx.jail.root()) {
-                    Ok(_) => ctx.jail.display(&e.path),
-                    Err(_) => e.rel.clone(),
-                };
+            // Named as every tool names a path: from the workspace root with
+            // `/` on every OS (`Jail::display`), never `build\Out.txt` beside
+            // `find_files`' `build/Out.txt`, and whole when it lies outside.
+            let mut scan = |path: &std::path::Path| -> bool {
+                let rel = ctx.jail.display(path);
                 let mut here: Vec<(usize, String)> = Vec::new();
                 match scan_file(
-                    &e.path,
+                    path,
                     &rel,
                     &needle,
                     limit,
@@ -159,7 +139,28 @@ impl Tool for SearchText {
                 }
                 skipped.extend(here.into_iter().map(|(n, why)| (rel.clone(), n, why)));
                 hits.len() < limit && !ctx.cancelled()
-            })?;
+            };
+            match &scope.file {
+                Some(file) => {
+                    scan(file);
+                }
+                None => {
+                    stats = Some(walk::walk(
+                        &scope.dir,
+                        &Options::configured(&self.0.config),
+                        |e| {
+                            if scope
+                                .glob
+                                .as_ref()
+                                .is_some_and(|glob| !glob.matches(&e.rel))
+                            {
+                                return true;
+                            }
+                            scan(&e.path)
+                        },
+                    )?);
+                }
+            }
             if let Some(e) = err {
                 return Err(e);
             }
@@ -177,6 +178,18 @@ impl Tool for SearchText {
             notices.push_str(&super::notice::inline(&format!(
                 "The search stopped at {limit} matching lines."
             )));
+            notices.push('\n');
+        }
+        // A walk that ran out of its bounds searched less than there is, and
+        // says so: a silent stop reads as "not in the code".
+        if let Some(cut) = stats.as_ref().and_then(|stats| {
+            super::walk_stopped(
+                &self.0.config,
+                stats,
+                "name a folder in include, as in src/**/*.rs, to search only there.",
+            )
+        }) {
+            notices.push_str(&cut);
             notices.push('\n');
         }
         // The gap is named, so it can be searched by hand. A search that skips
@@ -338,6 +351,29 @@ fn scan_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The bug of 2026-11-04: the text looked for was read as a place, so a
+    /// search for `/api/v1/users` or `// the route` asked the person to allow
+    /// a path ("full access" for a leading `/`) and, beside another call, was
+    /// refused outright. Only `include` names a place the search reaches.
+    #[test]
+    fn the_text_looked_for_is_never_a_place() {
+        let tool = SearchText(std::sync::Arc::new(crate::limits::Limits::default()));
+        for pattern in ["/api/v1/users", "// the route", "~/notes", "/", "C:\\x"] {
+            assert!(
+                tool.reaches(&json!({"action": "find it", "pattern": pattern}))
+                    .is_empty(),
+                "{pattern}"
+            );
+        }
+        assert_eq!(
+            tool.reaches(&json!({"pattern": "TODO", "include": "/etc/*.conf"})),
+            vec!["/etc/*.conf".to_string()]
+        );
+        assert!(tool
+            .reaches(&json!({"pattern": "/x", "include": "src/**/*.rs"}))
+            .is_empty());
+    }
 
     #[test]
     fn search_text_defaults_to_regex_false_in_declaration() {

@@ -50,6 +50,13 @@ pub fn warn(rt: &Runtime, session: i64, source: &str, code: &str, message: impl 
     record(rt, session, LogLevel::Warn, source, code, message, None);
 }
 
+/// Something failed and ended the run. Written here as well as told to the
+/// frontend as `Event::Error`, so `/logs error` holds the cause itself and not
+/// only whatever the failure's own sentence happened to say.
+pub fn error(rt: &Runtime, session: i64, source: &str, code: &str, message: impl Into<String>) {
+    record(rt, session, LogLevel::Error, source, code, message, None);
+}
+
 /// One request's cost: what the provider counted, and what it charged when the
 /// price is known. One line per request, agent or auxiliary alike, so the log
 /// adds up to the bill.

@@ -357,17 +357,75 @@ fn product_help_is_discoverable_with_stable_identity_and_user_controls() {
         .insert(config::project_key(&project), project_settings);
     let (entries, _) = skills::discover(&settings, &f.home(), &project).unwrap();
     assert!(entries.iter().find(|e| e.id == ID).unwrap().disabled);
-    settings.projects.clear();
-    let personal = project.join(".rune/skills").join(NAME);
-    std::fs::create_dir_all(&personal).unwrap();
+}
+
+fn custom_copy(root: &Path, text: &str) {
+    let copy = root.join(NAME);
+    std::fs::create_dir_all(&copy).unwrap();
     std::fs::write(
-        personal.join("SKILL.md"),
-        format!("---\nname: {NAME}\ndescription: Custom help\n---\nMy instructions\n"),
+        copy.join("SKILL.md"),
+        format!("---\nname: {NAME}\ndescription: Custom help\n---\n{text}\n"),
     )
     .unwrap();
+}
+
+#[test]
+fn no_other_package_takes_the_official_help_name() {
+    let f = Fixture::new();
+    let project = f.0.join("project");
+    let mut settings = config::Settings {
+        portable_user_skills: Some(false),
+        ..Default::default()
+    };
+    // One arriving with a project (the Studio source is one), one in the
+    // person's own skills: both found, neither offered in its place.
+    custom_copy(&project.join(".rune/skills"), "Project instructions");
+    custom_copy(&f.home().join("skills"), "Personal instructions");
     let (entries, _) = skills::discover(&settings, &f.home(), &project).unwrap();
-    assert!(entries.iter().find(|e| e.id == ID).unwrap().shadowed);
-    assert!(entries.iter().any(|e| e.source == "rune" && !e.shadowed));
+    let builtin = entries.iter().find(|e| e.id == ID).unwrap();
+    assert!(!builtin.shadowed && !builtin.disabled);
+    let copies: Vec<_> = entries
+        .iter()
+        .filter(|e| e.name == NAME && e.id != ID)
+        .collect();
+    assert_eq!(copies.len(), 2);
+    assert!(copies.iter().all(|e| e.shadowed));
+
+    // Official help switched off does not hand its name to a copy.
+    let mut choices = config::Project {
+        root: project.clone(),
+        ..Default::default()
+    };
+    choices.disabled_skills.push(ID.into());
+    settings
+        .projects
+        .insert(config::project_key(&project), choices);
+    let (entries, _) = skills::discover(&settings, &f.home(), &project).unwrap();
+    assert!(entries
+        .iter()
+        .filter(|e| e.name == NAME)
+        .all(|e| e.disabled || e.shadowed));
+
+    // Nor can one be installed, or replace a copy already there (the Studio
+    // source), in any scope.
+    let source = f.0.join("source");
+    custom_copy(&source, "Replacement");
+    let fresh = f.0.join("fresh");
+    for (destination, update) in [(&fresh, false), (&project.join(".rune/skills"), true)] {
+        let error = skills::install(&source.join(NAME), destination, &settings, update)
+            .expect_err("the official name is refused");
+        assert!(matches!(error, Error::Invalid(_)), "{error}");
+    }
+    assert_eq!(std::fs::read_dir(&fresh).unwrap().count(), 0);
+    let kept = std::fs::read_to_string(project.join(".rune/skills").join(NAME).join("SKILL.md"));
+    assert!(kept.unwrap().contains("Project instructions"));
+    assert_eq!(
+        std::fs::read_dir(project.join(".rune/skills"))
+            .unwrap()
+            .count(),
+        1,
+        "nothing staged is left beside it"
+    );
 }
 
 #[test]
@@ -647,17 +705,21 @@ fn terminal_help_explains_execution_choices_and_failed_handoff() {
         "total omitted command and output lines",
         "engine's configured shell for the preview",
         "Bash/zsh use `$`, PowerShell uses `PS>`, and Cmd uses `>`",
-        "first `manage_process` report independently reads the saved log from the start",
+        "Everything after it arrives with the task's notification",
         "saved output is synchronized to disk",
         "including a question without a final newline",
         "live screen at the end of the file is updated in place",
     ] {
         assert!(text.contains(behavior), "terminal help misses {behavior}");
     }
-    let process = document("tools/manage-process.md").unwrap();
-    assert!(process.contains("first report reads the saved log from the start"));
-    assert!(process.contains("only new or changed output"));
-    assert!(process.contains("reads that file, not a hidden second output source"));
+    let process = document("tools/process-control.md").unwrap();
+    assert!(process.contains("the output the AI has not been given yet"));
+    // One task by its id, and no word of a listing (owner, 2026-11-03: `all`
+    // is gone, from every message).
+    assert!(process.contains("Each call names one task by its id"));
+    assert!(!process.contains("`all`"));
+    assert!(process.contains("never instructions to the AI"));
+    assert!(process.contains("types an answer into one that waits for input"));
     assert!(!text.contains("disk log remains empty"));
 }
 

@@ -947,7 +947,11 @@ impl App {
     /// Open or close one thought or one step.
     fn open_block(&mut self, at: usize) {
         match self.blocks.get_mut(at) {
-            Some(Block::User { open, .. } | Block::Thinking { open, .. }) => *open = !*open,
+            Some(
+                Block::User { open, .. }
+                | Block::Thinking { open, .. }
+                | Block::Notification { open, .. },
+            ) => *open = !*open,
             // Every step toggles, `track_tasks` included.
             //
             // It used to be excluded on purpose — the plan has a home in the
@@ -3629,6 +3633,66 @@ mod tests {
         );
         app.open_block(0);
         assert!(matches!(app.blocks[0], Block::Thinking { open: false, .. }));
+    }
+
+    /// The notification's cut row says "Click to open all", so a click there
+    /// must open it — the same promise a message keeps (owner, 2026-11-03) —
+    /// and the next frame must show it open. The click once changed the state
+    /// while the transcript kept the folded drawing: whether a notification is
+    /// open was not part of what the drawing cache compared, so the person
+    /// clicked and nothing on screen moved.
+    #[test]
+    fn the_promised_click_opens_a_folded_notification() {
+        use crate::ui::input::{Click, Mouse};
+        let mut d = test_driver("notification-open-all");
+        let mut app = App::for_test();
+        app.blocks.push(Block::Notification {
+            text: format!(
+                "<system_notification>bg_1: Completed; PID 42; finished in 3s; /work/bg_1.txt</system_notification>\n<process_output>\n{}</process_output>",
+                (0..12)
+                    .map(|i| format!("row {i}\n"))
+                    .collect::<String>()
+            ),
+            time: Some("15:30".into()),
+            open: false,
+        });
+        let frame = crate::ui::draw::compose_for_test(&mut app, 30, 100);
+        let row = frame
+            .iter()
+            .position(|line| crate::ui::ansi::plain(line).contains("Click to open all"))
+            .expect("the cut row must be on screen") as u16
+            + 1;
+        for kind in [Click::Press, Click::Release] {
+            app.on_key(
+                Key::Mouse(Mouse {
+                    kind,
+                    row,
+                    col: 10,
+                    modifiers: crate::ui::input::Modifiers::NONE,
+                }),
+                &mut d,
+            );
+        }
+        assert!(
+            matches!(&app.blocks[0], Block::Notification { open: true, .. }),
+            "the row says 'Click to open all' and clicking it opened nothing"
+        );
+        // The same transcript drawn again, as the next frame is: open now.
+        let after = crate::ui::draw::compose_for_test(&mut app, 30, 100);
+        let plain: Vec<String> = after.iter().map(|l| crate::ui::ansi::plain(l)).collect();
+        assert!(
+            !plain.iter().any(|line| line.contains("Click to open all")),
+            "opened, yet the frame still draws it folded: {plain:#?}"
+        );
+        assert!(
+            plain.iter().any(|line| line.contains("row 11")),
+            "the last row of the opened notification is not on screen: {plain:#?}"
+        );
+        assert!(
+            !plain.iter().any(|line| line.contains("process_output")),
+            "the output's envelope is the model's, never drawn: {plain:#?}"
+        );
+        d.engine.shutdown();
     }
 
     /// The plan's own row says `… 4 tasks cut. Click to open all`. It used to say

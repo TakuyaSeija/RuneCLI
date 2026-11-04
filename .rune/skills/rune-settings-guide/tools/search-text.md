@@ -1,6 +1,6 @@
 # Search text
 
-The search_text tool searches file contents and returns matching lines with their paths/line numbers. Literal mode is the default; | separates alternatives. Regex mode, case sensitivity, filename include pattern, directory/file and a smaller per-call result limit can be chosen where needed.
+The search_text tool searches file contents and returns matching lines with their paths/line numbers. Literal mode is the default; | separates alternatives. Regex mode, case sensitivity, an include pattern naming the files to search (such as *.rs, src/**/*.rs or one file's path) and a smaller per-call result limit can be chosen where needed. The searched text never names a place: only the include pattern does.
 
 Location: Settings → Tools → SEARCH TEXT. Scope: global.
 
@@ -16,9 +16,9 @@ Individual-file size uses `inspect_file.max_file_size`; there is no separate cur
 Select the row, edit and Apply. Use default restores the default. CLI inspection: `rune -config explain <key>`; for requested changes use `rune -config set <key> <value>` and reset with `rune -config reset <key>`.
 
 ## Effects and risks
-Long lines, result limits or skipped files can make a search incomplete. Read the notice before saying there are no further matches. Ignore files/hidden names are generally included; .git and .rune are skipped. Search can omit files that exceed read/work limits or are not text.
+Long lines, result limits or skipped files can make a search incomplete. Read the notice before saying there are no further matches. Ignore files/hidden names are generally included; .git and .rune are searched only when the include pattern names a folder inside them. Search can omit files that exceed read/work limits or are not text.
 
-Increasing limits can use more time and model context. It can also return private content if the chosen scope contains it. Prefer a narrower directory, include pattern or search term instead of raising limits blindly.
+Increasing limits can use more time and model context. It can also return private content if the chosen scope contains it. Prefer an include pattern that names a folder, or a narrower search term, instead of raising limits blindly: the search then starts in that folder.
 
 ## Default and input reference
 

@@ -46,7 +46,6 @@ pub(crate) fn arguments(out: &mut String, name: &str, args: &Value) {
             }
             let label = match (name, key.as_str()) {
                 ("terminal_use", "command") => "Command — exact shell text",
-                ("terminal_use", "path") => "Working directory",
                 ("terminal_use", "run_in_background") => "Start in background",
                 ("create_file" | "patch_file", "path") => "Target path",
                 ("create_file", "text") => "Text to write — complete",
@@ -60,13 +59,8 @@ pub(crate) fn arguments(out: &mut String, name: &str, args: &Value) {
             };
             field(out, label, &body);
         }
-        if name == "terminal_use" {
-            if crate::tools::field_given_str(args, "path").is_none() {
-                out.push_str("Working directory default: workspace root\n");
-            }
-            if !map.contains_key("run_in_background") {
-                out.push_str("Start in background default: false\n");
-            }
+        if name == "terminal_use" && !map.contains_key("run_in_background") {
+            out.push_str("Start in background default: false\n");
         }
     }
 }

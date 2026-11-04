@@ -33,7 +33,15 @@ impl Provider for Endpoint {
                 "fixture provider context rejection".into(),
             ));
         } else if main == 0 {
-            let thought = "Generated fixture reasoning. ".repeat(40_000);
+            // A large reasoning body, varied line by line: this fixture is about
+            // a thinking block far bigger than any context budget, never about a
+            // model repeating itself — an identical sentence forty thousand times
+            // is exactly the loop `session::degeneration` stops (`REPETITION_*`
+            // in `limits.rs`), and stopping it here would hang this test waiting
+            // for an answer nobody gives.
+            let thought: String = (0..40_000)
+                .map(|n| format!("Generated fixture reasoning line {n}, for size only. "))
+                .collect();
             sink(Chunk::Thinking(thought.clone()));
             sink(Chunk::Continuation(Continuation {
                 provider: request.settings.provider.clone(),

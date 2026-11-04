@@ -1,6 +1,14 @@
 {{define "content"}}
 <div class="shell docs-layout">
-  <aside class="docs-sidebar" aria-label="Documentation navigation">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="Documentation navigation">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
+      </div>
+      <button class="drawer-close" type="button" aria-label="Close the documentation menu"><span aria-hidden="true">&times;</span></button>
+    </div>
     <details class="docs-menu" open>
       <summary>Documentation <span class="meta">Contents</span></summary>
       <nav aria-label="Documentation">
@@ -23,10 +31,6 @@
       <h1>{{.Page.Label}}</h1>
       <p class="article-lead">{{.Page.Lead}}</p>
     </header>
-    <details class="article-contents">
-      <summary>On this page</summary>
-      <ol>{{range .Page.Headings}}<li><a href="#{{.ID}}">{{.Title}}</a></li>{{end}}</ol>
-    </details>
     <div class="prose">{{template "article" .}}</div>
     <nav class="docs-pagination" aria-label="Adjacent articles">
       {{with .Previous}}<a href="{{url .Route}}"><span>Previous</span><strong>{{.Label}}</strong></a>{{else}}<span></span>{{end}}

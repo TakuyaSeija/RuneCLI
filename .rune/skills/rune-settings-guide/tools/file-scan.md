@@ -10,7 +10,7 @@ Location: Settings → Tools → FILE SCAN. Scope: global, shared by find_files 
 
 Change: select a row, edit, Apply. Use default or `rune -config reset <key>` restores its default. Use `rune -config explain <key>` to inspect the current choice. New searches use the new limits.
 
-Risk: lower limits can leave searches incomplete; higher limits can increase time/resource use. A work-limit notice means there may be more results. Prefer a narrower path/pattern before increasing limits. Hidden/ignored names are generally included, except .git/.rune; there is no current hidden/ignore toggle.
+Risk: lower limits can leave searches incomplete; higher limits can increase time/resource use. A work-limit notice means there may be more results. A search starts in the folder its pattern names, so prefer a pattern that names one (such as src/**/*.rs) before increasing limits. Hidden/ignored names are generally included; .git/.rune are searched only when a pattern names a folder inside them; there is no current hidden/ignore toggle.
 
 ## Default and input reference
 

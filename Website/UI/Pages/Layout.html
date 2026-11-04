@@ -1,4 +1,4 @@
-{{define "rune-glyph"}}<svg class="brand-rune" viewBox="0 0 16 24" width="13" height="20" aria-hidden="true"><path d="M4 2.5v19M4 2.8l7.6 5.1L4 13M4 13l8.6 8.5"/></svg>{{end}}<!doctype html>
+{{define "brand-mark"}}<img class="brand-mark" src="{{asset "Images/Logo.png"}}" width="26" height="26" alt="" decoding="async">{{end}}<!doctype html>
 <html lang="en" data-theme="amber">
 <head>
   <meta charset="utf-8">
@@ -16,34 +16,36 @@
   <meta property="og:title" content="{{.Page.Title}}">
   <meta property="og:description" content="{{.Page.Lead}}">
   <meta property="og:url" content="{{.Canonical}}">
-  <link rel="icon" type="image/png" href="{{asset "Images/Icon.png"}}">
+  <link rel="icon" type="image/png" sizes="96x96" href="{{asset "Images/Icon.png"}}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{asset "Images/Icon-32.png"}}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{asset "Images/Icon-16.png"}}">
   <link rel="apple-touch-icon" href="{{asset "Images/AppleTouchIcon.png"}}">
   <link rel="preload" href="{{asset "Fonts/Inter.woff2"}}" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="{{asset "Fonts/InstrumentSerif.woff2"}}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{asset "Styles/Site.css"}}">
+  <script src="{{asset "Scripts/Restore.js"}}"></script>
   <script src="{{asset "Scripts/Site.js"}}" defer></script>
-  {{if eq .Page.Route ""}}<link rel="preload" href="{{asset "Fonts/InstrumentSerif-Italic.woff2"}}" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="{{asset "Styles/Home.css"}}">
+  {{if eq .Page.Route ""}}<link rel="stylesheet" href="{{asset "Styles/Home.css"}}">
   <link rel="stylesheet" href="{{asset "Styles/Terminal.css"}}">
   <script src="{{asset "Scripts/Terminal.js"}}" type="module"></script>
   <script src="{{asset "Scripts/TerminalInteraction.js"}}" defer></script>{{end}}
 </head>
-<body>
+<body{{if .Page.Section}} class="docs-page"{{end}}>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="top">
     <div class="top-row">
+      {{if .Page.Section}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Open the documentation menu"><span></span><span></span><span></span></button>{{end}}
       <a class="brand" href="{{url ""}}"{{if eq .Page.Route ""}} aria-current="page"{{end}}>
-        {{template "rune-glyph"}}
-        <span class="brand-name">RuneAgent</span>
-        <span class="brand-by">Atoryn Studio</span>
+        {{template "brand-mark"}}
+        <span class="brand-name-wrap"><span class="brand-name">RuneAgent</span><span class="brand-by">Atoryn Studio</span></span>
       </a>
       <nav class="nav" aria-label="Main">
         <a class="nav-link" href="{{url "docs"}}"{{if .Page.Section}} aria-current="page"{{end}}>Docs</a>
-        <a class="nav-cta" href="{{url "install"}}">Install</a>
+        <a class="nav-link" href="{{url "install"}}">Install</a>
       </nav>
     </div>
   </header>
+  {{if .Page.Section}}<div class="scrim"></div>{{end}}
 
   <main id="main" tabindex="-1">
 {{template "content" .}}
@@ -51,13 +53,13 @@
 
   <footer class="foot">
     <div class="foot-row">
-      <p class="foot-brand">{{template "rune-glyph"}}<span class="brand-name">RuneAgent</span><span class="foot-note">&copy; {{year}} Atoryn</span></p>
+      <p class="foot-brand"><a class="foot-home" href="{{url ""}}">{{template "brand-mark"}}<span class="brand-name">RuneAgent</span></a><span class="foot-note">&copy; {{year}} Atoryn</span></p>
       <nav class="foot-links" aria-label="More">
         {{- if .Latest}}
         <a href="{{url "changelog"}}"{{if eq .Page.Route "changelog"}} aria-current="page"{{end}}>Releases</a>
         {{- end}}
         <a href="{{url "license"}}"{{if eq .Page.Route "license"}} aria-current="page"{{end}}>License</a>
-        <a href="/">Atoryn</a>
+        <a href="{{.Parent}}">Atoryn</a>
       </nav>
     </div>
   </footer>

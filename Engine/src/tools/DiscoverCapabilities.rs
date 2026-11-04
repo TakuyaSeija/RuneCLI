@@ -16,7 +16,7 @@
 //!
 //! Rune's own tools: their declarations are already in every request. Listing
 //! them again invited a model trained on deferred tools to "load" a tool it
-//! could already call (session 407 spent a call "loading" `manage_process`).
+//! could already call (session 407 spent a call "loading" `process_control`).
 use super::{action_field, field_str, Outcome, Tool, ToolCtx, ToolDecl};
 use crate::Result;
 use serde_json::{json, Value};
@@ -29,7 +29,7 @@ impl Tool for DiscoverCapabilities {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Find capabilities not declared in this request: skills beyond <available_skills>, connected MCP tools with their input schemas, and MCP resources.".into(),
+            description: "Find capabilities not declared in this request: skills beyond <available_skills>, connected MCP tools with their input schemas, and MCP resources. An empty `servers` list in the answer means no MCP server is connected, so no MCP tool exists in this session.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,

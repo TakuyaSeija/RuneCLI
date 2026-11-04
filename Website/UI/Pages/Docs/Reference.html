@@ -1,6 +1,6 @@
 {{define "article"}}
-<!-- Generated from Rune 0.10.0 by Website/Tools/build_settings_reference.py: the source's field table, the binary and the official help agree on every factory value. Do not edit by hand. -->
-<p>Every setting Rune 0.10.0 reads from <code>rune.toml</code>, grouped the way the file groups them. Each entry gives the factory value, what the setting does in the program's own words, the values it accepts and when a change takes effect. Most have a row in Settings; the rest are changed with <code>rune -config set</code>.</p>
+<!-- Generated from Rune 0.11.4 by Website/Tools/build_settings_reference.py: the source's field table, the binary and the official help agree on every factory value. Do not edit by hand. -->
+<p>Every setting Rune 0.11.4 reads from <code>rune.toml</code>, grouped the way the file groups them. Each entry gives the factory value, what the setting does in the program's own words, the values it accepts and when a change takes effect. Most have a row in Settings; the rest are changed with <code>rune -config set</code>.</p>
 <p>A factory value is what applies until you choose otherwise; your own choices show with <code>rune -config explain &lt;key&gt;</code>. Reset a choice with <code>rune -config reset &lt;key&gt;</code>. Durations and sizes need their units, such as <code>"2m"</code> or <code>"16MiB"</code>; see <a href="{{url "docs/configuration"}}">Configuration file</a> for value formats.</p>
 <h2 id="terminal">Terminal</h2>
 <p>Explained in <a href="{{url "docs/terminal"}}">Terminal &amp; background work</a>.</p>
@@ -25,9 +25,9 @@
 <h2 id="processes">Background processes</h2>
 <p>Explained in <a href="{{url "docs/terminal"}}">Terminal &amp; background work</a>.</p>
 <dl class="ref ref-keys">
-<div id="manage_process.max_output_chars"><dt><code>manage_process.max_output_chars</code></dt><dd><p>Maximum model-visible payload characters for managing background processes.</p><p class="ref-facts"><span><b>Default</b> <code>30000</code></span><span><b>Accepts</b> Whole number 100–10000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
-<div id="manage_process.truncate_head_bytes"><dt><code>manage_process.truncate_head_bytes</code></dt><dd><p>Beginning payload bytes preserved when truncated.</p><p class="ref-facts"><span><b>Default</b> <code>1536</code></span><span><b>Accepts</b> Whole number 100–1000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
-<div id="manage_process.truncate_tail_bytes"><dt><code>manage_process.truncate_tail_bytes</code></dt><dd><p>Ending payload bytes preserved when truncated.</p><p class="ref-facts"><span><b>Default</b> <code>1536</code></span><span><b>Accepts</b> Whole number 100–1000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
+<div id="process_control.max_output_chars"><dt><code>process_control.max_output_chars</code></dt><dd><p>Maximum characters of a background task&#x27;s output carried in its notification.</p><p class="ref-facts"><span><b>Default</b> <code>30000</code></span><span><b>Accepts</b> Whole number 100–10000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
+<div id="process_control.truncate_head_bytes"><dt><code>process_control.truncate_head_bytes</code></dt><dd><p>Beginning payload bytes preserved when truncated.</p><p class="ref-facts"><span><b>Default</b> <code>1536</code></span><span><b>Accepts</b> Whole number 100–1000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
+<div id="process_control.truncate_tail_bytes"><dt><code>process_control.truncate_tail_bytes</code></dt><dd><p>Ending payload bytes preserved when truncated.</p><p class="ref-facts"><span><b>Default</b> <code>1536</code></span><span><b>Accepts</b> Whole number 100–1000000</span><span><b>Takes effect</b> live — applies on the next read, no restart</span></p></dd></div>
 </dl>
 <h2 id="files">Files and search</h2>
 <p>Explained in <a href="{{url "docs/tools"}}">Tools &amp; limits</a>.</p>

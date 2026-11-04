@@ -82,8 +82,14 @@ pub struct Stats {
     pub seen: usize,
     pub emitted: usize,
     pub skipped_ignored: usize,
-    /// True when the walk stopped because it hit `max_entries`.
+    /// True when the walk left something out at one of its bounds: either of
+    /// the two below.
     pub truncated: bool,
+    /// It stopped at `max_entries`: what it had not reached yet was never
+    /// looked at.
+    pub too_many: bool,
+    /// A folder deeper than `max_depth` was not entered.
+    pub too_deep: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -124,6 +130,7 @@ where
 {
     if depth > opts.max_depth {
         stats.truncated = true;
+        stats.too_deep = true;
         return Ok(true);
     }
 
@@ -148,6 +155,7 @@ where
         };
         if entries.len().saturating_add(stats.seen) >= scan_limit {
             stats.truncated = true;
+            stats.too_many = true;
             break;
         }
         let name = e.file_name().to_string_lossy().to_string();
@@ -158,6 +166,7 @@ where
     for (name, entry) in entries {
         if stats.seen >= scan_limit {
             stats.truncated = true;
+            stats.too_many = true;
             return Ok(false);
         }
         if name == ".git" || name == ".rune" {
@@ -222,6 +231,7 @@ where
         } else {
             if stats.emitted >= opts.max_entries {
                 stats.truncated = true;
+                stats.too_many = true;
                 return Ok(false);
             }
             stats.emitted += 1;
@@ -411,6 +421,32 @@ mod tests {
         .unwrap();
         assert_eq!(n, 2);
         assert!(stats.truncated);
+        assert!(stats.too_many && !stats.too_deep, "{stats:?}");
+    }
+
+    /// Which bound a walk stopped at is said apart, so a search can tell the
+    /// model what it left out and how to reach it.
+    #[test]
+    fn a_folder_too_deep_is_said_apart_from_too_many_entries() {
+        let dir = tree("deep");
+        let deep = dir.join("a/b/c/d");
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("far.txt"), b"x").unwrap();
+        let opts = Options {
+            max_depth: 1,
+            ..Options::default()
+        };
+        let stats = walk(&dir, &opts, |_| true).unwrap();
+        assert!(
+            stats.truncated && stats.too_deep && !stats.too_many,
+            "{stats:?}"
+        );
+        let opts = Options::default();
+        let stats = walk(&dir, &opts, |_| true).unwrap();
+        assert!(
+            !stats.truncated && !stats.too_deep && !stats.too_many,
+            "{stats:?}"
+        );
     }
 
     #[test]

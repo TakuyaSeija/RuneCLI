@@ -80,6 +80,47 @@ impl Tool for TerminalUse {
         true
     }
 
+    /// A working directory is not an argument of this tool (owner, 2026-11-03).
+    ///
+    /// It used to be, and the mistake it invited was measured five times
+    /// (sessions 701, 362 twice, 356 twice): a model naming the file its
+    /// command was about put that file's path here, the engine refused with
+    /// "… is not a directory", and the command never ran. The schema no longer
+    /// declares it, but the schema's own answer to an undeclared field —
+    /// "Additional properties are not allowed ('path' was unexpected)" — names
+    /// neither the mistake nor the way out, so the same shape stays answered
+    /// here, in the words that change the next call.
+    ///
+    /// A call that carries another tool's arguments says which tool it meant:
+    /// a range, a replacement or a body belongs to a file tool (measured
+    /// 2026-11-01: four such calls in one month).
+    fn validate(&self, args: &Value) -> Result<()> {
+        if let Some(key) = WORKING_DIR_KEYS
+            .iter()
+            .find(|key| args.get(**key).is_some())
+        {
+            return Err(Error::invalid(if a_file_tools_shape(args) {
+                format!(
+                    "`{key}` is not an argument of terminal_use, which runs a shell command: to read a file use inspect_file, to change one use patch_file, to list files use find_files."
+                )
+            } else {
+                format!(
+                    "`{key}` is not an argument of terminal_use, which runs a shell command: each call starts in the workspace root, so put `cd <dir> && ...` in `command`."
+                )
+            }));
+        }
+        let missing = super::validate_builtin(&self.declaration().parameters, args);
+        let Err(error) = missing else {
+            return Ok(());
+        };
+        if !error.to_string().contains("`command`") || !a_file_tools_shape(args) {
+            return Err(error);
+        }
+        Err(Error::invalid(
+            "`command` is missing: terminal_use runs a shell command and takes no file argument. To read a file use inspect_file, to change one use patch_file, to list files use find_files.",
+        ))
+    }
+
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "terminal_use".into(),
@@ -93,10 +134,6 @@ impl Tool for TerminalUse {
                     "command": {
                         "type": "string",
                         "description": "The shell script, preserving its original newlines and indentation. A leading ! here is shell syntax, not Rune's frontend-only manual authorization; do not add it to request that mode."
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "The command's working directory."
                     },
                     "run_in_background": {
                         "type": "boolean",
@@ -134,9 +171,6 @@ impl Tool for TerminalUse {
                     None => path,
                 });
             }
-        }
-        if let Some(path) = field_opt_str(args, "path").and_then(crate::perm::reach::in_argument) {
-            add(path);
         }
         out
     }
@@ -202,10 +236,11 @@ impl Tool for TerminalUse {
         }
         let command = field_str(args, "command")?;
         let run_in_bg = field_bool(args, "run_in_background", false);
-        let target_dir = match super::field_given_str(args, "path") {
-            Some(c) => ctx.jail.resolve(c)?,
-            None => ctx.jail.root().to_path_buf(),
-        };
+        // One working directory, always: the workspace root (owner,
+        // 2026-11-03). A directory that arrived as an argument was a file's
+        // path in every measured case, and `cd` inside the command is the
+        // shell's own way to say it.
+        let target_dir = ctx.jail.root().to_path_buf();
         if !target_dir.is_dir() {
             return Err(Error::invalid(format!(
                 "directory {} is not a directory",
@@ -268,8 +303,7 @@ impl Tool for TerminalUse {
                 return Ok(Outcome::new(summary, notice).with_detail(metadata));
             }
             // Nothing is known of it yet but that it outlived the timeout: the
-            // notice alone. Its output, from the start, is `manage_process`'s
-            // first report.
+            // notice alone. Its output, from the start, arrives with its wake.
             Ending::Moved(task) => {
                 let notice = super::notice::moved_to_background(
                     timeout.as_secs(),
@@ -355,7 +389,7 @@ enum Ending {
     Moved(Background),
     /// Blocked reading its terminal — waiting for someone to type — so it
     /// went to the background at once rather than at the timeout, where
-    /// `terminal_send_input` can answer it.
+    /// `process_control` can answer it.
     Waiting(Background, platform::InputWait),
 }
 
@@ -669,6 +703,17 @@ fn to_background(
     // Nobody types into a background task, and its terminal must be the
     // monitor's alone when an upgrade hands it on.
     *panic::lock(ctx.input) = None;
+    // What the model was given already. A command found waiting returns what
+    // it printed so far in this very result, which the model reads: its wakes
+    // say only what follows, never the question again. A launch has printed
+    // nothing yet, a move at the timeout returns no output, and a person's own
+    // command is read by nobody but its wake — those are told from the start.
+    let reported = (waiting.is_some() && ctx.reader == super::Reader::Model).then(|| {
+        crate::session::background::Reported {
+            log: position.stable,
+            tail: tail.clone(),
+        }
+    });
     ctx.background.register_started(BackgroundTaskInfo {
         task_id: task_id.clone(),
         pid,
@@ -678,11 +723,8 @@ fn to_background(
         status: BackgroundTaskStatus::Running,
         surfaced: false,
         answered: false,
-        wake_text: None,
         capture_note,
-        // Handoff can show output too; the first process report independently
-        // reads the saved file from its start, not the conversation's memory.
-        reported: None,
+        reported,
         log_position: Some(position),
         tail,
         screen: (shown != Default::default()).then_some(shown),
@@ -888,9 +930,59 @@ pub fn shell(value: &str) -> std::path::PathBuf {
     }
 }
 
+/// Every spelling a model has reached for when it meant "run this there".
+/// Each is answered with the same two ways out, since the intent behind them
+/// (a directory to start in, a file to act on) is the only thing to tell apart.
+const WORKING_DIR_KEYS: [&str; 5] = ["path", "cwd", "dir", "directory", "working_dir"];
+
+/// Whether the call looks like a file tool's, not a shell's.
+///
+/// A path alone is deliberately not enough: a model that meant a working
+/// directory sends one too ([`WORKING_DIR_KEYS`]). A line range, a
+/// replacement pair or a body is what only another tool declares.
+fn a_file_tools_shape(args: &Value) -> bool {
+    ["view_range", "old_str", "new_str", "text", "pattern"]
+        .iter()
+        .any(|key| args.get(*key).is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    /// A call carrying a file tool's arguments says which tool it meant; a
+    /// working directory says where the shell's own `cd` belongs (owner,
+    /// 2026-11-03: five measured calls sent a file's path here).
+    #[test]
+    fn a_working_directory_is_answered_with_the_way_out() {
+        let tool = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
+        let read = json!({"action":"read the loop","path":"Engine/src/provider/live.rs","view_range":[250,340]});
+        let said = tool.validate(&read).unwrap_err().to_string();
+        assert!(said.contains("inspect_file"), "{said}");
+        assert!(said.contains("runs a shell command"), "{said}");
+
+        // The measured shape: the command is right, the file it was about
+        // arrived as a directory.
+        for key in ["path", "cwd", "directory"] {
+            let wrong =
+                json!({"action":"run","command":"sed -n 1,9p WebsiteDev.sh", key: "WebsiteDev.sh"});
+            let said = tool.validate(&wrong).unwrap_err().to_string();
+            assert!(said.contains("`cd <dir> && ...`"), "{key}: {said}");
+            assert!(said.contains("workspace root"), "{key}: {said}");
+        }
+
+        // A real command is untouched, and one that only forgot the command
+        // keeps the schema's own words.
+        tool.validate(&json!({"action":"run","command":"ls"}))
+            .unwrap();
+        let bare = tool
+            .validate(&json!({"action":"run"}))
+            .unwrap_err()
+            .to_string();
+        assert!(bare.contains("`command`"), "{bare}");
+        assert!(!bare.contains("inspect_file"), "{bare}");
+    }
 
     #[test]
     fn collapse_cr_folds_progress_bars() {
@@ -908,7 +1000,6 @@ mod tests {
             vec!["line 1", "line 2"]
         );
     }
-    use serde_json::json;
 
     #[test]
     fn ansi_is_stripped_for_the_model() {
@@ -972,7 +1063,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_exposes_run_in_background_and_path() {
+    fn schema_exposes_run_in_background_and_no_working_directory() {
         let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let decl = t.declaration();
         let schema_str = decl.parameters.to_string();
@@ -980,7 +1071,17 @@ mod tests {
             schema_str.contains("run_in_background"),
             "schema must contain run_in_background"
         );
-        assert!(schema_str.contains("path"), "schema must contain path");
+        // Removed on purpose (owner, 2026-11-03): the only arguments are the
+        // command and how it runs.
+        assert!(
+            !schema_str.contains("\"path\""),
+            "schema must not declare a path"
+        );
+        assert_eq!(
+            decl.parameters["required"],
+            json!(["action", "command"]),
+            "command is the one thing a call has to carry"
+        );
         assert!(
             !schema_str.contains("timeout_ms"),
             "schema must NOT contain timeout_ms"
@@ -1036,8 +1137,7 @@ mod tests {
         let t = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
         let args = json!({
             "action": "test",
-            "command": "ps -ef",
-            "path": "src"
+            "command": "ps -ef"
         });
         assert!(t.validate(&args).is_ok());
     }

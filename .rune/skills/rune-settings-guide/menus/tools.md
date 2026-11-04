@@ -9,7 +9,7 @@ Tools contains global limits for individual tools and for user questions/permiss
 | FIND FILES | Maximum returned paths and output length. [Guide](../tools/find-files.md) |
 | SEARCH TEXT | Matching lines, line length and total output. [Guide](../tools/search-text.md) |
 | FILE SCAN | How far file searches go and limits on expensive patterns.  [Guide](../tools/file-scan.md) |
-| MANAGE PROCESS | Amount of background process output returned.  [Guide](../tools/manage-process.md) |
+| PROCESS CONTROL | Amount of background output a notification carries.  [Guide](../tools/process-control.md) |
 | WEB SEARCH / WEB FETCH | Separate providers, timeouts and output limits. Provider subpages own Add/Delete/Select. [Provider guide](../connections/web-providers.md) |
 | DISCOVER CAPABILITIES | Length of skill/MCP discovery results.  [Guide](../tools/discover-capabilities.md) |
 | READ MCP RESOURCE | Length of an MCP resource result.  [Guide](../tools/read-mcp-resource.md) |
@@ -26,4 +26,4 @@ A returned-output limit affects how much the AI can read, not only the folded pr
 
 Tool limits do not grant file/network access. Permission mode and approved access are separate choices. Do not change those just to obtain more output.
 
-Other tools: [create_file](../tools/create-file.md), [patch_file](../tools/patch-file.md), [terminal_send_input](../tools/terminal-send-input.md), [call_mcp_tool](../tools/call-mcp-tool.md). Web tools have separate [search](../tools/web-search.md) and [fetch](../tools/web-fetch.md) guides.
+Other tools: [create_file](../tools/create-file.md), [patch_file](../tools/patch-file.md), [process_control](../tools/process-control.md), [call_mcp_tool](../tools/call-mcp-tool.md). Web tools have separate [search](../tools/web-search.md) and [fetch](../tools/web-fetch.md) guides.
