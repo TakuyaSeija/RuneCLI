@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="browse-your-accounts">Explora tus cuentas conectadas</h2>
+<p>Models enumera los modelos disponibles en los proveedores configurados y en sus catálogos, además de los identificadores exactos que añadas manualmente. El buscador filtra esa lista; no realiza una búsqueda global en toda la oferta comercial de cada proveedor. La disponibilidad depende de tu cuenta, del punto de conexión, de tus permisos y de lo actualizado que esté el catálogo.</p>
+<p>Elige un proveedor a la izquierda o selecciona All providers. Explorar la lista no modifica la conversación. Selecciona un modelo y pulsa Enter para aplicar ese <strong>par proveedor/modelo</strong>. Ctrl+F devuelve el foco al buscador. El par activo se indica por separado del resultado resaltado en la lista.</p>
+<h2 id="catalog-and-custom-id">Catálogo e identificadores personalizados</h2>
+<p>Refresh catalog realiza una solicitud de red para obtener los identificadores disponibles y la información publicada, sin cambiar el modelo activo. Enter model ID te permite añadir un identificador exacto; añadir un identificador por sí solo no demuestra que tu cuenta tenga acceso a él.</p>
+<p>Los límites de contexto, los límites de salida y los precios que se desconocen permanecen marcados como desconocidos. No deduzcas las capacidades de un modelo por una palabra de su nombre, ni aumentes un valor local para fingir que el proveedor permite un límite mayor. Pulsar T sobre un resultado envía una prueba real al modelo y puede tener coste.</p>
+<h2 id="configure-capabilities">Configurar capacidades con Alt+C</h2>
+<p>Alt+C abre los ajustes persistentes del modelo seleccionado. La información de capacidades describe lo que el modelo puede aceptar; Generation define lo que solicita la sesión actual. La capacidad máxima de salida de un modelo no equivale a la longitud de respuesta solicitada.</p>
+<dl class="ref">
+<div><dt>Context / output</dt><dd>Registra los techos conocidos del modelo. Un valor manual no puede ampliar los límites reales del servicio remoto.</dd></div>
+<div><dt>Reasoning</dt><dd>Configura el comportamiento inicial y las opciones de razonamiento ofrecidas. La etiqueta Thinking indica compatibilidad, no que la sesión actual lo tenga activado.</dd></div>
+<div><dt>Media / controls</dt><dd>Utiliza las capacidades que el punto de conexión admita realmente. Los controles incompatibles pueden no aparecer o quedar deshabilitados mientras el razonamiento esté activo.</dd></div>
+<div><dt>Pricing</dt><dd>Indica los precios conocidos de entrada, salida y caché para la contabilidad local. Un precio desconocido no equivale a cero, y definir un precio de caché no demuestra que el punto de conexión admita caché de instrucciones.</dd></div>
+</dl>
+<h2 id="fallback-and-removal">Proveedor de respaldo y eliminación</h2>
+<p>New-session fallback elige el proveedor inicial para las sesiones futuras sin alterar las sesiones ya existentes. Pulsar Delete sobre un modelo oculta o elimina ese resultado y olvida sus ajustes personalizados, pero no elimina el modelo en el proveedor remoto. Si vuelves a añadirlo, puede tomar los metadatos recientes del catálogo en lugar de los ajustes que habías borrado.</p>
+<h2 id="pricing-limits">Límites de la contabilidad de costes</h2>
+<p>El gasto contabiliza las solicitudes cuyo consumo y precios se conocen. Cuando una solicitud sin precio obtiene más adelante el precio del modelo, pasa a calcularse entonces; las solicitudes que ya tenían precio conservan su coste registrado. La facturación real del proveedor puede diferir debido a redondeos, uso de caché, descuentos o datos de consumo incompletos.</p>
+<p>El aviso de gasto no es un límite estricto que bloquee el uso. Comprueba los precios oficiales de tu proveedor y utiliza los controles de presupuesto de su plataforma cuando necesites un tope estricto. Consulta <a href="{{url "docs/generation"}}">Generación y razonamiento</a> para ajustar los controles de la sesión actual en lugar de modificar las capacidades del modelo para afinar una sola respuesta.</p>
+{{end}}

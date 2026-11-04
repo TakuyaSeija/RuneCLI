@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Ubicación y alcance</h2>
+<p>La configuración global se guarda en <code>rune.toml</code> dentro del directorio de datos de Rune seleccionado, normalmente <code>~/.rune/</code>. La <a href="{{url "docs/reference"}}">Referencia de ajustes</a> enumera todas las claves que puede contener. <code>RUNE_HOME</code> permite seleccionar otro directorio de datos. Un archivo llamado rune.toml dentro de un proyecto no actúa automáticamente como archivo de configuración, y <code>-project</code> elige un espacio de trabajo, no un directorio de ajustes.</p>
+<p>Ejecuta <code>rune -config</code> para ver la ubicación exacta en uso. El archivo guarda únicamente tus opciones personalizadas; los valores ausentes heredan los valores predeterminados vigentes. La clave superior <code>version = 1</code> describe el formato del archivo de configuración, no la versión de la aplicación. No la cambies para intentar actualizar el programa.</p>
+<h2 id="inspect">Inspecciona un ajuste cada vez</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Consulta el valor efectivo de una clave, su descripción y cuándo entra en vigor.</dd></div>
+<div><dt>-config defaults</dt><dd>Consulta los valores de fábrica por separado de tus opciones guardadas.</dd></div>
+<div><dt>-config check</dt><dd>Valida la sintaxis de la configuración y que los valores estén admitidos. No comprueba claves de API, saldo ni conectividad.</dd></div>
+<div><dt>-config show</dt><dd>Inspecciona la configuración efectiva. Puede contener metadatos privados de cuentas; oculta los datos sensibles antes de compartirla.</dd></div>
+<div><dt>-settings</dt><dd>Inspecciona los controles del modelo para el espacio de trabajo seleccionado.</dd></div>
+</dl>
+<h2 id="change-and-reset">Modificar y restablecer</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>Ejecuta el comando set únicamente cuando quieras aplicar ese cambio global. Reset elimina el valor personalizado sin escribir una copia del valor predeterminado. En Settings, la opción Use default cumple la misma función para los valores globales. Las claves desconocidas o retiradas generan un error y no se aceptan en silencio como alias.</p>
+<p>TOML no tiene un valor nulo nativo. Elimina una clave opcional o utiliza el comando de restablecimiento en lugar de escribir <code>null</code>. No des por sentado que una cadena vacía, «auto», «none» o una lista vacía significan restablecer en todos los ajustes.</p>
+<h2 id="types-and-units">Tipos de datos y unidades</h2>
+<dl class="ref">
+<div><dt>Booleano</dt><dd><code>true</code> o <code>false</code>, sin comillas en TOML.</dd></div>
+<div><dt>Recuento / tokens</dt><dd>Un número entero dentro del rango admitido por el ajuste. Los tokens, los caracteres y los bytes son medidas distintas.</dd></div>
+<div><dt>Duración</dt><dd>Una cadena con unidades explícitas como <code>"500ms"</code>, <code>"60s"</code> o <code>"2m"</code>. Solo los tiempos de espera de permisos y preguntas admiten unlimited.</dd></div>
+<div><dt>Tamaño</dt><dd>Usa unidades binarias explícitas como <code>"16MiB"</code>. Un tamaño sin unidad se interpreta como KiB, no como bytes.</dd></div>
+<div><dt>Lista</dt><dd>Usa las entradas exactas documentadas. <code>[]</code> representa una selección vacía explícita, no necesariamente un restablecimiento.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>Este ejemplo muestra la sintaxis y no constituye una configuración recomendada universalmente. El array stop conserva las cadenas exactas, incluidas las comas; en cambio, el editor de la sesión acepta entradas separadas por comas. Los valores globales de generación no sobrescriben todas las sesiones actuales.</p>
+<h2 id="timing-and-risk">Momento de aplicación y riesgos</h2>
+<p>Por lo general, los cambios se propagan sin necesidad de reiniciar. Usa explain para consultar cada ajuste concreto: los valores en vivo y los valores que se aplican en la siguiente operación entran en vigor en momentos distintos. Editar CLASSIFIER.md no recarga una política de sesión ya fijada; utiliza para ello la acción de recarga cuando la sesión esté inactiva.</p>
+<p>Mantén los puntos de conexión y las credenciales fuera de los ejemplos públicos. Valida las ediciones manuales sin reemplazar preferencias no relacionadas. Aumentar los límites puede incrementar el consumo de memoria, disco, contexto y coste, pero no concede permisos de acceso ni hace funcionar un modelo incompatible.</p>
+{{end}}

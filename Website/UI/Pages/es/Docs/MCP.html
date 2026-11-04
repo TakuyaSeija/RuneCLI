@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">Capacidades externas</h2>
+<p>MCP conecta servidores externos que ofrecen herramientas, recursos o plantillas de instrucciones. Usa <code>/mcp</code> o <code>rune -mcp</code>; no existe una pestaña dedicada en Settings. Conectar un servidor es distinto de aprobar cada tarea realizada mediante una herramienta.</p>
+<p>Un servidor remoto recibe los datos que le envíes. Un servidor local inicia código en este ordenador. El texto devuelto se trata como datos de tarea no confiables, incluso aunque afirme contener instrucciones con autoridad.</p>
+<h2 id="scope-and-approval">Ámbito y aprobación</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Definiciones personales disponibles en los proyectos donde trabajes.</dd></div>
+<div><dt>Project</dt><dd>Definiciones compartidas en la configuración MCP del proyecto. Revísalas y apruébalas explícitamente; si una definición compartida cambia, volverá a requerir aprobación.</dd></div>
+<div><dt>Private project</dt><dd>Definiciones personales para un único proyecto (es el ámbito predeterminado al modificar MCP). Tienen prioridad sobre las definiciones compartidas del proyecto con el mismo identificador, y estas a su vez prevalecen sobre las definiciones personales del usuario.</dd></div>
+</dl>
+<p>Inspecciona con list/status y valida las definiciones antes de conectar. La validación no es una prueba de conectividad en vivo. La operación add recibe un identificador de servidor y una URL remota o un ejecutable local con ruta absoluta y sus argumentos. Consulta la ayuda del comando instalado para ver la sintaxis exacta de cada operación.</p>
+<h2 id="access-review">Revisa los permisos de acceso</h2>
+<p>Antes de añadir o activar un servidor, inspecciona su ejecutable y argumentos (o su destino remoto), la autenticación, las variables de entorno, el permiso de escritura en el proyecto, las carpetas adicionales de lectura/escritura y el acceso a servicios locales que ya estén en ejecución. Concede únicamente lo necesario para la tarea.</p>
+<p>Los puntos de conexión remotos requieren HTTPS; HTTP sin cifrar solo se permite hacia la interfaz local (loopback). No incrustes secretos en una URL compartida ni en valores literales de entorno; usa el flujo de credenciales compatible. Los ejecutables locales y las carpetas raíz adicionales son decisiones reales de acceso, no simples etiquetas descriptivas.</p>
+<p>Las carpetas adicionales fuera del espacio de trabajo pueden requerir aprobación en los modos Ask y Auto antes de que se inicie un servidor local. Conceder un acceso amplio a servicios locales puede permitir llegar a programas que actúan con los permisos de tu cuenta. No amplíes estas opciones solo para silenciar un fallo de conexión.</p>
+<h2 id="lifecycle">Conectar, probar y eliminar</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Inspecciona los servidores configurados y el estado actual de sus conexiones.</dd></div>
+<div><dt>validate</dt><dd>Comprueba la validez de las definiciones sin dar por establecida la conexión.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Realiza una conexión real, lo que puede iniciar código local o contactar con un servicio remoto.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Aprueba una definición compartida que hayas revisado. Nunca apruebes a ciegas un archivo que no hayas inspeccionado.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Cierra esa conexión sin eliminar su definición guardada.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Cambia la disponibilidad de la definición indicada o la elimina, utilizando el ámbito de configuración correspondiente.</dd></div>
+<div><dt>reload</dt><dd>Actualiza las conexiones configuradas.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Inicia un flujo de autenticación compatible o consulta su estado.</dd></div>
+</dl>
+<p>Estas operaciones se ejecutan tras <code>rune -mcp</code>, por ejemplo <code>rune -mcp status</code>. Revisa el ámbito seleccionado y el identificador en cada cambio. Los comandos avanzados de credenciales como token o secret aceptan valores sensibles; utiliza preferiblemente la interfaz de autenticación integrada para no dejar credenciales en el historial de la shell.</p>
+<p>La autenticación puede emplear una credencial bearer o un flujo OAuth. Nunca pegues tokens en la conversación. Que un servidor se conecte correctamente no demuestra que todas sus herramientas sean seguras, reversibles o compatibles. El modelo descubre los parámetros exactos de cada herramienta y aplica los controles habituales de ejecución en lugar de inventar la API de otro servidor.</p>
+{{end}}

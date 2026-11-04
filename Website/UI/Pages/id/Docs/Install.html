@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">Yang Anda perlukan</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 atau arm64, selama tersedia biner bertanda tangan yang diterbitkan untuk prosesor tersebut. Setiap rilis mencantumkan paket biner yang disediakannya. Biner glibc berjalan pada distribusi dengan glibc 2.17 atau lebih baru, dan telah diuji pada CentOS 7, Debian 11 dan 12, serta Ubuntu 24.04. Biner musl statis tidak bergantung pada pustaka C dari sistem, dan telah diuji pada Alpine.</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 atau lebih baru, pada Apple silicon atau Intel. Dukungan macOS berstatus beta.</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 versi 1809 atau lebih baru, atau Windows 11, pada x64 atau ARM64. Dukungan Windows berstatus beta.</dd></div>
+<div><dt>Pemasang</dt><dd>Di Linux dan macOS: <code>curl</code>, <code>tar</code>, <code>gzip</code>, dan <code>openssl</code> (OpenSSL atau LibreSSL bawaan macOS) untuk memeriksa tanda tangan. Di Windows: PowerShell, yang sudah tersedia di setiap versi Windows yang didukung. Di Linux dan macOS, jalankan sebagai pengguna biasa, bukan root; di Windows tidak diperlukan hak Administrator.</dd></div>
+<div><dt>Akun model</dt><dd>Akun pada penyedia pilihan Anda, atau layanan model di komputer Anda sendiri. Lihat <a href="{{url "docs/providers"}}">Penyedia model</a>.</dd></div>
+</dl>
+<p>Sistem mana saja yang memiliki biner bertanda tangan pada rilis saat ini tercantum di bawah setiap perintah pemasangan di <a href="{{url "install"}}">halaman pemasangan</a>. Perbedaan antarsistem dijelaskan di <a href="{{url "docs/platforms"}}">Dukungan platform</a>.</p>
+
+<h2 id="install">Pasang</h2>
+<p>Perintah pemasangan tersedia di <a href="{{url "install"}}">halaman pemasangan</a>: <code>install.sh</code> untuk Linux dan macOS yang dijalankan dengan <code>sh</code>, serta <code>install.ps1</code> untuk Windows yang dijalankan di PowerShell. Baca skripnya terlebih dahulu jika Anda mau: keduanya disajikan sebagai teks polos, <a href="{{url "install.sh"}}">install.sh</a> dan <a href="{{url "install.ps1"}}">install.ps1</a>, persis seperti yang diterima oleh perintah pemasangan. Masing-masing menjalankan langkah berikut dan langsung berhenti pada langkah pertama yang gagal tanpa mengubah apa pun:</p>
+<ol>
+<li>Memeriksa sistem operasi beserta versinya, memastikan skrip berjalan sebagai pengguna biasa, dan memastikan perangkat pendukungnya tersedia.</li>
+<li>Mendeteksi prosesor, serta pustaka C di Linux (glibc atau musl).</li>
+<li>Mengunduh daftar checksum rilis dan memverifikasi tanda tangannya menggunakan kunci rilis yang tertulis di dalam skrip.</li>
+<li>Mengunduh arsip untuk mesin Anda dan mencocokkannya dengan daftar bertanda tangan tersebut.</li>
+<li>Memastikan arsip hanya berisi program dan berkas lisensinya, serta memastikan program dapat dijalankan dan melaporkan versi yang sesuai.</li>
+<li>Menempatkan program ke lokasi tujuan dalam satu langkah ganti nama (rename), serta menyimpan pemberitahuan lisensi dan pihak ketiga di samping data pengguna Anda yang lain.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>Sistem</th><th>Program</th><th>Pemberitahuan lisensi</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (atau <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>Pemasang tidak pernah mengedit profil shell atau PATH Anda. Jika folder tujuan belum ada di PATH Anda, pemasang akan memberi tahu Anda. Halaman <a href="{{url "docs/verification"}}">Verifikasi rilis</a> menjelaskan apa yang dibuktikan dan tidak dibuktikan oleh tanda tangan kriptografis, serta cara memeriksa unduhan secara manual.</p>
+<p>Perintah pemasangan mengunduh berkas menggunakan <code>curl</code> dan PowerShell, yang tidak menandai program sebagai unduhan internet. Sebaliknya, arsip yang Anda unduh lewat peramban web akan diberi tanda karantina. Di macOS, Gatekeeper akan menolak menjalankan salinan <code>rune</code> tersebut; setelah memverifikasi arsipnya, hapus tanda karantina dengan <code>xattr -d com.apple.quarantine rune</code>. Di Windows, SmartScreen dapat menampilkan peringatan saat program semacam itu dibuka dari File Explorer.</p>
+
+<h2 id="installer-options">Opsi pemasang</h2>
+<p>Jika tidak diatur, pemasang akan mengambil versi terbaru yang diterbitkan, folder bin pengguna Anda, dan pustaka C yang terdeteksi secara otomatis di Linux. Di Linux dan macOS, simpan skrip sebagai <code>install.sh</code>, baca isinya, lalu jalankan dengan variabel lingkungan di bawah ini. Di Windows, atur variabel tersebut di jendela PowerShell yang sama sebelum menjalankan perintah pemasangan.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>Versi yang telah diterbitkan seperti <code>{{.DocVersion}}</code>. Versi lama dapat dipasang dengan menyebutkan nomornya.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>Path folder absolut untuk menempatkan program sebagai ganti lokasi bawaan.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Khusus Linux: <code>gnu</code> atau <code>musl</code>, untuk memilih varian biner secara langsung tanpa deteksi otomatis. Kombinasi yang tidak memiliki arsip resmi akan ditolak.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">Menambahkan rune ke PATH Anda</h2>
+<p>Banyak distribusi Linux sudah menyertakan <code>~/.local/bin</code> di PATH, tetapi hanya jika folder tersebut sudah ada saat Anda masuk (login); macOS tidak menyertakannya secara bawaan. Jika perintah <code>rune</code> tidak ditemukan, tambahkan foldernya sendiri. Untuk bash atau zsh (shell bawaan di macOS), tambahkan baris ini ke <code>~/.bashrc</code> atau <code>~/.zshrc</code>, lalu buka terminal baru:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>Di fish, jalankan <code>fish_add_path ~/.local/bin</code> satu kali. Di Windows, baris PowerShell berikut menambahkan folder tersebut ke PATH pengguna Anda; buka terminal baru setelahnya:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>Gunakan path folder pilihan Anda jika sebelumnya Anda mengatur <code>RUNE_INSTALL_DIR</code>.</p>
+
+<h2 id="first-start">Saat pertama kali dijalankan</h2>
+<p>Buka terminal di folder proyek Anda lalu jalankan <code>rune</code>. Saat pertama kali dijalankan, Rune membuat folder datanya, yaitu <code>.rune</code> di dalam folder home Anda (<code>%USERPROFILE%\.rune</code> di Windows), atau folder yang ditentukan oleh <code>RUNE_HOME</code>. Folder ini menyimpan:</p>
+<ul>
+<li><code>rune.toml</code>, berkas pengaturan Anda. Berkas ini hanya mencatat pilihan yang Anda ubah; nilai lainnya mengikuti bawaan versi yang Anda jalankan.</li>
+<li>Kunci API Anda, dalam keadaan terenkripsi.</li>
+<li>Sesi, memori proyek, dan potret berkas yang dipakai oleh fitur undo, disimpan terpisah untuk setiap proyek.</li>
+</ul>
+<p>Di Windows, saat pertama kali dijalankan Rune juga meminta konfirmasi Administrator satu kali untuk menyiapkan akun lokal terpisah yang dipakai Rune saat menjalankan perintah. Jika Anda menolak, Rune tidak akan menanyakannya lagi setiap kali dibuka; jalankan <code>rune -sandbox setup</code> kapan saja Anda ingin mengaktifkannya. Halaman <a href="{{url "docs/security"}}">Keamanan</a> menjelaskan perbedaan perlindungannya jika tanpa akun tersebut.</p>
+<p>Perintah <code>rune -config</code> mencetak lokasi folder data yang sedang dipakai pada baris pertamanya. Rune menyimpan seluruh datanya di sana, bukan di dalam folder proyek Anda: folder proyek hanya berubah melalui perangkat AI sesuai mode izin yang Anda pilih, perintah <code>!</code> yang Anda jalankan sendiri, atau perubahan skill maupun MCP yang Anda simpan dengan cakupan proyek. Lanjutkan dengan <a href="{{url "docs"}}#connect-and-select">menyambungkan model</a> di halaman Pengantar.</p>
+
+<h2 id="update">Memperbarui</h2>
+<p>Jalankan kembali pemasang untuk versi yang Anda inginkan, dengan <code>RUNE_INSTALL_DIR</code> yang sama jika Anda mengaturnya. Pemasang akan memverifikasi unduhan dan menggantikan program dalam satu langkah; periksa hasilnya dengan <code>rune -version</code>.</p>
+<p>Jendela Rune yang sudah terbuka tetap dapat digunakan. Di Linux dan macOS, jendela tersebut akan beralih sendiri ke versi baru begitu sedang diam (idle), dan saat versi baru pertama kali berjalan ia akan memperbarui struktur folder data Anda bila diperlukan. Di Windows, program yang sedang berjalan tidak dapat digantikan di tengah jalan: jendela yang sudah terbuka tetap memakai versi awalnya, sedangkan jendela Rune berikutnya yang Anda buka akan memakai versi baru. Jangan menutup paksa pekerjaan yang sedang aktif hanya untuk mempercepat peralihan ini.</p>
+
+<h2 id="uninstall">Mencopot pemasangan</h2>
+<p>Selesaikan atau hentikan pekerjaan Anda dan tutup semua jendela Rune. Setelah itu, hapus program beserta berkas pemberitahuan lisensinya. Di Linux dan macOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>Di Windows, melalui PowerShell:</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>Di Windows, perintah <code>rune -sandbox reset</code> terlebih dahulu mencabut hak akses yang pernah diberikan kepada sandbox perintah Rune pada folder Anda lalu menghapus akun khususnya; langkah ini mungkin meminta konfirmasi Administrator. Folder data Anda tetap tersimpan sampai Anda menghapusnya sendiri. Folder tersebut memuat riwayat, pengaturan, kunci, dan titik pemulihan Anda, serta tidak perlu dihapus hanya untuk mencopot program. Jika Anda ingin menghapusnya juga, periksa lokasinya dengan <code>rune -config</code> terlebih dahulu, dan jangan pernah menghapusnya saat Rune masih berjalan.</p>
+
+<h2 id="environment">Variabel lingkungan</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>Menggunakan folder data lain sebagai ganti <code>.rune</code> di folder home Anda, lengkap dengan pengaturan, kunci, dan sesinya sendiri.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>Mencetak keluaran tanpa warna, sama seperti flag <code>--no-color</code>.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>Memberi tahu Rune warna latar terminal Anda saat terminal tidak melaporkannya: <code>dark</code>, <code>light</code>, atau kode warna hex. Variabel ini bukan pemilih tema antarmuka yang ada di menu Appearance.</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>Hanya dibaca oleh skrip pemasang; lihat <a href="#installer-options">Opsi pemasang</a>.</dd></div>
+</dl>
+{{end}}

@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">Öffnen und navigieren</h2>
+<p>Drücke <kbd>Ctrl+G</kbd>, gib <code>/settings</code> ein oder nutze den Kurzalias <code>/*</code>. Die Übersicht führt zu sechs Bereichen. Mit den Pfeiltasten wählst du eine Zeile oder Karte aus; Enter öffnet sie. Tab/Shift+Tab verschiebt den Fokus, und Esc bricht einen Editor ab oder geht eine Ebene zurück. Die Fußzeile beschreibt jeweils das ausgewählte Element.</p>
+<p>Öffne einen Wert, passe ihn an und wähle Apply. Cancel behält den bisherigen Wert bei. Einige Auswahlzeilen speichern direkt beim Umschalten mit Links/Rechts; achte auf den Hinweistext und warte die Erfolgsmeldung ab. Das bloße Markieren eines Eintrags in einer separaten Auswahlliste wendet ihn noch nicht automatisch an.</p>
+<h2 id="sections">Ein fester Platz für jede Einstellung</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models</a></dt><dd>Durchsuche die Modelle deiner eingerichteten Konten, aktiviere ein Paar aus Anbieter und Modell, aktualisiere den Katalog und konfiguriere mit Alt+C dauerhafte Fähigkeits- und Preisangaben.</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation</a></dt><dd>Reasoning, Sampling und angeforderte Ausgabelänge für die aktuelle Sitzung. Weiter unten auf derselben Seite befinden sich die globalen Einstellungen für Hilfsmodelle.</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections</a></dt><dd>Kontozugang: API-Adressen und benannte Schlüssel. Dieser Bereich wählt weder den aktiven Webdienst aus noch steuert er Anfrage-Timeouts für Modelle.</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime</a></dt><dd>Anfrage-Timeouts für Modelle, Wiederholungsverhalten, Abklingzeit bei erschöpftem Guthaben sowie gemeinsame Verbindungs- und Stream-Wartezeiten.</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools</a></dt><dd>Werkzeugspezifische Wartezeiten, Ausgabe- und Arbeitslimits, Fristen für Rückfragen und Berechtigungen sowie die separate Auswahl von Webdiensten.</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance</a></dt><dd>Farbschema und Sichtbarkeit der Seitenleiste. Hintergrundbild, Unschärfe oder Transparenz des Terminals selbst werden hier nicht gesteuert.</dd></div>
+</dl>
+<h2 id="scope">Globale Einstellungen und Sitzungswerte</h2>
+<p>Tool-Limits, Wiederholungs- und Netzwerkeinstellungen sowie die Auswahl der Hilfsmodelle gelten global für das gewählte Rune-Home-Verzeichnis. Die oberen Regler unter Generation und die Modellauswahl wirken sich auf die aktive Sitzung bzw. das aktive Modell aus. Gespeicherte Modellpräferenzen werden beim späteren Zurückwechseln auf ein Modell wieder geladen.</p>
+<p>Die globale Tabelle <code>[generation]</code> liefert Startwerte für neue Sitzungen, überschreibt aber nicht pauschal jede bereits bestehende Sitzung. Die Einstellung New-session fallback wählt den Startanbieter für künftige Sitzungen, ändert jedoch nicht den Anbieter bereits geöffneter Unterhaltungen.</p>
+<h2 id="reset-and-timing">Zurücksetzen und Gültigkeitszeitpunkt</h2>
+<p><strong>Use default</strong> entfernt deine gespeicherte globale Überschreibung, sodass wieder der aktuelle Standardwert oder die Vererbung greift. Wenn du den Zahlenwert des Werkstandards manuell eintippst und speicherst, gilt das als feste Überschreibung – nicht als ungesetzter Schlüssel. Bei optionalen Sitzungswerten unter Generation gibt das Leeren des Felds die Steuerung wieder an den Anbieter bzw. den Standardwert zurück.</p>
+<p>Einstellungen greifen in der Regel ohne Neustart von Rune. Einige Bereiche übernehmen Änderungen sofort (live); andere wenden den neuen Wert bei der nächsten Operation an, während bereits laufende Anfragen mit ihren Startwerten zu Ende laufen. Prüfe das Verhalten für einen konkreten Schlüssel mit <code>rune -config explain &lt;key&gt;</code>. Für die Klassifiziererrichtlinie gibt es eine eigene Reload-Aktion.</p>
+<h2 id="inspect-before-changing">Vor dem Ändern prüfen</h2>
+<p>Eine formal gültige Konfiguration beweist noch nicht, dass eine Netzwerkverbindung funktioniert, und der Status Configured garantiert kein vorhandenes Guthaben. Verbindungstests senden echte Anfragen und können Kosten verursachen. Ein Wechsel des Anbieters ändert, wohin deine Daten übertragen werden; höhere Wiederholungszahlen oder Ausgabelimits können deine Ausgaben steigern.</p>
+<p>Nicht jede erweiterte Option besitzt eine eigene Zeile in der Oberfläche. Der <a href="{{url "docs/configuration"}}">Leitfaden zur Konfigurationsdatei</a> erklärt, wie du solche Optionen gezielt prüfst und zurücksetzt, ohne unbeteiligte Einstellungen zu verändern.</p>
+{{end}}

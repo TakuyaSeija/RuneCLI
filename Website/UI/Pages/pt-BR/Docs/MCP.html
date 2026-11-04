@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">Capacidades externas</h2>
+<p>O protocolo MCP conecta servidores externos que oferecem ferramentas, recursos ou prompts. Use <code>/mcp</code> ou <code>rune -mcp</code>; não há uma aba separada para isso em Settings. Conectar um servidor é diferente de aprovar cada tarefa executada por meio de uma ferramenta.</p>
+<p>Um servidor remoto recebe os dados que você envia a ele. Um servidor local inicia código neste computador. O texto retornado é tratado como dado de tarefa não confiável, mesmo quando afirma conter instruções oficiais.</p>
+<h2 id="scope-and-approval">Escopo e aprovação</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Definições pessoais disponíveis nos projetos desejados.</dd></div>
+<div><dt>Project</dt><dd>Definições compartilhadas na configuração MCP do projeto. Revise e aprove-as explicitamente; uma definição compartilhada que for alterada pode exigir uma nova aprovação.</dd></div>
+<div><dt>Private project</dt><dd>Definições pessoais para um único projeto — o escopo padrão para alterações MCP. Elas podem substituir definições compartilhadas do projeto com o mesmo ID, que por sua vez têm precedência sobre definições pessoais do usuário.</dd></div>
+</dl>
+<p>Inspecione com list/status e valide as definições antes de conectar. A validação não é um teste de conectividade ao vivo. O comando add recebe um ID de servidor e uma URL remota desejada ou um executável local absoluto com argumentos. Consulte a ajuda do comando instalado para ver a sintaxe exata de cada operação.</p>
+<h2 id="access-review">Revise o acesso</h2>
+<p>Antes de adicionar ou ativar um servidor, inspecione seu executável/argumentos ou destino remoto, autenticação, variáveis de ambiente, permissão de escrita no projeto, pastas adicionais de leitura/escrita e acesso a serviços locais já em execução. Conceda apenas o que a tarefa realmente exigir.</p>
+<p>Endpoints remotos exigem HTTPS; o uso de HTTP simples é restrito ao loopback. Não incorpore segredos em uma URL compartilhada nem em valores literais de variáveis de ambiente. Use o fluxo de credenciais suportado. Executáveis locais e pastas raiz extras são decisões reais de acesso, não meros rótulos descritivos.</p>
+<p>Pastas externas adicionais podem exigir aprovação nos modos Ask/Auto antes que um servidor local seja iniciado. O acesso amplo a serviços locais pode alcançar programas que atuam com os direitos da sua conta. Não amplie essas opções apenas para silenciar uma falha de conexão.</p>
+<h2 id="lifecycle">Conectar, testar e remover</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Inspeciona os servidores configurados e o estado atual da conexão.</dd></div>
+<div><dt>validate</dt><dd>Verifica as definições sem afirmar que a conexão foi estabelecida com sucesso.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Estabelece uma conexão real, podendo iniciar código local ou contatar um serviço remoto.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Aprova uma definição compartilhada revisada. Não aprove um arquivo que você não tenha inspecionado.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Encerra aquela conexão; isso não remove sua definição salva.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Altera a disponibilidade da definição desejada ou a remove, usando o escopo de configuração correto.</dd></div>
+<div><dt>reload</dt><dd>Atualiza as conexões configuradas.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Inicia um fluxo de autenticação aplicável ou inspeciona seu estado.</dd></div>
+</dl>
+<p>Essas operações acompanham <code>rune -mcp</code>, por exemplo <code>rune -mcp status</code>. Revise o escopo e o ID selecionados em cada alteração. Comandos avançados de credenciais, como token/secret, aceitam valores sensíveis; prefira a interface de autenticação suportada em vez de deixar credenciais no histórico do shell.</p>
+<p>A autenticação pode usar uma credencial bearer ou um fluxo OAuth. Não cole tokens na conversa. Um servidor conectado com sucesso não prova que todas as ferramentas sejam seguras, reversíveis ou compatíveis. O modelo descobre as entradas exatas das ferramentas e utiliza os controles normais de execução, sem inventar a API de outro servidor.</p>
+{{end}}

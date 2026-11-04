@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Farbschema</h2>
+<p>Unter Settings → Appearance → Color theme stehen Violet, Cyan und Amber zur Auswahl. Mit Links/Rechts auf der Zeile wechselst und speicherst du direkt; Enter öffnet die separate Auswahlliste, in der Enter das gewählte Farbschema übernimmt. Mit Esc verlässt du die Liste, ohne einen nur durchgeblätterten Eintrag anzuwenden. Das Standardschema ab Werk ist Amber.</p>
+<p>Das Farbschema betrifft nur die Darstellung, nicht das Modellverhalten oder Berechtigungen. Über <code>/theme violet</code>, <code>/theme cyan</code> und <code>/theme amber</code> lässt sich ebenfalls ein Schema wählen. Der globale Schlüssel lautet <code>ui.theme</code>; ein Zurücksetzen entfernt deine Überschreibung.</p>
+<h2 id="side-panel">Seitenleiste der Unterhaltung</h2>
+<p>Schalte die Seitenleiste unter Appearance, mit Strg+O oder über <code>/panel</code> um. Ab Werk ist sie aktiviert. In schmalen Terminals kann die nebeneinanderliegende Leiste trotz aktivierter Einstellung ausgeblendet werden. Das Ausblenden stoppt weder die Verbrauchserfassung noch die Dateiverfolgung oder Pläne.</p>
+<h2 id="terminal-owns-background">Was das Terminal steuert</h2>
+<p>Dein Terminal bzw. deine Desktop-Umgebung steuert Hintergrundbild, Transparenz, Unschärfe, Fensterdekorationen und Schriftglättung. Rune besitzt keine eigene Einstellung für Hintergrundbilder oder Unschärfe. Dasselbe Farbschema kann auf einem hellen oder dunklen Terminalhintergrund unterschiedlich wirken.</p>
+<p>Auch Sondertasten und Mausgesten hängen vom Terminal ab. Ein Terminalprofil kann Strg+Mausrad für den Zoom, Alt+Mausrad für horizontales Scrollen oder bestimmte Tastenkürzel für eigene Aktionen reservieren.</p>
+<h2 id="advanced-options">Erweiterte Anzeigeoptionen</h2>
+<p>Einige Werte für Farben, Maus, Scrollverhalten und Render-Timing sind reine TOML-Optionen und erscheinen nicht als separate Regler auf der Seite Appearance. Prüfe den jeweiligen dokumentierten Schlüssel, bevor du ihn änderst. Eine höhere Bildwiederholrate kann mehr Ressourcen beanspruchen; eine Scroll-Einstellung kann ein Terminal nicht dazu bringen, nicht unterstützte Eingaben zu melden.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>Ein Reset ändert die globale Einstellung. Nutze <code>/help</code> für die Tasten zum Lesen und Navigieren, statt Tastenkürzel aus anderen Terminalanwendungen zu erraten.</p>
+{{end}}

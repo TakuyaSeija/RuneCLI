@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="what-rune-does">Qué hace Rune</h2>
+<p>Rune es un agente de programación que funciona en tu terminal. Tú describes el resultado que buscas; un modelo propone el trabajo, y Rune lee archivos, ejecuta herramientas y muestra sus resultados dentro de la misma conversación. Funciona con la cuenta de modelo que tú conectes, no mediante una suscripción incluida ni con un modelo suministrado por Atoryn.</p>
+<p>El programa y los datos de las sesiones residen en tu ordenador. Eso <strong>no</strong> significa que todas las tareas funcionen sin conexión: el proveedor que selecciones recibe las instrucciones, el contexto y los archivos adjuntos compatibles necesarios para responder a cada solicitud. Los comandos y los servicios conectados también pueden usar la red. Lee <a href="{{url "docs/privacy"}}">Privacidad y datos</a> antes de trabajar con material sensible.</p>
+<h2 id="start-in-a-project">Empezar en un proyecto</h2>
+<p>Instala Rune con el comando de la <a href="{{url "install"}}">página de inicio</a>; en <a href="{{url "docs/install"}}">Instalación y actualización</a> se explica cada paso. A continuación, abre la carpeta en la que quieras que trabaje Rune. Empieza con un proyecto pequeño bajo control de versiones y revisa antes los cambios que ya tengas pendientes.</p>
+<pre class="block"><code>cd path/to/your-workspace
+rune</code></pre>
+<p>También puedes pasar la carpeta directamente ejecutando <code>rune path/to/your-workspace</code>. La carpeta de trabajo define el espacio de trabajo para el acceso a archivos, la selección de sesiones y la guía del proyecto. Iniciar Rune directamente en toda tu carpeta personal concede un espacio de trabajo mucho más amplio que iniciarlo dentro de un único repositorio.</p>
+<h2 id="connect-and-select">Conectar y seleccionar un modelo</h2>
+<ol>
+<li>Pulsa <kbd>Ctrl+G</kbd> y abre <strong>Connections → Add connection</strong>.</li>
+<li>Elige el proveedor de modelos que vayas a utilizar. Revisa el destino, introduce la dirección si es necesaria y utiliza el campo oculto para la clave de API. Al conectar se realiza una solicitud real que puede facturarse.</li>
+<li>Abre <strong>Models</strong>, elige el proveedor conectado y selecciona un modelo con <kbd>Enter</kbd>. Explorar o buscar en la lista por sí solo no cambia el modelo de la sesión.</li>
+<li>Comprueba el nombre del modelo y el modo de permisos junto al cuadro de entrada antes de enviar una tarea.</li>
+</ol>
+<p>Un perfil predefinido de proveedor contiene datos de configuración, no el acceso a una cuenta. Los modelos disponibles dependen de tu cuenta, del punto de conexión y del catálogo. Consulta <a href="{{url "docs/providers"}}">Proveedores de modelos</a>, <a href="{{url "docs/connections"}}">Conexiones</a> y <a href="{{url "docs/models"}}">Modelos y capacidades</a>.</p>
+<h2 id="give-one-bounded-task">Encarga una tarea acotada</h2>
+<p>Empieza en <strong>Ask</strong>, el modo predeterminado. Las lecturas dentro del espacio de trabajo pueden realizarse directamente, mientras que las ediciones y los comandos piden tu aprobación. Una petición eficaz describe el resultado esperado, las restricciones y cómo comprobarlo:</p>
+<blockquote>Averigua por qué el importador acepta una fecha vacía. Explica la causa, añade una prueba de regresión y muéstrame la corrección propuesta antes de ejecutar comandos.</blockquote>
+<p>Lee el comando exacto, la ruta del archivo o las diferencias en cada tarjeta de permiso. Una aprobación se aplica únicamente al alcance indicado en ella y no garantiza de forma general que cualquier trabajo sea seguro. Pulsa <kbd>Esc</kbd> dos veces para detener el trabajo activo de la IA. Puedes enviar una aclaración mientras el agente trabaja; se atenderá en un paso posterior sin reescribir la solicitud que ya esté en curso.</p>
+<h2 id="review-the-result">Revisa el resultado</h2>
+<p>Lee el informe final y los resultados de las herramientas, inspecciona los archivos modificados y verifica tú mismo el resultado. Un modelo puede malinterpretar una tarea o afirmar más de lo que demuestran las pruebas. El panel lateral muestra las diferencias reales de los archivos seguidos en la sesión, mientras que <code>/logs</code> y <code>/context</code> ayudan a entender posibles fallos y el contexto enviado.</p>
+<p><code>/undo</code> permite restaurar un archivo elegible a su estado anterior al inicio de la sesión, pero no puede revertir un despliegue, un mensaje enviado a un servicio ni cualquier efecto externo. Utilízalo como una herramienta de restauración de archivos, nunca como sustituto de Git ni de tus copias de seguridad.</p>
+{{end}}

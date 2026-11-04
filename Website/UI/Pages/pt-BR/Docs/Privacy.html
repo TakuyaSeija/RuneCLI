@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Local não significa offline</h2>
+<p>O Rune roda no seu computador e mantém localmente as configurações, sessões e dados do projeto. O aplicativo não exige uma conta da Atoryn e não coleta telemetria de produto. Ainda assim, ele faz as requisições de rede necessárias para as contas, catálogos, modelos e ferramentas que você utiliza.</p>
+<p>Usar um modelo remoto envia o conteúdo relevante da requisição para aquele provedor. Executar o programa localmente não garante que todo o código permaneça apenas na sua máquina. Para trabalhos sensíveis, revise o destino, a configuração do modelo, os arquivos anexados e a política de retenção de dados do próprio provedor.</p>
+<h2 id="what-is-sent">O que pode ser enviado</h2>
+<dl class="ref">
+<div><dt>Modelo principal</dt><dd>Seu prompt, o contexto selecionado da conversa, declarações/resultados de ferramentas e os anexos compatíveis necessários para a requisição.</dd></div>
+<div><dt>Modelos auxiliares</dt><dd>Material relevante para revisão de política, extração de instruções, resumos ou títulos. Um provedor configurado separadamente pode receber esse subconjunto de dados.</dd></div>
+<div><dt>Serviços de busca e leitura de páginas</dt><dd>Uma consulta de busca ou o endereço da página de destino e a requisição específica do serviço. O leitor integrado contata o site de destino diretamente.</dd></div>
+<div><dt>MCP e comandos</dt><dd>Dados repassados a ferramentas ou programas externos. O comportamento de rede e a retenção desses recursos não são controlados por uma promessa genérica de “agente local”.</dd></div>
+<div><dt>Testes de conta e catálogos</dt><dd>Requisições de autenticação/teste e consultas de informações de modelos. Os testes podem ser tarifados.</dd></div>
+</dl>
+<p>Escolher outro endpoint é uma decisão de roteamento de dados. Um provedor web fixado explicitamente que esteja indisponível nunca recorre silenciosamente a outro serviço de terceiros.</p>
+<h2 id="what-is-kept">O que é mantido localmente</h2>
+<p>A pasta de dados selecionada do Rune guarda a configuração, as credenciais criptografadas, os dados de conversas e projetos, a memória e os dados elegíveis para restauração de arquivos. Mudar de workspace não apaga seu histórico. Por isso, uma sessão pode reter prompts privados e saídas de ferramentas mesmo depois que você para de trabalhar.</p>
+<p>A compactação reduz o contexto enviado ao modelo, não sendo uma ferramenta de exclusão segura de dados. A exclusão de sessões e a limpeza de armazenamento (prune) são ações explícitas de manutenção. Remover uma conexão não garante que todas as suas credenciais ou metadados históricos de requisições tenham sido apagados.</p>
+<h2 id="sharing-diagnostics">Compartilhamento de diagnósticos</h2>
+<p>Logs, visualizações de contexto, simulações (dry runs) de requisição e a configuração efetiva podem conter código privado, caminhos de arquivos, nomes de contas ou descrições de trabalho. A ocultação automática de credenciais ajuda a proteger segredos conhecidos, mas não garante que toda informação privada tenha sido removida.</p>
+<p>Compartilhe apenas o menor trecho relevante após revisá-lo. Nunca cole uma chave real no chat, no controle de versão ou em um relatório público de bug. Prefira usar os metadados mascarados das chaves e um exemplo mínimo de reprodução em vez de exportar toda a sua pasta de dados.</p>
+<h2 id="your-controls">Seus controles</h2>
+<p>Escolha o workspace e o modo adequados, anexe apenas os arquivos necessários, revise os endpoints das contas e utilize os controles de retenção e orçamento do próprio provedor quando necessário. Um modelo local pode reduzir o envio de dados para modelos remotos, mas ferramentas web separadas, rotas auxiliares ou comandos ainda podem contatar serviços externos.</p>
+<p>A flag <code>-read-only</code> restringe ferramentas que modificam arquivos, mas não impede leituras nem transmissões pela rede. O aviso de gastos não é um teto rígido de bloqueio. O comando undo restaura arquivos locais elegíveis, mas não consegue recolher informações que já foram enviadas.</p>
+{{end}}

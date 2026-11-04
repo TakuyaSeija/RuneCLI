@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Rechercher et lire une page sont deux outils distincts</h2>
+<p>L’outil web_search recherche des pages à partir d’une requête. L’outil web_fetch lit une page HTTP(S) publique sous forme de texte. Une URL fournie comme requête à web_search fait l’objet d’une recherche et n’est pas automatiquement ouverte. Le lecteur intégré n’est pas un navigateur interactif et ne peut pas restituer du contenu protégé par authentification ni une application reposant entièrement sur l’exécution de scripts dans le navigateur.</p>
+<p>La recherche nécessite un service configuré. La récupération de pages utilise par défaut le lecteur intégré de Rune. Les deux outils possèdent leurs propres fournisseurs épinglés, délais d’expiration et plafonds de sortie ; activer un service pour l’un ne le sélectionne jamais en silence pour l’autre.</p>
+<h2 id="add-an-account">Ajouter d’abord un accès</h2>
+<p>Dans Settings → Connections, ajoutez le compte Search &amp; Fetch souhaité avec son adresse et ses identifiants. Le simple enregistrement d’un accès ne prouve pas que le service fonctionne. Le point de terminaison de modèles et le point de terminaison Web d’un même fournisseur peuvent être des services distincts soumis à des droits d’accès différents.</p>
+<h2 id="add-and-select">Ajouter et sélectionner un fournisseur</h2>
+<ol><li>Ouvrez Settings → Tools → Web search ou Web fetch → Provider.</li><li>Choisissez Add provider, puis sélectionnez le compte connecté.</li><li>Pour une passerelle, saisissez la route exacte souhaitée dans le champ vide. Ne devinez jamais une route à partir d’un exemple ou d’un nom de modèle.</li><li>Rune teste une vraie requête avant d’enregistrer le fournisseur. Ce test peut envoyer une requête de recherche ou une adresse de page et être facturé.</li><li>Revenez à la liste et sélectionnez le fournisseur souhaité. La sélection teste et enregistre ce choix précis ; le simple ajout d’un fournisseur ne l’épingle pas explicitement.</li></ol>
+<p>Si l’ajout ou la sélection échoue, le choix précédent reste en place. Un test réussi prouve uniquement que la requête testée a abouti, et non que toute page ou tout service futur sera accessible sans restriction.</p>
+<h2 id="services">Services utilisables par Rune</h2>
+<p>Chaque service nécessite votre propre compte auprès du fournisseur concerné. Rune utilise uniquement la fonction de recherche ou de lecture de pages indiquée ici, et non l’ensemble des produits commercialisés par ce fournisseur. Sauf mention contraire dans le tableau, le service utilise une adresse fixe et nécessite une clé API.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Service</th><th>Recherche</th><th>Lecture</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Oui</td><td>Non</td><td>Effectue des recherches Google via une zone SERP de votre compte.</td></tr>
+<tr><td>Exa</td><td>Oui</td><td>Oui</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Oui</td><td>Oui</td><td></td></tr>
+<tr><td>Jina AI</td><td>Oui</td><td>Oui</td><td>La recherche et la lecture utilisent deux adresses distinctes ; la clé commence par <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>9router</td><td>Oui</td><td>Oui</td><td>L’application 9router sur cet ordinateur, sur le port 20128 par défaut. Sa clé est facultative, et chaque service de recherche ou de lecture qu’elle propose correspond à une route que vous nommez.</td></tr>
+<tr><td>Ollama Web Search</td><td>Oui</td><td>Oui</td><td>Le service cloud d’Ollama avec une clé ollama.com, et non une instance Ollama locale.</td></tr>
+<tr><td>Perplexity Search</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>SearXNG</td><td>Oui</td><td>Non</td><td>Votre propre serveur : saisissez son adresse, sans clé. Il doit inclure <code>json</code> sous <code>search: formats:</code> dans ses paramètres.</td></tr>
+<tr><td>SerpApi</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Serper</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Serpex</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Serplify</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>serpstack</td><td>Oui</td><td>Non</td><td></td></tr>
+<tr><td>Tavily</td><td>Oui</td><td>Oui</td><td></td></tr>
+<tr><td>TinyFish</td><td>Oui</td><td>Oui</td><td>La recherche et la lecture utilisent deux adresses distinctes.</td></tr>
+<tr><td>You.com</td><td>Oui</td><td>Non</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Sans aucun de ces services, la recherche Web est indisponible et la récupération de pages utilise le lecteur intégré de Rune, qui ne nécessite aucun compte.</p>
+<h2 id="default-and-pin">Choix par défaut et épinglage explicite</h2>
+<dl class="ref">
+<div><dt>Recherche par défaut</dt><dd>Lorsqu’aucun fournisseur n’est épinglé, utilise le premier fournisseur de recherche activé par ordre d’ajout. Ajouter un premier fournisseur peut donc en faire le fournisseur utilisé par défaut.</dd></div>
+<div><dt>Lecture par défaut</dt><dd>Utilise le lecteur intégré. Ajouter un lecteur externe ne le sélectionne pas automatiquement.</dd></div>
+<div><dt>Choix explicite</dt><dd>Épingle un compte ou un couple compte:route. S’il est absent ou indisponible, l’outil n’envoie jamais la requête en silence à un autre fournisseur.</dd></div>
+</dl>
+<p>Utilisez Use default ou réinitialisez <code>web_search.provider</code> / <code>web_fetch.provider</code> pour retirer l’épinglage correspondant. Sélectionnez un autre fournisseur avant de supprimer celui qui est actuellement utilisé. La suppression retire ce fournisseur de l’outil, mais ne supprime ni le compte ni ses clés dans Connections. Une passerelle peut conserver au plus 32 routes enregistrées.</p>
+<h2 id="limits-and-privacy">Limites et confidentialité</h2>
+<p>Les valeurs par défaut sont de huit résultats de recherche, 60 secondes par requête d’outil et 100 000 caractères renvoyés pour chaque outil. Le nombre de résultats demandé lors d’un appel peut abaisser le maximum de résultats de recherche. Augmenter le plafond de sortie ne contourne aucune restriction d’accès.</p>
+<p>Un service de recherche tiers reçoit la requête ; un lecteur externe reçoit l’adresse de la page et peut facturer son traitement. Le lecteur intégré contacte directement le site demandé. Les cibles privées ou internes au réseau local sont refusées. La prise en charge facultative des cookies se limite à une seule lecture avec redirection et ne crée jamais de session de navigation persistante.</p>
+{{end}}

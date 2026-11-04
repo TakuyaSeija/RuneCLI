@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">Menjalankan dan memeriksa</h2>
+<p>Jalankan perintah-perintah ini di shell sistem operasi Anda. Gunakan <code>rune -help</code> untuk melihat referensi biner yang terpasang di mesin Anda. Perintah yang menghubungi penyedia, mengubah akun, menghapus data, atau menjalankan server adalah operasi nyata, bukan sekadar flag diagnostik pasif.</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>Membuka agen interaktif di ruang kerja saat ini atau direktori yang diberikan.</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>Menjalankan satu prompt lalu mencetak balasan serta kemajuan perangkat tanpa antarmuka layar penuh. Permintaan izin akan ditolak alih-alih disetujui diam-diam karena tidak ada pengguna yang menjawab secara interaktif.</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>Memilih ruang kerja untuk perintah lain.</dd></div>
+<div><dt>-version · -help</dt><dd>Mencetak versi aplikasi atau referensi perintah.</dd></div>
+<div><dt>-settings · -tools</dt><dd>Memeriksa kontrol model yang berlaku atau daftar perangkat yang ditawarkan kepada agen.</dd></div>
+<div><dt>-read-only</dt><dd>Membatasi perangkat yang mengubah berkas atau sistem. Flag ini bukan jaminan bahwa tidak ada berkas yang dibaca atau tidak ada data yang dikirim.</dd></div>
+<div><dt>--no-color</dt><dd>Menonaktifkan warna. Variabel lingkungan NO_COLOR juga didukung.</dd></div>
+</dl>
+<h2 id="configuration">Konfigurasi</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>Menampilkan lokasi berkas pengaturan yang dipilih.</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>Menampilkan nilai efektif, menampilkan nilai bawaan pabrik, atau memvalidasi berkas konfigurasi. Keluaran <code>show</code> dapat memuat metadata akun pribadi; <code>check</code> tidak menguji koneksi jaringan.</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>Menjelaskan nilai efektif suatu kunci beserta waktu berlakunya.</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>Menyimpan satu pilihan global. Contoh: <code>rune -config set terminal.command_timeout 2m</code>.</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>Menghapus penimpaan global sehingga nilai bawaan atau pewarisan kembali berlaku.</dd></div>
+<div><dt>-config format</dt><dd>Merapikan format pengelompokan pengaturan tanpa mengubah artinya.</dd></div>
+<div><dt>-set key=value</dt><dd>Mengubah preferensi ruang kerja/model yang didukung, bukan sembarang kunci konfigurasi global.</dd></div>
+</dl>
+<h2 id="accounts-and-models">Akun dan model</h2>
+<p>Utamakan editor kredensial bertopeng di menu Connections. Menuliskan kunci asli pada argumen baris perintah dapat bocor melalui riwayat shell dan daftar proses sistem. Sintaks di bawah ini sengaja menggunakan penampung (placeholder).</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>Mencantumkan akun, preset, dan ketersediaan layanan web.</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>Menambahkan kunci ke rangkaian kunci akun. Perintah ini mengubah kredensial.</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>Memeriksa metadata kunci dalam keadaan disamarkan.</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>Menghapus kredensial bernomor tersebut setelah Anda memeriksa identitasnya.</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>Memilih penyedia cadangan untuk sesi baru; perintah ini tidak mengganti penyedia pada setiap percakapan yang sudah ada.</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>Menghapus konfigurasi penyedia. Jangan berasumsi bahwa setiap kredensial yang tersimpan ikut terhapus secara permanen.</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>Mengirim permintaan nyata (yang mungkin dikenai biaya) untuk menguji akun.</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>Mengambil katalog model dari akun tersebut. Melakukan permintaan jaringan.</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>Menampilkan pratinjau permintaan tanpa mengirimkannya. Pratinjau dapat memuat konteks pribadi; jangan membagikannya secara mentah-mentah.</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>Mengatur batas waktu permintaan opsional untuk akun tersebut, 5–3600 detik; <code>default</code> menghapus penimpaan.</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>Menyisihkan pasangan penyimpanan kredensial yang tidak dapat dibaca lalu memulai dari kosong. Gunakan hanya setelah mengambil keputusan pemulihan secara sadar; setiap kunci harus ditambahkan kembali.</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>Mencantumkan atau memilih model untuk ruang kerja yang dipilih.</dd></div>
+</dl>
+<h2 id="sessions-and-storage">Sesi dan penyimpanan</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>Membuka pemilih sesi (atau mencetak daftar saat dialirkan lewat pipe) atau melanjutkan sesi tertentu.</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>Mengubah nama satu sesi.</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>Menghapus satu sesi secara permanen. Periksa identitas sesi terlebih dahulu.</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>Memeriksa penyimpanan proyek atau menghapus data yang memenuhi syarat milik proyek yang foldernya sudah tidak ada.</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>Memeriksa status isolasi perintah Windows, menyiapkan akun khususnya secara eksplisit, atau menghapus pengaturan akses/akun sandbox Rune. Platform lain tidak menggunakan pengaturan ini.</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">Ekstensi dan diagnostik</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>Mencantumkan, menampilkan, mengaktifkan, menonaktifkan, memasang, atau memuat ulang panduan tugas (skill). Pemasangan menerima folder atau arsip zip yang telah Anda tinjau lalu menempatkannya di proyek saat ini kecuali <code>--scope user</code> menjadikannya pribadi.</dd></div>
+<div><dt>-mcp [operation]</dt><dd>Mengelola, menyetujui, memvalidasi, dan menguji definisi perangkat eksternal. Koneksi MCP dapat menjalankan proses lokal atau menghubungi layanan jarak jauh; validasi saja belum berarti koneksi berhasil.</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>Memilih cakupan konfigurasi yang didukung untuk perubahan kapabilitas. Perubahan pada cakupan proyek bersama memengaruhi pengguna lain yang membuka proyek tersebut.</dd></div>
+<div><dt>-doctor</dt><dd>Menjalankan diagnostik, termasuk pemeriksaan konektivitas. Perintah ini dapat melakukan permintaan jaringan; tinjau keluarannya sebelum dibagikan.</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>Menggunakan berkas penyimpanan mesin alternatif. Ini terpisah dari pemilihan folder home pengaturan secara keseluruhan dengan RUNE_HOME.</dd></div>
+<div><dt>-host</dt><dd>Menggunakan JSON per baris untuk integrasi antarmuka eksternal, bukan antarmuka interaktif. Mode ini bukan server jaringan publik.</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>Memutar ulang skrip model tertulis. Skrip dapat mengusulkan pemanggilan perangkat nyata, jadi jangan pernah menjalankan skrip yang belum ditinjau pada pekerjaan asli.</dd></div>
+</dl>
+<p>Untuk penyiapan kapabilitas dan akses, lanjutkan ke <a href="{{url "docs/skills"}}">Skill</a> atau <a href="{{url "docs/mcp"}}">Koneksi MCP</a>. Jangan beralih ke mode Full atau menghapus data lokal hanya untuk mengakali suatu galat.</p>
+{{end}}

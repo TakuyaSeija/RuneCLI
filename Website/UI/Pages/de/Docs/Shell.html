@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">Einen Befehl selbst ausführen</h2>
+<p>Tippe <code>!</code> als allererstes Zeichen in das Eingabefeld, gefolgt von einem Befehl, und drücke <kbd>Enter</kbd>. Rune führt dieses Skript direkt für dich aus – nicht die KI. Noch bevor du <kbd>Enter</kbd> drückst, zeigt das Eingabefeld <strong>Shell · full access once</strong> an, damit du sofort erkennst, dass es sich um einen direkten Shell-Befehl und nicht um eine Chatnachricht handelt.</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>Das obige Beispiel ist ein zusammenhängendes Skript aus zwei Zeilen: Beide werden ausgeführt. Nur die erste Zeile beginnt mit dem <code>!</code>; ein zweites <code>!</code> würde von der Shell selbst interpretiert werden (in bash und sh kehrt es beispielsweise den Exit-Code des folgenden Befehls um). Nutze manuelle Befehle für schnelle Statusprüfungen, für einen Build, den du selbst beobachten möchtest, oder für einen Schritt, den die KI nicht ausführen durfte. Der Befehl und seine Ausgabe werden anschließend Teil der Unterhaltung, und sobald er beendet ist, antwortet die KI darauf.</p>
+
+<h2 id="what-counts">Was als manueller Befehl zählt</h2>
+<ul>
+<li>Nur ein <code>!</code> an allererster Position startet einen Befehl. <code>hello ! echo test</code>, ein <code>!</code> nach einem Leerzeichen oder ein <code>!</code> in einer späteren Zeile einer normalen Nachricht bleibt gewöhnlicher Nachrichtentext.</li>
+<li>Sobald die Eingabe mit <code>!</code> beginnt, gehört jede weitere Zeile zum selben Skript. Ein späteres <code>!</code> ist normale Shell-Syntax, kein zweiter Rune-Befehl.</li>
+<li>Das Einfügen aus der Zwischenablage führt niemals sofort etwas aus. Erst <kbd>Enter</kbd> startet das gesamte aktuelle Skript einschließlich aller eingefügten Zeilen.</li>
+<li>Ein einzelnes <code>!</code> ohne weiteren Text führt nichts aus. Lösche das führende <code>!</code>, um die Eingabe wieder in eine normale Nachricht zu verwandeln.</li>
+</ul>
+
+<h2 id="access">Welche Zugriffsrechte der Befehl hat</h2>
+<p>Dein Druck auf <kbd>Enter</kbd> ist die Freigabe. Das Skript läuft einmalig mit den vollen Rechten deines Betriebssystemkontos: außerhalb der Workspace-Grenzen und außerhalb der Befehls-Sandbox, ohne Prüfung durch Klassifizierer oder Sanitizer und ohne weitere Sicherheitsabfrage.</p>
+<p>Es läuft jedoch nicht automatisch als Administrator oder root, verändert nicht den Berechtigungsmodus der Sitzung und erteilt auch keine Freigabe für spätere Aktionen der KI. Lies das gesamte Skript sorgfältig durch, bevor du <kbd>Enter</kbd> drückst – insbesondere nach dem Einfügen aus der Zwischenablage.</p>
+
+<h2 id="while-the-ai-works">Während die KI arbeitet</h2>
+<p>Sendest du während eines laufenden Durchlaufs einen Befehl ab, wartet er das Ende dieses Durchlaufs ab und wird danach in der gesendeten Reihenfolge ausgeführt. Seine Ausgabe erscheint live während der Ausführung. Sobald er endet – oder in den Hintergrund wechselt, weil er nach Ablauf der konfigurierten Vordergrund-Wartezeit noch läuft bzw. auf eine Tastatureingabe wartet –, fügt Rune den Befehl samt Ausgabe zur Unterhaltung hinzu, und die KI antwortet darauf. Diese Antwort ist eine reguläre Modellanfrage und kann Kosten verursachen.</p>
+<p>Verbindet sich ein Fenster neu, überträgt Rune dieselbe Eingabe nicht doppelt zur Ausführung. Nach einem Programmabsturz wiederholt Rune niemals automatisch einen Befehl, der möglicherweise bereits gelaufen ist.</p>
+
+<h2 id="when-the-ai-was-refused">Wenn der KI ein Befehl verweigert wurde</h2>
+<p>Wird ein von der KI vorgeschlagener Befehl abgelehnt, kann der Ablehnungshinweis auf diese manuelle Ausführungsmöglichkeit verweisen. Rune sendet niemals von sich aus einen <code>!</code>-Befehl ab und wiederholt abgelehnte Aktionen niemals eigenmächtig. Andere Werkzeuge erhalten keine vergleichbare Umgehungsmöglichkeit.</p>
+
+<h2 id="which-shell">Welche Shell den Befehl ausführt</h2>
+<p>Die verwendete Shell wird über <code>terminal.shell</code> festgelegt. Mit dem Standardwert <code>auto</code> nutzt Rune bash (sofern auf dem Rechner vorhanden) und andernfalls <code>/bin/sh</code>; unter Windows wird PowerShell 7, sonst Windows PowerShell und sonst die Eingabeaufforderung (cmd) verwendet. Jede Shell interpretiert Befehle in ihrer eigenen Syntax.</p>
+<p>Das Befehlskästchen zeigt an, welche Shell tatsächlich lief: <code>$</code> für bash und zsh, <code>PS&gt;</code> für PowerShell und <code>&gt;</code> für die Eingabeaufforderung. Ein eingeklapptes Kästchen zeigt die erste Zeile des Skripts; klicke darauf, um das gesamte Skript mit seinen ursprünglichen Zeilen aufzuklappen.</p>
+
+<h2 id="privacy">Datenschutz</h2>
+<p>Der Befehl und seine gesamte Textausgabe werden mit der nächsten Anfrage an die KI gesendet. Gib daher keine Geheimnisse, API-Schlüssel oder privaten Dateiinhalte auf der Konsole aus, die du nicht auch direkt in eine Chatnachricht einfügen würdest. Rune schwärzt zwar ihm bekannte Schlüssel, kann dies aber nicht für jeden beliebigen privaten Wert garantieren.</p>
+{{end}}

@@ -24,15 +24,18 @@ import (
 	"time"
 )
 
-// A release folder, as PublishRune.sh writes it:
+// A release folder, as PublishRune.sh writes it. It lives outside the deploy
+// tree, at ~/.data/Atoryn/Studio/Releases (DEV: ~/.data/Atoryn/StudioDev/
+// Releases), so a release survives every deploy; the unit reads it read-only
+// at /srv/studio/downloads.
 //
-//	Downloads/SigningKey.pem              the public key (PEM, ECDSA P-256)
-//	Downloads/<X.Y.Z>/release.json         date, notes, files with platform
-//	Downloads/<X.Y.Z>/rune-<v>-linux-<arch>-<libc>.tar.gz
-//	Downloads/<X.Y.Z>/rune-<v>-macos-<arch>.tar.gz
-//	Downloads/<X.Y.Z>/rune-<v>-windows-<arch>.zip
-//	Downloads/<X.Y.Z>/SHA256SUMS           every file above, release.json too
-//	Downloads/<X.Y.Z>/SHA256SUMS.sig       ECDSA P-256 signature (DER) of SHA256SUMS's SHA-256
+//	SigningKey.pem                        the public key (PEM, ECDSA P-256)
+//	<X.Y.Z>/release.json                  date, notes, files with platform
+//	<X.Y.Z>/rune-<v>-linux-<arch>-<libc>.tar.gz
+//	<X.Y.Z>/rune-<v>-macos-<arch>.tar.gz
+//	<X.Y.Z>/rune-<v>-windows-<arch>.zip
+//	<X.Y.Z>/SHA256SUMS           every file above, release.json too
+//	<X.Y.Z>/SHA256SUMS.sig       ECDSA P-256 signature (DER) of SHA256SUMS's SHA-256
 //
 // Nothing is listed or served unless the signature verifies with the
 // published key AND every file has exactly the signed size and hash. A folder
@@ -61,6 +64,9 @@ type Artifact struct {
 	Libc   string `json:"libc"`
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
+	// Package marks the offline package: the same binary with an installer
+	// that needs no network, so a version can be installed later or elsewhere.
+	Package bool `json:"package"`
 }
 
 type Release struct {

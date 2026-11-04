@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">Execute você mesmo um comando</h2>
+<p>Digite <code>!</code> como o primeiro caractere no campo de mensagem, seguido de um comando, e pressione <kbd>Enter</kbd>. O Rune executa esse script para você, sem passar pela IA. Antes de pressionar <kbd>Enter</kbd>, o campo de mensagem exibe <strong>Shell · full access once</strong>, deixando claro que a entrada é um comando direto e não uma mensagem.</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>O exemplo acima é um único script de duas linhas: ambas são executadas. Apenas a primeira linha leva o caractere <code>!</code>; um segundo <code>!</code> seria interpretado pelo próprio shell (no bash e no sh, ele inverte o código de saída do comando seguinte). Use esse recurso para uma verificação rápida, um build que você queira acompanhar ou uma etapa que a IA não teve permissão para executar. O comando e seu resultado passam a fazer parte da conversa, e a IA responde assim que ele termina.</p>
+
+<h2 id="what-counts">O que conta como comando</h2>
+<ul>
+<li>Apenas um <code>!</code> na primeira posição inicia um comando. Entradas como <code>hello ! echo test</code>, um <code>!</code> após um espaço ou um <code>!</code> em uma linha seguinte de uma mensagem comum são tratadas como texto normal.</li>
+<li>Quando a entrada começa com <code>!</code>, todas as linhas fazem parte do mesmo script. Um <code>!</code> em linhas seguintes é sintaxe do shell, não um segundo comando do Rune.</li>
+<li>Colar texto nunca executa nada sozinho. Pressionar <kbd>Enter</kbd> executa todo o script atual, incluindo todas as linhas coladas.</li>
+<li>Um <code>!</code> isolado não executa nada. Apague o <code>!</code> inicial para transformar o texto de volta em uma mensagem comum.</li>
+</ul>
+
+<h2 id="access">Qual acesso ele tem</h2>
+<p>Pressionar <kbd>Enter</kbd> já é a própria permissão. O script roda uma única vez com o acesso completo da sua conta do sistema operacional: fora dos limites do workspace e da sandbox de comandos, sem revisão do classificador ou do sanitizador e sem exibir outro cartão de permissão.</p>
+<p>Ele não roda como Administrador nem como root, não altera o modo da sessão e não aprova nenhuma ação posterior da IA. Leia todo o script antes de pressionar <kbd>Enter</kbd>, especialmente quando tiver colado o conteúdo.</p>
+
+<h2 id="while-the-ai-works">Enquanto a IA está trabalhando</h2>
+<p>Um comando enviado durante um turno aguarda o término desse turno e, em seguida, é executado na ordem em que você o enviou. A saída ao vivo aparece enquanto ele roda. Quando ele termina — ou quando passa para segundo plano por continuar rodando após o tempo de espera configurado ou por aguardar entrada digitada —, o Rune adiciona o comando e tudo o que ele imprimiu à conversa, e a IA responde em seguida. Essa resposta é uma requisição normal ao modelo e pode gerar custos.</p>
+<p>Se uma janela se reconectar, o Rune reenvia a mesma submissão sem executar o comando duas vezes. Após um encerramento inesperado (crash), o Rune nunca repete um comando que já possa ter sido executado.</p>
+
+<h2 id="when-the-ai-was-refused">Quando um comando da IA foi recusado</h2>
+<p>Quando um comando proposto pela IA é recusado, o aviso de recusa pode mencionar esta opção manual. O Rune nunca envia um comando com <code>!</code> no seu lugar e nunca repete uma ação recusada por conta própria. Nenhuma outra ferramenta possui um atalho semelhante.</p>
+
+<h2 id="which-shell">Qual shell executa o comando</h2>
+<p>O shell é definido por <code>terminal.shell</code>. Com o valor de fábrica <code>auto</code>, o Rune usa o bash onde estiver disponível e <code>/bin/sh</code> caso contrário; no Windows, usa o PowerShell 7, depois o Windows PowerShell e, por último, o Prompt de Comando. Cada shell interpreta os comandos na sua própria sintaxe.</p>
+<p>A caixa do comando mostra qual shell realmente o executou: <code>$</code> para bash e zsh, <code>PS&gt;</code> para PowerShell e <code>&gt;</code> para Prompt de Comando. Uma caixa recolhida mostra a primeira linha do script; clique nela para abrir o script completo com suas linhas originais.</p>
+
+<h2 id="privacy">Privacidade</h2>
+<p>O comando e tudo o que ele imprimir na tela são enviados para a IA na requisição seguinte. Não imprima segredos, chaves nem arquivos privados que você não colaria em uma mensagem. O Rune oculta as chaves que já conhece, mas isso não garante a remoção de qualquer valor privado arbitrário.</p>
+{{end}}

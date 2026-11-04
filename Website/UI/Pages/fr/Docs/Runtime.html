@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Choisir le bon délai d’attente</h2>
+<p>Settings → Runtime gère les délais des requêtes aux modèles, les attentes réseau partagées et les nouvelles tentatives. Le délai d’attente au premier plan du terminal, le délai d’un outil Web et l’expiration d’une carte d’autorisation sont des paramètres distincts situés sous Tools. Augmenter tous les délais à la fois risque de masquer le symptôme sans corriger la cause.</p>
+<p>Le délai d’expiration facultatif des requêtes d’un compte accepte un nombre entier de secondes compris entre 5 et 3 600. Le laisser vide ou choisir default supprime ce remplacement. Les tâches auxiliaires peuvent avoir leur propre délai d’opération. Un flux actif et un flux qui ne reçoit aucune donnée ne représentent pas la même situation.</p>
+<h2 id="retry">Les nouvelles tentatives sont linéaires</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Clé</th><th>Valeur par défaut</th><th>Signification</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Nouvelles tentatives après le premier essai : jusqu’à six tentatives au total. Zéro désactive les nouvelles tentatives.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Pas de base : les attentes augmentent de 3, 6, 9… secondes.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>Si l’attente suivante dépasse ce plafond, la séquence repart au pas de base. Il ne s’agit pas d’un recul exponentiel (exponential backoff).</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>Durée pendant laquelle une clé à court de crédit reste au repos avant de redevenir éligible. Cela ne recharge pas le crédit.</td></tr>
+</tbody></table></div>
+<p>Tous les échecs ne donnent pas lieu à une nouvelle tentative. Réessayer ne peut pas corriger un identifiant erroné, un réglage non pris en charge ni un mauvais point de terminaison. Un nombre très élevé de tentatives peut prolonger une panne et alourdir la facture ; consultez d’abord l’erreur classifiée dans les journaux.</p>
+<h2 id="network">Délais d’attente réseau</h2>
+<dl class="ref">
+<div><dt>Limite de blocage de flux</dt><dd><code>network.stream_idle_timeout</code> : 5 minutes sans recevoir de données de réponse. Il ne s’agit pas d’une limite totale de cinq minutes sur un flux qui continue d’envoyer des données.</dd></div>
+<div><dt>Délai de connexion</dt><dd><code>network.connect_timeout</code> : 10 secondes pour établir une connexion.</dd></div>
+<div><dt>Délai de test</dt><dd><code>network.probe_timeout</code> : 45 secondes pour un test explicite de fournisseur.</dd></div>
+<div><dt>Catalogue</dt><dd>Valeurs avancées : délai de requête de 10 secondes, période de fraîcheur d’une heure et au plus 100 pages par rafraîchissement. La fraîcheur du catalogue n’est pas la durée de vie du cache d’invites.</dd></div>
+</dl>
+<p>D’autres limites avancées bornent la taille des réponses diffusées ou non en flux continu. Elles mesurent des octets, et non des jetons. L’option de compatibilité token-saver peut confier la compression à un routeur compatible ; l’activer ne garantit pas la compression et peut réduire le niveau de détail renvoyé.</p>
+<h2 id="detached-lifetime">Durée de vie d’une session détachée</h2>
+<p><code>host.idle_lifetime</code> est un paramètre global avancé, fixé à 60 secondes par défaut. Lorsque la dernière fenêtre se ferme, le travail actif de l’IA s’arrête ; les commandes en arrière-plan peuvent continuer pendant cette période de rétention. Rouvrez la session à temps pour reprendre le suivi. Ce n’est ni un délai de déconnexion de compte ni la promesse d’un serveur tournant indéfiniment.</p>
+<h2 id="change-and-reset">Modifier et réinitialiser à bon escient</h2>
+<p>Ouvrez la ligne Runtime concernée, modifiez la valeur et choisissez Apply. L’option Use default supprime un remplacement ; <code>rune -config explain &lt;key&gt;</code> affiche la valeur effective et le moment où elle s’applique. Modifier le délai d’inactivité du flux peut affecter une requête déjà en attente, tandis que les autres choix s’appliquent généralement aux opérations suivantes.</p>
+<p>Distinguez d’abord un service lent mais fonctionnel, une connexion silencieusement figée, une clé à court de crédit et une requête non prise en charge. Enregistrer une configuration avec succès ne vaut pas test réseau réussi.</p>
+{{end}}

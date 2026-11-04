@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Einstellungen für diese Sitzung</h2>
+<p>Unter Settings → Generation steuerst du die aktive Sitzung bzw. das aktive Modell. Optionale Werte lassen sich leeren, damit wieder die Vorgabe des Anbieters oder der Standardwert beim Start greift. Globale Startwerte in rune.toml sind unabhängig von den Entscheidungen einer bereits laufenden Sitzung. Nicht unterstützte Regler werden unter Umständen ausgeblendet.</p>
+<h2 id="reasoning">Reasoning und Denkaufwand</h2>
+<p>Wähle unter Generation, über <code>/thinking</code> oder mit Alt+T aus den angebotenen Reasoning-Stufen des gewählten Modells. Über Models → Alt+C konfigurierst du hingegen das dauerhafte Startverhalten und die verfügbaren Optionen. Ein Thinking-Abzeichen in der Modellliste bedeutet grundsätzliche Unterstützung, nicht dass Reasoning in der aktuellen Sitzung aktiv ist.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Fordert deaktiviertes Reasoning an. Dies ist jedoch keine Garantie dafür, dass ein übergeordneter Anbieter oder Router intern keinerlei Denkaufwand betreibt.</dd></div>
+<div><dt>On / effort</dt><dd>Aktiviert unterstütztes Reasoning oder wählt eine angebotene Stufe aus. Ein höherer Denkaufwand kann Latenz und Token-Kosten steigern, ohne automatisch eine bessere Antwort zu garantieren.</dd></div>
+<div><dt>Route default</dt><dd>Überlässt – sofern angeboten – die Reasoning-Steuerung der jeweiligen Route. Dies entspricht weder festem Off noch einer bestimmten festen Stufe.</dd></div>
+</dl>
+<p>Bei 9router erhält eine Route, die ausdrücklich meldet, dass Thinking nicht deaktiviert werden kann, bei einer Off-Anfrage den Wert Low; Minimal wird aus den wirksamen Auswahlmöglichkeiten ausgeschlossen, selbst wenn eine ältere gespeicherte Option diesen Wert enthält. Routen, bei denen Thinking abschaltbar ist, erhalten eine Deaktivierungsanfrage, wobei der ausführende Dienst dies dennoch abweichend handhaben kann. Lies den Hinweistext neben dem Regler, statt das Verhalten aus der Modell-ID abzuleiten.</p>
+<p>Als Text angezeigtes Thinking wird in Wörtern gezählt; meldet eine Route stattdessen Thinking-Tokens, werden diese gemeldeten Tokens angezeigt. Rune erfindet keine eigenen Token-Schätzungen. Dass kein Gedankengang sichtbar ist, beweist nicht, dass Reasoning deaktiviert war: Manche Endpunkte geben den Denkprozess schlicht nicht zurück.</p>
+<h2 id="sampling">Sampling</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Regler</th><th>Zweck und üblicher Bereich</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Zufälligkeit, üblicherweise 0–2. Ein niedrigerer Wert garantiert keine identischen Antworten.</td></tr>
+<tr><td>Top P</td><td>Nucleus-Sampling, üblicherweise 0,01–1. Passe in der Regel entweder diesen Wert oder Temperature an, nicht beide gleichzeitig.</td></tr>
+<tr><td>Frequency penalty</td><td>Verringert wiederholte Tokens, üblicherweise −2 bis 2; negative Werte fördern Wiederholungen.</td></tr>
+<tr><td>Presence penalty</td><td>Verringert das Wiederholen derselben Themen, üblicherweise −2 bis 2.</td></tr>
+</tbody></table></div>
+<p>Der tatsächlich akzeptierte Wertebereich hängt vom jeweiligen Modell bzw. Endpunkt ab. Aktives Reasoning kann einzelne Sampling-Regler vorübergehend unzugänglich machen. Extreme Strafen (Penalties) oder zu hohe Zufälligkeit können die Qualität der Antworten deutlich verschlechtern.</p>
+<h2 id="output">Ausgabelänge und Stoppsequenzen</h2>
+<p>Max output legt eine positive ganzzahlige Token-Obergrenze für die Antwort innerhalb des bekannten Modelllimits fest. Reasoning kann bereits vor der eigentlichen Antwort einen Teil dieses Budgets verbrauchen. Ein zu niedriger Wert kann zu unvollständigen Antworten führen; ein höheres Limit kann höhere Kosten zulassen. Ein leer gelassener Wert bedeutet keine unbegrenzte Ausgabe.</p>
+<p>Bis zu vier Stopp-Zeichenfolgen können die Generierung vorzeitig beenden. Das Sitzungsmenü akzeptiert kommagetrennte Einträge; ein TOML-Array bewahrt dagegen exakte Zeichenfolgen einschließlich enthaltener Kommas innerhalb eines Eintrags. Eine Stopp-Zeichenfolge, die in normalem Programmcode vorkommt, kann eine Antwort unerwartet abschneiden.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>Das erste Beispiel setzt eine Einstellung für die laufende Sitzung; das zweite löscht diese optionale Vorgabe wieder. Die weiter unten unter Generation aufgeführten Regler für Hilfsmodelle gelten global und werden im <a href="{{url "docs/auxiliary"}}">nächsten Artikel</a> beschrieben.</p>
+{{end}}

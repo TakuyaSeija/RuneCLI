@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Lokal heißt nicht automatisch offline</h2>
+<p>Rune läuft auf deinem Rechner und speichert Einstellungen, Sitzungen und Projektdaten lokal. Das Programm erfordert kein Atoryn-Konto und erfasst keinerlei Produkttelemetrie. Dennoch sendet es genau die Netzwerkanfragen, die für die von dir genutzten Konten, Kataloge, Modelle und Werkzeuge nötig sind.</p>
+<p>Wenn du ein entferntes Modell nutzt, werden die relevanten Anfrageinhalte an diesen Anbieter übertragen. Dass das Programm lokal auf deinem Gerät läuft, bedeutet also nicht, dass sämtlicher Code die Maschine niemals verlässt. Prüfe bei vertraulichen Projekten vorab die Zieladresse, die Modellkonfiguration, angehängte Dateien und die Aufbewahrungsrichtlinien des jeweiligen Anbieters.</p>
+<h2 id="what-is-sent">Was übertragen werden kann</h2>
+<dl class="ref">
+<div><dt>Hauptmodell</dt><dd>Dein Prompt, der ausgewählte Unterhaltungskontext, Tool-Deklarationen und -Ergebnisse sowie unterstützte Anhänge, die für die Anfrage benötigt werden.</dd></div>
+<div><dt>Hilfsmodelle (Auxiliary)</dt><dd>Relevante Auszüge für Richtlinienprüfungen, die Extraktion von Anweisungen, Zusammenfassungen oder Sitzungstitel. Ist dafür ein separater Anbieter konfiguriert, erhält dieser den jeweiligen Ausschnitt.</dd></div>
+<div><dt>Such- und Seitenabrufdienste</dt><dd>Eine Suchanfrage bzw. die Zieladresse einer Webseite samt dienstspezifischer Abfrage. Der integrierte Seitenabruf kontaktiert die Zielseite direkt.</dd></div>
+<div><dt>MCP und Befehle</dt><dd>Daten, die an externe Werkzeuge oder lokal gestartete Programme übergeben werden. Deren eigenes Netzwerkverhalten und deren Datenspeicherung liegen außerhalb der Kontrolle von Rune.</dd></div>
+<div><dt>Kontotests und Kataloge</dt><dd>Authentifizierungs- und Testanfragen sowie Abfragen von Modellkatalogen. Tests können Kosten verursachen.</dd></div>
+</dl>
+<p>Die Auswahl eines anderen Endpunkts ist immer auch eine Entscheidung darüber, wohin deine Daten fließen. Ist ein fest ausgewählter Webdienst nicht erreichbar, weicht Rune niemals stillschweigend auf einen anderen Drittanbieter aus.</p>
+<h2 id="what-is-kept">Was lokal gespeichert wird</h2>
+<p>Das gewählte Rune-Home-Verzeichnis enthält die Konfiguration, verschlüsselte Zugangsdaten, Unterhaltungs- und Projektdaten, das Projektgedächtnis (Memory) sowie die Sicherungskopien für die Dateiwiederherstellung (Undo). Ein Wechsel des Workspace löscht dessen bisherigen Verlauf nicht. Eine gespeicherte Sitzung kann daher auch nach Arbeitsende vertrauliche Prompts und Tool-Ausgaben auf deiner Festplatte enthalten.</p>
+<p>Die Komprimierung verkleinert lediglich den Modellkontext und dient nicht zur sicheren Datenlöschung. Das Löschen einzelner Sitzungen und das Bereinigen des Projektspeichers (Prune) sind explizite Verwaltungsaktionen. Das Entfernen einer Verbindung garantiert nicht, dass sämtliche zugehörigen Schlüssel oder historischen Anfragemetadaten unwiderruflich gelöscht wurden.</p>
+<h2 id="sharing-diagnostics">Diagnosedaten weitergeben</h2>
+<p>Logs, Kontextansichten, Anfrage-Vorschauen (Dry Runs) und Ausgaben der wirksamen Konfiguration können privaten Programmcode, Dateipfade, Kontonamen oder Aufgabenbeschreibungen enthalten. Die automatische Schwärzung hilft bei bekannten Schlüsseln, garantiert aber nicht, dass jede vertrauliche Zeichenfolge entfernt wurde.</p>
+<p>Teile stets nur den kleinsten relevanten Ausschnitt und sieh ihn vorher durch. Füge niemals einen echten API-Schlüssel in den Chat, in die Versionsverwaltung oder in einen öffentlichen Fehlerbericht ein. Nutze lieber maskierte Schlüssel-Metadaten und ein minimales Reproduktionsbeispiel statt eines kompletten Abzugs deines Datenordners.</p>
+<h2 id="your-controls">Deine Steuerungsmöglichkeiten</h2>
+<p>Wähle gezielt den passenden Workspace und Berechtigungsmodus, hänge nur wirklich benötigte Dateien an, prüfe die Endpunkte deiner Konten und nutze bei Bedarf die Aufbewahrungs- und Budgetkontrollen deines Anbieters. Ein lokales Modell vermeidet die Übertragung an entfernte Modellanbieter, doch separate Web-Werkzeuge, Hilfsrouten oder Shell-Befehle können weiterhin externe Dienste kontaktieren.</p>
+<p>Das Flag <code>-read-only</code> schränkt schreibende Werkzeuge ein, verhindert aber weder das Lesen von Dateien noch Netzwerkübertragungen. Eine Ausgabenwarnung ist keine harte Kostensperre. Ein Undo stellt geeignete lokale Dateien wieder her, kann aber bereits gesendete Informationen nicht zurückholen.</p>
+{{end}}

@@ -1,0 +1,63 @@
+{{define "demo-blocks"}}{{range .}}
+{{if eq .Kind "h"}}<h3>{{demoInline .Text}}</h3>
+{{else if eq .Kind "p"}}<p>{{demoInline .Text}}</p>
+{{else if eq .Kind "list"}}<ul>{{range .Items}}<li><span>{{demoInline .}}</span></li>{{end}}</ul>
+{{else if eq .Kind "code"}}<pre>{{.Text}}</pre>{{end}}
+{{end}}{{end}}
+
+{{define "demo-rows"}}{{range .}}<span class="content-row{{if .Op}} diff-line{{end}}{{if .Class}} {{.Class}}{{end}}"{{if .Op}} data-op="{{.Op}}"{{end}}>{{if .Op}}{{.Op}}{{end}}{{if .Tokens}}{{range .Tokens}}<span{{if .Class}} class="{{.Class}}"{{end}}>{{.Text}}</span>{{end}}{{else}}{{.Text}}{{end}}</span>{{end}}{{end}}
+
+{{define "demo-fold"}}<details class="demo-fold" data-fold>
+  <summary aria-label="記録された内容を展開または折りたたむ">
+    <span class="fold-rows" data-fold-rows>{{template "demo-rows" .}}</span>
+    <span class="cut-row fold-open" data-fold-label>Click to open all</span>
+    <span class="cut-row fold-close">Click to fold</span>
+  </summary>
+</details>{{end}}
+
+{{define "demo-transcript"}}
+<div class="thead">{{template "terminal-logo" .}}<div>
+  <p><b class="a">Rune CLI</b> <span class="dim">{{.Demo.Version}}</span></p>
+  <p><span class="tfg">{{.Demo.Model}}</span> <span class="effort-label">{{.Demo.Effort}}</span> <span class="faint">·</span> <b class="ok">{{.Demo.Mode}}</b></p>
+  <p class="dim">{{.Demo.Project}}</p>
+  <p class="quick"><span class="faint">Quick:</span> / commands · Tab complete · Esc cancel/stop · ? help</p>
+</div></div>
+<div class="demo-user" data-scene="user">
+  <fieldset class="demo-box"><legend>you <span class="dim">· {{.Demo.Started}}</span></legend>
+    <details class="demo-fold user-fold" data-fold><summary aria-label="送信メッセージを展開または折りたたむ">
+      <span class="fold-rows user-text" data-fold-rows data-user-text>{{.Demo.Prompt}}</span>
+      <span class="cut-row fold-open" data-fold-label>Click to open all</span><span class="cut-row fold-close">Click to fold</span>
+    </summary></details>
+  </fieldset>
+</div>
+<div class="demo-timeline" data-timeline>
+{{range $i,$step := .Demo.Steps}}
+  {{if eq $step.Kind "notification"}}
+  <div class="demo-step demo-notification" data-step="{{$i}}" data-kind="notification"><fieldset class="demo-box"><legend>system notification</legend>{{$step.Label}}</fieldset></div>
+  {{else if eq $step.Kind "final"}}
+  <div class="demo-step demo-response" data-step="{{$i}}" data-kind="final" data-scene="response"><div data-stream="text">{{template "demo-blocks" $step.Prose}}</div></div>
+  {{else if eq $step.Kind "prose"}}
+  <div class="demo-step demo-prose" data-step="{{$i}}" data-kind="prose"><p class="step-title dim"><span class="step-dot" aria-hidden="true">●</span>Response</p><div class="step-body" data-stream="text">{{template "demo-blocks" $step.Prose}}</div></div>
+  {{else if eq $step.Kind "think"}}
+  <div class="demo-step" data-step="{{$i}}" data-kind="think">
+    <details class="thought-fold"><summary class="step-title"><span class="step-dot" aria-hidden="true">●</span><span class="t-word think">Thought</span> <span class="dim">· <span data-words="{{$i}}">{{$step.Words}}</span> words</span></summary>
+      <div class="step-body thought-body" data-stream="thought">{{template "demo-blocks" $step.Thought}}</div>
+    </details>
+  </div>
+  {{else}}
+  <div class="demo-step" data-step="{{$i}}" data-kind="tool" data-call="{{$step.Call}}" data-failed="{{$step.Failed}}"{{if $step.Gate}} data-gate="1" data-gate-title="{{$step.GateTitle}}"{{if $step.Always}} data-gate-always="{{$step.Always}}"{{end}}{{end}}>
+    <p class="step-title"><span class="step-dot" aria-hidden="true">●</span> <span data-stream="action">{{$step.Label}}</span> <span class="faint" data-tool-time>{{$step.Timing}}</span></p>
+    <div class="step-body">
+      {{if $step.Verb}}<p class="bullet-row"><span class="verb">{{$step.Verb}}</span><span class="target" data-stream="target">{{$step.Target}}</span>{{if or (eq $step.Call "create_file") (eq $step.Call "patch_file")}}<span class="note">{{if eq $step.Call "patch_file"}}<span class="bad" data-removed="{{$step.Removed}}">−{{$step.Removed}}</span> {{end}}<span class="ok" data-added="{{$step.Added}}">+{{$step.Added}}</span></span>{{else}}{{if $step.ArgNote}}<span class="note" data-argument-note>{{$step.ArgNote}}</span>{{end}}{{if $step.Note}}<span class="note" data-result-note>{{$step.Note}}</span>{{end}}{{end}}</p>{{end}}
+      {{if $step.Box}}<fieldset class="demo-box" data-box="{{$step.Box}}"><legend>{{$step.Box}}</legend>
+        {{if $step.Cmd}}<details class="command-fold"><summary aria-label="シェルコマンドを展開または折りたたむ"><span class="box-cmd"><span class="a">$</span> <span data-stream="command">{{range $step.Command}}<span{{if .Class}} class="{{.Class}}"{{end}}>{{.Text}}</span>{{end}}</span></span></summary></details>{{end}}
+        {{if $step.Rows}}<div class="box-out{{if $step.Cmd}} command-output{{end}}">{{template "demo-fold" $step.Rows}}</div>{{end}}
+      </fieldset>{{else if $step.Rows}}<div class="plain-output">{{if and $step.Failed (eq $step.Call "create_file")}}<details class="failed-write"><summary>Show failure details</summary><div>{{template "demo-rows" $step.Rows}}</div></details>{{else}}{{template "demo-fold" $step.Rows}}{{end}}</div>{{end}}
+      {{if $step.Tasks}}<details class="demo-fold tasks-fold" data-fold><summary aria-label="プランを展開または折りたたむ"><span class="fold-rows" data-fold-rows>{{range $step.Tasks}}<span class="task-row" data-s="{{.Status}}"><span class="mark">{{if eq .Status "done"}}●{{else if eq .Status "doing"}}◐{{else}}○{{end}}</span><span>{{.Text}}</span></span>{{end}}</span><span class="cut-row fold-open" data-fold-label>Click to open all</span><span class="cut-row fold-close">Click to fold</span></summary></details>{{end}}
+      {{if $step.Gate}}<div class="gate-source" hidden>{{template "demo-rows" $step.GateLines}}</div>{{end}}
+    </div>
+  </div>
+  {{end}}
+{{end}}
+</div>
+{{end}}

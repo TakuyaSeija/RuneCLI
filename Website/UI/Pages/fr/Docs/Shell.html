@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">Exécuter vous-même une commande</h2>
+<p>Tapez <code>!</code> comme tout premier caractère dans le compositeur, suivi d’une commande, puis appuyez sur <kbd>Enter</kbd>. C’est Rune qui exécute ce script pour vous, et non l’IA. Avant que vous n’appuyiez sur <kbd>Enter</kbd>, le compositeur affiche <strong>Shell · full access once</strong>, afin que vous voyiez clairement que cette saisie est une commande et non un message.</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>L’exemple ci-dessus constitue un seul script de deux lignes : toutes deux sont exécutées. Seule la première ligne comporte le préfixe <code>!</code> ; un second <code>!</code> serait interprété par le shell lui-même, ce qui, dans bash et sh, inverse le code de retour de la commande suivante. Utilisez cette fonction pour une vérification rapide, une compilation que vous souhaitez suivre ou une étape que l’IA n’a pas été autorisée à exécuter. La commande et son résultat rejoignent ensuite la conversation, et l’IA répond une fois l’exécution terminée.</p>
+
+<h2 id="what-counts">Ce qui est reconnu comme commande</h2>
+<ul>
+<li>Seul un <code>!</code> placé en toute première position démarre une commande. <code>hello ! echo test</code>, un <code>!</code> précédé d’une espace ou un <code>!</code> sur une ligne suivante d’un message ordinaire sont traités comme du texte normal.</li>
+<li>Dès que la saisie commence par <code>!</code>, toutes les lignes appartiennent au même script. Un <code>!</code> ultérieur relève de la syntaxe du shell, et non d’une seconde commande Rune.</li>
+<li>Coller du texte ne lance jamais rien tout seul. <kbd>Enter</kbd> exécute l’intégralité du script en cours, y compris toutes les lignes collées.</li>
+<li>Un <code>!</code> isolé n’exécute rien. Supprimez le <code>!</code> initial pour retransformer votre saisie en message ordinaire.</li>
+</ul>
+
+<h2 id="access">Quels sont ses droits d’accès</h2>
+<p>Appuyer sur <kbd>Enter</kbd> vaut autorisation. Le script s’exécute une fois avec l’accès complet de votre compte utilisateur sur le système d’exploitation : en dehors des limites de l’espace de travail et du bac à sable des commandes, sans examen par le classifieur ou l’assainisseur, et sans autre question d’autorisation.</p>
+<p>Il ne s’exécute ni en tant qu’Administrateur ni en tant que root, ne modifie pas le mode de la session et n’approuve aucune action ultérieure de l’IA. Relisez l’intégralité du script avant d’appuyer sur <kbd>Enter</kbd>, en particulier lorsque vous l’avez collé.</p>
+
+<h2 id="while-the-ai-works">Pendant que l’IA travaille</h2>
+<p>Une commande que vous envoyez pendant un tour attend la fin de ce tour, puis s’exécute dans l’ordre où vous l’avez envoyée. Sa sortie s’affiche en direct pendant l’exécution. Lorsqu’elle se termine, ou lorsqu’elle passe en arrière-plan parce qu’elle tourne encore après le délai configuré ou qu’elle attend une saisie clavier, Rune ajoute la commande et ce qu’elle a affiché à la conversation, puis l’IA répond. Cette réponse constitue une requête normale au modèle et peut être facturée.</p>
+<p>Si une fenêtre se reconnecte, Rune retransmet l’envoi sans exécuter la commande une seconde fois. Après un arrêt brutal, Rune ne rejoue jamais une commande susceptible d’avoir déjà été exécutée.</p>
+
+<h2 id="when-the-ai-was-refused">Lorsque l’IA s’est vu refuser une action</h2>
+<p>Lorsqu’une commande proposée par l’IA est refusée, le message de refus peut mentionner cette option manuelle. Rune ne soumet jamais une commande <code>!</code> à votre place et ne relance jamais de lui-même une action refusée. Les autres outils ne disposent d’aucun contournement de ce type.</p>
+
+<h2 id="which-shell">Quel shell l’exécute</h2>
+<p>Le shell est défini par <code>terminal.shell</code>. Avec la valeur par défaut <code>auto</code>, Rune utilise bash lorsqu’il est présent sur l’ordinateur et <code>/bin/sh</code> sinon ; sous Windows, il utilise PowerShell 7, puis Windows PowerShell, puis l’Invite de commandes. Chaque shell interprète les commandes dans son propre langage.</p>
+<p>L’encadré de la commande indique le shell qui l’a réellement exécutée : <code>$</code> pour bash et zsh, <code>PS&gt;</code> pour PowerShell et <code>&gt;</code> pour l’Invite de commandes. Un encadré replié affiche la première ligne du script ; cliquez dessus pour afficher le script complet avec ses lignes d’origine.</p>
+
+<h2 id="privacy">Confidentialité</h2>
+<p>La commande et tout ce qu’elle affiche sont envoyés à l’IA lors de la requête suivante. N’affichez pas de secrets, de clés ni de fichiers privés que vous ne colleriez pas dans un message. Rune masque les clés qu’il connaît, ce qui ne garantit pas le masquage de toute valeur privée arbitraire.</p>
+{{end}}

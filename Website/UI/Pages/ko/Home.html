@@ -1,0 +1,180 @@
+{{define "copy-icons"}}<svg class="i-copy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/></svg><svg class="i-done" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{end}}
+{{define "content"}}
+<section class="hero" aria-labelledby="hero-title">
+  <div class="shell hero-inner" id="install">
+    <h1 class="display" id="hero-title"><span class="line">터미널에서 바로 작동하는</span> <span class="line"><em>코딩 에이전트.</em></span></h1>
+    <p class="lead"><span class="line">RuneAgent는 연결한 모델을 바탕으로 프로젝트에서 계획을 세우고, 파일을 편집하고, 명령을 실행합니다.</span> <span class="line">모든 단계와 파일 변경 사항, 비용을 직접 확인하고 에이전트의 작업 범위를 스스로 결정하세요.</span></p>
+    <div class="install">
+      <input class="sr os-input" type="radio" name="install-os" id="os-linux" checked>
+      <input class="sr os-input" type="radio" name="install-os" id="os-macos">
+      <input class="sr os-input" type="radio" name="install-os" id="os-windows">
+      <div class="install-box">
+        <div class="os-tabs"><label for="os-linux">Linux</label><label for="os-macos">macOS</label><label for="os-windows">Windows</label></div>
+        <div class="os-panel os-linux">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd" aria-label="Linux 설치 명령어 복사" title="복사">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "linux"}}</p>
+        </div>
+        <div class="os-panel os-macos">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd-macos">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-macos" aria-label="macOS 설치 명령어 복사" title="복사">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "macos"}}</p>
+        </div>
+        <div class="os-panel os-windows">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">PS&gt; </span><code id="install-cmd-windows">{{.InstallCmdWindows}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-windows" aria-label="Windows 설치 명령어 복사" title="복사">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "windows"}}</p>
+        </div>
+      </div>
+      <p class="hero-links"><a class="link" href="{{url "docs"}}">매뉴얼 읽기</a><a class="link for-unix" href="{{url "install.sh"}}">install.sh 보기</a><a class="link for-windows" href="{{url "install.ps1"}}">install.ps1 보기</a></p>
+    </div>
+  </div>
+</section>
+
+<section class="session" id="session" aria-labelledby="session-title">
+  <div class="shell">
+    <div class="intro">
+      <h2 class="title" id="session-title">빈 폴더에서 시작해 테스트 통과까지.</h2>
+      <p class="lead">Rune이 {{.Demo.Recorded}} 동안 음악 플레이어를 구축한 실제 단일 세션의 여섯 장면입니다. 모든 단계, 파일, 수치는 실제 세션 기록 그대로이며, 스트리밍과 읽기 속도 및 Ask 모드 승인 화면은 읽기 편하도록 재현되었습니다(원본 세션은 Full 모드에서 실행됨).</p>
+    </div>
+    <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
+      <div class="chapters" role="group" aria-label="기록된 세션의 챕터">
+        {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="기록 시점: {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
+      </div>
+      <div class="terminal-viewport" data-terminal-viewport>
+      <section class="term" aria-label="대화형 데모: 읽기 편한 속도로 구성된 Rune 세션 655 발췌본입니다. 순차 스트리밍과 Ask 승인 화면은 시뮬레이션이며 실제 청크 타이밍이 아닙니다">
+        <div class="tbar">
+          <div class="tbar-ctrls" data-replay-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="리플레이 재생" title="재생">
+              <svg data-icon="pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" hidden><path d="M8 5v14M16 5v14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+              <svg data-icon="play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m8 5 11 7-11 7Z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="btn-tctrl" data-demo-replay aria-label="처음부터 다시 재생" title="처음부터 다시 재생"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <p class="tbar-title demo-meta">대화형 데모 · 기록된 {{.Demo.Final.Steps}}단계 중 {{.Demo.ShownSteps}}단계 · 스트리밍 및 승인 시뮬레이션</p>
+          <div class="tbar-view" data-view-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-panel aria-label="세션 패널 표시" aria-expanded="false" title="세션 패널"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 4v16" stroke="currentColor" stroke-width="1.6"/></svg></button>
+            <button type="button" class="btn-tctrl" data-demo-expand aria-label="전체 화면" aria-pressed="false" title="전체 화면"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M20 15v5h-5M4 15v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div class="tbar-dots" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></div>
+        </div>
+        <div class="terminal-screen" data-terminal-screen>
+          <div class="tui">
+            <div class="tmain">
+              <div class="tlog" data-log tabindex="0" role="region" aria-label="기록된 세션 대화 내역">{{template "demo-transcript" .}}</div>
+              <button type="button" class="jump-latest" data-jump hidden>Press Ctrl+↓ Jump to latest</button>
+            </div>
+            <aside class="tside" aria-label="세션 상세 정보">
+              <p class="sh">SESSIONS</p>
+              <dl class="st">
+                <div><dt>Title</dt><dd data-f="title">{{.Demo.Title}}</dd></div>
+                <div><dt>Started</dt><dd data-f="started">{{.Demo.Started}}</dd></div>
+                <div><dt>Activity</dt><dd data-f="activity">{{.Demo.Active}} &middot; {{.Demo.Final.Steps}} steps &middot; 1 turn</dd></div>
+                <div title="{{.Demo.ContextSource}}; capacity added from the stored model metadata"><dt>Context Window</dt><dd data-f="ctx">{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div>
+                <div><dt>TokIn</dt><dd data-f="tin">{{num .Demo.Final.In}}</dd></div>
+                <div><dt>TokOut</dt><dd data-f="tout">{{num .Demo.Final.Out}}</dd></div>
+                <div><dt>CacheIn</dt><dd data-f="cin">{{num .Demo.Final.Cache}}</dd></div>
+                <div><dt>Spend</dt><dd data-f="spend">{{money .Demo.Final.Cost}}</dd></div>
+              </dl>
+              <div class="side-heading" data-side-heading><p class="sh" data-side-plan-heading>PLAN <span data-plan-count>{{doneCount .Demo.Tasks}}/{{len .Demo.Tasks}}</span></p><p class="sh" data-side-files-heading hidden></p></div>
+              <div class="tside-window">
+              <p class="tside-more side-above" data-side-above hidden></p>
+              <div class="tside-scroll" data-side tabindex="0" aria-label="계획 및 파일 변경 내역">
+                <ol class="demo-plan" data-demo-plan-list>{{range .Demo.Tasks}}<li data-s="{{.Status}}">{{.Text}}</li>{{end}}</ol>
+                <div data-demo-files>
+                  <p class="sh files-head"><span><span class="count" data-files-count>{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="dim">&middot;</span> <span class="ok" data-files-added>+{{.Demo.Totals.Added}}</span>{{if .Demo.Totals.Removed}} <span class="bad" data-files-removed>&minus;{{.Demo.Totals.Removed}}</span>{{end}}</span></p>
+                  {{range .Demo.Files}}<p class="demo-file"><span class="path" title="{{.Path}}">&#9679; {{.Path}}</span><span class="counts"><b class="ok">+{{.Added}}</b>{{if .Removed}} <b class="bad">&minus;{{.Removed}}</b>{{end}}</span></p>{{end}}
+                </div>
+              </div>
+              <p class="tside-more" data-side-more hidden></p>
+              </div>
+            </aside>
+          </div>
+          <fieldset class="demo-permission" data-permission hidden>
+            <legend><span data-permission-title>Bash</span> <span class="permission-simulation">&middot; 승인 시뮬레이션</span></legend>
+            <div class="box-out" data-permission-body tabindex="0" aria-label="제안된 작업"></div>
+            <div class="answers" data-permission-answers><button type="button" aria-current="true" data-answer="once">Allow once</button><button type="button" data-answer="always" hidden>Always allow</button><button type="button" data-answer="refuse">Refuse</button></div>
+            <p class="hint" data-permission-hint>데모 화면 &middot; 자동으로 계속 진행됩니다</p>
+          </fieldset>
+          <fieldset class="tin" data-composer><legend>[ <b class="tfg">{{.Demo.Model}}</b> <span class="effort-label">{{.Demo.Effort}}</span> <span class="faint">&middot;</span> <b class="ok">{{.Demo.Mode}}</b> ]</legend>
+            <p class="prompt"><span class="caret">&#8250;</span> <span class="typed" data-typed></span><span class="ph" data-placeholder>ask, or / for commands</span></p>
+          </fieldset>
+          <p class="tstat"><span class="spin" data-spin hidden></span><span class="word" data-word hidden></span><span class="rule" data-rule hidden>&#9474;</span><span class="where" data-where>{{.Demo.Project}}</span><span class="dim">&#9474;</span><span class="msg" data-msg><b class="ok">[{{.Demo.Mode}}]</b> asks before actions run; classifier is inactive in ask mode</span><span class="ver">{{.Demo.Version}}</span></p>
+        </div>
+      </section>
+      </div>
+    </figure>
+    <div class="session-still">
+      <div class="still-window" role="group" aria-label="기록된 세션 655의 종료 시점 최종 보고서">
+        <div class="still-bar" aria-hidden="true"><span class="still-title">rune · {{.Demo.Project}}</span><span class="tbar-dots"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></span></div>
+        <div class="still-body">{{range .Demo.Steps}}{{if eq .Kind "final"}}{{template "demo-blocks" .Prose}}{{end}}{{end}}</div>
+      </div>
+      <details class="still-toggle"><summary><span class="still-open">전체 보고서 보기</span><span class="still-close">접기</span></summary></details>
+      <p class="still-note">세션이 남긴 실제 최종 보고서 원문입니다. 더 넓은 화면에서는 대화형 리플레이를 볼 수 있습니다.</p>
+    </div>
+  </div>
+</section>
+
+<section class="features" aria-labelledby="features-title">
+  <div class="shell">
+    <div class="intro">
+      <h2 class="title" id="features-title">모든 작업 과정을 투명하게 보여 주는 에이전트.</h2>
+      <p class="lead">모델은 작업을 제안하고, Rune은 실행되는 명령과 변경 내역, 소모 비용을 투명하게 보여 주며 중요한 결정은 언제나 사용자에게 맡깁니다.</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature feature-reach">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-ask" checked>
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-auto">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
+        <div class="feature-copy">
+          <h3>작업 허용 범위를 직접 결정합니다.</h3>
+          <p>모든 세션은 세 가지 모드 중 하나로 실행됩니다. <code>/mode</code>로 전환할 수 있으며, Rune의 기본 시작 모드는 Ask입니다.</p>
+          <div class="modes">
+            <label class="mode" for="mode-ask"><b>Ask</b><span>모든 파일 편집마다 확인하고, 모든 명령 실행마다 매번 승인을 요청합니다.</span></label>
+            <label class="mode" for="mode-auto"><b>Auto</b><span>작업 공간 내부에서는 자유롭게 작업합니다. 외부 접근이나 위험한 명령어는 여전히 승인을 요청합니다.</span></label>
+            <label class="mode" for="mode-full"><b>Full</b><span>현재 OS 계정 권한으로 승인 질문 없이 실행합니다. 단축키로는 켜지지 않으며 사용자의 명시적인 선택으로만 작동합니다.</span></label>
+          </div>
+        </div>
+        {{with .Demo.Sample}}<div class="reach-side">
+          <p class="feature-note">동일한 명령어가 각 모드에서 실행될 때 실제 CLI에 표시되는 화면입니다. Ask 모드에서는 입력창 자리에 승인 카드가 나타나며, 셸 명령어에는 “항상 허용(always)” 옵션이 제공되지 않습니다.</p>
+          <div class="mini" role="group" aria-label="선택한 모드에서 동일한 명령어가 실행되는 방식">
+            <div class="mini-bar" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span><span class="mini-title">rune · ~/Project/Music</span></div>
+            <div class="mini-body">
+              <p class="mini-step"><span class="mini-dot" aria-hidden="true">●</span>{{.Label}}</p>
+              <div class="mini-box on-run"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><div class="mini-out">{{range $i, $r := .Rows}}{{if lt $i 4}}<p>{{$r.Text}}</p>{{end}}{{end}}</div></div>
+              <div class="mini-card on-ask"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><p class="mini-answers"><span class="cli-on">Allow once</span><span>Refuse</span></p></div>
+              <div class="mini-composer on-run"><p class="mini-legend">[ <b class="cli-fg">{{$.Demo.Model}}</b> {{$.Demo.Effort}} <span class="cli-faint">·</span> <b class="cli-warn on-auto">Auto</b><b class="cli-bad on-full">Full</b> ]</p><p><span class="cli-a">›</span> <span class="cli-faint">ask, or / for commands</span></p></div>
+            </div>
+            <p class="mini-status"><span class="on-ask"><b class="cli-ok">[Ask]</b> asks before actions run; classifier is inactive in ask mode</span><span class="on-auto"><b class="cli-warn">[Auto]</b> works freely inside workspace; classifier is inactive because no policy file was found</span><span class="on-full"><b class="cli-bad">[Full]</b> unconfined system access; classifier is inactive because no policy file was found</span></p>
+          </div>
+        </div>{{end}}
+      </article>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>모든 변경 내역을 빠짐없이 기록.</h3>
+          <p>사이드 패널은 작업이 진행되는 동안 세션에서 변경한 모든 파일과 추가·삭제된 줄 수를 실시간으로 나열합니다. <code>/undo</code>로 복원 가능한 파일을 세션 시작 전 상태로 되돌릴 수 있으며, 그 외 작업에 대해서는 Git과 백업을 함께 유지하세요.</p>
+        </div>
+        <p class="feature-note">기록된 세션에서 CLI가 실제로 렌더링한 사이드 패널 화면입니다.</p>
+        <div class="cli-panel" role="group" aria-label="사이드 패널의 변경된 파일 목록">
+          <p class="cli-sh"><span><span class="cli-fg">{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="cli-dim">·</span> <span class="cli-ok">+{{.Demo.Totals.Added}}</span></span></p>
+          {{range slice .Demo.Files 0 8}}<p class="cli-file"><span class="cli-path">● {{.Path}}</span><span class="cli-ok">+{{.Added}}</span></p>{{end}}
+        </div>
+      </article>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>내 모델과 내 계정 그대로.</h3>
+          <p>설정한 제공자가 반환하는 모델 목록에서 고르거나 정확한 모델 ID를 직접 입력하세요. Rune은 작업하는 동안 컨텍스트, 토큰, 지출 비용을 실시간으로 집계합니다. 번들로 포함되거나 재판매되는 API 크레딧은 없습니다.</p>
+        </div>
+        <p class="feature-note">기록된 세션에서 CLI가 실제로 렌더링한 사이드 패널 화면입니다.</p>
+        <div class="cli-panel" role="group" aria-label="사이드 패널의 세션 수치">
+          <p class="cli-sh"><span>SESSIONS</span></p>
+          <dl class="cli-stats"><div><dt>Title</dt><dd>{{.Demo.Title}}</dd></div><div><dt>Started</dt><dd>{{.Demo.Started}}</dd></div><div><dt>Activity</dt><dd>{{.Demo.Active}} · {{.Demo.Final.Steps}} steps · 1 turn</dd></div><div><dt>Context Window</dt><dd>{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div><div><dt>TokIn</dt><dd>{{num .Demo.Final.In}}</dd></div><div><dt>TokOut</dt><dd>{{num .Demo.Final.Out}}</dd></div><div><dt>CacheIn</dt><dd>{{num .Demo.Final.Cache}}</dd></div><div><dt>Spend</dt><dd>{{money .Demo.Final.Cost}}</dd></div></dl>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{{template "install-details" .}}
+<section class="close" aria-labelledby="close-title"><div class="shell close-inner">
+  <h2 class="title" id="close-title">내 터미널. 내 모델.<br><em>내가 내리는 결정.</em></h2>
+  <p class="lead">작은 작업부터 시작해 범위를 명확히 유지하고 결과물을 직접 검토하세요.</p>
+  <div class="hero-actions"><a class="btn" href="{{url "install"}}">RuneAgent 설치</a>{{with .Latest}}<span class="meta">릴리스 {{.Version}} · {{.Date}}</span>{{end}}</div>
+</div></section>
+{{end}}

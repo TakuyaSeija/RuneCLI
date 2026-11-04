@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Thème de couleurs</h2>
+<p>Settings → Appearance → Color theme propose Violet, Cyan et Amber. Les touches Gauche/Droite sur la ligne changent de thème et enregistrent le choix ; Entrée ouvre la liste séparée, où Entrée applique le thème sélectionné. Échap quitte sans appliquer un élément que vous avez seulement parcouru. Le thème par défaut est Amber.</p>
+<p>Le thème concerne uniquement la présentation, et non le comportement du modèle ni les autorisations. Les commandes <code>/theme violet</code>, <code>/theme cyan</code> et <code>/theme amber</code> permettent aussi de sélectionner un thème. La clé globale est <code>ui.theme</code> ; la réinitialisation supprime votre remplacement.</p>
+<h2 id="side-panel">Panneau latéral de conversation</h2>
+<p>Affichez ou masquez le panneau dans Appearance, avec Ctrl+O ou avec <code>/panel</code>. Il est activé par défaut. Les terminaux étroits peuvent masquer le panneau côte à côte même lorsque cette préférence est activée. Le masquer n’arrête ni le suivi de la consommation, ni le suivi des fichiers, ni les plans.</p>
+<h2 id="terminal-owns-background">Ce qui relève du terminal</h2>
+<p>Votre terminal et votre environnement de bureau gèrent l’image de fond, la transparence, le flou, les bordures de fenêtre et le rendu des polices. Rune ne dispose pas de réglage d’image de fond ni de flou. Un même thème peut apparaître différemment sur un fond de terminal clair ou sombre.</p>
+<p>Les touches de modification et les gestes de la souris dépendent également du terminal. Un profil peut réserver Ctrl+molette au zoom, Alt+molette au défilement horizontal, ou certains raccourcis à ses propres actions.</p>
+<h2 id="advanced-options">Options d’affichage avancées</h2>
+<p>Certaines valeurs de couleur, de souris, de défilement et de cadence de rendu sont des options réservées au fichier TOML et n’apparaissent pas sous forme de réglages supplémentaires sur la page Appearance. Consultez la documentation de la clé concernée avant de la modifier. Augmenter la fréquence de rafraîchissement peut consommer davantage de ressources ; une préférence de défilement ne peut pas forcer un terminal à transmettre des entrées qu’il ne prend pas en charge.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>La réinitialisation modifie la préférence globale. Utilisez <code>/help</code> pour connaître les touches de lecture et de navigation plutôt que de deviner à partir d’une autre application de terminal.</p>
+{{end}}

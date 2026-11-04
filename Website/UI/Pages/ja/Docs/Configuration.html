@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">保存場所と適用範囲</h2>
+<p>グローバル設定ファイルは、選択されている Rune データホーム（通常は <code>~/.rune/</code>）内の <code>rune.toml</code> です。<a href="{{url "docs/reference"}}">設定リファレンス</a>に設定可能なすべてのキーが記載されています。環境変数 <code>RUNE_HOME</code> で別のデータホームを選択できます。プロジェクト内に <code>rune.toml</code> という名前のファイルを置いても自動的に設定ファイルとして読み込まれることはなく、また <code>-project</code> は設定ホームではなくワークスペースを選択するフラグです。</p>
+<p>実際の設定ファイルの場所は <code>rune -config</code> で確認できます。このファイルにはあなたが保存した設定のみが記録され、記載のない項目は現在の既定値を引き継ぎます。ファイル先頭の <code>version = 1</code> は設定ファイルのフォーマットバージョンを表すものであり、アプリケーションのバージョンではありません（アップグレード目的でこの数値を書き換えないでください）。</p>
+<h2 id="inspect">1 項目ずつ確認する</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>指定したキーの有効な値、説明、および反映タイミングを確認します。</dd></div>
+<div><dt>-config defaults</dt><dd>保存済みの設定とは別に、初期設定値（Factory defaults）を確認します。</dd></div>
+<div><dt>-config check</dt><dd>設定ファイルの構文と指定可能な値を検証します（API キーの有効性、クレジット残高、通信疎通はテストしません）。</dd></div>
+<div><dt>-config show</dt><dd>現在有効な設定全体を確認します。非公開のアカウントメタデータが含まれる場合があるため、共有する前に伏せ字処理を行ってください。</dd></div>
+<div><dt>-settings</dt><dd>選択したワークスペースのモデル制御設定を確認します。</dd></div>
+</dl>
+<h2 id="change-and-reset">変更とリセット</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p><code>set</code> コマンドは、グローバル設定を変更する明確な意図がある場合にのみ実行してください。<code>reset</code> は上書き設定を削除するものであり、既定値をファイルに書き写すものではありません。Settings 画面の Use default もグローバル値に対して同じ働きをします。存在しないキーや廃止されたキーはエラーとなり、別名として暗黙に処理されることはありません。</p>
+<p>TOML にはネイティブの <code>null</code> 型がありません。任意のキーを解除する際は <code>null</code> と記述するのではなく、そのキー自体を削除するか、対応する <code>reset</code> コマンドを使用してください。空文字列、<code>"auto"</code>、<code>"none"</code>、または空リストがすべての設定項目でリセットを意味するとは限らないため注意してください。</p>
+<h2 id="types-and-units">データ型と単位</h2>
+<dl class="ref">
+<div><dt>真偽値（Boolean）</dt><dd>TOML 内で引用符なしの <code>true</code> または <code>false</code> を指定します。</dd></div>
+<div><dt>回数・トークン数（Count / tokens）</dt><dd>各設定の許容範囲内の整数です。トークン数、文字数、バイト数はそれぞれ異なる単位です。</dd></div>
+<div><dt>時間（Duration）</dt><dd><code>"500ms"</code>、<code>"60s"</code>、<code>"2m"</code> のように単位を明示した文字列です。<code>"unlimited"</code> を指定できるのは権限確認と質問フォームの待機時間のみです。</dd></div>
+<div><dt>サイズ（Size）</dt><dd><code>"16MiB"</code> のように 2 進単位を明示してください。単位なしの数値はバイトではなく KiB として解釈されます。</dd></div>
+<div><dt>リスト（List）</dt><dd>ドキュメントに記載された正確な文字列を指定します。<code>[]</code> は明示的な「空の選択」であり、必ずしもリセットを意味しません。</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>上記は構文の例であり、あらゆる環境に推奨される設定というわけではありません。<code>stop</code> 配列ではカンマを含む文字列もそのまま厳密に保持されます（一方、セッション内の設定エディタではカンマ区切りで複数の文字列を入力します）。グローバルな生成設定の初期値を変更しても、現在開いているすべてのセッションの設定が上書きされるわけではありません。</p>
+<h2 id="timing-and-risk">反映タイミングと注意点</h2>
+<p>設定の変更は通常、再起動なしで反映されます。即時反映される項目と次の操作から反映される項目があるため、個別の設定については <code>explain</code> で確認してください。<code>CLASSIFIER.md</code> を編集しても、すでに固定されたセッションのポリシーは自動更新されないため、待機中に再読み込み操作を実行してください。</p>
+<p>公開するサンプルにはアカウントのエンドポイントや認証情報を含めないでください。手動で編集した場合は、無関係な設定を書き換えていないか確認し、検証を行ってください。上限値を引き上げるとメモリ、ディスク、コンテキスト、およびコストの消費が増える場合がありますが、それによってアクセス権限が付与されたり非対応モデルが動作するようになったりすることはありません。</p>
+{{end}}

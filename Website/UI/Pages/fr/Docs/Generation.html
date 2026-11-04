@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Réglages pour cette session</h2>
+<p>Settings → Generation contrôle la session et le modèle actifs. Les valeurs facultatives peuvent être effacées pour redonner la main au fournisseur ou à la valeur de départ par défaut. Les valeurs globales de départ dans rune.toml sont distinctes des choix des sessions existantes. Les réglages non pris en charge peuvent ne pas s’afficher.</p>
+<h2 id="reasoning">Raisonnement et effort</h2>
+<p>Utilisez Generation, <code>/thinking</code> ou Alt+T pour choisir parmi les niveaux de raisonnement proposés par le modèle sélectionné. Models → Alt+C configure quant à lui le comportement de départ persistant et les options disponibles. Un badge Thinking dans une liste de modèles indique que la fonction est prise en charge, et non qu’elle est actuellement activée.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Demande la désactivation du raisonnement. Cela ne garantit pas l’absence totale de réflexion du côté d’un fournisseur ou d’un routeur en amont.</dd></div>
+<div><dt>On / effort</dt><dd>Active le raisonnement pris en charge ou choisit un niveau proposé. Un effort plus élevé peut augmenter la latence et le coût en jetons sans garantir une meilleure réponse.</dd></div>
+<div><dt>Route default</dt><dd>Lorsque cette option est proposée, laisse le contrôle du raisonnement à la route. Ce n’est ni Off ni un niveau d’effort positif particulier.</dd></div>
+</dl>
+<p>Sur 9router, une route signalant explicitement que le raisonnement ne peut pas être désactivé reçoit Low lorsqu’on demande Off ; Minimal est exclu des choix effectifs, même si une ancienne option enregistrée le mentionne. Les routes capables de désactiver le raisonnement reçoivent une demande de désactivation, mais les exécuteurs en amont peuvent malgré tout la modifier. Consultez l’explication affichée à côté du réglage au lieu de déduire le comportement à partir de l’identifiant du modèle.</p>
+<p>Le raisonnement affiché sous forme de texte est compté en mots ; une route qui déclare des jetons de réflexion peut afficher ces jetons déclarés à la place. Rune n’invente aucune estimation de jetons. L’absence de réflexion visible ne prouve pas que le raisonnement était désactivé : certains points de terminaison ne la renvoient pas.</p>
+<h2 id="sampling">Échantillonnage</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Réglage</th><th>Rôle et plage habituelle</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Degré d’aléatoire, généralement de 0 à 2. Une valeur basse ne garantit pas des réponses identiques.</td></tr>
+<tr><td>Top P</td><td>Échantillonnage par noyau (nucleus sampling), généralement de 0,01 à 1. Ajustez en général soit ce paramètre, soit la température, plutôt que les deux à la fois.</td></tr>
+<tr><td>Frequency penalty</td><td>Décourage la répétition des mêmes jetons, généralement de −2 à 2 ; les valeurs négatives encouragent la répétition.</td></tr>
+<tr><td>Presence penalty</td><td>Décourage la répétition des mêmes sujets, généralement de −2 à 2.</td></tr>
+</tbody></table></div>
+<p>La plage réellement acceptée dépend du modèle et du point de terminaison. Le raisonnement peut rendre certains réglages d’échantillonnage temporairement indisponibles. Des pénalités ou un aléatoire excessifs peuvent dégrader la qualité des réponses.</p>
+<h2 id="output">Sortie et séquences d’arrêt</h2>
+<p>Max output définit un plafond entier positif de jetons par réponse, dans la limite connue du modèle. Le raisonnement peut en consommer une partie avant la réponse finale. Une valeur trop faible peut tronquer la réponse ; un plafond plus élevé peut autoriser une dépense plus importante. Omettre cette valeur n’équivaut pas à une sortie illimitée.</p>
+<p>Jusqu’à quatre chaînes d’arrêt peuvent mettre fin à la génération. L’éditeur de session accepte des entrées séparées par des virgules ; un tableau TOML conserve les chaînes exactes, y compris les virgules à l’intérieur d’une même entrée. Une chaîne d’arrêt qui correspond à du code ordinaire risque de couper une réponse de façon inattendue.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>Le premier exemple définit une préférence de session ; le second efface ce choix facultatif. Les réglages des modèles auxiliaires situés plus bas dans Generation sont globaux et décrits dans l’<a href="{{url "docs/auxiliary"}}">article suivant</a>.</p>
+{{end}}

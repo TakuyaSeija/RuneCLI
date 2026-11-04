@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="inspect-changes">Inspecione as alterações reais</h2>
+<p>O painel lateral informa as diferenças atuais nos arquivos monitorados pela sessão. As contagens de linhas adicionadas e removidas comparam o conteúdo real; elas não são a soma dos títulos de cada edição individual. Edições sucessivas podem anular umas às outras, e a contagem de linhas de uma ferramenta, por si só, não substitui uma revisão completa.</p>
+<p>Revise o diff e execute novamente as verificações relevantes antes de manter o resultado. Um comando que passa nos testes comprova apenas o que aquele comando testou. O Rune não faz commit automático do seu trabalho, e a restauração de arquivos não substitui o controle de versão nem um backup consistente.</p>
+<h2 id="restore-a-file">Restaurar um arquivo</h2>
+<ol><li>Aguarde o término do trabalho que está alterando o arquivo.</li><li>Abra <code>/undo</code> e selecione o arquivo desejado. Use a ação de diff oferecida, incluindo Alt+S na lista, para ler exatamente o que mudará.</li><li>Inicie a confirmação com Enter e confirme dentro do intervalo exibido somente após verificar o conteúdo atual.</li><li>Confira o arquivo restaurado e qualquer parte do projeto que dependa dele.</li></ol>
+<p>O comando undo restaura o arquivo para o estado anterior à primeira alteração feita nesta sessão, <strong>não apenas para antes do último patch</strong>. Ele pode sobrescrever edições feitas fora do Rune após aquela captura inicial. Uma restauração é uma modificação real no arquivo e fica registrada como tal.</p>
+<h2 id="redo">O comando redo é limitado</h2>
+<p>O comando <code>/redo</code> pode recolocar o conteúdo que o último undo substituiu. Revise-o da mesma maneira. Ele não é uma linha do tempo independente e ilimitada de versões arbitrárias e não deve ser usado como seu único plano de recuperação.</p>
+<h2 id="limits">O que a restauração não pode garantir</h2>
+<p>As capturas de arquivos não revertem um deploy remoto, uma transação de banco de dados em um serviço externo, um e-mail enviado, a instalação de pacotes nem todas as ações de um comando arbitrário. Arquivos fora do escopo protegido/monitorado e alterações feitas por outros programas exigem sua própria estratégia de recuperação. Confira a lista real de arquivos monitorados em vez de presumir que a máquina inteira esteja coberta.</p>
+<p>O limite de fábrica para cada arquivo protegido é de 64 MiB. Uma gravação elegível que ultrapasse esse tamanho falha antes de modificar o arquivo, em vez de prosseguir sem proteção. Aumentar esse limite consome mais espaço de armazenamento; diminuí-lo pode impedir gravações em arquivos grandes. Nunca trate um efeito colateral externo desprotegido como algo reversível pelo undo.</p>
+<h2 id="advanced-options">Opções avançadas</h2>
+<dl class="ref">
+<div><dt>checkpoint.max_file_size</dt><dd>Tamanho máximo de fábrica de 64 MiB para a captura (snapshot) de um arquivo elegível.</dd></div>
+<div><dt>checkpoint.refresh_interval</dt><dd>Cadência de fábrica de 1 segundo para atualizar o conteúdo de arquivos já monitorados, configurável de 100 ms a 1 minuto.</dd></div>
+<div><dt>checkpoint.diff.context</dt><dd>Três linhas de contexto ao redor das alterações por padrão, configurável de 0 a 100.</dd></div>
+<div><dt>checkpoint.diff.max_cells</dt><dd>Orçamento de trabalho de comparação, 1.000.000 por padrão. Afeta a estratégia de cálculo do diff, não o acesso a arquivos nem a quantidade de alterações permitidas.</dd></div>
+</dl>
+<p>Estas são chaves de configuração avançadas, não linhas extras na interface atual de Settings. Inspecione uma opção com <code>rune -config explain &lt;key&gt;</code> e redefina-a com <code>rune -config reset &lt;key&gt;</code>.</p>
+{{end}}

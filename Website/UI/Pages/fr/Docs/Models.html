@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="browse-your-accounts">Parcourir vos comptes connectés</h2>
+<p>La vue Models répertorie les modèles disponibles auprès des fournisseurs configurés et de leurs catalogues, ainsi que les identifiants exacts que vous ajoutez vous-même. La recherche filtre cette liste ; elle n’effectue pas une recherche dans l’intégralité de l’offre de chaque fournisseur du marché. La disponibilité dépend de votre compte, du point de terminaison, de vos droits d’accès et de la fraîcheur du catalogue.</p>
+<p>Choisissez un fournisseur à gauche ou All providers. Parcourir la liste ne modifie pas la conversation en cours. Sélectionnez un modèle et appuyez sur Entrée pour appliquer ce <strong>couple fournisseur/modèle</strong>. Ctrl+F ramène le focus sur la recherche. Le couple actif est indiqué séparément du résultat mis en surbrillance.</p>
+<h2 id="catalog-and-custom-id">Catalogue et identifiants personnalisés</h2>
+<p>L’action Refresh catalog effectue une requête réseau pour récupérer les identifiants disponibles et les informations publiées. Elle ne change pas le modèle actif. Enter model ID vous permet d’ajouter un identifiant exact ; le simple ajout d’un identifiant ne prouve pas que votre compte peut l’exécuter.</p>
+<p>Les fenêtres de contexte, limites de sortie et tarifs inconnus restent affichés comme inconnus. Ne devinez pas les capacités d’un modèle à partir d’un mot dans son nom et n’augmentez pas une valeur locale d’affichage pour prétendre élargir la limite du fournisseur. Appuyer sur T sur un résultat envoie un vrai test au modèle et peut être facturé.</p>
+<h2 id="configure-capabilities">Configurer les capacités avec Alt+C</h2>
+<p>Alt+C ouvre les paramètres persistants du modèle sélectionné. Les informations de capacité décrivent ce qu’un modèle peut accepter ; la vue Generation décrit ce que demande la session en cours. Une capacité maximale de sortie n’est pas une longueur de réponse demandée.</p>
+<dl class="ref">
+<div><dt>Context / output</dt><dd>Enregistre les plafonds connus du modèle. Un remplacement local ne peut pas repousser les limites réelles du service en amont.</dd></div>
+<div><dt>Reasoning</dt><dd>Configure le comportement de départ et les choix de raisonnement proposés. Un badge Thinking indique que la fonction est prise en charge, et non qu’elle est activée dans la session actuelle.</dd></div>
+<div><dt>Media / controls</dt><dd>Utilise les capacités réellement prises en charge par le point de terminaison. Les contrôles non pris en charge peuvent être absents ou indisponibles lorsque le raisonnement est activé.</dd></div>
+<div><dt>Pricing</dt><dd>Renseigne les tarifs connus d’entrée, de sortie et de cache pour la comptabilité locale. Un tarif inconnu ne vaut pas zéro, et la présence d’un tarif de cache ne prouve pas que le point de terminaison prend en charge la mise en cache des invites.</dd></div>
+</dl>
+<h2 id="fallback-and-removal">Fournisseur de repli et suppression</h2>
+<p>New-session fallback choisit le fournisseur de départ des futures sessions sans écraser les sessions existantes. Appuyer sur Delete sur un modèle masque ou supprime ce résultat et oublie ses réglages personnalisés ; cela ne supprime pas le modèle chez le fournisseur. L’ajouter de nouveau utilisera les métadonnées fraîches du catalogue, et pas nécessairement les réglages que vous aviez supprimés.</p>
+<h2 id="pricing-limits">Comprendre les limites de la comptabilité</h2>
+<p>Le calcul des dépenses (Spend) s’appuie sur les requêtes dont la consommation et les tarifs sont connus. Lorsqu’une requête sans tarif obtient par la suite un tarif de modèle, son coût est calculé à ce moment-là ; les requêtes déjà chiffrées conservent leur coût enregistré. La facture du fournisseur peut différer en raison des arrondis, de la mise en cache, des remises ou d’une déclaration d’utilisation incomplète.</p>
+<p>L’avertissement de dépense n’est pas un plafond bloquant. Vérifiez les tarifs auprès de votre fournisseur et utilisez les contrôles de budget de votre compte fournisseur pour imposer des plafonds stricts. Consultez <a href="{{url "docs/generation"}}">Génération et raisonnement</a> pour les réglages de la session en cours au lieu de modifier les capacités du modèle pour ajuster une seule réponse.</p>
+{{end}}

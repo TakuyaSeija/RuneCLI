@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">Abrir y navegar</h2>
+<p>Pulsa <kbd>Ctrl+G</kbd>, escribe <code>/settings</code> o usa su alias <code>/*</code>. La vista general enlaza con seis secciones. Las teclas de flecha seleccionan una fila o tarjeta y Enter la abre. Tab/Shift+Tab mueven el foco, y Esc cancela un editor o retrocede un nivel. El pie de pantalla describe el control seleccionado.</p>
+<p>Abre un valor, edítalo y elige Apply. Cancel conserva el valor anterior. Algunas filas de selección guardan el cambio directamente al pulsar Izquierda/Derecha; lee la indicación y espera al mensaje de confirmación. Resaltar un elemento dentro de un selector independiente no significa que ya se haya aplicado.</p>
+<h2 id="sections">Un lugar claro para cada ajuste</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models</a></dt><dd>Explora los modelos de las cuentas configuradas, aplica un par proveedor/modelo, actualiza el catálogo y configura con Alt+C la información persistente de capacidades y precios.</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation</a></dt><dd>Razonamiento, muestreo y límite de salida solicitados para la sesión actual. Los controles globales de los modelos auxiliares se encuentran más abajo en esa misma página.</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections</a></dt><dd>Acceso a cuentas: direcciones de API y claves con nombre. No selecciona proveedores web ni gestiona los tiempos de espera de las solicitudes al modelo.</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime</a></dt><dd>Tiempos de espera de solicitudes al modelo, comportamiento de los reintentos, reposo por falta de saldo y esperas compartidas de conexión y flujo.</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools</a></dt><dd>Tiempos de espera y límites de salida o trabajo propios de cada herramienta, plazos de preguntas y permisos, y selección independiente de proveedores web.</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance</a></dt><dd>Tema de color y visibilidad del panel lateral de la conversación. No configura el fondo, el desenfoque ni la transparencia de la terminal.</dd></div>
+</dl>
+<h2 id="scope">Opciones globales y de sesión</h2>
+<p>Los límites de herramientas, los ajustes de red y reintentos y la elección de modelos auxiliares son globales para el directorio de datos de Rune seleccionado. En cambio, los controles principales de Generation y la selección de modelo afectan a la sesión y al modelo activos. Las preferencias guardadas para un modelo se recuperan cuando vuelves a seleccionarlo.</p>
+<p>La tabla global <code>[generation]</code> aporta valores iniciales por defecto, pero no sobrescribe todas las sesiones existentes. New-session fallback elige el proveedor inicial para las sesiones futuras, sin cambiar el proveedor de las conversaciones que ya tengas abiertas.</p>
+<h2 id="reset-and-timing">Restablecimiento y momento de aplicación</h2>
+<p><strong>Use default</strong> elimina el valor global personalizado para que vuelva a aplicarse el valor predeterminado actual o la herencia. Guardar manualmente el mismo número que viene de fábrica cuenta como una elección explícita y no equivale a dejar la clave sin definir. En los valores opcionales de Generation de la sesión, vaciar el campo devuelve el control al proveedor o al valor predeterminado.</p>
+<p>Por lo general, los ajustes se aplican sin necesidad de reiniciar Rune. Algunos componentes se actualizan al instante, mientras que otros adoptan el nuevo valor en la siguiente operación y dejan que el trabajo en curso termine con los ajustes con los que empezó. Ejecuta <code>rune -config explain &lt;key&gt;</code> para consultar una clave concreta. La política del clasificador requiere una recarga explícita independiente.</p>
+<h2 id="inspect-before-changing">Inspecciona antes de cambiar</h2>
+<p>Una configuración válida no demuestra que una conexión funcione, y el estado Configured no garantiza que la cuenta tenga saldo disponible. Las pruebas de conexión realizan solicitudes reales y pueden tener coste. Cambiar de proveedor puede cambiar a dónde se envían tus datos; aumentar los reintentos o el límite de salida puede incrementar el gasto.</p>
+<p>No todas las opciones avanzadas tienen una fila en la interfaz gráfica. En la <a href="{{url "docs/configuration"}}">guía del archivo de configuración</a> se explica cómo inspeccionar y restablecer esas opciones sin inventar controles ni reemplazar ajustes no relacionados.</p>
+{{end}}

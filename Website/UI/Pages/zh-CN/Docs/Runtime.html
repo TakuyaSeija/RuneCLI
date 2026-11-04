@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">找准对应的超时设置</h2>
+<p>Settings → Runtime 负责管理模型请求超时、共享网络等待时长以及自动重试策略。终端前台命令等待时长、网页工具超时以及权限确认卡片过期时间则是位于 Tools 页面下的独立设置。盲目调高所有超时阈值只会掩盖表面症状，而无法解决根本原因。</p>
+<p>单个账户的可选请求超时接受 5 到 3,600 之间的整秒数；留空或恢复默认即可移除该账户的单独覆盖值。各类辅助任务拥有各自独立的操作超时上限。注意：持续传输数据的活动流（active stream）与长时间没有任何数据到达的停滞流（stalled stream）属于两种不同的状态。</p>
+<h2 id="retry">线性递增重试机制</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>配置键</th><th>出厂默认值</th><th>含义</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>首次请求失败后的最大重试次数（即最多共尝试 6 次）。设为 0 则禁用自动重试。</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>基础等待步长：各次重试等待时间按 3、6、9……秒线性递增。</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>单次重试等待上限；若下一次等待时间超出该值，则从基础步长重新开始计算（非指数退避）。</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>报告余额不足的密钥在重新参与调用前的冷却休息时长。冷却本身不会为账户充值。</td></tr>
+</tbody></table></div>
+<p>并非所有失败都会触发重试。自动重试无法修复错误的 API 密钥、不受支持的参数控制项或填错的接口地址。将重试次数设得过高可能会拖长报错等待时间并增加额外费用；遇到失败时请先在日志中查看错误分类。</p>
+<h2 id="network">网络等待与流限制</h2>
+<dl class="ref">
+<div><dt>流停滞超时（Stall limit）</dt><dd><code>network.stream_idle_timeout</code>：连续 5 分钟未收到任何响应数据时中断。注意这不是对正常持续输出的流设置 5 分钟总时长限制。</dd></div>
+<div><dt>连接超时（Connect timeout）</dt><dd><code>network.connect_timeout</code>：建立网络连接的超时上限（默认 10 秒）。</dd></div>
+<div><dt>探测超时（Probe timeout）</dt><dd><code>network.probe_timeout</code>：显式执行提供商连接测试的超时上限（默认 45 秒）。</dd></div>
+<div><dt>模型目录（Catalog）</dt><dd>高级参数：10 秒请求超时、1 小时缓存保鲜期，且单次刷新最多拉取 100 页。模型目录保鲜期与提示词缓存（prompt cache）生命周期无关。</dd></div>
+</dl>
+<p>其他高级网络限制用于约束流式与非流式响应的最大体积，计量单位为字节（bytes）而非 token。<code>network.token_saver</code> 兼容性选项可将长工具结果压缩工作交由受支持的路由器处理；开启该项并不保证路由器一定会执行压缩，且可能会减少返回给模型的细节信息。</p>
+<h2 id="detached-lifetime">分离会话保留时长</h2>
+<p><code>host.idle_lifetime</code> 是一项高级全局设置，出厂默认为 60 秒。当最后一个终端窗口关闭离开时，正在进行的 AI 推理任务会立即停止；而后台命令则可在该保留期内继续运行。及时重新打开窗口即可继续观察该会话。它不是账户退出登录计时器，也不代表把 Rune 当成无限期驻留后台的服务管理器。</p>
+<h2 id="change-and-reset">审慎修改与重置</h2>
+<p>打开对应的 Runtime 设置行，修改数值后选择 Apply 即可保存。选择 Use default 可移除全局覆盖值；运行 <code>rune -config explain &lt;key&gt;</code> 可查看当前生效值与生效时机。修改流停滞超时（stream-idle）可以影响当前已经在等待响应的请求，而其余大部分选项则从下一次操作开始生效。</p>
+<p>排查超时问题时，请先区分是本地服务推理较慢、网络连接静默中断、密钥额度耗尽，还是请求参数不受支持。成功保存配置并不代表网络连接测试已经通过。</p>
+{{end}}

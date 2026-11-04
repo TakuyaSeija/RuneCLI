@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">Membuka dan bernavigasi</h2>
+<p>Tekan <kbd>Ctrl+G</kbd>, ketik <code>/settings</code>, atau gunakan aliasnya <code>/*</code>. Halaman ringkasan menautkan keenam bagian pengaturan. Gunakan tombol panah untuk memilih baris atau kartu, lalu tekan Enter untuk membukanya. Tombol Tab/Shift+Tab memindahkan fokus, dan Esc membatalkan pengeditan atau kembali satu tingkat. Baris kaki menjelaskan fungsi kontrol yang sedang dipilih.</p>
+<p>Buka sebuah nilai, ubah isinya, lalu pilih Apply. Tombol Cancel mempertahankan nilai sebelumnya. Beberapa baris pilihan langsung menyimpan perubahan saat Anda menekan tombol Left/Right; baca petunjuk di layar dan tunggu pesan berhasil muncul. Sekadar menyorot item di dalam daftar pemilih terpisah belum berarti menerapkannya.</p>
+<h2 id="sections">Satu tempat khusus untuk setiap pengaturan</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models</a></dt><dd>Menelusuri model dari akun yang dikonfigurasikan, memilih pasangan penyedia/model, menyegarkan katalog, serta mengatur kapabilitas permanen dan informasi harga melalui Alt+C.</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation</a></dt><dd>Mengatur penalaran, sampling, dan batas keluaran untuk sesi saat ini. Kontrol model bantu (auxiliary) yang bersifat global berada di bagian bawah halaman yang sama.</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections</a></dt><dd>Mengelola akses akun: alamat API dan kunci bernama. Menu ini tidak memilih penyedia pencarian web aktif maupun batas waktu permintaan model.</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime</a></dt><dd>Mengatur batas waktu permintaan model, perilaku percobaan ulang (retry), masa jeda saldo habis, serta waktu tunggu sambungan dan aliran data.</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools</a></dt><dd>Mengatur waktu tunggu khusus perangkat, batas keluaran dan ruang kerja, tenggat waktu pertanyaan dan kartu izin, serta pemilihan penyedia layanan web secara terpisah.</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance</a></dt><dd>Mengatur tema warna dan preferensi panel samping percakapan. Menu ini tidak mengatur gambar latar, efek blur, maupun transparansi terminal.</dd></div>
+</dl>
+<h2 id="scope">Pilihan global dan pilihan sesi</h2>
+<p>Batas perangkat, pengaturan percobaan ulang dan jaringan, serta pilihan model bantu berlaku secara global untuk folder home Rune yang dipilih. Sebaliknya, kontrol utama di bagian atas Generation dan pemilihan model berlaku untuk sesi atau model yang sedang aktif. Preferensi model yang disimpan akan diingat kembali saat Anda memilih model tersebut di lain waktu.</p>
+<p>Tabel <code>[generation]</code> di berkas konfigurasi global menyediakan nilai awal bawaan untuk sesi baru, bukan instruksi untuk menimpa setiap sesi yang sudah berjalan. Pengaturan New-session fallback memilih penyedia awal untuk sesi mendatang, bukan mengganti penyedia di semua percakapan yang sedang terbuka.</p>
+<h2 id="reset-and-timing">Pengaturan ulang dan waktu berlaku</h2>
+<p>Opsi <strong>Use default</strong> menghapus penimpaan global yang tersimpan sehingga nilai bawaan versi aplikasi atau pewarisan kembali berlaku. Menyimpan angka yang kebetulan sama dengan nilai bawaan pabrik tetap dicatat sebagai pilihan eksplisit, berbeda dengan membiarkan kunci tersebut kosong. Untuk nilai opsional sesi di menu Generation, mengosongkan kolom akan mengembalikan kendali ke penyedia atau nilai bawaan.</p>
+<p>Perubahan pengaturan umumnya langsung berlaku tanpa perlu memulai ulang Rune. Beberapa komponen langsung menerapkan nilai baru seketika; komponen lain memakainya pada operasi berikutnya sementara pekerjaan yang sedang berjalan tetap menyelesaikan langkahnya dengan pengaturan awal. Gunakan perintah <code>rune -config explain &lt;key&gt;</code> untuk melihat rincian kunci tertentu. Kebijakan pengklasifikasi memiliki tindakan muat ulang eksplisit tersendiri.</p>
+<h2 id="inspect-before-changing">Periksa sebelum mengubah</h2>
+<p>Konfigurasi yang valid secara sintaks belum membuktikan bahwa koneksi jaringan berfungsi, dan status Configured belum membuktikan bahwa akun memiliki saldo kredit. Pengujian koneksi mengirim permintaan nyata yang dapat dikenai biaya. Mengganti penyedia dapat mengubah ke mana data Anda dikirim; menaikkan batas percobaan ulang atau batas keluaran dapat meningkatkan pengeluaran.</p>
+<p>Tidak semua opsi lanjutan memiliki baris pengaturan di antarmuka menu. Halaman <a href="{{url "docs/configuration"}}">Berkas konfigurasi</a> menjelaskan cara memeriksa dan mengatur ulang opsi-opsi tersebut tanpa mengarang nama kunci atau menimpa pilihan lain yang tidak berkaitan.</p>
+{{end}}

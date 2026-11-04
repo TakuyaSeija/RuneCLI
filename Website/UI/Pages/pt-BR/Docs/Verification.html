@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">O que a verificação comprova</h2>
+<p>O instalador valida a assinatura de lançamento na lista de somas de verificação (checksums) e, em seguida, confere o pacote baixado contra essa lista assinada antes de instalá-lo. São duas verificações distintas: uma soma de verificação sozinha não autentica quem publicou o arquivo, e uma assinatura válida não prova que uma versão esteja livre de bugs ou de comportamentos indesejados.</p>
+<p>O instalador também verifica a plataforma selecionada, os nomes esperados dos pacotes e se o binário realmente inicia. A instalação usa uma operação atômica de renomeação para nunca expor um executável copiado pela metade. Revise o código-fonte do instalador, <a href="{{url "install.sh"}}">install.sh</a> ou <a href="{{url "install.ps1"}}">install.ps1</a>, antes de executá-lo caso queira conferir seu funcionamento exato.</p>
+<h2 id="release-key">Chave de assinatura de versões</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>Impressão digital (fingerprint) SHA-256 publicada da chave de lançamento:</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>A chave pública está disponível em <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. Sempre que possível, confirme a impressão digital por meio de um canal confiável independente. Baixar a chave e a impressão digital da mesma origem caso ela estivesse comprometida não estabeleceria confiança independente.</p>
+{{else}}
+<p class="notice">Nenhuma chave de assinatura de versões está publicada no catálogo atual. A impressão digital aparecerá junto com a primeira versão assinada; não trate a ausência de chave como uma verificação bem-sucedida.</p>
+{{end}}
+<h2 id="manual-verification">Verificar arquivos baixados manualmente</h2>
+<p>Na <a href="{{url "install"}}">lista de downloads</a>, baixe o pacote desejado, o arquivo SHA256SUMS, o arquivo SHA256SUMS.sig e a chave pública verificada. As versões são assinadas com uma chave ECDSA P-256 sobre SHA-256, compatível tanto com o OpenSSL quanto com o LibreSSL incluído no macOS. Nesse diretório, verifique primeiro a assinatura e depois o checksum do pacote. No Linux:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>No macOS, a verificação da assinatura é idêntica; em seguida, confira o pacote que você baixou pelo nome:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>No Windows, o instalador já verifica a assinatura automaticamente. Para comparar manualmente um pacote baixado com a lista assinada, imprima seu hash SHA-256 no PowerShell e confira se o valor é idêntico ao da linha correspondente em SHA256SUMS:</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>Substitua VERSION pela versão que você baixou. A verificação da assinatura deve exibir <code>Verified OK</code>, e a verificação do checksum deve indicar o nome exato do pacote que você pretende usar. Um pacote ausente não está verificado apenas porque outro arquivo listado passou no teste. Interrompa imediatamente o processo se houver qualquer divergência e não execute o arquivo baixado.</p>
+<h2 id="limits">Limites e atualizações</h2>
+<p>Uma assinatura vincula os bytes do arquivo a uma chave de lançamento. Ela não audita o código-fonte de forma independente, não comprova compilações reproduzíveis, não garante a segurança de dependências nem reverte o comprometimento de uma chave de assinatura. Mantenha essa distinção clara ao compartilhar instruções de verificação.</p>
+<p>Instale a versão assinada desejada e confira com <code>rune -version</code>. No Linux e no macOS, sessões abertas compatíveis passam para a nova compilação instalada quando ficam ociosas. No Windows, as janelas abertas mantêm a compilação atual até que uma nova janela do Rune seja aberta. Nunca encerre à força um trabalho em andamento apenas para atualizar o número de versão exibido.</p>
+{{end}}

@@ -1,0 +1,181 @@
+{
+  "pages": {
+    "": {
+      "title": "RuneAgent | 运行在终端里的编程智能体",
+      "lead": "Atoryn Studio 出品的 RuneAgent 在你的项目中使用你选择的模型工作：工具结果可见，权限可配置，文件改动可审阅。"
+    },
+    "changelog": {
+      "title": "更新日志 | RuneAgent",
+      "lead": "RuneAgent 已发布的每一个版本。"
+    },
+    "license": {
+      "title": "许可证 | RuneAgent",
+      "lead": "提供 RuneAgent 所依据的许可证；此译文仅供阅读，以英文文本为准。"
+    },
+    "notfound": {
+      "title": "找不到页面 | RuneAgent",
+      "lead": "此页面不存在。"
+    }
+  },
+  "groups": {
+    "Get started": "快速开始",
+    "Use Rune": "使用 Rune",
+    "Configure": "配置",
+    "Extend": "扩展",
+    "Trust & understand": "信任与理解"
+  },
+  "docs_title": "{label} | RuneAgent 文档",
+  "docs": {
+    "docs": {
+      "label": "简介",
+      "lead": "Rune 做什么、会向模型发送什么，以及如何开始你的第一个会话。"
+    },
+    "docs/install": {
+      "label": "安装与更新",
+      "lead": "系统要求、安装程序做了什么、PATH、数据文件夹，以及在 Linux、macOS 和 Windows 上的更新与卸载。"
+    },
+    "docs/platforms": {
+      "label": "平台支持",
+      "lead": "在 Linux、macOS 和 Windows 上哪些行为相同，以及每个系统的不同之处。"
+    },
+    "docs/interface": {
+      "label": "界面",
+      "lead": "阅读对话、权限卡片、计划、文件改动和会话状态。"
+    },
+    "docs/sessions": {
+      "label": "会话与上下文",
+      "lead": "开始、恢复和引导工作；查看上下文并压缩较早的历史。"
+    },
+    "docs/commands": {
+      "label": "斜杠命令",
+      "lead": "对话命令、它们的参数，以及每个命令会改变什么。"
+    },
+    "docs/cli": {
+      "label": "命令行参考",
+      "lead": "用于配置、账号、会话和维护的启动选项与 rune 子命令。"
+    },
+    "docs/keyboard": {
+      "label": "键盘与鼠标",
+      "lead": "编辑、导航、问题和对话的标准快捷键。"
+    },
+    "docs/shell": {
+      "label": "手动命令",
+      "lead": "用开头的 ! 自己运行命令——它可以做什么、何时运行，以及 AI 能看到什么。"
+    },
+    "docs/instructions": {
+      "label": "指令与附件",
+      "lead": "提供项目指导、附加文件，并保留持久的项目记忆。"
+    },
+    "docs/memory": {
+      "label": "记忆",
+      "lead": "项目记忆保存什么、真正送达模型的是什么、它唯一的字节预算，以及它永远不能决定的事。"
+    },
+    "docs/undo": {
+      "label": "审阅、撤销与重做",
+      "lead": "审阅真实的文件差异，并了解会话还原能撤销什么、不能撤销什么。"
+    },
+    "docs/settings": {
+      "label": "设置概览",
+      "lead": "找到合适的 Settings 分区，并区分全局选择与会话控制。"
+    },
+    "docs/configuration": {
+      "label": "配置文件",
+      "lead": "查看、修改和重置 rune.toml 的值，而不把选择与默认值混为一谈。"
+    },
+    "docs/reference": {
+      "label": "设置项参考",
+      "lead": "rune.toml 中的每一项设置：出厂值、作用、可接受的值，以及改动何时生效。"
+    },
+    "docs/connections": {
+      "label": "连接",
+      "lead": "添加模型与网页账号、管理凭据，并在连接前核实目标地址。"
+    },
+    "docs/providers": {
+      "label": "模型提供商",
+      "lead": "31 个提供商预设、它们的密钥与地址、本地服务，以及各提供商的推理说明。"
+    },
+    "docs/models": {
+      "label": "模型与能力",
+      "lead": "选择提供商/模型组合，并配置已知限制、推理选项和价格。"
+    },
+    "docs/generation": {
+      "label": "生成与推理",
+      "lead": "控制当前模型的推理、采样和请求的输出。"
+    },
+    "docs/auxiliary": {
+      "label": "辅助模型",
+      "lead": "配置 sanitizer、classifier、compaction 和标题任务，包括它们对数据与费用的影响。"
+    },
+    "docs/runtime": {
+      "label": "运行时与重试",
+      "lead": "了解请求截止时间、线性重试等待、额度冷却以及分离会话的存活时间。"
+    },
+    "docs/tools": {
+      "label": "工具与限制",
+      "lead": "设置返回输出与工作量的上限，并把它们与显示折叠或权限区分开。"
+    },
+    "docs/terminal": {
+      "label": "终端与后台任务",
+      "lead": "命令如何转入后台、接收输入，以及报告完成或丢失。"
+    },
+    "docs/web": {
+      "label": "网页搜索与抓取",
+      "lead": "分别设置搜索与网页读取提供商，绝不悄悄改变目标。"
+    },
+    "docs/appearance": {
+      "label": "外观",
+      "lead": "选择主题、切换侧边栏，并了解取决于终端的显示效果。"
+    },
+    "docs/skills": {
+      "label": "技能",
+      "lead": "发现、启用和管理可复用的指南，但不把它们当作授权。"
+    },
+    "docs/mcp": {
+      "label": "MCP 连接",
+      "lead": "在把外部工具服务器连接到 Rune 之前，审阅它们的范围与访问权限。"
+    },
+    "docs/security": {
+      "label": "安全",
+      "lead": "信任边界、权限模式、平台限制以及隔离的局限。"
+    },
+    "docs/classifier": {
+      "label": "分类器策略",
+      "lead": "编写并重新加载 CLASSIFIER.md 策略，并了解 AI 审查何时真正生效。"
+    },
+    "docs/privacy": {
+      "label": "隐私与数据",
+      "lead": "哪些内容留在本地、哪些会发送给提供商，以及分享诊断信息前需要检查什么。"
+    },
+    "docs/credentials": {
+      "label": "凭据",
+      "lead": "使用凭据输入界面，区分缺失与不可用的密钥，并有意识地进行恢复。"
+    },
+    "docs/verification": {
+      "label": "发布校验",
+      "lead": "验证发布签名与归档校验和，并了解签名密钥的信任限度。"
+    },
+    "docs/architecture": {
+      "label": "架构",
+      "lead": "对前端、本地引擎、模型提供商、工具执行和会话数据的公开概述。"
+    },
+    "docs/troubleshooting": {
+      "label": "故障排查",
+      "lead": "在更改超时、提供商或访问权限之前，先诊断实际状态。"
+    }
+  },
+  "chapters": {
+    "Plan": "计划",
+    "Build": "构建",
+    "Test": "测试",
+    "Fix": "修复",
+    "Verify": "验证",
+    "Report": "报告"
+  },
+  "install_note": {
+    "none": "尚未发布任何已签名的版本。该命令目前会直接退出，不安装任何内容。",
+    "missing": "版本 {version} 没有已签名的 {system} 构建。该命令会直接退出，不安装任何内容。",
+    "release": "版本 {version}，发布于 {date}，适用于 {system}（{builds}）。",
+    "beta": "{system} 支持目前为 beta 阶段。",
+    "and": "和"
+  }
+}

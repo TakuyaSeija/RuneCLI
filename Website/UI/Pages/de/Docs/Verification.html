@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">Was die Verifizierung sicherstellt</h2>
+<p>Das Installationsskript überprüft zuerst die kryptografische Release-Signatur der Prüfsummenliste und gleicht anschließend das heruntergeladene Archiv vor der Installation mit dieser signierten Liste ab. Diese beiden Prüfungen erfüllen unterschiedliche Zwecke: Eine Prüfsumme allein beweist noch nicht, von wem sie stammt, und eine gültige Signatur garantiert nicht, dass eine Software frei von Fehlern oder unerwünschtem Verhalten ist.</p>
+<p>Darüber hinaus prüft das Installationsskript die erkannte Plattform, die erwarteten Dateinamen im Archiv und ob sich die Binärdatei starten lässt. Es installiert das Programm über ein atomares Umbenennen, sodass niemals eine halb kopierte Programmdatei ausführbar herumliegt. Lies bei Bedarf vor dem Ausführen den Quelltext des Installationsskripts (<a href="{{url "install.sh"}}">install.sh</a> bzw. <a href="{{url "install.ps1"}}">install.ps1</a>), um jeden Prüfschritt im Detail nachzuvollziehen.</p>
+<h2 id="release-key">Öffentlicher Signaturschlüssel für Releases</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>Veröffentlichter SHA-256-Fingerabdruck des Release-Schlüssels:</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>Der öffentliche Schlüssel steht unter <a href="{{url "signing-key.pem"}}">signing-key.pem</a> bereit. Gleiche den Fingerabdruck nach Möglichkeit über einen zweiten, unabhängigen Kanal ab. Wenn du Schlüssel und Fingerabdruck gleichzeitig von derselben kompromittierten Quelle herunterlädst, lässt sich die Echtheit nicht unabhängig bestätigen.</p>
+{{else}}
+<p class="notice">Im aktuellen Katalog ist noch kein öffentlicher Release-Signaturschlüssel hinterlegt. Der Fingerabdruck erscheint mit dem ersten signierten Release; behandle einen fehlenden Schlüssel niemals als erfolgreiche Prüfung.</p>
+{{end}}
+<h2 id="manual-verification">Heruntergeladene Dateien manuell prüfen</h2>
+<p>Lade aus der <a href="{{url "install"}}">Download-Liste</a> das gewünschte Archiv, SHA256SUMS, SHA256SUMS.sig sowie den verifizierten öffentlichen Schlüssel herunter. Releases werden mit einem ECDSA-P-256-Schlüssel über SHA-256 signiert – ein Verfahren, das sowohl OpenSSL als auch das mit macOS ausgelieferte LibreSSL prüfen können. Prüfe im Download-Ordner zuerst die Signatur und danach die Prüfsumme des Archivs. Unter Linux:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>Unter macOS läuft die Signaturprüfung identisch; prüfe anschließend die Prüfsumme deines heruntergeladenen Archivs anhand seines Dateinamens:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>Unter Windows übernimmt das Installationsskript die Signaturprüfung automatisch. Um ein heruntergeladenes Archiv selbst mit der signierten Liste abzugleichen, gibst du seine Prüfsumme in PowerShell aus und vergleichst sie mit der entsprechenden Zeile in SHA256SUMS:</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>Ersetze VERSION durch die heruntergeladene Versionsnummer. Die Signaturprüfung muss <code>Verified OK</code> ausgeben, und die Prüfsummenkontrolle muss exakt das Archiv bestätigen, das du verwenden willst. Ein fehlendes Archiv gilt nicht schon deshalb als geprüft, weil eine andere Datei aus der Liste bestanden hat. Brich bei jeder Abweichung sofort ab und führe den Download nicht aus.</p>
+<h2 id="limits">Grenzen und Updates</h2>
+<p>Eine Signatur bestätigt, dass die vorliegenden Bytes mit dem privaten Release-Schlüssel signiert wurden. Sie ersetzt weder ein unabhängiges Code-Audit noch beweist sie reproduzierbare Builds, fehlerfreie Abhängigkeiten oder den Schutz vor einem kompromittierten Signaturschlüssel. Behalte diesen Unterschied im Hinterkopf, wenn du Prüfanleitungen weitergibst.</p>
+<p>Installiere das gewünschte signierte Release und kontrolliere anschließend die Ausgabe von <code>rune -version</code>. Unter Linux und macOS wechseln kompatible offene Sitzungen im Leerlauf automatisch auf den neuen Build. Unter Windows behalten geöffnete Fenster ihren bisherigen Build, bis du ein neues Rune-Fenster startest. Brich niemals laufende Aufgaben hart ab, nur damit sich die Versionsanzeige sofort aktualisiert.</p>
+{{end}}

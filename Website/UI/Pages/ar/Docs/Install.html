@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">ما تحتاج إليه</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>معمارية x86_64 أو arm64، حيثما توفرت نسخة موقّعة لذلك المعالج. يوضح كل إصدار النسخ المتوفرة فيه. تعمل نسخة glibc على التوزيعات المزودة بـ glibc 2.17 أو أحدث، وقد جُرِّبت على CentOS 7 وDebian 11 و12 وUbuntu 24.04. أما نسخة musl الساكنة فلا تحتاج إلى مكتبة C من النظام، وقد جُرِّبت على Alpine.</dd></div>
+<div><dt>macOS</dt><dd>نظام macOS 11 أو أحدث، على معالجات Apple silicon أو Intel. دعم macOS في مرحلة تجريبية (beta).</dd></div>
+<div><dt>Windows</dt><dd>نظام Windows 10 الإصدار 1809 أو أحدث، أو Windows 11، على معمارية x64 أو ARM64. دعم Windows في مرحلة تجريبية (beta).</dd></div>
+<div><dt>برنامج التثبيت</dt><dd>على Linux وmacOS: أدوات <code>curl</code> و<code>tar</code> و<code>gzip</code> و<code>openssl</code> (سواء OpenSSL أو LibreSSL المدمج في macOS) للتحقق من التوقيع. على Windows: PowerShell المدمج في كل إصدار Windows مدعوم. شغّله على Linux وmacOS بحساب المستخدم العادي وليس root؛ وعلى Windows لا يتطلب صلاحيات المسؤول (Administrator).</dd></div>
+<div><dt>حساب نموذج</dt><dd>حساب لدى مزود تختاره، أو خدمة نماذج تعمل على حاسوبك الخاص. راجع <a href="{{url "docs/providers"}}">مزودو النماذج</a>.</dd></div>
+</dl>
+<p>يُذكر تحت كل أمر تثبيت في <a href="{{url "install"}}">الصفحة الرئيسية</a> أيٌّ من هذه الأنظمة تتوفر له نسخة موقّعة في الإصدار الحالي. وترد الفروق بين الأنظمة في صفحة <a href="{{url "docs/platforms"}}">المنصات المدعومة</a>.</p>
+
+<h2 id="install">التثبيت</h2>
+<p>توجد أوامر التثبيت في <a href="{{url "install"}}">الصفحة الرئيسية</a>: النص البرمجي <code>install.sh</code> لنظامي Linux وmacOS ويُشغَّل عبر <code>sh</code>، والنص البرمجي <code>install.ps1</code> لنظام Windows ويُشغَّل في PowerShell. يمكنك قراءة النص البرمجي أولاً إن أردت؛ إذ يُقدَّم كلاهما كنص عادي عبر <a href="{{url "install.sh"}}">install.sh</a> و<a href="{{url "install.ps1"}}">install.ps1</a> كما يتلقاهما الأمر تماماً. ينفذ كل منهما الخطوات التالية ويتوقف عند أول خطوة تفشل دون إحداث أي تغيير:</p>
+<ol>
+<li>يتحقق من النظام وإصداره، ومن تشغيله كمستخدم عادي، ومن توفر الأدوات المطلوبة.</li>
+<li>يكتشف المعالج، ومكتبة C على Linux سواء كانت glibc أو musl.</li>
+<li>ينزّل قائمة المجاميع الاختبارية للإصدار ويتحقق من توقيعها الرقمي باستخدام مفتاح الإصدار المدمج في النص البرمجي.</li>
+<li>ينزّل الأرشيف المخصص لجهازك ويطابقه مع تلك القائمة الموقّعة.</li>
+<li>يتحقق من أن الأرشيف يحتوي فقط على البرنامج وملفات ترخيصه، ومن أن البرنامج يبدأ التشغيل ويبلّغ عن الإصدار المتوقع.</li>
+<li>يضع البرنامج في مكانه بعملية إعادة تسمية واحدة، ويحفظ إشعارات الترخيص والأطراف الثالثة بجانب بيانات المستخدم الأخرى.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>النظام</th><th>البرنامج</th><th>إشعارات التراخيص</th></tr></thead><tbody>
+<tr><td>Linux وmacOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (أو <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>لا يعدّل برنامج التثبيت ملف إعداد الصدفة أو متغير PATH إطلاقاً. وإذا لم يكن المجلد مدرجاً في PATH، فسينبهك إلى ذلك. تشرح صفحة <a href="{{url "docs/verification"}}">التحقق من الإصدارات</a> ما الذي يثبته التوقيع الرقمي وما لا يثبته، وكيفية فحص التنزيل يدوياً.</p>
+<p>تنزّل أوامر التثبيت الملفات باستخدام <code>curl</code> وPowerShell، وهما لا يسمان البرنامج بعلامة التنزيل من الإنترنت. أما الأرشيف الذي تنزّله عبر المتصفح فيحمل تلك العلامة. ولذلك يرفض Gatekeeper على macOS تشغيل تلك النسخة من <code>rune</code>؛ فبعد التحقق من الأرشيف، أزل العلامة بالأمر <code>xattr -d com.apple.quarantine rune</code>. وعلى Windows، قد يعرض SmartScreen تحذيراً عند فتح مثل هذا البرنامج من مستكشف الملفات (File Explorer).</p>
+
+<h2 id="installer-options">خيارات برنامج التثبيت</h2>
+<p>عند عدم تعيين متغيرات، يختار برنامج التثبيت أحدث إصدار منشور ومجلد bin الخاص بالمستخدم ومكتبة C المكتشفة على Linux. على Linux وmacOS، احفظ النص البرمجي باسم <code>install.sh</code>، واقرأه، ثم شغّله مع أي من هذه المتغيرات. وعلى Windows، عيّنها في نافذة PowerShell نفسها قبل تشغيل الأمر.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>إصدار منشور مثل <code>{{.DocVersion}}</code>. تُثبَّت الإصدارات الأقدم بتحديد رقمها.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>مسار مجلد مطلق للبرنامج بدلاً من المسار الافتراضي.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>لنظام Linux فقط: <code>gnu</code> أو <code>musl</code> لاختيار النسخة يدوياً بدلاً من الكشف التلقائي. وتُرفض أي تركيبة لا يتوفر لها أرشيف منشور.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">إضافة rune إلى متغير PATH</h2>
+<p>تُدرج العديد من توزيعات Linux المسار <code>~/.local/bin</code> تلقائياً، ولكن فقط إذا كان المجلد موجوداً عند تسجيل الدخول؛ بينما لا يدرجه macOS افتراضياً. إذا لم يُعثر على الأمر <code>rune</code>، فأضف المجلد بنفسك. لصدفة bash أو zsh (الصدفة الافتراضية على macOS)، أضف هذا السطر إلى <code>~/.bashrc</code> أو <code>~/.zshrc</code>، ثم افتح طرفية جديدة:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>وفي صدفة fish، شغّل الأمر <code>fish_add_path ~/.local/bin</code> مرة واحدة. وعلى Windows، يضيف سطر PowerShell التالي المجلد إلى متغير PATH الخاص بالمستخدم؛ افتح طرفية جديدة بعد تنفيذه:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>استخدم مسار مجلدك المخصص إذا كنت قد عيّنت <code>RUNE_INSTALL_DIR</code>.</p>
+
+<h2 id="first-start">التشغيل الأول</h2>
+<p>افتح طرفية داخل مجلد مشروعك وشغّل <code>rune</code>. عند تشغيله لأول مرة ينشئ Rune مجلد بياناته <code>.rune</code> داخل مجلد المستخدم (<code>%USERPROFILE%\.rune</code> على Windows)، أو في المجلد المحدد بمتغير <code>RUNE_HOME</code>. ويضم هذا المجلد:</p>
+<ul>
+<li><code>rune.toml</code>، ملف إعداداتك. يسجل هذا الملف خياراتك التي غيرتها فقط؛ بينما تأتي كل قيمة أخرى من الإصدار الذي تشغّله.</li>
+<li>مفاتيح API الخاصة بك، محفوظة بتشفير تام.</li>
+<li>الجلسات وذاكرة المشروع واللقطات التي يستخدمها التراجع (undo)، محفوظة لكل مشروع على حدة.</li>
+</ul>
+<p>على Windows، يطلب التشغيل الأول أيضاً تأكيد المسؤول (Administrator) لمرة واحدة لإعداد الحساب المنفصل الذي يشغّل Rune الأوامر بداخله. إذا رفضت ذلك، فلن يكرر Rune الطلب في كل تشغيل؛ ويمكنك تشغيل <code>rune -sandbox setup</code> متى أردت تفعيله. تشرح صفحة <a href="{{url "docs/security"}}">الأمان</a> ما الذي يتغير عند عدم استخدامه.</p>
+<p>يطبع الأمر <code>rune -config</code> المجلد المستخدم في سطره الأول. يحتفظ Rune ببياناته الخاصة هناك وليس داخل مشاريعك؛ فلا يتغير المشروع إلا عبر أدوات الذكاء الاصطناعي وفق الوضع الذي تختاره، أو عبر أوامر <code>!</code> التي تشغّلها بنفسك، أو عند حفظ مهارة أو إعداد MCP بنطاق المشروع. تابع القراءة في قسم <a href="{{url "docs"}}#connect-and-select">ربط النموذج واختياره</a> في المقدمة.</p>
+
+<h2 id="update">التحديث</h2>
+<p>شغّل برنامج التثبيت مرة أخرى للإصدار الذي تريده، مع تمرير قيمة <code>RUNE_INSTALL_DIR</code> نفسها إذا كنت قد حددتها. سيتحقق من التنزيل ويستبدل البرنامج في خطوة واحدة؛ تحقق من النتيجة بالأمر <code>rune -version</code>.</p>
+<p>تواصل نوافذ Rune المفتوحة عملها المعتاد. على Linux وmacOS تنتقل هذه النوافذ إلى النسخة الجديدة تلقائياً بمجرد دخولها في حالة خمول، ويحدّث أول تشغيل للإصدار الجديد مجلد بياناتك ليتوافق معه. أما على Windows فلا يمكن استبدال برنامج قيد التشغيل ببرنامج آخر أثناء عمله؛ لذا تحتفظ النوافذ المفتوحة بالإصدار الذي بدأت به، وتستخدم نافذة Rune التالية التي تفتحها الإصدار الجديد. لا تغلق الأعمال النشطة لفرض التحديث.</p>
+
+<h2 id="uninstall">إلغاء التثبيت</h2>
+<p>أنهِ عملك أو أوقفه وأغلق كل نوافذ Rune، ثم أزل البرنامج وإشعاراته. على Linux وmacOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>وعلى Windows، في PowerShell:</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>على Windows، يسحب الأمر <code>rune -sandbox reset</code> أولاً صلاحيات الوصول التي مُنحت لمعزل أوامر Rune على مجلداتك ويزيل حسابه، وقد يطلب تأكيد المسؤول (Administrator). أما مجلد بياناتك فيبقى حتى تحذفه بنفسك؛ فهو يضم سجل الجلسات والإعدادات والمفاتيح ونقاط الاستعادة، ولا يلزم حذفه لإلغاء تثبيت البرنامج. وإذا رغبت في حذفه، فاعرف موقعه أولاً بالأمر <code>rune -config</code>، ولا تحذفه أبداً بينما لا يزال Rune قيد التشغيل.</p>
+
+<h2 id="environment">متغيرات البيئة</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>استخدام مجلد بيانات آخر بدلاً من <code>.rune</code> في مجلد المستخدم، بإعداداته ومفاتيحه وجلساته المستقلة.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>الطباعة بدون ألوان، تماماً كما يفعل الخيار <code>--no-color</code>.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>إخبار Rune بلون خلفية الطرفية عندما لا تبلّغ الطرفية عنه تلقائياً: <code>dark</code> أو <code>light</code> أو لون بصيغة hex. لا يمثل هذا المتغير اختيار السمة الموجود في قسم Appearance.</dd></div>
+<div><dt><code>RUNE_VERSION</code>، <code>RUNE_INSTALL_DIR</code>، <code>RUNE_LIBC</code></dt><dd>يقرؤها برنامج التثبيت فقط؛ راجع <a href="#installer-options">خيارات برنامج التثبيت</a>.</dd></div>
+</dl>
+{{end}}

@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="what-rune-does">O que o Rune faz</h2>
+<p>O Rune é um agente de programação que roda no seu terminal. Você descreve um resultado; um modelo propõe o trabalho, e o Rune lê arquivos, executa ferramentas e mostra os resultados na mesma conversa. Ele funciona com a conta de modelo que você conectar, não com uma assinatura embutida nem com um modelo fornecido pela Atoryn.</p>
+<p>O programa e os dados das sessões ficam no seu computador. Isso <strong>não</strong> significa que toda tarefa ocorra offline: o provedor que você selecionar recebe os prompts, o contexto e os anexos compatíveis necessários para atender às requisições. Comandos e serviços conectados também podem acessar a rede. Leia <a href="{{url "docs/privacy"}}">Privacidade e dados</a> antes de trabalhar com material sensível.</p>
+<h2 id="start-in-a-project">Comece em um projeto</h2>
+<p>Instale o Rune usando o comando da <a href="{{url "install"}}">página inicial</a>; <a href="{{url "docs/install"}}">Instalação e atualização</a> explica cada etapa. Em seguida, abra a pasta na qual você pretende trabalhar com o Rune. Comece com um projeto pequeno sob controle de versão e revise primeiro as alterações que já existirem nele.</p>
+<pre class="block"><code>cd path/to/your-workspace
+rune</code></pre>
+<p>Você também pode passar a pasta diretamente com <code>rune path/to/your-workspace</code>. A pasta de trabalho define o workspace para acesso a arquivos, seleção de sessões e orientações do projeto. Iniciar o Rune diretamente na sua pasta pessoal inteira concede um workspace muito mais amplo do que iniciar dentro de um único repositório.</p>
+<h2 id="connect-and-select">Conectar e selecionar um modelo</h2>
+<ol>
+<li>Pressione <kbd>Ctrl+G</kbd> e abra <strong>Connections → Add connection</strong>.</li>
+<li>Escolha o provedor de modelo desejado. Confira o destino, informe o endereço quando solicitado e utilize o campo mascarado para a chave de API. Conectar realiza uma requisição real e pode gerar cobrança.</li>
+<li>Abra <strong>Models</strong>, escolha o provedor conectado e selecione um modelo com <kbd>Enter</kbd>. Apenas navegar pela lista ou pesquisar não altera o modelo da sessão.</li>
+<li>Verifique o nome do modelo e o modo de permissão ao lado do campo de mensagem antes de enviar uma tarefa.</li>
+</ol>
+<p>Uma predefinição de provedor traz informações de configuração, não acesso a uma conta. Os modelos disponíveis dependem da conta, do endpoint e do catálogo. Veja <a href="{{url "docs/providers"}}">Provedores de modelos</a>, <a href="{{url "docs/connections"}}">Conexões</a> e <a href="{{url "docs/models"}}">Modelos e capacidades</a>.</p>
+<h2 id="give-one-bounded-task">Peça uma tarefa com escopo claro</h2>
+<p>Comece no modo <strong>Ask</strong>, que é o padrão. Leituras dentro do workspace prosseguem normalmente; edições e comandos pedem aprovação. Um bom pedido descreve o resultado esperado, as restrições e uma forma de verificá-lo:</p>
+<blockquote>Descubra por que o importador aceita uma data em branco. Explique a causa, adicione um teste de regressão e mostre a correção proposta antes de executar comandos.</blockquote>
+<p>Leia o comando exato, o caminho do arquivo ou o diff em cada cartão de permissão. Uma aprovação vale apenas para o escopo informado no cartão; ela não é uma garantia geral de que o trabalho inteiro seja seguro. Pressione <kbd>Esc</kbd> duas vezes para interromper o trabalho ativo da IA. Você pode enviar um esclarecimento enquanto o agente trabalha; ele será processado em uma etapa seguinte, sem reescrever uma requisição que já foi enviada.</p>
+<h2 id="review-the-result">Revise o resultado</h2>
+<p>Leia o relatório final e os resultados das ferramentas, inspecione os arquivos alterados e verifique você mesmo o comportamento obtido. Um modelo pode interpretar mal uma tarefa ou afirmar mais do que os testes realmente comprovam. O painel lateral mostra as diferenças reais nos arquivos monitorados, enquanto <code>/logs</code> e <code>/context</code> ajudam a inspecionar falhas e o contexto enviado.</p>
+<p>O comando <code>/undo</code> pode restaurar um arquivo elegível ao estado anterior à sessão. Ele não desfaz um deploy, uma mensagem enviada a um serviço externo nem qualquer efeito colateral fora dos arquivos monitorados. Trate-o como uma ferramenta de restauração de arquivos, não como substituto para o Git ou para seus backups.</p>
+{{end}}

@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>変更履歴</h1>
+      <p class="article-lead">公開されたすべての RuneAgent ビルド。各ビルドは署名されており、インストーラは最新版を導入しますが、バージョン番号を指定して過去の版を入れることもできます。</p>
+    </header>
+    {{- range $i, $r := .Catalog.Releases}}
+    <section class="release" id="v{{$r.Version}}">
+      <div class="release-meta">
+        {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
+        <span class="date">{{$r.Date}}</span>
+      </div>
+      <div class="release-body">
+        <h2>バージョン {{$r.Version}}</h2>
+        {{- if $r.Notes}}
+        <ul class="release-notes">
+          {{- range $r.Notes}}
+          <li>{{.}}</li>
+          {{- end}}
+        </ul>
+        {{- end}}
+        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
+        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
+      </div>
+    </section>
+    {{- else}}
+    <div class="empty" id="empty">最初のリリースが公開されると、日付、リリースノート、配布ファイルがここに表示されます。</div>
+    {{- end}}
+    {{- with .Latest}}
+    <p class="small after">ダウンロードファイルの手動検証手順は<a class="link" href="{{url "install"}}">インストールページ</a>をご覧ください。</p>
+    {{- end}}
+  </article>
+  <aside class="read-index">
+    {{- if .Catalog.Releases}}
+    <nav class="index" aria-label="このページの内容">
+      <p class="index-title">リリース一覧</p>
+      <ol>
+        {{- range $i, $r := .Catalog.Releases}}
+        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
+        {{- end}}
+      </ol>
+    </nav>
+    {{- end}}
+  </aside>
+</div>
+{{end}}

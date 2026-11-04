@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>Licencia</h1>
+      <p class="article-lead">El acuerdo que acompaña a cada descarga de RuneAgent, traducido para facilitar su lectura. Solo el texto en inglés es vinculante: el archivo <code>LICENSE.txt</code> de cada paquete y la <a href="{{(index .Locales 0).Href}}" hreflang="en" lang="en">página en inglés</a>; si difieren, prevalece el texto en inglés.</p>
+      <p class="meta">En vigor desde el 29 de octubre de 2026. Cada versión se rige por la licencia publicada con ella.</p>
+    </header>
+    {{/* A reading translation of LICENSE.txt. Only the English page and file bind (owner, 2026-11-04); the lead says so and a test holds it. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. Concesión</h2>
+      <p>Atoryn te concede una licencia gratuita, no exclusiva e intransferible para descargar, instalar y utilizar los binarios oficiales de RuneAgent publicados en {{.Origin}}{{url ""}}, con fines personales y comerciales, en tantos equipos propios como quieras.</p>
+
+      <h2 id="limits">2. Lo que no está permitido</h2>
+      <ul>
+        <li>Vender, alquilar, arrendar, sublicenciar o redistribuir RuneAgent, ya sea modificado o sin modificar. Remite a otras personas a la descarga oficial.</li>
+        <li>Modificar, descompilar, desensamblar o aplicar ingeniería inversa a RuneAgent, salvo cuando la ley lo permita expresamente a pesar de esta restricción.</li>
+        <li>Eliminar o alterar cualquier aviso de derechos de autor, licencia o atribución.</li>
+        <li>Utilizar los nombres RuneAgent, Atoryn o Atoryn Studio, o sus logotipos, para tus propios productos o para dar a entender respaldo o patrocinio.</li>
+      </ul>
+
+      <h2 id="work">3. Tu trabajo sigue siendo tuyo</h2>
+      <p>El código, las instrucciones y los datos que procesas con RuneAgent siguen siendo tuyos. RuneAgent no los envía a Atoryn. Todo aquello que tu trabajo envíe a un proveedor de modelos, a un sitio web o a otro servicio está sujeto a las condiciones de dicho tercero.</p>
+
+      <h2 id="third">4. Servicios de terceros</h2>
+      <p>Eres responsable de tus cuentas, claves de API, costes y del cumplimiento de las condiciones de cada proveedor o servicio que conectes.</p>
+
+      <h2 id="components">5. Componentes de código abierto</h2>
+      <p>RuneAgent incluye componentes de código abierto sujetos a sus propias licencias. Sus avisos se incluyen en cada descarga y dichas licencias rigen el uso de esos componentes.</p>
+
+      <h2 id="warranty">6. Sin garantía</h2>
+      <p>RuneAgent se proporciona «tal cual», sin garantía de ningún tipo, expresa ni implícita, incluidas las garantías de idoneidad para un fin determinado y de ausencia de infracción. Un agente de IA puede cometer errores: revisa su trabajo antes de confiar en él.</p>
+
+      <h2 id="liability">7. Limitación de responsabilidad</h2>
+      <p>En la medida máxima permitida por la ley, Atoryn no será responsable de ningún daño indirecto, incidental, especial, consecuente o punitivo, ni de la pérdida de datos, beneficios o actividad comercial derivados del uso o de la imposibilidad de usar RuneAgent.</p>
+
+      <h2 id="termination">8. Terminación</h2>
+      <p>Esta licencia finaliza automáticamente si incumples sus condiciones. En ese caso, deberás dejar de usar RuneAgent y eliminar tus copias.</p>
+
+      <h2 id="changes">9. Cambios</h2>
+      <p>Atoryn puede publicar futuras versiones bajo condiciones diferentes, incluida una licencia de código abierto. Cualquier versión que ya tengas seguirá sujeta a la licencia con la que se distribuyó.</p>
+
+      <p class="license-copyright">Copyright (c) 2026 Atoryn. Todos los derechos reservados.</p>
+    </div>
+    <p class="license-aside">Las fuentes tipográficas de este sitio web se utilizan bajo sus respectivas licencias, <a class="link" href="{{asset "Fonts/LICENSES.txt"}}">detalladas aquí</a>.</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="En esta página">
+      <p class="index-title">Contenido</p>
+      <ol>
+        <li><a href="#grant">Concesión</a></li>
+        <li><a href="#limits">Lo que no está permitido</a></li>
+        <li><a href="#work">Tu trabajo sigue siendo tuyo</a></li>
+        <li><a href="#third">Servicios de terceros</a></li>
+        <li><a href="#components">Componentes de código abierto</a></li>
+        <li><a href="#warranty">Sin garantía</a></li>
+        <li><a href="#liability">Limitación de responsabilidad</a></li>
+        <li><a href="#termination">Terminación</a></li>
+        <li><a href="#changes">Cambios</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

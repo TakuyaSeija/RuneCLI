@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>Licence</h1>
+      <p class="article-lead">L’accord fourni avec chaque téléchargement de RuneAgent, traduit pour en faciliter la lecture. Seul le texte anglais fait foi : le fichier <code>LICENSE.txt</code> de chaque archive et la <a href="{{(index .Locales 0).Href}}" hreflang="en" lang="en">page en anglais</a> ; en cas de divergence, le texte anglais prévaut.</p>
+      <p class="meta">En vigueur au 29 octobre 2026. Chaque version est régie par la licence publiée avec elle.</p>
+    </header>
+    {{/* A reading translation of LICENSE.txt. Only the English page and file bind (owner, 2026-11-04); the lead says so and a test holds it. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. Octroi de licence</h2>
+      <p>Atoryn vous accorde une licence gratuite, non exclusive et non transférable pour télécharger, installer et utiliser les binaires officiels de RuneAgent publiés sur {{.Origin}}{{url ""}}, à des fins personnelles et commerciales, sur autant de vos propres machines que vous le souhaitez.</p>
+
+      <h2 id="limits">2. Ce que vous ne pouvez pas faire</h2>
+      <ul>
+        <li>Vendre, louer, donner en crédit-bail, concéder en sous-licence ou redistribuer RuneAgent, modifié ou non. Orientez plutôt les autres utilisateurs vers le téléchargement officiel.</li>
+        <li>Modifier, décompiler, désassembler ou procéder à l’ingénierie inverse de RuneAgent, sauf dans les cas où la loi l’autorise expressément malgré cette restriction.</li>
+        <li>Supprimer ou modifier toute mention de droit d’auteur, de licence ou d’attribution.</li>
+        <li>Utiliser les noms RuneAgent, Atoryn ou Atoryn Studio, ou leurs logos, pour vos propres produits ou pour suggérer une approbation.</li>
+      </ul>
+
+      <h2 id="work">3. Votre travail vous appartient</h2>
+      <p>Le code, les invites et les données que vous traitez avec RuneAgent restent votre propriété. RuneAgent ne les envoie pas à Atoryn. Tout ce que votre travail transmet à un fournisseur de modèles, à un site Web ou à un autre service est soumis aux conditions propres à ce tiers.</p>
+
+      <h2 id="third">4. Services tiers</h2>
+      <p>Vous êtes responsable de vos comptes, de vos clés API, de vos coûts et du respect des conditions d’utilisation de chaque fournisseur ou service que vous connectez.</p>
+
+      <h2 id="components">5. Composants open source</h2>
+      <p>RuneAgent inclut des composants open source soumis à leurs propres licences. Leurs avis accompagnent chaque téléchargement et ces licences régissent lesdits composants.</p>
+
+      <h2 id="warranty">6. Absence de garantie</h2>
+      <p>RuneAgent est fourni « en l’état », sans garantie d’aucune sorte, expresse ou implicite, y compris d’adéquation à un usage particulier ou d’absence de contrefaçon. Un agent IA peut commettre des erreurs : vérifiez son travail avant de vous y fier.</p>
+
+      <h2 id="liability">7. Limitation de responsabilité</h2>
+      <p>Dans toute la mesure permise par la loi, Atoryn ne saurait être tenue responsable des dommages indirects, accessoires, spéciaux, consécutifs ou punitifs, ni des pertes de données, de bénéfices ou d’activité découlant de l’utilisation ou de l’impossibilité d’utiliser RuneAgent.</p>
+
+      <h2 id="termination">8. Résiliation</h2>
+      <p>La présente licence prend fin automatiquement si vous enfreignez ses conditions. Vous devez alors cesser d’utiliser RuneAgent et supprimer vos copies.</p>
+
+      <h2 id="changes">9. Modifications</h2>
+      <p>Atoryn peut publier de futures versions sous des conditions différentes, y compris sous une licence open source. Une version déjà en votre possession reste soumise à la licence qui l’accompagnait.</p>
+
+      <p class="license-copyright">Copyright (c) 2026 Atoryn. All rights reserved.</p>
+    </div>
+    <p class="license-aside">Les polices de caractères de ce site Web sont utilisées conformément à leurs licences respectives, <a class="link" href="{{asset "Fonts/LICENSES.txt"}}">consultables ici</a>.</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="Sur cette page">
+      <p class="index-title">Sommaire</p>
+      <ol>
+        <li><a href="#grant">Octroi de licence</a></li>
+        <li><a href="#limits">Ce que vous ne pouvez pas faire</a></li>
+        <li><a href="#work">Votre travail vous appartient</a></li>
+        <li><a href="#third">Services tiers</a></li>
+        <li><a href="#components">Composants open source</a></li>
+        <li><a href="#warranty">Absence de garantie</a></li>
+        <li><a href="#liability">Limitation de responsabilité</a></li>
+        <li><a href="#termination">Résiliation</a></li>
+        <li><a href="#changes">Modifications</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

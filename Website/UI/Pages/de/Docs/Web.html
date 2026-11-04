@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Websuche und Seitenabruf sind getrennt</h2>
+<p>Das Werkzeug web_search sucht anhand einer Anfrage nach passenden Webseiten. web_fetch liest eine einzelne öffentliche HTTP(S)-Seite als Text ein. Übergibst du eine URL an die Websuche, wird nach dieser Adresse gesucht – sie wird dadurch nicht automatisch direkt abgerufen. Der integrierte Seitenleser ist kein interaktiver Browser und kann keine Inhalte hinter Logins oder aus reinen JavaScript-Anwendungen abrufen.</p>
+<p>Für die Websuche musst du einen Suchdienst einrichten. Der Seitenabruf nutzt standardmäßig den integrierten Leser von Rune. Beide Werkzeuge besitzen voneinander unabhängige Anbieterauswahlen, Timeouts und Ausgabebudgets; wenn du einen Dienst für das eine Werkzeug aktivierst, wird er nicht automatisch auch für das andere ausgewählt.</p>
+<h2 id="add-an-account">Zuerst die Zugangsdaten hinterlegen</h2>
+<p>Füge unter Settings → Connections das gewünschte Konto unter Search &amp; Fetch samt Adresse und API-Schlüssel hinzu. Das bloße Speichern der Zugangsdaten beweist noch nicht, dass der Dienst funktioniert. Zudem können der Modell-Endpunkt und der Web-Endpunkt eines Anbieters technisch getrennte Dienste mit unterschiedlichen Berechtigungen und Tarifen sein.</p>
+<h2 id="add-and-select">Anbieter hinzufügen und auswählen</h2>
+<ol><li>Öffne Settings → Tools → Web search bzw. Web fetch → Provider.</li><li>Wähle Add provider und danach das verbundene Konto aus.</li><li>Gib bei einem Gateway die exakt vorgesehene Route in das leere Feld ein. Rate keine Route anhand von Beispielen oder Modellnamen.</li><li>Rune sendet vor dem Übernehmen des Anbieters eine echte Testanfrage. Dabei wird eine Suchanfrage bzw. Seitenadresse übertragen, was Kosten verursachen kann.</li><li>Kehre zur Liste zurück und wähle den gewünschten Anbieter aus. Erst diese Auswahl testet und speichert ihn als aktiven Dienst; das bloße Hinzufügen legt ihn noch nicht als festen Anbieter fest.</li></ol>
+<p>Schlägt das Hinzufügen oder Auswählen fehl, bleibt deine bisherige Einstellung unverändert aktiv. Ein erfolgreicher Test bestätigt die getestete Anfrage, garantiert aber keinen uneingeschränkten Zugriff auf jede künftige Webseite oder jeden Tarif.</p>
+<h2 id="services">Unterstützte Webdienste</h2>
+<p>Für jeden dieser Dienste benötigst du ein eigenes Konto beim jeweiligen Anbieter. Rune nutzt ausschließlich die hier genannten Such- bzw. Seitenabruf-Funktionen, nicht alle übrigen Produkte des Herstellers. Sofern in der Tabelle nichts anderes vermerkt ist, verwendet jeder Dienst eine feste Standardadresse und erfordert einen API-Schlüssel.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Dienst</th><th>Suche</th><th>Abruf</th><th>Hinweise</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Ja</td><td>Nein</td><td>Durchsucht Google über eine SERP-Zone deines Kontos.</td></tr>
+<tr><td>Exa</td><td>Ja</td><td>Ja</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Ja</td><td>Ja</td><td></td></tr>
+<tr><td>Jina AI</td><td>Ja</td><td>Ja</td><td>Suche und Seitenabruf nutzen zwei unterschiedliche Adressen; der Schlüssel beginnt mit <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>9router</td><td>Ja</td><td>Ja</td><td>Die 9router-App auf diesem Rechner (standardmäßig Port 20128). Ein Schlüssel ist optional, und jeder dort angebotene Such- oder Abrufdienst wird über einen Routennamen angesprochen.</td></tr>
+<tr><td>Ollama Web Search</td><td>Ja</td><td>Ja</td><td>Der Cloud-Dienst von Ollama mit einem Schlüssel von ollama.com (nicht zu verwechseln mit einer lokalen Ollama-Installation).</td></tr>
+<tr><td>Perplexity Search</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>SearXNG</td><td>Ja</td><td>Nein</td><td>Dein eigener Server: Gib dessen Adresse ein (kein Schlüssel erforderlich). In seiner Konfiguration muss unter <code>search: formats:</code> das Format <code>json</code> aktiviert sein.</td></tr>
+<tr><td>SerpApi</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Serper</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Serpex</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Serplify</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>serpstack</td><td>Ja</td><td>Nein</td><td></td></tr>
+<tr><td>Tavily</td><td>Ja</td><td>Ja</td><td></td></tr>
+<tr><td>TinyFish</td><td>Ja</td><td>Ja</td><td>Suche und Seitenabruf nutzen zwei unterschiedliche Adressen.</td></tr>
+<tr><td>You.com</td><td>Ja</td><td>Nein</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Ohne einen dieser Dienste steht die Websuche nicht zur Verfügung, während der Seitenabruf weiterhin über den integrierten Leser von Rune funktioniert (der kein Konto benötigt).</p>
+<h2 id="default-and-pin">Standardverhalten und feste Auswahl</h2>
+<dl class="ref">
+<div><dt>Standard bei der Suche</dt><dd>Ist kein fester Anbieter gesetzt, nutzt Rune den ersten aktivierten Suchanbieter in der Reihenfolge des Hinzufügens. Das Hinzufügen des ersten Suchanbieters macht ihn daher automatisch zum aktiven Standard.</dd></div>
+<div><dt>Standard beim Seitenabruf</dt><dd>Standardmäßig wird der integrierte Seitenleser genutzt. Das Hinzufügen eines externen Abrufdienstes schaltet diesen noch nicht automatisch aktiv.</dd></div>
+<div><dt>Feste Auswahl (Pin)</dt><dd>Legt ein bestimmtes Konto bzw. eine bestimmte Kombination aus konto:route fest. Fehlt dieser Dienst oder ist er nicht erreichbar, sendet das Werkzeug die Anfrage niemals stillschweigend an einen anderen Anbieter.</dd></div>
+</dl>
+<p>Nutze Use default oder setze <code>web_search.provider</code> bzw. <code>web_fetch.provider</code> zurück, um die feste Zuordnung aufzuheben. Wähle zuerst eine andere Option aus, bevor du einen aktuell genutzten Anbieter aus der Tool-Liste löschst. Das Löschen dort entfernt nur die Zuordnung beim Werkzeug, nicht das Konto oder die Schlüssel unter Connections. Für einen Gateway-Dienst lassen sich höchstens 32 Routen speichern.</p>
+<h2 id="limits-and-privacy">Limits und Datenschutz</h2>
+<p>Die Standardwerte ab Werk liegen bei acht Suchergebnissen, 60 Sekunden Timeout pro Anfrage und 100.000 zurückgegebenen Zeichen je Werkzeug. Ein Parameter beim einzelnen Aufruf kann die Trefferanzahl der Suche verringern. Ein höheres Ausgabelimit umgeht keine Zugriffsbeschränkungen.</p>
+<p>Externe Suchdienste erhalten deine Suchanfrage; externe Abrufdienste erhalten die Zieladresse der Webseite und können dafür Gebühren berechnen. Der integrierte Seitenabruf kontaktiert den Zielserver direkt. Zugriffe auf private oder interne Netzwerkadressen werden verweigert. Die optionale Cookie-Verarbeitung gilt nur innerhalb eines einzelnen Lesevorgangs bei Weiterleitungen und speichert keine dauerhafte Browser-Sitzung.</p>
+{{end}}

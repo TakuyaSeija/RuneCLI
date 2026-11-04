@@ -46,7 +46,7 @@ func TestDocumentationNavigationAndHeadingContract(t *testing.T) {
 		if !strings.Contains(body, `Reference for Rune `+documentedVersion) {
 			t.Errorf("%s: reference version absent", p.Route)
 		}
-		if len(st.site.pages[p.Route].Headings) < 2 {
+		if len(st.site.pages["en"][p.Route].Headings) < 2 {
 			t.Errorf("%s: missing TOC", p.Route)
 		}
 	}

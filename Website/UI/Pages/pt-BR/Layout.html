@@ -1,0 +1,78 @@
+{{define "brand-mark"}}<img class="brand-mark" src="{{asset "Images/Logo.png"}}" width="26" height="26" alt="" decoding="async">{{end}}<!doctype html>
+<html lang="pt-BR" data-theme="amber">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Page.Title}}</title>
+  <meta name="description" content="{{meta .Page.Lead}}">
+  {{- if not .Indexing}}
+  <meta name="robots" content="noindex, nofollow">
+  {{- end}}
+  <link rel="canonical" href="{{.Canonical}}">
+  {{if ne .Page.Route "-"}}{{range .Locales}}<link rel="alternate" hreflang="{{.Code}}" href="{{$.Origin}}{{.Href}}">
+  {{end}}<link rel="alternate" hreflang="x-default" href="{{.Origin}}{{(index .Locales 0).Href}}">{{end}}
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a0908">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Atoryn Studio">
+  <meta property="og:title" content="{{.Page.Title}}">
+  <meta property="og:description" content="{{meta .Page.Lead}}">
+  <meta property="og:url" content="{{.Canonical}}">
+  <link rel="icon" type="image/png" sizes="96x96" href="{{asset "Images/Icon.png"}}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{asset "Images/Icon-32.png"}}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{asset "Images/Icon-16.png"}}">
+  <link rel="apple-touch-icon" href="{{asset "Images/AppleTouchIcon.png"}}">
+  <link rel="preload" href="{{asset "Fonts/Inter.woff2"}}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{asset "Styles/Site.css"}}">
+  <script src="{{asset "Scripts/Restore.js"}}"></script>
+  <script src="{{asset "Scripts/Site.js"}}" defer></script>
+  {{if eq .Page.Route ""}}<link rel="stylesheet" href="{{asset "Styles/Home.css"}}">
+  <link rel="stylesheet" href="{{asset "Styles/Terminal.css"}}">
+  <script src="{{asset "Scripts/Terminal.js"}}" type="module"></script>
+  <script src="{{asset "Scripts/TerminalInteraction.js"}}" defer></script>{{end}}
+</head>
+<body{{if .Page.Section}} class="docs-page"{{end}}>
+  <a class="skip-link" href="#main">Pular para o conteúdo</a>
+
+  <header class="top">
+    <div class="top-row">
+      {{if .Page.Section}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Abrir o menu da documentação"><span></span><span></span><span></span></button>{{end}}
+      <a class="brand" href="{{url ""}}"{{if eq .Page.Route ""}} aria-current="page"{{end}}>
+        {{template "brand-mark"}}
+        <span class="brand-name-wrap"><span class="brand-name">RuneAgent</span><span class="brand-by">Atoryn Studio</span></span>
+      </a>
+      <nav class="nav" aria-label="Principal">
+        <details class="lang-switch">
+          <summary class="lang-trigger" aria-label="Idioma: Português (Brasil)">
+            <svg class="lang-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>
+            <span class="lang-current" translate="no">{{.Locale.Name}}</span><span class="lang-code" translate="no" aria-hidden="true">{{.Locale.Short}}</span>
+          </summary>
+          <div class="lang-menu" role="region" aria-label="Idioma">
+          {{range .Locales}}<a class="lang-item" href="{{.Href}}" hreflang="{{.Code}}" lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}} translate="no">{{.Name}}</a>{{end}}
+          </div>
+        </details>
+        <a class="nav-link" href="{{url "docs"}}"{{if .Page.Section}} aria-current="page"{{end}}>Docs</a>
+        <a class="nav-link" href="{{url "install"}}">Instalar</a>
+      </nav>
+    </div>
+  </header>
+  {{if .Page.Section}}<div class="scrim"></div>{{end}}
+
+  <main id="main" tabindex="-1">
+{{template "content" .}}
+  </main>
+
+  <footer class="foot">
+    <div class="foot-row">
+      <p class="foot-brand"><a class="foot-home" href="{{url ""}}">{{template "brand-mark"}}<span class="brand-name">RuneAgent</span></a><span class="foot-note">&copy; {{year}} Atoryn</span></p>
+      <nav class="foot-links" aria-label="Mais">
+        {{- if .Latest}}
+        <a href="{{url "changelog"}}"{{if eq .Page.Route "changelog"}} aria-current="page"{{end}}>Versões</a>
+        {{- end}}
+        <a href="{{url "license"}}"{{if eq .Page.Route "license"}} aria-current="page"{{end}}>Licença</a>
+        <a href="{{.Parent}}">Atoryn</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

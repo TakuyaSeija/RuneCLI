@@ -1,0 +1,44 @@
+{{define "article"}}
+<h2 id="application">Conversation et application</h2>
+<dl class="ref">
+<div><dt>Enter · Alt+Enter</dt><dd>Envoie le message ou insère un retour à la ligne. Les combinaisons utilisant la touche Entrée dépendent de ce que transmet le terminal.</dd></div>
+<div><dt>Ctrl+G · Ctrl+O</dt><dd>Ouvre Settings, ou affiche/masque le panneau latéral.</dd></div>
+<div><dt>Ctrl+T · Ctrl+R</dt><dd>Ouvre le plan, ou déplie/replie les étapes et les réflexions. Dans le sélecteur de session, Ctrl+R ouvre le renommage.</dd></div>
+<div><dt>Alt+T</dt><dd>Fait défiler les niveaux de raisonnement disponibles pour le modèle sélectionné.</dd></div>
+<div><dt>Tab</dt><dd>Complète une commande slash ou fait défiler le mode d’autorisation. Les formulaires conservent leur propre navigation par tabulation.</dd></div>
+<div><dt>Esc deux fois</dt><dd>Arrête le travail actif de l’IA : le premier appui affiche une demande de confirmation, le second dans les 3 secondes arrête l’exécution. Lorsqu’aucun travail n’est en cours, Esc ferme la vue active.</dd></div>
+<div><dt>Ctrl+C deux fois</dt><dd>Quitte Rune. Le premier appui prépare la sortie ; il n’annule pas un tour et n’efface pas votre brouillon.</dd></div>
+<div><dt>Ctrl+L · Ctrl+↓</dt><dd>Redessine l’écran, ou revient au message le plus récent.</dd></div>
+</dl>
+<h2 id="text-editing">Édition de texte</h2>
+<p>Ces raccourcis sont partagés par le compositeur, les réponses modifiables, les champs de Settings, la recherche de modèles, les champs MCP ainsi que la recherche et le renommage de sessions. Les listes et les boutons possèdent leur propre navigation. Une ligne logique se termine par un retour à la ligne inséré ; une ligne visuelle peut résulter d’un retour à la ligne automatique.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Touche</th><th>Action</th></tr></thead><tbody>
+<tr><td>← / →</td><td>Recule ou avance d’un caractère visible.</td></tr>
+<tr><td>Ctrl+← / Ctrl+→</td><td>Va au début du mot précédent / à la fin du mot suivant (délimités par des espaces).</td></tr>
+<tr><td>↑ / ↓</td><td>Monte ou descend d’une ligne visuelle en conservant la colonne souhaitée.</td></tr>
+<tr><td>Ctrl+A / Ctrl+E</td><td>Début / fin de la ligne logique courante.</td></tr>
+<tr><td>Home / End</td><td>Début / fin de l’ensemble du texte saisi.</td></tr>
+<tr><td>Backspace / Delete</td><td>Supprime le caractère visible situé avant / après le curseur, ou la sélection.</td></tr>
+<tr><td>Ctrl+U / Ctrl+K</td><td>Coupe vers l’arrière / vers l’avant jusqu’à la limite de la ligne logique. Sur un retour à la ligne, Ctrl+K supprime uniquement ce retour à la ligne ; à la fin de la saisie, il ne fait rien.</td></tr>
+<tr><td>Ctrl+W / Alt+D</td><td>Coupe le mot délimité par des espaces à gauche / à droite, y compris les espaces adjacents dans cette direction.</td></tr>
+<tr><td>Ctrl+Y / Alt+Y</td><td>Colle le dernier texte coupé / fait défiler les textes coupés précédents immédiatement après un collage.</td></tr>
+<tr><td>Ctrl+_ / Alt+R</td><td>Annule / rétablit une modification de texte dans ce champ.</td></tr>
+<tr><td>Shift+←/→/↑/↓</td><td>Étend la sélection par caractère ou par ligne visuelle.</td></tr>
+<tr><td>Ctrl+Shift+← / →</td><td>Étend la sélection par mot.</td></tr>
+<tr><td>Alt+X / Alt+W</td><td>Inverse deux caractères / deux mots adjacents.</td></tr>
+<tr><td>Alt+U / Alt+L / Alt+V</td><td>Met en majuscules / en minuscules / avec une majuscule initiale le mot suivant ou le texte sélectionné.</td></tr>
+</tbody></table></div>
+<p>Taper, coller ou supprimer remplace une sélection. L’historique d’annulation temporaire et l’anneau de texte coupé sont propres à ce champ, bornés et effacés lorsque vous changez de champ ou de session. Ils ne constituent pas des sauvegardes de fichiers. Rune n’implémente pas l’intégralité des alias Readline ; par exemple, Ctrl+B/F et Alt+B/F ne servent pas de raccourcis de déplacement alternatifs.</p>
+<h2 id="history-and-reading">Historique et lecture</h2>
+<p>Dans le compositeur, les touches Haut/Bas parcourent d’abord le texte visible, atteignent le début ou la fin, puis rappellent l’historique des invites. <kbd>PgUp</kbd>/<kbd>PgDn</kbd> rappellent directement l’historique. Cet historique est propre à la session.</p>
+<p>Un cran de molette fait défiler le nombre de lignes configuré, deux par défaut. Ctrl+molette ou Alt+molette défile trois fois plus vite lorsque le terminal transmet l’événement. Un terminal peut réserver ces gestes au zoom ou au défilement horizontal ; la molette simple et le clavier restent toujours disponibles.</p>
+<h2 id="mouse">Souris</h2>
+<p>Un clic place le curseur texte ou active un contrôle. Glissez sur du texte et relâchez pour le copier : la surbrillance disparaît dès que le texte se trouve dans votre presse-papiers. Un glisser dans la conversation copie uniquement ce volet, sans le panneau latéral ni les bordures d’encadrés de Rune, et les tableaux sont copiés sous forme de cellules séparées par des tabulations. Copier une commande repliée restitue ses retours à la ligne d’origine, sans les repères d’affichage <code>↵</code> et <code>…</code>. Dans un champ de saisie, un glisser copie sans déplacer le curseur ni remplacer votre brouillon ; sélectionnez du texte pour le modifier avec <kbd>Shift</kbd> et les touches fléchées. Les champs de secrets masqués ne sont jamais copiés.</p>
+<p>Le terminal doit autoriser l’écriture dans le presse-papiers pour que la copie aboutisse ; SSH ou un multiplexeur peuvent la bloquer. <kbd>Shift</kbd>+glisser, lorsque le terminal le prend en charge, utilise la sélection native du terminal, bordures comprises. Avec <code>ui.mouse = false</code>, toute sélection relève du terminal.</p>
+<p>Cliquez sur un lien pour ouvrir son panneau <strong>REFERENCE</strong> : <kbd>Enter</kbd> ouvre une adresse Web dans votre navigateur, <kbd>C</kbd> copie la destination complète et <kbd>Esc</kbd> ferme le panneau. Glisser sur un lien copie son texte sans jamais l’ouvrir.</p>
+<h2 id="lists-and-forms">Listes et formulaires</h2>
+<p>Les flèches sélectionnent et <kbd>Enter</kbd> ouvre ou confirme. <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> déplacent le focus. <kbd>Esc</kbd> annule un éditeur ou remonte d’un niveau. Dans Models, Ctrl+F place le focus sur la recherche, Alt+C ouvre la configuration du modèle, T teste le modèle avec une vraie requête et Delete supprime la configuration locale du résultat sélectionné.</p>
+<p>Dans les formulaires de questions, Alt+Gauche/Droite passe d’une question à l’autre. Gauche/Droite seul modifie le texte ou sélectionne les boutons. Les touches Page permettent de lire une carte qui dépasse la hauteur disponible ; elles n’envoient pas la réponse. Haut/Bas dans une réponse personnalisée parcourt d’abord son texte avant d’en sortir. Glisser à la souris sélectionne le texte au lieu d’activer le contrôle situé en dessous.</p>
+<h2 id="terminal-differences">Différences selon les terminaux</h2>
+<p>Un raccourci ne fonctionne que si le terminal le transmet. Les raccourcis du système d’exploitation, les profils de terminal et les encodages de contrôle traditionnels peuvent réserver certaines combinaisons. Les arrière-plans, le flou et la transparence relèvent également du terminal, et non de Rune. Consultez <code>/help</code> pour la version installée plutôt que de supposer que les raccourcis de votre shell s’appliquent.</p>
+{{end}}

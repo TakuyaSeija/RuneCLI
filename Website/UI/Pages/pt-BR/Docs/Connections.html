@@ -1,0 +1,18 @@
+{{define "article"}}
+<h2 id="access-not-selection">Acesso não é seleção</h2>
+<p>A seção Connections cuida dos endereços de contas e das chaves de API. Ela não escolhe o modelo atual, o tempo limite de requisição ao modelo, a rota de busca na web nem o leitor de páginas. Essas escolhas pertencem a Models, Runtime e Tools, respectivamente.</p>
+<p>A quantidade de chaves ou o estado Configured indicam que há credenciais cadastradas, não que uma requisição teve sucesso ou que há saldo disponível. O estado Resting pode indicar que uma credencial está temporariamente indisponível. Verifique o erro real em vez de substituir a conta repetidamente.</p>
+<h2 id="model-account">Adicionar uma conta de modelo</h2>
+<p>Cada predefinição de provedor, com seu formato de chave e endereço, está listada em <a href="{{url "docs/providers"}}">Provedores de modelos</a>.</p>
+<ol><li>Abra Settings → Connections → Add connection e escolha o provedor de modelo desejado.</li><li>Revise o formulário, inicialmente marcado como Not connected yet. Uma predefinição com endereço fixo pede apenas a chave; um endereço dependente da conta ou personalizado precisa ser informado explicitamente.</li><li>Verifique o nome da conexão e o nome da chave. Insira segredos apenas no campo de credencial.</li><li>Conecte. O Rune testa uma nova conta de modelo antes de aceitá-la; essa requisição pode ser tarifada. Cancelar descarta a adição sem salvar.</li><li>Selecione o par provedor/modelo desejado em Models após conectar.</li></ol>
+<p>Uma predefinição fornece padrões compatíveis de configuração. Ela não é uma conta, uma permissão de uso de API nem uma garantia de que todos os produtos do provedor funcionarão. Assinaturas específicas de planos e endereços regionais podem diferir da API comum de um fornecedor.</p>
+<h2 id="web-account">Adicionar uma conta web</h2>
+<p>Escolha um fornecedor em Search &amp; Fetch, informe o endereço/chave necessários e salve a conta. Salvar o acesso web por si só não ativa nem comprova que um provedor de busca ou leitura de páginas funciona. Continue em Tools → Web search ou Web fetch → Provider para adicionar, testar e selecionar o serviço desejado.</p>
+<p>Busca e leitura de páginas têm seleções independentes. Uma conta de modelo local e o serviço web do mesmo fornecedor podem exigir endereços ou chaves diferentes. Veja <a href="{{url "docs/web"}}">Busca e leitura web</a>.</p>
+<h2 id="edit-and-remove">Editar e remover</h2>
+<p>Abra uma conexão existente para alterar sua Base URL ou gerenciar chaves nomeadas. Alterações no endpoint do modelo são testadas antes de serem aceitas. A opção Use default restaura o endereço padrão do provedor, sem tentar adivinhar um endereço pelo nome da conta.</p>
+<p>Adicionar uma chave acrescenta uma alternativa; não substitui todas as chaves automaticamente. Verifique o nome e a prévia mascarada de uma chave antes de removê-la. Remover uma conexão pode deixar suas credenciais disponíveis para reutilização; remover a conta não é uma promessa de exclusão segura e irreversível.</p>
+<h2 id="destination-and-testing">Destino e testes</h2>
+<p>Alterar um endpoint pode enviar tanto credenciais quanto prompts para outra parte. Verifique a titularidade do serviço e a região desejada antes de conectar. Endpoints remotos que usam chaves exigem transporte criptografado; um endpoint na própria máquina é um caso local à parte.</p>
+<p>Testes de conexão e de modelo são requisições reais e podem gerar custos. Um teste de conta bem-sucedido vale para a requisição testada, não para todos os modelos, ferramentas, tamanhos de contexto ou permissões da conta. Prefira fazer um teste pequeno e deliberado após verificar o erro exato nos logs.</p>
+{{end}}

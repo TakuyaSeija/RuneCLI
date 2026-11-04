@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">검색과 페이지 읽기는 별개의 도구입니다</h2>
+<p><code>web_search</code>는 검색어로 웹페이지를 찾고, <code>web_fetch</code>는 공개된 HTTP(S) 웹페이지 하나를 텍스트로 읽습니다. 검색어 자리에 URL을 넣으면 해당 URL을 검색할 뿐 페이지를 자동으로 읽어 오지 않습니다. 또한 내장 리더는 대화형 웹 브라우저가 아니므로 로그인 인증 뒤에 있는 콘텐츠나 스크립트로만 렌더링되는 애플리케이션의 내용을 보장하지 않습니다.</p>
+<p>검색을 사용하려면 검색 서비스를 구성해야 하며, 페이지 가져오기는 기본적으로 Rune의 내장 페이지 리더를 사용합니다. 두 도구는 제공자 고정(pin), 타임아웃, 출력 예산을 각각 독립적으로 관리하므로 한쪽에서 서비스를 활성화했다고 다른 쪽에서도 자동으로 선택되지는 않습니다.</p>
+<h2 id="add-an-account">먼저 계정 접근 정보 추가하기</h2>
+<p>Settings → Connections에서 사용할 Search &amp; Fetch 계정의 주소와 자격 증명을 추가하세요. 계정 정보를 저장한 것만으로는 서비스 작동이 검증되지 않습니다. 또한 같은 제공자라도 모델 엔드포인트와 웹 엔드포인트는 이용 권한이 다른 별개의 서비스일 수 있습니다.</p>
+<h2 id="add-and-select">제공자 추가 및 선택하기</h2>
+<ol><li>Settings → Tools → Web search 또는 Web fetch → Provider를 엽니다.</li><li>Add provider와 연결된 계정을 선택합니다.</li><li>게이트웨이 서비스인 경우 빈 입력란에 사용할 정확한 경로(route)를 입력합니다. 예제나 모델 이름에서 경로를 임의로 추측하지 마세요.</li><li>Rune은 제공자를 등록하기 전에 실제 요청을 보내 테스트합니다. 이 과정에서 검색어나 페이지 주소가 전송되며 비용이 발생할 수 있습니다.</li><li>목록으로 돌아와 사용할 제공자를 선택합니다. 선택 시 해당 항목을 테스트한 뒤 저장하며, 목록에 추가만 한 상태로는 아직 선택(pin)된 것이 아닙니다.</li></ol>
+<p>추가나 선택이 실패하면 이전에 선택되어 있던 설정이 그대로 유지됩니다. 테스트가 성공했다는 것은 해당 테스트 요청이 통과했음을 뜻할 뿐 앞으로 모든 페이지나 서비스에 제한 없이 접근할 수 있다는 보장은 아닙니다.</p>
+<h2 id="services">Rune에서 사용할 수 있는 웹 서비스</h2>
+<p>각 서비스는 사용자의 자체 계정이 필요합니다. Rune은 해당 벤더가 판매하는 모든 제품이 아니라 아래 표에 명시된 검색 또는 페이지 읽기 기능만 사용합니다. 별도 설명이 없는 한 각 서비스는 고정된 주소 하나를 사용하며 API 키가 필요합니다.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>서비스</th><th>검색(Search)</th><th>가져오기(Fetch)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>지원</td><td>미지원</td><td>계정의 SERP zone을 통해 Google을 검색합니다.</td></tr>
+<tr><td>Exa</td><td>지원</td><td>지원</td><td></td></tr>
+<tr><td>Firecrawl</td><td>지원</td><td>지원</td><td></td></tr>
+<tr><td>Jina AI</td><td>지원</td><td>지원</td><td>검색과 읽기에 서로 다른 두 주소를 사용하며 키는 <code>jina_</code>로 시작합니다.</td></tr>
+<tr><td>Linkup</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>9router</td><td>지원</td><td>지원</td><td>이 컴퓨터의 9router 앱(기본 포트 20128). 키는 선택 사항이며 제공하는 각 검색·읽기 서비스를 경로(route) 이름으로 지정합니다.</td></tr>
+<tr><td>Ollama Web Search</td><td>지원</td><td>지원</td><td>로컬 Ollama가 아니라 ollama.com 키를 사용하는 Ollama 클라우드 서비스입니다.</td></tr>
+<tr><td>Perplexity Search</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>SearXNG</td><td>지원</td><td>미지원</td><td>직접 운영하는 서버 주소를 입력하며 키는 필요 없습니다. 서버 설정의 <code>search: formats:</code> 아래에 <code>json</code>이 포함되어야 합니다.</td></tr>
+<tr><td>SerpApi</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Serper</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Serpex</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Serplify</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>serpstack</td><td>지원</td><td>미지원</td><td></td></tr>
+<tr><td>Tavily</td><td>지원</td><td>지원</td><td></td></tr>
+<tr><td>TinyFish</td><td>지원</td><td>지원</td><td>검색과 읽기에 서로 다른 두 주소를 사용합니다.</td></tr>
+<tr><td>You.com</td><td>지원</td><td>미지원</td><td></td></tr>
+</tbody>
+</table></div>
+<p>위 서비스 중 아무것도 설정하지 않은 경우 웹 검색은 사용할 수 없으며, 웹 가져오기는 별도 계정이 필요 없는 Rune 내장 리더를 사용합니다.</p>
+<h2 id="default-and-pin">기본값 및 명시적 고정(Pin)</h2>
+<dl class="ref">
+<div><dt>검색 기본값</dt><dd>별도로 지정하지 않으면 추가된 순서상 첫 번째로 활성화된 검색 제공자를 사용합니다. 따라서 첫 번째 검색 제공자를 추가하면 곧바로 기본 검색 제공자가 될 수 있습니다.</dd></div>
+<div><dt>가져오기 기본값</dt><dd>내장 리더를 사용합니다. 외부 리더를 추가하더라도 자동으로 선택되지는 않습니다.</dd></div>
+<div><dt>명시적 선택</dt><dd>특정 계정 또는 <code>계정:경로</code> 하나를 고정합니다. 고정한 대상을 찾을 수 없거나 사용할 수 없을 때 다른 제공자로 요청을 몰래 넘기지 않습니다.</dd></div>
+</dl>
+<p>해당 고정을 해제하려면 Use default를 선택하거나 <code>web_search.provider</code> / <code>web_fetch.provider</code>를 초기화(reset)하세요. 현재 사용 중인 제공자를 삭제하려면 먼저 다른 제공자를 선택해야 합니다. 도구 제공자 목록에서 항목을 삭제해도 Connections의 계정이나 키 자체는 지워지지 않습니다. 게이트웨이 서비스에는 최대 32개의 경로를 저장할 수 있습니다.</p>
+<h2 id="limits-and-privacy">한도 및 프라이버시</h2>
+<p>초기 기본값은 검색 결과 8개, 도구 요청당 타임아웃 60초, 각 도구의 반환 텍스트 100,000자입니다. 호출별 요청 개수로 검색 최대 결과 수를 낮출 수 있으며, 출력 상한을 늘린다고 해서 접근 제한을 우회할 수는 없습니다.</p>
+<p>외부 검색 서비스에는 검색어가 전달되고, 외부 리더 서비스에는 페이지 주소가 전달되며 요금이 부과될 수 있습니다. 내장 리더는 요청한 사이트에 직접 접속합니다. 사설망이나 내부 네트워크 주소는 거부되며, 선택적인 쿠키 처리는 단일 리다이렉트 읽기에만 제한적으로 적용되고 영구적인 브라우저 로그인 세션을 만들지 않습니다.</p>
+{{end}}

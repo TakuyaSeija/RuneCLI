@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">Utiliser les commandes</h2>
+<p>Tapez <code>/</code> dans le compositeur pour rechercher dans la palette. Choisissez avec les touches fléchées, complétez avec <kbd>Tab</kbd> et exécutez avec <kbd>Enter</kbd>. Les arguments entre crochets sont facultatifs ; les chevrons décrivent une valeur que vous fournissez, et non du texte à saisir tel quel. La commande <code>/help</code> fait foi pour la version installée.</p>
+<h2 id="session-and-context">Session et contexte</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>Démarre une nouvelle conversation dans cet espace de travail. Cela ne supprime pas la session en cours.</dd></div>
+<div><dt>/session</dt><dd>Ouvre le sélecteur de session avec recherche pour cet espace de travail.</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>Reprend une session enregistrée particulière.</dd></div>
+<div><dt>/compact</dt><dd>Résume le contexte ancien. Cette opération peut envoyer une requête au modèle et faire perdre des détails historiques ; elle n’efface pas le stockage sur disque.</dd></div>
+<div><dt>/context</dt><dd>Inspecte le contexte fourni au modèle. Traitez son contenu comme des données de travail privées si vous devez le partager.</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>Ouvre les événements de diagnostic, éventuellement filtrés par gravité. Les requêtes échouées et les nouvelles tentatives y figurent ; cette vue ne constitue pas une autorisation de réessayer ni de changer de compte.</dd></div>
+</dl>
+<h2 id="model-and-permissions">Modèle et autorisations</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>Sélectionne un couple fournisseur/modèle, ou ouvre la vue Models sans argument. En cas d’identifiant de modèle ambigu, il est préférable de le sélectionner sous son fournisseur dans la liste.</dd></div>
+<div><dt>/provider [name]</dt><dd>Choisit le fournisseur qui répond ; sans nom, ouvre la liste. Ce choix modifie la destination des tâches suivantes.</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>Inspecte ou sélectionne le niveau de raisonnement parmi les choix proposés par ce modèle. Alt+T fait défiler les choix. Off est une demande, et non la preuve qu’une route en amont n’effectue aucun raisonnement.</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>Fait défiler ou définit explicitement le mode d’autorisation de la session. Le mode Full accorde une large autonomie ; ne l’utilisez pas simplement pour faire taire une erreur.</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>Inspecte ou configure l’examen par la politique. Reload adopte la politique pour une session inactive ; un interrupteur activé ne suffit pas à prouver que l’examen est actif.</dd></div>
+<div><dt>/set key=value</dt><dd>Modifie un réglage pris en charge pour le modèle ou la session, par exemple <code>/set temperature=0.2</code>. Effacer une valeur facultative, comme avec <code>/set temperature=</code>, redonne la main à la valeur par défaut ou au fournisseur.</dd></div>
+</dl>
+<h2 id="files-and-capabilities">Fichiers et extensions</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>Ajoute un fichier au prochain message. Vérifiez les pièces jointes en attente avant l’envoi ; le contenu pris en charge est transmis au fournisseur sélectionné.</dd></div>
+<div><dt>/detach number|all</dt><dd>Retire une pièce jointe en attente par son numéro ou retire toutes les pièces jointes en attente.</dd></div>
+<div><dt>/undo</dt><dd>Prévisualise et restaure les fichiers éligibles à leur état d’avant la première modification de cette session. Les modifications externes récentes peuvent être écrasées.</dd></div>
+<div><dt>/redo</dt><dd>Prévisualise et rétablit ce que la dernière annulation a remplacé. Il ne s’agit pas d’un historique de sauvegarde illimité.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gère les guides disponibles. Show, enable et disable prennent l’identifiant de la compétence affichée dans la liste. Reload rafraîchit le catalogue après des modifications.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Active un guide pour la conversation. L’activation n’accorde pas automatiquement toutes les actions décrites dans ce guide.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Gère les connexions aux outils externes. Vérifiez le serveur, la destination et les accès avant d’ajouter ou de connecter un serveur ; un serveur local peut exécuter du code.</dd></div>
+</dl>
+<h2 id="views-and-application">Vues et application</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>Ouvre Settings. <code>/*</code> est un alias ; Ctrl+G est le raccourci clavier.</dd></div>
+<div><dt>/theme [name]</dt><dd>Choisit le thème violet, cyan ou amber. L’arrière-plan et la transparence propres au terminal restent gérés par les préférences du terminal.</dd></div>
+<div><dt>/panel</dt><dd>Affiche ou masque le panneau latéral de conversation. Les terminaux étroits peuvent continuer à le masquer.</dd></div>
+<div><dt>/verbose</dt><dd>Déplie ou replie les étapes d’outils et les réflexions. Cela n’augmente pas le plafond de sortie renvoyé par un outil.</dd></div>
+<div><dt>/help</dt><dd>Consulte la référence des commandes et des raccourcis clavier de la version installée.</dd></div>
+<div><dt>/quit</dt><dd>Quitte Rune. Fermer la dernière fenêtre interrompt le travail actif de l’IA ; les tâches en arrière-plan conservées ont une durée de vie distincte.</dd></div>
+</dl>
+<p>Les commandes shell telles que <code>rune -config</code> s’exécutent dans votre terminal, et non dans la palette slash. Consultez la <a href="{{url "docs/cli"}}">référence CLI</a> à leur sujet. Pour exécuter vous-même une commande shell depuis le compositeur, commencez votre saisie par <code>!</code> ; voir <a href="{{url "docs/shell"}}">Commandes manuelles</a>.</p>
+{{end}}

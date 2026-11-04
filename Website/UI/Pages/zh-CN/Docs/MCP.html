@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">接入外部工具能力</h2>
+<p>MCP（Model Context Protocol）用于接入提供工具、资源或提示词模板的外部服务器。请使用 <code>/mcp</code> 或 <code>rune -mcp</code> 进行管理（当前 Settings 界面中不设单独的 MCP 标签页）。建立服务器连接并不等同于自动批准通过该工具执行的每一项具体任务。</p>
+<p>远程 MCP 服务器会接收你发送给它的数据；本地 MCP 服务器则会在当前电脑上直接启动可执行代码。外部工具返回的文本一律视为不可信的任务数据，即使其中声称包含“权威指令”也不例外。</p>
+<h2 id="scope-and-approval">配置作用域与审批</h2>
+<dl class="ref">
+<div><dt>User（用户级）</dt><dd>个人全局定义，在你指定的各个项目中均可使用。</dd></div>
+<div><dt>Project（共享项目级）</dt><dd>保存在项目 MCP 配置文件中的团队共享定义。使用前必须先审阅并显式批准；共享定义一旦发生变更，需要重新批准。</dd></div>
+<div><dt>Private project（私有项目级）</dt><dd>仅针对单个项目的个人私有定义，也是 MCP 修改操作的默认作用域。同 ID 下，私有项目级定义可覆盖共享项目级定义，而共享项目级定义又可覆盖个人用户级定义。</dd></div>
+</dl>
+<p>连接前请先使用 <code>list</code> / <code>status</code> 查看配置，并用 <code>validate</code> 校验定义格式。注意：格式校验通过并不代表网络连通性或服务运行正常。<code>add</code> 子命令接收服务器 ID 以及目标远程 URL 或带参数的本地可执行文件绝对路径。具体语法可通过已安装版本的帮助命令查看。</p>
+<h2 id="access-review">严格审阅访问权限</h2>
+<p>在添加或启用 MCP 服务器前，请仔细检查其可执行文件路径与参数（或远程目标地址）、认证方式、环境变量、项目写入权限、额外读写目录以及对本机已运行服务的访问权限。请仅授予当前任务确需的最小权限。</p>
+<p>远程接口必须使用 HTTPS，明文 HTTP 仅限本机回环地址（loopback）使用。切勿将机密密钥直接硬编码在共享 URL 或明文环境变量中，请使用受支持的凭据管理流程。本地可执行文件路径与额外开放的根目录都是实实在在的权限边界决定，绝非单纯的描述性标签。</p>
+<p>在 Ask 或 Auto 模式下，若本地服务器请求访问工作区以外的额外文件夹，启动前可能需要经过你的批准。开放广泛的本机服务访问权限可能会让进程触及以你账户身份运行的其他程序。切勿仅仅为了消除连接报错就盲目放宽这些权限选项。</p>
+<h2 id="lifecycle">连接、测试与移除</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>查看已配置的服务器列表及当前连接状态。</dd></div>
+<div><dt>validate</dt><dd>校验服务器定义语法（不发起实际连接）。</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>发起真实连接，可能会启动本地可执行代码或访问远程服务。</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>批准已审阅的共享项目级定义。切勿在未检查配置文件内容的情况下盲目批准。</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>断开当前连接；不会删除已保存的服务器定义。</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>在目标配置作用域下启用、禁用或移除指定的服务器定义。</dd></div>
+<div><dt>reload</dt><dd>重新加载已配置的连接。</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>启动适用的认证流程或查看当前认证状态。</dd></div>
+</dl>
+<p>以上子命令均跟在 <code>rune -mcp</code> 之后使用，例如 <code>rune -mcp status</code>。每次修改前请核对所选的作用域与服务器 ID。诸如 <code>token</code> / <code>secret</code> 等高级凭据命令会接收敏感值；建议优先使用交互式认证界面，避免将凭据留在 shell 历史记录中。</p>
+<p>MCP 认证可使用 Bearer 凭据或 OAuth 流程。切勿将令牌直接粘贴到对话窗口中。服务器连接成功并不证明其提供的每一个工具都安全、可逆或受支持。模型会按工具声明的准确输入格式发起调用，并遵循常规的执行权限控制，而不会凭空捏造其他服务器的 API。</p>
+{{end}}

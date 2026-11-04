@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">Menggunakan perintah</h2>
+<p>Ketik <code>/</code> di kolom tulis untuk mencari di palet perintah. Pilih dengan tombol panah, lengkapi dengan <kbd>Tab</kbd>, dan jalankan dengan <kbd>Enter</kbd>. Argumen dalam tanda kurung siku bersifat opsional; tanda kurung sudut menjelaskan nilai yang Anda isi, bukan teks yang diketik mentah-mentah. Perintah <code>/help</code> adalah acuan resmi untuk versi yang terpasang di mesin Anda.</p>
+<h2 id="session-and-context">Sesi dan konteks</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>Memulai percakapan baru di ruang kerja ini. Perintah ini tidak menghapus sesi yang sedang berjalan.</dd></div>
+<div><dt>/session</dt><dd>Membuka pemilih sesi yang dapat dicari untuk ruang kerja ini.</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>Melanjutkan sesi tersimpan tertentu.</dd></div>
+<div><dt>/compact</dt><dd>Merangkum konteks lama. Perintah ini dapat melakukan permintaan ke model dan mengurangi rincian riwayat lama, namun tidak menghapus penyimpanan di disk.</dd></div>
+<div><dt>/context</dt><dd>Memeriksa konteks yang dikirimkan ke model. Perlakukan isinya sebagai pekerjaan pribadi saat membagikannya.</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>Membuka catatan kejadian diagnostik, dengan opsi penyaringan menurut tingkat keparahan. Permintaan yang gagal dan percobaan ulang tercatat di sini; membuka tampilan ini bukanlah izin untuk mencoba ulang atau mengganti akun.</dd></div>
+</dl>
+<h2 id="model-and-permissions">Model dan izin</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>Memilih pasangan penyedia/model, atau membuka menu Models jika dijalankan tanpa argumen. ID model yang sama di beberapa penyedia sebaiknya dipilih lengkap dengan nama penyedianya atau melalui daftar.</dd></div>
+<div><dt>/provider [name]</dt><dd>Memilih penyedia yang menjawab; tanpa nama akan membuka daftar penyedia. Pilihan ini mengubah ke mana pekerjaan berikutnya dikirim.</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>Memeriksa atau memilih tingkat penalaran dari opsi yang tersedia pada model saat ini. Alt+T menggilir pilihan yang ada. Opsi <code>off</code> adalah permintaan ke penyedia, bukan bukti bahwa jalur hulu sama sekali tidak melakukan penalaran.</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>Menggilir atau menetapkan secara eksplisit mode izin sesi. Mode Full memberikan otonomi luas; jangan menggunakannya sekadar untuk membungkam kegagalan.</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>Memeriksa atau mengonfigurasi peninjauan kebijakan. Opsi <code>reload</code> menerapkan kebijakan terbaru pada sesi yang sedang diam; sakelar yang aktif saja tidak membuktikan bahwa peninjauan sedang berjalan aktif.</dd></div>
+<div><dt>/set key=value</dt><dd>Mengubah kontrol model/sesi yang didukung, misalnya <code>/set temperature=0.2</code>. Mengosongkan nilai opsional, seperti <code>/set temperature=</code>, mengembalikan kontrol ke nilai bawaan atau penyedia.</dd></div>
+</dl>
+<h2 id="files-and-capabilities">Berkas dan kapabilitas</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>Menambahkan berkas ke pesan berikutnya. Periksa daftar lampiran yang tertunda sebelum mengirim; isi yang didukung akan dikirim ke penyedia yang dipilih.</dd></div>
+<div><dt>/detach number|all</dt><dd>Menghapus satu lampiran tertunda menurut nomornya atau menghapus semua lampiran tertunda.</dd></div>
+<div><dt>/undo</dt><dd>Menampilkan pratinjau dan mengembalikan berkas yang memenuhi syarat ke keadaannya sebelum diubah pertama kali oleh sesi ini. Pengeditan eksternal terbaru pada berkas tersebut dapat tertimpa.</dd></div>
+<div><dt>/redo</dt><dd>Menampilkan pratinjau dan memulihkan perubahan yang baru saja dibatalkan oleh undo terakhir. Fitur ini bukanlah riwayat cadangan tanpa batas.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Mengelola panduan tugas yang tersedia. Opsi <code>show</code>, <code>enable</code>, dan <code>disable</code> menerima ID skill yang tercantum. Opsi <code>reload</code> menyegarkan katalog setelah ada pengeditan.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Mengaktifkan satu panduan untuk percakapan saat ini. Mengaktifkan panduan tidak otomatis mengizinkan setiap tindakan yang dijelaskan di dalamnya.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Mengelola koneksi perangkat eksternal. Tinjau server, tujuan, dan hak aksesnya sebelum menambahkan atau menyambungkan; server lokal dapat menjalankan kode di mesin Anda.</dd></div>
+</dl>
+<h2 id="views-and-application">Tampilan dan aplikasi</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>Membuka Settings. <code>/*</code> adalah aliasnya; Ctrl+G adalah pintasan papan ketiknya.</dd></div>
+<div><dt>/theme [name]</dt><dd>Memilih tema violet, cyan, atau amber. Latar belakang dan transparansi terminal tetap diatur oleh terminal Anda.</dd></div>
+<div><dt>/panel</dt><dd>Menampilkan atau menyembunyikan panel samping percakapan. Terminal yang sempit mungkin tetap menyembunyikannya.</dd></div>
+<div><dt>/verbose</dt><dd>Membentangkan atau melipat kembali langkah perangkat dan penalaran. Perintah ini tidak menaikkan batas ukuran keluaran yang dikembalikan oleh perangkat.</dd></div>
+<div><dt>/help</dt><dd>Membaca referensi perintah dan papan ketik untuk versi yang sedang berjalan.</dd></div>
+<div><dt>/quit</dt><dd>Keluar dari Rune. Menutup jendela terakhir akan menghentikan pekerjaan AI yang aktif; proses latar belakang yang dipertahankan memiliki masa aktif terpisah.</dd></div>
+</dl>
+<p>Perintah shell seperti <code>rune -config</code> dijalankan di terminal sistem operasi Anda, bukan di palet garis miring. Lihat <a href="{{url "docs/cli"}}">referensi CLI</a> untuk perintah tersebut. Untuk menjalankan perintah shell langsung dari kolom tulis sendiri, awali masukan dengan <code>!</code>; lihat <a href="{{url "docs/shell"}}">Perintah manual</a>.</p>
+{{end}}

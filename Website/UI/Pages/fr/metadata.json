@@ -1,0 +1,181 @@
+{
+  "pages": {
+    "": {
+      "title": "RuneAgent | un agent de programmation pour votre terminal",
+      "lead": "RuneAgent, d’Atoryn Studio, travaille dans votre projet avec le modèle de votre choix, avec des résultats d’outils visibles, des permissions configurables et des modifications de fichiers vérifiables."
+    },
+    "changelog": {
+      "title": "Journal des versions | RuneAgent",
+      "lead": "Chaque version publiée de RuneAgent."
+    },
+    "license": {
+      "title": "Licence | RuneAgent",
+      "lead": "La licence sous laquelle RuneAgent est fourni, traduite pour la lecture ; seul le texte anglais fait foi."
+    },
+    "notfound": {
+      "title": "Page introuvable | RuneAgent",
+      "lead": "Cette page n’existe pas."
+    }
+  },
+  "groups": {
+    "Get started": "Bien démarrer",
+    "Use Rune": "Utiliser Rune",
+    "Configure": "Configurer",
+    "Extend": "Étendre",
+    "Trust & understand": "Confiance et compréhension"
+  },
+  "docs_title": "{label} | documentation de RuneAgent",
+  "docs": {
+    "docs": {
+      "label": "Introduction",
+      "lead": "Ce que fait Rune, ce qu’il envoie à un modèle et comment démarrer votre première session."
+    },
+    "docs/install": {
+      "label": "Installation et mise à jour",
+      "lead": "Configuration requise, ce que font les installeurs, PATH, le dossier de données, les mises à jour et la désinstallation sous Linux, macOS et Windows."
+    },
+    "docs/platforms": {
+      "label": "Plateformes prises en charge",
+      "lead": "Ce qui fonctionne de la même façon sous Linux, macOS et Windows, et ce que chaque système fait différemment."
+    },
+    "docs/interface": {
+      "label": "Interface",
+      "lead": "Lisez la conversation, les cartes de permission, le plan, les modifications de fichiers et l’état de la session."
+    },
+    "docs/sessions": {
+      "label": "Sessions et contexte",
+      "lead": "Démarrez, reprenez et orientez le travail ; examinez le contexte et compactez l’historique ancien."
+    },
+    "docs/commands": {
+      "label": "Commandes slash",
+      "lead": "Les commandes de la conversation, leurs arguments et ce que chacune modifie."
+    },
+    "docs/cli": {
+      "label": "Référence de la ligne de commande",
+      "lead": "Options de lancement et sous-commandes de rune pour la configuration, les comptes, les sessions et la maintenance."
+    },
+    "docs/keyboard": {
+      "label": "Clavier et souris",
+      "lead": "Les raccourcis de référence pour l’édition, la navigation, les questions et la conversation."
+    },
+    "docs/shell": {
+      "label": "Commandes manuelles",
+      "lead": "Lancez vous-même une commande avec un ! en tête : ce qu’elle peut faire, quand elle s’exécute et ce que voit l’IA."
+    },
+    "docs/instructions": {
+      "label": "Instructions et pièces jointes",
+      "lead": "Donnez des consignes de projet, joignez des fichiers et conservez une mémoire de projet durable."
+    },
+    "docs/memory": {
+      "label": "Mémoire",
+      "lead": "Ce que contient la mémoire du projet, ce qui parvient réellement au modèle, son unique budget en octets et ce qu’elle ne peut jamais décider."
+    },
+    "docs/undo": {
+      "label": "Réviser, annuler et rétablir",
+      "lead": "Examinez les vrais diffs de fichiers et comprenez ce qu’une restauration de session peut annuler ou non."
+    },
+    "docs/settings": {
+      "label": "Aperçu des paramètres",
+      "lead": "Trouvez la bonne section de Settings et distinguez les choix globaux des réglages de session."
+    },
+    "docs/configuration": {
+      "label": "Fichier de configuration",
+      "lead": "Consultez, modifiez et réinitialisez les valeurs de rune.toml sans confondre vos choix et les valeurs par défaut."
+    },
+    "docs/reference": {
+      "label": "Référence des paramètres",
+      "lead": "Chaque paramètre de rune.toml : sa valeur d’usine, son effet, les valeurs qu’il accepte et quand une modification prend effet."
+    },
+    "docs/connections": {
+      "label": "Connexions",
+      "lead": "Ajoutez des comptes de modèles et Web, gérez les identifiants et vérifiez la destination avant de vous connecter."
+    },
+    "docs/providers": {
+      "label": "Fournisseurs de modèles",
+      "lead": "Les 31 préréglages de fournisseurs, leurs clés et adresses, les services locaux et des notes sur le raisonnement par fournisseur."
+    },
+    "docs/models": {
+      "label": "Modèles et capacités",
+      "lead": "Choisissez une paire fournisseur/modèle et configurez les limites connues, les options de raisonnement et les tarifs."
+    },
+    "docs/generation": {
+      "label": "Génération et raisonnement",
+      "lead": "Contrôlez le raisonnement, l’échantillonnage et la sortie demandée du modèle actuel."
+    },
+    "docs/auxiliary": {
+      "label": "Modèles auxiliaires",
+      "lead": "Configurez les tâches sanitizer, classifier, compaction et titre, y compris leurs implications en données et en coût."
+    },
+    "docs/runtime": {
+      "label": "Exécution et nouvelles tentatives",
+      "lead": "Comprenez les délais des requêtes, les attentes linéaires entre tentatives, la pause liée au crédit et la durée de vie d’une session détachée."
+    },
+    "docs/tools": {
+      "label": "Outils et limites",
+      "lead": "Fixez les limites de sortie renvoyée et de travail, et distinguez-les d’un repli d’affichage ou d’une permission."
+    },
+    "docs/terminal": {
+      "label": "Terminal et travail en arrière-plan",
+      "lead": "Comment les commandes passent en arrière-plan, reçoivent une saisie et signalent leur fin ou leur perte."
+    },
+    "docs/web": {
+      "label": "Recherche et lecture Web",
+      "lead": "Configurez des fournisseurs distincts pour la recherche et la lecture de pages, sans jamais changer de destination en silence."
+    },
+    "docs/appearance": {
+      "label": "Apparence",
+      "lead": "Choisissez un thème, affichez ou masquez le panneau latéral et comprenez le rendu qui dépend du terminal."
+    },
+    "docs/skills": {
+      "label": "Compétences (Skills)",
+      "lead": "Découvrez, activez et gérez des guides réutilisables sans les considérer comme une autorisation."
+    },
+    "docs/mcp": {
+      "label": "Connexions MCP",
+      "lead": "Examinez les serveurs d’outils externes, leur portée et leurs accès avant de les connecter à Rune."
+    },
+    "docs/security": {
+      "label": "Sécurité",
+      "lead": "La frontière de confiance, les modes de permission, les limites de chaque plateforme et les limites du confinement."
+    },
+    "docs/classifier": {
+      "label": "Politique du classifieur",
+      "lead": "Rédigez et rechargez la politique CLASSIFIER.md et comprenez quand l’examen par IA est réellement actif."
+    },
+    "docs/privacy": {
+      "label": "Confidentialité et données",
+      "lead": "Ce qui reste en local, ce qui part vers un fournisseur et ce qu’il faut vérifier avant de partager des diagnostics."
+    },
+    "docs/credentials": {
+      "label": "Identifiants",
+      "lead": "Utilisez l’interface de saisie des identifiants, distinguez les clés absentes des clés indisponibles et rétablissez-les délibérément."
+    },
+    "docs/verification": {
+      "label": "Vérification de la version",
+      "lead": "Vérifiez la signature de la version et la somme de contrôle de l’archive, et comprenez les limites de confiance de la clé de signature."
+    },
+    "docs/architecture": {
+      "label": "Architecture",
+      "lead": "Une vue d’ensemble publique du frontend, du moteur local, des fournisseurs de modèles, de l’exécution des outils et des données de session."
+    },
+    "docs/troubleshooting": {
+      "label": "Dépannage",
+      "lead": "Diagnostiquez l’état réel avant de modifier délais, fournisseurs ou accès."
+    }
+  },
+  "chapters": {
+    "Plan": "Plan",
+    "Build": "Construire",
+    "Test": "Tester",
+    "Fix": "Corriger",
+    "Verify": "Vérifier",
+    "Report": "Rapport"
+  },
+  "install_note": {
+    "none": "Aucune version signée n’est encore publiée. Pour l’instant, la commande se termine sans rien installer.",
+    "missing": "La version {version} n’a aucun build signé pour {system}. La commande se termine sans rien installer.",
+    "release": "Version {version}, publiée le {date}, pour {system} ({builds}).",
+    "beta": "La prise en charge de {system} est en bêta.",
+    "and": "et"
+  }
+}

@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="inspect-changes">Inspecciona los cambios reales</h2>
+<p>El panel lateral muestra las diferencias actuales en los archivos seguidos por la sesión. Los recuentos de líneas añadidas y eliminadas comparan el contenido real del archivo, no la suma de los títulos de cada edición. Varias ediciones sucesivas pueden anularse entre sí, y el recuento de líneas de una herramienta no sustituye a una revisión completa.</p>
+<p>Revisa las diferencias y vuelve a ejecutar las comprobaciones pertinentes antes de dar por bueno el resultado. Un comando que termina sin errores solo demuestra lo que ese comando haya probado. Rune no hace commits automáticos de tu trabajo, y la restauración de archivos no sustituye al control de versiones ni a una copia de seguridad independiente.</p>
+<h2 id="restore-a-file">Restaurar un archivo</h2>
+<ol><li>Espera a que termine cualquier operación que esté modificando el archivo.</li><li>Abre <code>/undo</code> y selecciona el archivo deseado. Usa la acción para ver diferencias —incluido Alt+S en la lista— para comprobar qué va a cambiar.</li><li>Inicia la confirmación con Enter y vuelve a confirmar dentro del intervalo mostrado únicamente tras haber revisado el contenido actual.</li><li>Verifica el archivo restaurado y cualquier parte del proyecto que dependa de él.</li></ol>
+<p>Undo restaura el archivo al estado que tenía antes de que esta sesión lo modificara por primera vez, <strong>no simplemente al estado anterior al último parche</strong>. Por tanto, puede sobrescribir ediciones que hayas hecho fuera de Rune después de aquella instantánea inicial. Toda restauración es una modificación real del archivo y queda registrada como tal.</p>
+<h2 id="redo">Rehacer tiene alcance limitado</h2>
+<p><code>/redo</code> permite volver a aplicar lo que reemplazó el último comando undo. Revísalo del mismo modo. No es un historial ilimitado de versiones arbitrarias y no debe utilizarse como único plan de recuperación.</p>
+<h2 id="limits">Qué no puede garantizar la restauración</h2>
+<p>Las instantáneas de archivos no revierten un despliegue remoto, una transacción en la base de datos de un servicio externo, el envío de un correo, la instalación de paquetes ni todos los efectos de un comando arbitrario. Los archivos situados fuera del alcance protegido y los cambios realizados por otros programas requieren su propia estrategia de recuperación. Comprueba la lista real de archivos seguidos en lugar de dar por sentado que cubre todo tu ordenador.</p>
+<p>El tamaño máximo de fábrica para proteger un archivo es de 64 MiB. Si una escritura elegible supera ese tamaño, fallará antes de modificar el archivo en lugar de proceder sin respaldo. Aumentar ese límite consume más espacio de almacenamiento; reducirlo puede bloquear escrituras en archivos grandes. Nunca des por reversible un efecto externo no protegido.</p>
+<h2 id="advanced-options">Opciones avanzadas</h2>
+<dl class="ref">
+<div><dt>checkpoint.max_file_size</dt><dd>Tamaño máximo de fábrica de 64 MiB para crear la instantánea de un archivo elegible.</dd></div>
+<div><dt>checkpoint.refresh_interval</dt><dd>Frecuencia de actualización de fábrica de 1 segundo para los archivos ya seguidos, configurable entre 100 ms y 1 minuto.</dd></div>
+<div><dt>checkpoint.diff.context</dt><dd>Tres líneas de contexto circundante por defecto, configurable entre 0 y 100.</dd></div>
+<div><dt>checkpoint.diff.max_cells</dt><dd>Presupuesto de trabajo de comparación, fijado por defecto en 1.000.000. Afecta a la estrategia de cálculo de diferencias, no al acceso a archivos ni al número de cambios permitidos.</dd></div>
+</dl>
+<p>Estas opciones son claves avanzadas de configuración y no aparecen como filas adicionales en Settings. Inspecciona cualquier opción con <code>rune -config explain &lt;key&gt;</code> y restablécela con <code>rune -config reset &lt;key&gt;</code>.</p>
+{{end}}

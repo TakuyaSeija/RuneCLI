@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">Capacités externes</h2>
+<p>MCP connecte des serveurs externes qui proposent des outils, des ressources ou des modèles d’invites. Utilisez <code>/mcp</code> ou <code>rune -mcp</code> ; il ne s’agit pas d’un onglet distinct dans Settings. Connecter un serveur est différent d’approuver chaque tâche exécutée via un outil.</p>
+<p>Un serveur distant reçoit les données que vous lui envoyez. Un serveur local démarre du code sur cet ordinateur. Le texte renvoyé est une donnée de tâche non fiable, même lorsqu’il prétend contenir des instructions faisant autorité.</p>
+<h2 id="scope-and-approval">Portée et approbation</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Définitions personnelles disponibles dans l’ensemble des projets souhaités.</dd></div>
+<div><dt>Project</dt><dd>Définitions partagées dans la configuration MCP du projet. Passez-les en revue et approuvez-les explicitement ; toute modification d’une définition partagée peut nécessiter une nouvelle approbation.</dd></div>
+<div><dt>Private project</dt><dd>Définitions personnelles propres à un seul projet, qui constituent la portée par défaut des modifications MCP. Elles peuvent remplacer les définitions partagées du projet portant le même identifiant, lesquelles peuvent remplacer les définitions personnelles de l’utilisateur.</dd></div>
+</dl>
+<p>Inspectez les serveurs avec list/status et validez les définitions avant de vous connecter. La validation n’est pas un test de connectivité en direct. L’action add prend un identifiant de serveur ainsi qu’une URL distante ou le chemin absolu d’un exécutable local accompagné de ses arguments. Consultez l’aide de la commande installée pour connaître la syntaxe exacte des opérations.</p>
+<h2 id="access-review">Examiner les accès</h2>
+<p>Avant d’ajouter ou d’activer un serveur, vérifiez son exécutable et ses arguments (ou sa destination distante), son mode d’authentification, ses variables d’environnement, son droit d’écriture dans le projet, ses dossiers supplémentaires en lecture/écriture ainsi que son accès aux services locaux déjà en cours d’exécution. N’accordez que ce dont la tâche a besoin.</p>
+<p>Les points de terminaison distants exigent HTTPS ; le HTTP en clair est limité à la boucle locale (loopback). N’intégrez pas de secrets dans une URL partagée ni dans des valeurs d’environnement en clair. Utilisez le flux de gestion d’identifiants prévu à cet effet. Les exécutables locaux et les dossiers racines supplémentaires sont de véritables décisions d’accès, et non de simples étiquettes descriptives.</p>
+<p>Les dossiers supplémentaires situés en dehors de l’espace de travail peuvent nécessiter une approbation en mode Ask ou Auto avant le démarrage d’un serveur local. Un accès large aux services locaux peut atteindre des programmes agissant avec les droits de votre compte. N’élargissez pas ces options simplement pour faire taire un échec de connexion.</p>
+<h2 id="lifecycle">Connecter, tester et supprimer</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Inspecte les serveurs configurés et l’état actuel des connexions.</dd></div>
+<div><dt>validate</dt><dd>Vérifie les définitions sans prétendre qu’une connexion a réussi.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Établit une vraie connexion, susceptible de démarrer du code local ou de contacter un service distant.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Approuve une définition partagée après vérification. N’accordez jamais d’approbation à un fichier que vous n’avez pas inspecté.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Ferme cette connexion ; cela ne supprime pas sa définition enregistrée.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Modifie la disponibilité de la définition visée ou la supprime, en utilisant la portée de configuration appropriée.</dd></div>
+<div><dt>reload</dt><dd>Rafraîchit les connexions configurées.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Démarre un flux d’authentification applicable ou inspecte son état.</dd></div>
+</dl>
+<p>Ces opérations suivent <code>rune -mcp</code>, par exemple <code>rune -mcp status</code>. Vérifiez la portée et l’identifiant sélectionnés pour chaque modification. Les commandes avancées d’identifiants telles que token ou secret acceptent des valeurs sensibles ; préférez l’interface d’authentification dédiée plutôt que d’exposer des identifiants dans l’historique du shell.</p>
+<p>L’authentification peut reposer sur un jeton Bearer ou sur un flux OAuth. Ne collez jamais de jetons dans la conversation. Une connexion réussie à un serveur ne prouve pas que chaque outil est sûr, réversible ou pris en charge. Le modèle découvre les paramètres d’entrée exacts des outils et utilise les contrôles d’exécution normaux au lieu d’inventer l’API d’un serveur.</p>
+{{end}}

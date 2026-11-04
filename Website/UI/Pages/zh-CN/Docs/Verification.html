@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">签名与校验和能确立什么</h2>
+<p>安装脚本在安装前会先校验校验和列表文件（<code>SHA256SUMS</code>）上的发布数字签名，随后再将下载的归档包与这份已签名列表进行比对。这两步检查各司其职：单凭校验和本身无法证明发布者身份，而有效的数字签名也并不证明某个软件版本毫无程序缺陷或绝对不会产生有害行为。</p>
+<p>此外，安装脚本还会检查当前系统平台、预期归档包文件名以及二进制文件能否正常启动，并通过原子重命名（atomic rename）方式完成安装，避免暴露复制了一半的残缺可执行文件。如果你想确切了解其内部执行细节，可在运行前先审阅安装脚本源码：<a href="{{url "install.sh"}}">install.sh</a> 或 <a href="{{url "install.ps1"}}">install.ps1</a>。</p>
+<h2 id="release-key">发布签名公钥</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>已公布的发布公钥指纹（SHA-256）：</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>公钥文件可通过 <a href="{{url "signing-key.pem"}}">signing-key.pem</a> 下载。条件允许时，请尽量通过独立的可信渠道核对该指纹——如果从同一个已被攻陷的来源同时下载公钥和指纹，将无法建立独立的信任锚点。</p>
+{{else}}
+<p class="notice">当前版本目录中尚未公布发布签名公钥。公钥指纹将随首个正式签名版本一同发布；切勿将缺少密钥视为校验通过。</p>
+{{end}}
+<h2 id="manual-verification">手动校验下载文件</h2>
+<p>从<a href="{{url "install"}}">下载列表</a>获取目标系统归档包、<code>SHA256SUMS</code>、<code>SHA256SUMS.sig</code> 以及已核实的公钥文件。官方发布版本使用基于 SHA-256 的 ECDSA P-256 密钥进行签名，无论是 OpenSSL 还是 macOS 自带的 LibreSSL 均可直接校验。进入下载目录后，请先校验数字签名，再校验归档包的哈希值。在 Linux 上运行：</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>在 macOS 上，签名校验命令完全相同；随后按你下载的归档包文件名校验哈希值：</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>在 Windows 上，安装脚本会自动为你校验数字签名。若想手动将下载的归档包与已签名列表比对，可在 PowerShell 中打印归档包的哈希值，并与 <code>SHA256SUMS</code> 中对应文件名那一行的值进行核对：</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>请将命令中的 <code>VERSION</code> 替换为你实际下载的版本号。签名校验必须输出 <code>Verified OK</code>，且校验和检查必须明确点出你准备使用的那个归档包文件名。如果目标归档包本身缺失，绝不能因为列表里的其他文件通过校验就视为已验证。一旦发现任何不匹配，请立即停止，切勿运行下载的文件。</p>
+<h2 id="limits">校验边界与版本更新</h2>
+<p>数字签名将二进制字节与发布密钥绑定在一起，但它并不等同于独立的源代码安全审计、不能证明可复现构建（reproducible builds）、无法担保第三方依赖绝对安全，也无法挽回签名私钥泄露后的信任。在向他人分享校验方法时，请明确区分这些信任边界。</p>
+<p>安装经过签名校验的目标版本后，请运行 <code>rune -version</code> 确认。在 Linux 和 macOS 上，版本兼容的已打开会话可在空闲时自动切换到新安装的构建版本；在 Windows 上，已打开的窗口会保持当前版本，直到你打开新的 Rune 窗口。切勿仅仅为了让界面版本号立刻改变而强行杀死正在执行的任务。</p>
+{{end}}

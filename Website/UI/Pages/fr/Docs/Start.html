@@ -1,0 +1,25 @@
+{{define "article"}}
+<h2 id="what-rune-does">Ce que fait Rune</h2>
+<p>Rune est un agent de programmation qui fonctionne dans votre terminal. Vous décrivez le résultat souhaité ; un modèle propose un plan d’action, et Rune lit les fichiers, exécute les outils et affiche leurs résultats au sein de la même conversation. Il fonctionne avec le compte de modèle que vous connectez, et non avec un abonnement inclus ou un modèle fourni par Atoryn.</p>
+<p>Le programme et les données de session résident sur votre ordinateur. Cela ne signifie <strong>pas</strong> que chaque tâche s’effectue hors ligne : le fournisseur que vous avez sélectionné reçoit les invites, le contexte et les pièces jointes prises en charge nécessaires à ses requêtes. Les commandes et les services connectés peuvent également utiliser le réseau. Lisez <a href="{{url "docs/privacy"}}">Confidentialité et données</a> avant de travailler sur des éléments sensibles.</p>
+<h2 id="start-in-a-project">Démarrer dans un projet</h2>
+<p>Installez Rune à l’aide de la commande figurant sur la <a href="{{url "install"}}">page d’accueil</a> ; la page <a href="{{url "docs/install"}}">Installation et mise à jour</a> détaille chaque étape. Ouvrez ensuite le dossier dans lequel vous souhaitez faire travailler Rune. Commencez par un petit projet suivi par un gestionnaire de versions et vérifiez d’abord ses modifications en cours.</p>
+<pre class="block"><code>cd path/to/your-workspace
+rune</code></pre>
+<p>Vous pouvez également passer le dossier directement en argument avec <code>rune path/to/your-workspace</code>. Le dossier de travail définit l’espace de travail pour l’accès aux fichiers, la sélection des sessions et les consignes du projet. Démarrer Rune à la racine de votre répertoire personnel accorde un espace de travail beaucoup plus vaste que de le lancer dans un seul dépôt.</p>
+<h2 id="connect-and-select">Connecter et sélectionner un modèle</h2>
+<ol>
+<li>Appuyez sur <kbd>Ctrl+G</kbd> et ouvrez <strong>Connections → Add connection</strong>.</li>
+<li>Choisissez le fournisseur de modèles souhaité. Vérifiez la destination, saisissez l’adresse requise le cas échéant et utilisez le champ masqué pour la clé API. La connexion envoie une vraie requête et peut être facturée.</li>
+<li>Ouvrez <strong>Models</strong>, choisissez le fournisseur connecté et sélectionnez un modèle avec <kbd>Enter</kbd>. Parcourir la liste ou rechercher un modèle ne suffit pas à basculer la session.</li>
+<li>Vérifiez le nom du modèle et le mode d’autorisation affichés au-dessus du compositeur avant d’envoyer une tâche.</li>
+</ol>
+<p>Un préréglage de fournisseur contient des paramètres de configuration, et non un accès à un compte. Les modèles disponibles dépendent du compte, du point de terminaison et du catalogue. Voir <a href="{{url "docs/providers"}}">Fournisseurs de modèles</a>, <a href="{{url "docs/connections"}}">Connexions</a> et <a href="{{url "docs/models"}}">Modèles et capacités</a>.</p>
+<h2 id="give-one-bounded-task">Confier une tâche bien délimitée</h2>
+<p>Démarrez en mode <strong>Ask</strong>, le mode par défaut. Les lectures à l’intérieur de l’espace de travail s’effectuent librement ; les modifications de fichiers et les commandes demandent votre approbation. Une demande efficace précise le résultat attendu, les contraintes et la manière de le vérifier :</p>
+<blockquote>Trouve pourquoi l’importateur accepte une date vide. Explique la cause, ajoute un test de non-régression et montre-moi le correctif proposé avant d’exécuter des commandes.</blockquote>
+<p>Lisez attentivement la commande, le chemin de fichier ou le diff affiché sur chaque carte d’autorisation. Une approbation ne vaut que pour la portée indiquée ; ce n’est pas une garantie générale que l’opération est sans risque. Appuyez deux fois sur <kbd>Esc</kbd> pour arrêter le travail actif de l’IA. Vous pouvez envoyer une précision pendant que l’agent travaille ; elle sera traitée lors d’une étape suivante sans réécrire une requête déjà envoyée.</p>
+<h2 id="review-the-result">Vérifier le résultat</h2>
+<p>Lisez le rapport final et les résultats des outils, inspectez les fichiers modifiés et vérifiez vous-même le comportement obtenu. Un modèle peut mal interpréter une tâche ou affirmer davantage que ce que prouvent les tests. Le panneau latéral affiche les différences réelles des fichiers suivis, tandis que <code>/logs</code> et <code>/context</code> aident à analyser les erreurs et le contexte envoyé.</p>
+<p>La commande <code>/undo</code> permet de restaurer un fichier éligible à son état d’avant la session. Elle ne peut pas annuler un déploiement, un message envoyé à un service externe ni l’ensemble des effets secondaires externes. Utilisez-la comme un outil de restauration de fichiers, et non comme un substitut à Git ou à vos sauvegardes.</p>
+{{end}}

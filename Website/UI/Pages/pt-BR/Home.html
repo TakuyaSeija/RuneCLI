@@ -1,0 +1,180 @@
+{{define "copy-icons"}}<svg class="i-copy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/></svg><svg class="i-done" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{end}}
+{{define "content"}}
+<section class="hero" aria-labelledby="hero-title">
+  <div class="shell hero-inner" id="install">
+    <h1 class="display" id="hero-title"><span class="line">Um agente de programação</span> <span class="line">que trabalha no seu <em>terminal.</em></span></h1>
+    <p class="lead"><span class="line">O RuneAgent planeja, edita e executa comandos no seu projeto usando o modelo que você conectar.</span> <span class="line">Você vê cada etapa, alteração de arquivo e custo, e decide até onde ele pode ir.</span></p>
+    <div class="install">
+      <input class="sr os-input" type="radio" name="install-os" id="os-linux" checked>
+      <input class="sr os-input" type="radio" name="install-os" id="os-macos">
+      <input class="sr os-input" type="radio" name="install-os" id="os-windows">
+      <div class="install-box">
+        <div class="os-tabs"><label for="os-linux">Linux</label><label for="os-macos">macOS</label><label for="os-windows">Windows</label></div>
+        <div class="os-panel os-linux">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd" aria-label="Copiar o comando de instalação para Linux" title="Copiar">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "linux"}}</p>
+        </div>
+        <div class="os-panel os-macos">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">$ </span><code id="install-cmd-macos">{{.InstallCmd}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-macos" aria-label="Copiar o comando de instalação para macOS" title="Copiar">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "macos"}}</p>
+        </div>
+        <div class="os-panel os-windows">
+          <div class="codeblock cmd"><pre><span class="prompt" aria-hidden="true">PS&gt; </span><code id="install-cmd-windows">{{.InstallCmdWindows}}</code></pre><button class="code-copy" type="button" data-copy="install-cmd-windows" aria-label="Copiar o comando de instalação para Windows" title="Copiar">{{template "copy-icons"}}</button></div>
+          <p class="install-note">{{installNote .Latest "windows"}}</p>
+        </div>
+      </div>
+      <p class="hero-links"><a class="link" href="{{url "docs"}}">Ler o manual</a><a class="link for-unix" href="{{url "install.sh"}}">Ver install.sh</a><a class="link for-windows" href="{{url "install.ps1"}}">Ver install.ps1</a></p>
+    </div>
+  </div>
+</section>
+
+<section class="session" id="session" aria-labelledby="session-title">
+  <div class="shell">
+    <div class="intro">
+      <h2 class="title" id="session-title">De uma pasta vazia aos testes passando.</h2>
+      <p class="lead">Seis momentos de uma sessão real em que o Rune construiu um reprodutor de música em {{.Demo.Recorded}}. Cada etapa, arquivo e número veio da própria sessão; o streaming, o ritmo de leitura e as aprovações no modo Ask são simulados, e a sessão original rodou no modo Full.</p>
+    </div>
+    <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
+      <div class="chapters" role="group" aria-label="Capítulos da sessão gravada">
+        {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="Gravado em {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
+      </div>
+      <div class="terminal-viewport" data-terminal-viewport>
+      <section class="term" aria-label="Ilustração interativa: um trecho da sessão gravada 655 do Rune, com ritmo ajustado para leitura; o streaming progressivo e as aprovações no modo Ask são simulados, não tempos reais de pacotes">
+        <div class="tbar">
+          <div class="tbar-ctrls" data-replay-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="Reproduzir a gravação" title="Reproduzir">
+              <svg data-icon="pause" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" hidden><path d="M8 5v14M16 5v14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+              <svg data-icon="play" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m8 5 11 7-11 7Z" fill="currentColor"/></svg>
+            </button>
+            <button type="button" class="btn-tctrl" data-demo-replay aria-label="Repetir desde o início" title="Repetir desde o início"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <p class="tbar-title demo-meta">Ilustração interativa · {{.Demo.ShownSteps}} de {{.Demo.Final.Steps}} etapas gravadas · Streaming e aprovações simulados</p>
+          <div class="tbar-view" data-view-controls hidden>
+            <button type="button" class="btn-tctrl" data-demo-panel aria-label="Mostrar painel da sessão" aria-expanded="false" title="Painel da sessão"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 4v16" stroke="currentColor" stroke-width="1.6"/></svg></button>
+            <button type="button" class="btn-tctrl" data-demo-expand aria-label="Tela cheia" aria-pressed="false" title="Tela cheia"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M9 4H4v5M15 4h5v5M20 15v5h-5M4 15v5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div class="tbar-dots" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></div>
+        </div>
+        <div class="terminal-screen" data-terminal-screen>
+          <div class="tui">
+            <div class="tmain">
+              <div class="tlog" data-log tabindex="0" role="region" aria-label="Transcrição da sessão gravada">{{template "demo-transcript" .}}</div>
+              <button type="button" class="jump-latest" data-jump hidden>Press Ctrl+↓ Jump to latest</button>
+            </div>
+            <aside class="tside" aria-label="Detalhes da sessão">
+              <p class="sh">SESSIONS</p>
+              <dl class="st">
+                <div><dt>Title</dt><dd data-f="title">{{.Demo.Title}}</dd></div>
+                <div><dt>Started</dt><dd data-f="started">{{.Demo.Started}}</dd></div>
+                <div><dt>Activity</dt><dd data-f="activity">{{.Demo.Active}} &middot; {{.Demo.Final.Steps}} steps &middot; 1 turn</dd></div>
+                <div title="{{.Demo.ContextSource}}; capacity added from the stored model metadata"><dt>Context Window</dt><dd data-f="ctx">{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div>
+                <div><dt>TokIn</dt><dd data-f="tin">{{num .Demo.Final.In}}</dd></div>
+                <div><dt>TokOut</dt><dd data-f="tout">{{num .Demo.Final.Out}}</dd></div>
+                <div><dt>CacheIn</dt><dd data-f="cin">{{num .Demo.Final.Cache}}</dd></div>
+                <div><dt>Spend</dt><dd data-f="spend">{{money .Demo.Final.Cost}}</dd></div>
+              </dl>
+              <div class="side-heading" data-side-heading><p class="sh" data-side-plan-heading>PLAN <span data-plan-count>{{doneCount .Demo.Tasks}}/{{len .Demo.Tasks}}</span></p><p class="sh" data-side-files-heading hidden></p></div>
+              <div class="tside-window">
+              <p class="tside-more side-above" data-side-above hidden></p>
+              <div class="tside-scroll" data-side tabindex="0" aria-label="Plano e alterações de arquivos">
+                <ol class="demo-plan" data-demo-plan-list>{{range .Demo.Tasks}}<li data-s="{{.Status}}">{{.Text}}</li>{{end}}</ol>
+                <div data-demo-files>
+                  <p class="sh files-head"><span><span class="count" data-files-count>{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="dim">&middot;</span> <span class="ok" data-files-added>+{{.Demo.Totals.Added}}</span>{{if .Demo.Totals.Removed}} <span class="bad" data-files-removed>&minus;{{.Demo.Totals.Removed}}</span>{{end}}</span></p>
+                  {{range .Demo.Files}}<p class="demo-file"><span class="path" title="{{.Path}}">&#9679; {{.Path}}</span><span class="counts"><b class="ok">+{{.Added}}</b>{{if .Removed}} <b class="bad">&minus;{{.Removed}}</b>{{end}}</span></p>{{end}}
+                </div>
+              </div>
+              <p class="tside-more" data-side-more hidden></p>
+              </div>
+            </aside>
+          </div>
+          <fieldset class="demo-permission" data-permission hidden>
+            <legend><span data-permission-title>Bash</span> <span class="permission-simulation">&middot; Aprovação simulada</span></legend>
+            <div class="box-out" data-permission-body tabindex="0" aria-label="Ação proposta"></div>
+            <div class="answers" data-permission-answers><button type="button" aria-current="true" data-answer="once">Allow once</button><button type="button" data-answer="always" hidden>Always allow</button><button type="button" data-answer="refuse">Refuse</button></div>
+            <p class="hint" data-permission-hint>Apenas ilustração &middot; continua automaticamente</p>
+          </fieldset>
+          <fieldset class="tin" data-composer><legend>[ <b class="tfg">{{.Demo.Model}}</b> <span class="effort-label">{{.Demo.Effort}}</span> <span class="faint">&middot;</span> <b class="ok">{{.Demo.Mode}}</b> ]</legend>
+            <p class="prompt"><span class="caret">&#8250;</span> <span class="typed" data-typed></span><span class="ph" data-placeholder>ask, or / for commands</span></p>
+          </fieldset>
+          <p class="tstat"><span class="spin" data-spin hidden></span><span class="word" data-word hidden></span><span class="rule" data-rule hidden>&#9474;</span><span class="where" data-where>{{.Demo.Project}}</span><span class="dim">&#9474;</span><span class="msg" data-msg><b class="ok">[{{.Demo.Mode}}]</b> asks before actions run; classifier is inactive in ask mode</span><span class="ver">{{.Demo.Version}}</span></p>
+        </div>
+      </section>
+      </div>
+    </figure>
+    <div class="session-still">
+      <div class="still-window" role="group" aria-label="O relatório final da sessão gravada 655, exatamente como terminou">
+        <div class="still-bar" aria-hidden="true"><span class="still-title">rune · {{.Demo.Project}}</span><span class="tbar-dots"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span></span></div>
+        <div class="still-body">{{range .Demo.Steps}}{{if eq .Kind "final"}}{{template "demo-blocks" .Prose}}{{end}}{{end}}</div>
+      </div>
+      <details class="still-toggle"><summary><span class="still-open">Mostrar o relatório completo</span><span class="still-close">Mostrar menos</span></summary></details>
+      <p class="still-note">O relatório final original da sessão, sem alterações. A gravação interativa é exibida em telas mais largas.</p>
+    </div>
+  </div>
+</section>
+
+<section class="features" aria-labelledby="features-title">
+  <div class="shell">
+    <div class="intro">
+      <h2 class="title" id="features-title">Um agente que mostra o próprio trabalho.</h2>
+      <p class="lead">O modelo propõe. O Rune mostra o que é executado, o que mudou e quanto custou, deixando as decisões importantes nas suas mãos.</p>
+    </div>
+    <div class="feature-grid">
+      <article class="feature feature-reach">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-ask" checked>
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-auto">
+        <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
+        <div class="feature-copy">
+          <h3>Você decide até onde ele vai.</h3>
+          <p>Cada sessão roda em um de três modos. Escolha com <code>/mode</code>; o Rune sempre começa no modo Ask.</p>
+          <div class="modes">
+            <label class="mode" for="mode-ask"><b>Ask</b><span>Cada edição pede permissão, e cada comando pede permissão todas as vezes.</span></label>
+            <label class="mode" for="mode-auto"><b>Auto</b><span>Trabalha livremente dentro do workspace. Acessos externos e comandos arriscados continuam pedindo permissão.</span></label>
+            <label class="mode" for="mode-full"><b>Full</b><span>Sem perguntas de permissão, rodando com a sua conta do sistema operacional. Uma escolha explícita sua, nunca um atalho.</span></label>
+          </div>
+        </div>
+        {{with .Demo.Sample}}<div class="reach-side">
+          <p class="feature-note">O mesmo comando em cada modo, nas próprias palavras da CLI. No modo Ask, o pedido de aprovação ocupa o lugar do campo de mensagem, e um comando nunca oferece a opção “sempre”.</p>
+          <div class="mini" role="group" aria-label="Como o mesmo comando é executado no modo escolhido">
+            <div class="mini-bar" aria-hidden="true"><span class="tdot tdot-close"></span><span class="tdot tdot-min"></span><span class="tdot tdot-max"></span><span class="mini-title">rune · ~/Project/Music</span></div>
+            <div class="mini-body">
+              <p class="mini-step"><span class="mini-dot" aria-hidden="true">●</span>{{.Label}}</p>
+              <div class="mini-box on-run"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><div class="mini-out">{{range $i, $r := .Rows}}{{if lt $i 4}}<p>{{$r.Text}}</p>{{end}}{{end}}</div></div>
+              <div class="mini-card on-ask"><p class="mini-legend">Bash</p><p class="mini-cmd"><span class="cli-a">$</span> {{.Cmd}}</p><p class="mini-answers"><span class="cli-on">Allow once</span><span>Refuse</span></p></div>
+              <div class="mini-composer on-run"><p class="mini-legend">[ <b class="cli-fg">{{$.Demo.Model}}</b> {{$.Demo.Effort}} <span class="cli-faint">·</span> <b class="cli-warn on-auto">Auto</b><b class="cli-bad on-full">Full</b> ]</p><p><span class="cli-a">›</span> <span class="cli-faint">ask, or / for commands</span></p></div>
+            </div>
+            <p class="mini-status"><span class="on-ask"><b class="cli-ok">[Ask]</b> asks before actions run; classifier is inactive in ask mode</span><span class="on-auto"><b class="cli-warn">[Auto]</b> works freely inside workspace; classifier is inactive because no policy file was found</span><span class="on-full"><b class="cli-bad">[Full]</b> unconfined system access; classifier is inactive because no policy file was found</span></p>
+          </div>
+        </div>{{end}}
+      </article>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>Cada alteração registrada.</h3>
+          <p>O painel lateral lista todos os arquivos que a sessão altera, com as linhas adicionadas e removidas, à medida que o trabalho acontece. O comando <code>/undo</code> restaura um arquivo elegível ao estado anterior à sessão; mantenha o Git e seus backups para todo o resto.</p>
+        </div>
+        <p class="feature-note">O painel lateral exatamente como a CLI o desenha, extraído da sessão gravada.</p>
+        <div class="cli-panel" role="group" aria-label="Os arquivos alterados no painel lateral">
+          <p class="cli-sh"><span><span class="cli-fg">{{.Demo.Totals.Count}}</span> FILES CHANGED <span class="cli-dim">·</span> <span class="cli-ok">+{{.Demo.Totals.Added}}</span></span></p>
+          {{range slice .Demo.Files 0 8}}<p class="cli-file"><span class="cli-path">● {{.Path}}</span><span class="cli-ok">+{{.Added}}</span></p>{{end}}
+        </div>
+      </article>
+      <article class="feature feature-panel">
+        <div class="feature-copy">
+          <h3>Seu modelo, sua conta.</h3>
+          <p>Escolha entre os modelos retornados pelos provedores configurados ou informe um ID de modelo exato. O Rune contabiliza contexto, tokens e gastos enquanto trabalha. Não há crédito de API embutido.</p>
+        </div>
+        <p class="feature-note">O painel lateral exatamente como a CLI o desenha, extraído da sessão gravada.</p>
+        <div class="cli-panel" role="group" aria-label="Os números da sessão no painel lateral">
+          <p class="cli-sh"><span>SESSIONS</span></p>
+          <dl class="cli-stats"><div><dt>Title</dt><dd>{{.Demo.Title}}</dd></div><div><dt>Started</dt><dd>{{.Demo.Started}}</dd></div><div><dt>Activity</dt><dd>{{.Demo.Active}} · {{.Demo.Final.Steps}} steps · 1 turn</dd></div><div><dt>Context Window</dt><dd>{{num .Demo.Final.Ctx}} / {{num .Demo.Context}}</dd></div><div><dt>TokIn</dt><dd>{{num .Demo.Final.In}}</dd></div><div><dt>TokOut</dt><dd>{{num .Demo.Final.Out}}</dd></div><div><dt>CacheIn</dt><dd>{{num .Demo.Final.Cache}}</dd></div><div><dt>Spend</dt><dd>{{money .Demo.Final.Cost}}</dd></div></dl>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+{{template "install-details" .}}
+<section class="close" aria-labelledby="close-title"><div class="shell close-inner">
+  <h2 class="title" id="close-title">Seu terminal. Seu modelo.<br><em>Sua decisão.</em></h2>
+  <p class="lead">Comece pequeno, mantenha o escopo claro e revise o trabalho.</p>
+  <div class="hero-actions"><a class="btn" href="{{url "install"}}">Instalar o RuneAgent</a>{{with .Latest}}<span class="meta">Versão {{.Version}} · {{.Date}}</span>{{end}}</div>
+</div></section>
+{{end}}

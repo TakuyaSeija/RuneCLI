@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Emplacement et portée</h2>
+<p>La configuration globale se trouve dans le fichier <code>rune.toml</code> du répertoire de données Rune sélectionné, normalement <code>~/.rune/</code>. La <a href="{{url "docs/reference"}}">Référence des paramètres</a> répertorie toutes les clés qu’il peut contenir. La variable <code>RUNE_HOME</code> permet de choisir un autre répertoire de données. Un fichier nommé rune.toml situé dans un projet n’est pas automatiquement le fichier de paramètres, et l’option <code>-project</code> choisit un espace de travail plutôt qu’un répertoire de paramètres.</p>
+<p>Utilisez <code>rune -config</code> pour connaître l’emplacement exact utilisé. Le fichier contient vos choix enregistrés ; les valeurs absentes héritent des valeurs par défaut de la version actuelle. La clé de premier niveau <code>version = 1</code> décrit le format de configuration, et non la version de l’application. Ne la modifiez pas pour demander une mise à niveau.</p>
+<h2 id="inspect">Inspecter un élément à la fois</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Lit la valeur effective d’une clé, sa description et le moment où elle s’applique.</dd></div>
+<div><dt>-config defaults</dt><dd>Lit les valeurs par défaut indépendamment de vos choix enregistrés.</dd></div>
+<div><dt>-config check</dt><dd>Valide la syntaxe de la configuration et les valeurs prises en charge. Cette commande ne teste ni les clés API, ni le crédit, ni la connectivité.</dd></div>
+<div><dt>-config show</dt><dd>Inspecte la configuration effective. Elle peut contenir des métadonnées de compte privées ; masquez-les avant tout partage.</dd></div>
+<div><dt>-settings</dt><dd>Inspecte les réglages du modèle pour l’espace de travail sélectionné.</dd></div>
+</dl>
+<h2 id="change-and-reset">Modifier et réinitialiser</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>N’exécutez la commande set que lorsque vous souhaitez réellement appliquer ce changement global. La commande reset supprime le remplacement ; elle n’écrit pas une copie de la valeur par défaut. Dans Settings, l’action Use default joue le même rôle pour les valeurs globales. Les clés inconnues ou obsolètes produisent des erreurs et ne sont pas traitées en silence comme des alias.</p>
+<p>Le format TOML n’a pas de valeur null native. Supprimez une clé facultative ou utilisez la commande reset prise en charge au lieu d’écrire <code>null</code>. Ne supposez pas qu’une chaîne vide, « auto », « none » ou une liste vide équivaut à une réinitialisation pour chaque paramètre.</p>
+<h2 id="types-and-units">Types et unités</h2>
+<dl class="ref">
+<div><dt>Booléen</dt><dd><code>true</code> ou <code>false</code>, sans guillemets en TOML.</dd></div>
+<div><dt>Nombre / jetons</dt><dd>Un nombre entier compris dans la plage acceptée par le paramètre. Les jetons, les caractères et les octets sont des unités de mesure distinctes.</dd></div>
+<div><dt>Durée</dt><dd>Une chaîne avec unité explicite telle que <code>"500ms"</code>, <code>"60s"</code> ou <code>"2m"</code>. Seuls les délais d’attente d’autorisation ou de question acceptent une valeur illimitée.</dd></div>
+<div><dt>Taille</dt><dd>Utilisez des unités binaires explicites telles que <code>"16MiB"</code>. Une taille sans unité est interprétée en KiB, et non en octets.</dd></div>
+<div><dt>Liste</dt><dd>Utilisez les entrées exactes documentées. <code>[]</code> représente une sélection explicitement vide, et pas nécessairement une réinitialisation.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>Cet exemple illustre la syntaxe et ne constitue pas une configuration universelle recommandée. Le tableau stop conserve les chaînes exactes, virgules comprises ; l’éditeur de session accepte quant à lui des entrées séparées par des virgules. Les valeurs globales de génération par défaut n’écrasent pas toutes les sessions en cours.</p>
+<h2 id="timing-and-risk">Moment d’application et risques</h2>
+<p>Les modifications se propagent normalement sans redémarrage. Utilisez explain pour le paramètre concerné : les valeurs immédiates et celles qui s’appliquent à la prochaine opération n’ont pas le même comportement. Modifier CLASSIFIER.md ne recharge pas une politique de session déjà figée ; utilisez l’action de rechargement lorsque la session est inactive.</p>
+<p>N’incluez jamais de points de terminaison privés ni d’identifiants dans des exemples publics. Validez vos modifications manuelles sans écraser d’autres choix sans rapport. Des limites plus élevées peuvent augmenter l’utilisation de la mémoire, du disque, du contexte et les coûts ; elles n’accordent aucun droit d’accès et ne rendent pas compatible un modèle non pris en charge.</p>
+{{end}}

@@ -22,7 +22,7 @@ func TestExportPublishedBrowserFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	for route, file := range map[string]string{"": "home.html", "changelog": "changelog.html", "docs/verification": "verification.html"} {
-		body, err := st.site.render(st.site.pages[route], st.catalog.get())
+		body, err := st.site.render(st.site.pages["en"][route], st.catalog.get())
 		if err != nil {
 			t.Fatal(err)
 		}

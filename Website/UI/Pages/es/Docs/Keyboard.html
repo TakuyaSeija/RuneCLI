@@ -1,0 +1,44 @@
+{{define "article"}}
+<h2 id="application">Conversación y aplicación</h2>
+<dl class="ref">
+<div><dt>Enter · Alt+Enter</dt><dd>Envía el mensaje o inserta un salto de línea. Las combinaciones modificadas de Enter dependen de lo que comunique tu terminal.</dd></div>
+<div><dt>Ctrl+G · Ctrl+O</dt><dd>Abre Settings o muestra/oculta el panel lateral.</dd></div>
+<div><dt>Ctrl+T · Ctrl+R</dt><dd>Abre el plan, o expande/pliega los pasos y bloques de razonamiento. En cambio, dentro del selector de sesiones, Ctrl+R abre el cambio de nombre.</dd></div>
+<div><dt>Alt+T</dt><dd>Alterna entre las opciones de razonamiento disponibles para el modelo seleccionado.</dd></div>
+<div><dt>Tab</dt><dd>Autocompleta un comando de barra o cambia el modo de permisos. Los formularios mantienen su propia navegación con Tab.</dd></div>
+<div><dt>Esc dos veces</dt><dd>Detiene el trabajo activo de la IA: la primera pulsación muestra una confirmación y la segunda, dentro de un margen de 3 segundos, lo detiene. En una vista inactiva, Esc la cierra.</dd></div>
+<div><dt>Ctrl+C dos veces</dt><dd>Sale de Rune. La primera pulsación prepara la salida, sin cancelar el turno en curso ni borrar tu borrador.</dd></div>
+<div><dt>Ctrl+L · Ctrl+↓</dt><dd>Redibuja la pantalla o salta al mensaje más reciente del chat.</dd></div>
+</dl>
+<h2 id="text-editing">Edición de texto</h2>
+<p>Estos atajos son compartidos por el cuadro de entrada, las respuestas editables, los campos de Settings, la búsqueda de modelos, los campos de MCP y la búsqueda o cambio de nombre de sesiones. Las listas y los botones tienen su propia navegación. Una línea lógica termina en un salto de línea insertado; una fila visual puede ser un ajuste de línea automático.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Tecla</th><th>Acción</th></tr></thead><tbody>
+<tr><td>← / →</td><td>Desplaza el cursor un carácter visible.</td></tr>
+<tr><td>Ctrl+← / Ctrl+→</td><td>Salta a la palabra anterior delimitada por espacios / al final de la palabra siguiente.</td></tr>
+<tr><td>↑ / ↓</td><td>Se mueve por las filas visuales conservando la columna deseada.</td></tr>
+<tr><td>Ctrl+A / Ctrl+E</td><td>Inicio / final de la línea lógica actual.</td></tr>
+<tr><td>Home / End</td><td>Inicio / final de todo el texto de entrada.</td></tr>
+<tr><td>Backspace / Delete</td><td>Borra el carácter visible anterior / posterior al cursor, o bien el texto seleccionado.</td></tr>
+<tr><td>Ctrl+U / Ctrl+K</td><td>Corta hacia atrás / hacia delante hasta el límite de la línea lógica. En un salto de línea, Ctrl+K elimina solo ese salto; al final del texto no hace nada.</td></tr>
+<tr><td>Ctrl+W / Alt+D</td><td>Corta la palabra delimitada por espacios a la izquierda / derecha, incluidos los espacios adyacentes en esa dirección.</td></tr>
+<tr><td>Ctrl+Y / Alt+Y</td><td>Pega el último texto cortado / alterna entre los cortes anteriores inmediatamente después de pegar.</td></tr>
+<tr><td>Ctrl+_ / Alt+R</td><td>Deshace / rehace una edición de texto en este campo.</td></tr>
+<tr><td>Shift+←/→/↑/↓</td><td>Amplía la selección por carácter o por fila visual.</td></tr>
+<tr><td>Ctrl+Shift+← / →</td><td>Amplía la selección por palabras.</td></tr>
+<tr><td>Alt+X / Alt+W</td><td>Intercambia los caracteres / palabras adyacentes.</td></tr>
+<tr><td>Alt+U / Alt+L / Alt+V</td><td>Convierte a mayúsculas / minúsculas / inicial mayúscula la palabra siguiente o el texto seleccionado.</td></tr>
+</tbody></table></div>
+<p>Escribir, pegar o borrar reemplaza la selección activa. El historial para deshacer y el texto cortado pertenecen únicamente a ese campo, tienen un límite y se vacían al cambiar de campo o de sesión; no son copias de seguridad de archivos. Rune no implementa todos los alias de Readline; por ejemplo, Ctrl+B/F y Alt+B/F no funcionan como atajos alternativos de movimiento.</p>
+<h2 id="history-and-reading">Historial y lectura</h2>
+<p>En el cuadro de entrada, Arriba/Abajo recorren primero el texto visible, luego llegan al principio o al final y, a continuación, recuperan el historial de mensajes enviados. <kbd>PgUp</kbd>/<kbd>PgDn</kbd> acceden directamente al historial. El historial pertenece a cada sesión.</p>
+<p>Cada paso de la rueda del ratón desplaza el número de filas configurado (dos por defecto). Mantener pulsado Ctrl+rueda o Alt+rueda desplaza el triple de distancia cuando la terminal transmite ese evento. Algunas terminales reservan estos gestos para hacer zoom o desplazarse horizontalmente; la rueda normal y el teclado siguen estando disponibles.</p>
+<h2 id="mouse">Ratón</h2>
+<p>Un clic coloca el cursor de texto o activa un control. Arrastra sobre el texto y suelta el botón para copiarlo: el resaltado desaparece en cuanto el texto pasa al portapapeles. Al arrastrar dentro de la conversación se copia únicamente ese panel, sin el panel lateral ni los bordes de los recuadros de Rune, y las tablas se copian con las celdas separadas por tabuladores. Copiar un comando plegado devuelve sus saltos de línea originales, sin las marcas visuales <code>↵</code> ni <code>…</code>. En un campo de entrada, arrastrar copia el texto sin mover el cursor ni reemplazar tu borrador; para seleccionar texto con el fin de editarlo, usa <kbd>Shift</kbd> y las teclas de flecha. Los campos de secretos ocultos nunca se copian.</p>
+<p>Para que la copia llegue al portapapeles, la terminal debe permitir la escritura en él; una sesión SSH o un multiplexor pueden bloquearla. <kbd>Shift</kbd>+arrastrar, en las terminales que lo admiten, utiliza la selección nativa de la propia terminal, bordes incluidos. Si defines <code>ui.mouse = false</code>, toda la selección pasa a depender de la terminal.</p>
+<p>Haz clic en un enlace para abrir su panel <strong>REFERENCE</strong>: <kbd>Enter</kbd> abre una dirección web en tu navegador, <kbd>C</kbd> copia el destino completo y <kbd>Esc</kbd> cierra el panel. Arrastrar sobre un enlace copia su texto y nunca lo abre.</p>
+<h2 id="lists-and-forms">Listas y formularios</h2>
+<p>Las flechas seleccionan y <kbd>Enter</kbd> abre o confirma. <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> cambian el foco. <kbd>Esc</kbd> cancela un editor o retrocede un nivel. En Models, Ctrl+F enfoca el buscador, Alt+C abre la configuración del modelo, T realiza una prueba con una solicitud real y Delete elimina la configuración local del resultado seleccionado.</p>
+<p>En los formularios de preguntas, Alt+Izquierda/Derecha cambia de pregunta. Izquierda/Derecha sin modificador edita texto o selecciona botones. Las teclas de página permiten leer una tarjeta que no cabe en pantalla, pero no envían la respuesta. Dentro de una respuesta personalizada, Arriba/Abajo recorren primero su texto antes de salir del campo. Arrastrar con el ratón selecciona texto en lugar de activar el control situado debajo.</p>
+<h2 id="terminal-differences">Diferencias entre terminales</h2>
+<p>Un atajo solo funciona si la terminal se lo comunica a Rune. Los atajos del sistema operativo, los perfiles de la terminal y las codificaciones de control tradicionales pueden reservar ciertas combinaciones. Los fondos, el desenfoque y la transparencia también pertenecen a la terminal, no a Rune. Consulta <code>/help</code> en tu compilación instalada en lugar de dar por supuesto el mapa de teclado de tu shell.</p>
+{{end}}

@@ -641,6 +641,12 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 // mechanisms that make it trustworthy (sandbox, vault cipher, config file),
 // but never how it is built: no internal names, paths, settings, storage formats, hosts or ports.
 // Also no inline code or style (the CSP forbids it) and no outside resource.
+var ordinaryWords = map[string][]*regexp.Regexp{
+	"de":    {regexp.MustCompile(`\pL*schema\pL*`), regexp.MustCompile(`systemdienst\pL*`)},
+	"es":    {regexp.MustCompile(`\bcargos?\b`)},
+	"pt-BR": {regexp.MustCompile(`\bcargos?\b`)},
+}
+
 func TestPublicContentRevealsNoInternals(t *testing.T) {
 	deny := []string{
 		"perm::", "write_guard", "toolctx", "net::", "proto::", "engine/", "cli/", "crate", "cargo", "tokio",
@@ -648,7 +654,7 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 		"sqlite", "jsonl", "ledger", "arc-swap", "pbkdf", "argon",
 		"rune.db", "master.key", "secrets.vault", "claude.md",
 		"upgrade/v", "protocol ", "schema", "/home/", "noire", "deploy/", "ops/",
-		"localhost", ":3401", ":3501", "3403", "3503",
+		"localhost", ":3301", ":3311", ":3401", ":3501", "3303", "3313", "3403", "3503",
 		"nginx", "cloudflared", "systemd", "seadrive", "github", "takuya",
 		"innerhtml", "eval(", "document.write", "style=", "onclick", "onload=", "javascript:",
 	}
@@ -656,7 +662,7 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 	ipAddress := regexp.MustCompile(`\b\d{1,3}(?:\.\d{1,3}){3}\b`) // no machine address of any network
 	inlineScript := regexp.MustCompile(`(?i)<script(?:\s[^>]*)?>\s*[^<\s]`)
 	err := fs.WalkDir(ui.Files, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".html") && !strings.HasSuffix(p, ".css") && !strings.HasSuffix(p, ".js") && !strings.HasSuffix(p, ".sh") {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".html") && !strings.HasSuffix(p, ".css") && !strings.HasSuffix(p, ".js") && !strings.HasSuffix(p, ".sh") && !(strings.HasSuffix(p, ".json") && strings.HasPrefix(p, "Pages/")) {
 			return err
 		}
 		raw, _ := fs.ReadFile(ui.Files, p)
@@ -665,6 +671,16 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 			// The installer necessarily names the install folder; nothing else.
 			low = strings.ReplaceAll(low, ".local/bin", "")
 		}
+		// A translation's ordinary words that merely contain a denied term:
+		// German "Farbschema" (colour scheme) and "Systemdienst" (system
+		// service), Spanish and Portuguese "a cargo de" (in charge of).
+		for code, words := range ordinaryWords {
+			if strings.HasPrefix(p, "Pages/"+code+"/") {
+				for _, w := range words {
+					low = w.ReplaceAllString(low, "")
+				}
+			}
+		}
 		for _, term := range deny {
 			if strings.Contains(low, term) {
 				t.Errorf("%s reveals %q", p, term)
@@ -672,7 +688,13 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 		}
 		// Public product interfaces are necessary in the manual, not private
 		// deployment details and not marketing copy elsewhere on the site.
-		if !strings.HasPrefix(p, "Pages/Docs/") {
+		// Each translation's manual and its catalogue (metadata.json holds the
+		// articles' leads) are the manual too.
+		manual := strings.HasPrefix(p, "Pages/Docs/")
+		for _, l := range locales[1:] {
+			manual = manual || strings.HasPrefix(p, l.pageFile("Docs/")) || p == l.pageFile("metadata.json")
+		}
+		if !manual {
 			for _, term := range []string{".rune", "rune_home", "classifier.md", "agents.md", "9router"} {
 				if strings.Contains(low, term) {
 					t.Errorf("%s exposes manual-only term %q", p, term)

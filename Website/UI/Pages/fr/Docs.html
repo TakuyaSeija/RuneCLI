@@ -1,0 +1,48 @@
+{{define "content"}}
+<div class="shell docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="Navigation dans la documentation">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
+      </div>
+      <button class="drawer-close" type="button" aria-label="Fermer le menu de la documentation"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>Documentation <span class="meta">Sommaire</span></summary>
+      <nav aria-label="Documentation">
+        {{range .DocGroups}}
+        <details class="docs-group"{{if eq .Title $.Page.Section}} open{{end}}>
+          <summary>{{.Title}}</summary>
+          <ul>{{range .Pages}}
+            <li><a href="{{url .Route}}"{{if eq .Route $.Page.Route}} aria-current="page"{{end}}>{{.Label}}</a></li>
+          {{end}}</ul>
+        </details>
+        {{end}}
+      </nav>
+      <p class="docs-version">Référence pour Rune {{.DocVersion}}<br>Vérifiez votre version avec <code>rune -version</code>.</p>
+    </details>
+  </aside>
+
+  <article class="article">
+    <header class="article-head">
+      <p class="crumbs">Documentation<span aria-hidden="true">/</span>{{.Page.Section}}</p>
+      <h1>{{.Page.Label}}</h1>
+      <p class="article-lead">{{.Page.Lead}}</p>
+    </header>
+    <div class="prose">{{template "article" .}}</div>
+    <nav class="docs-pagination" aria-label="Articles adjacents">
+      {{with .Previous}}<a href="{{url .Route}}"><span>Précédent</span><strong>{{.Label}}</strong></a>{{else}}<span></span>{{end}}
+      {{with .Next}}<a href="{{url .Route}}"><span>Suivant</span><strong>{{.Label}}</strong></a>{{end}}
+    </nav>
+  </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="Sur cette page">
+      <p class="index-title">Sur cette page</p>
+      <ol>{{range .Page.Headings}}<li><a href="#{{.ID}}">{{.Title}}</a></li>{{end}}</ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

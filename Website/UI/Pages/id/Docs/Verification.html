@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">Apa yang dibuktikan oleh verifikasi</h2>
+<p>Skrip pemasang memverifikasi tanda tangan kriptografis rilis pada berkas daftar checksum, lalu mencocokkan checksum arsip unduhan dengan daftar bertanda tangan tersebut sebelum memasangnya. Keduanya adalah pemeriksaan yang saling melengkapi: kecocokan checksum saja tidak membuktikan keaslian penerbitnya, sedangkan tanda tangan yang valid tidak membuktikan bahwa suatu perangkat lunak bebas dari bug atau kesalahan.</p>
+<p>Pemasang juga memeriksa kesesuaian platform, nama arsip yang diharapkan, serta memastikan biner dapat dijalankan. Pemasangan dilakukan melalui penggantian nama (atomic rename) dalam satu langkah agar tidak pernah meninggalkan berkas program yang baru tersalin sebagian. Baca kode sumber pemasang, <a href="{{url "install.sh"}}">install.sh</a> atau <a href="{{url "install.ps1"}}">install.ps1</a>, sebelum menjalankannya jika Anda ingin memeriksa langkah kerjanya secara rinci.</p>
+<h2 id="release-key">Kunci penandatanganan rilis</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>Sidik jari (fingerprint) kunci rilis resmi yang diterbitkan, SHA-256:</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>Kunci publik dapat diunduh di <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. Bila memungkinkan, cocokkan sidik jari tersebut melalui jalur komunikasi independen yang Anda percaya. Mengunduh kunci publik dan sidik jarinya sekaligus dari sumber yang sama apabila sumber tersebut sedang disusupi tentu tidak memberikan pembuktian independen.</p>
+{{else}}
+<p class="notice">Belum ada kunci penandatanganan rilis yang diterbitkan pada katalog saat ini. Sidik jari kunci akan tampil bersama rilis bertanda tangan pertama; jangan pernah menganggap ketiadaan kunci sebagai verifikasi yang berhasil.</p>
+{{end}}
+<h2 id="manual-verification">Memverifikasi berkas unduhan secara manual</h2>
+<p>Dari <a href="{{url "install"}}">daftar unduhan</a>, unduh arsip untuk sistem Anda beserta berkas SHA256SUMS, SHA256SUMS.sig, dan kunci publik yang telah diverifikasi. Setiap rilis ditandatangani menggunakan kunci ECDSA P-256 di atas SHA-256, yang dapat diperiksa langsung menggunakan OpenSSL maupun LibreSSL bawaan macOS. Di dalam direktori unduhan tersebut, verifikasi tanda tangannya terlebih dahulu, baru kemudian periksa checksum arsipnya. Di Linux:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>Di macOS, perintah verifikasi tanda tangannya sama persis; lalu periksa checksum arsip yang Anda unduh berdasarkan namanya:</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>Di Windows, skrip pemasang sudah memeriksa tanda tangan secara otomatis untuk Anda. Jika Anda ingin membandingkan sendiri arsip yang diunduh dengan daftar bertanda tangan, cetak nilai hash SHA-256 di PowerShell lalu cocokkan dengan baris arsip tersebut di dalam berkas SHA256SUMS:</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>Ganti VERSION dengan nomor versi rilis yang Anda unduh. Pemeriksaan tanda tangan harus mencetak <code>Verified OK</code>, dan pemeriksaan checksum harus menyebutkan nama arsip yang hendak Anda gunakan. Arsip yang belum diperiksa tidak boleh dianggap lolos hanya karena berkas lain di dalam daftar dinyatakan cocok. Segera hentikan proses jika ditemukan ketidakcocokan dan jangan jalankan berkas unduhan tersebut.</p>
+<h2 id="limits">Batasan dan pembaruan</h2>
+<p>Tanda tangan kriptografis mengikat byte arsip pada kunci rilis resmi. Tanda tangan tersebut tidak menggantikan audit kode sumber independen, tidak membuktikan reproducible build secara tersendiri, tidak menjamin keamanan setiap ketergantungan eksternal, dan tidak dapat memulihkan kunci penandatanganan apabila kunci tersebut bocor. Jaga kejelasan batasan ini saat membagikan panduan verifikasi kepada orang lain.</p>
+<p>Pasang rilis bertanda tangan yang diinginkan lalu periksa hasilnya dengan <code>rune -version</code>. Di Linux dan macOS, sesi terbuka yang kompatibel dapat beralih ke biner baru saat sedang diam. Di Windows, jendela yang sedang terbuka tetap memakai biner awalnya sampai Anda membuka jendela Rune yang baru. Jangan pernah mematikan paksa pekerjaan yang sedang berjalan aktif hanya demi melihat nomor versi berubah.</p>
+{{end}}

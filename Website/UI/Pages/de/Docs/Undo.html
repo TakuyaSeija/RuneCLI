@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="inspect-changes">Tatsächliche Änderungen prüfen</h2>
+<p>Die Seitenleiste zeigt die aktuellen Dateidifferenzen für alle in dieser Sitzung verfolgten Dateien an. Die Zähler für hinzugefügte und entfernte Zeilen vergleichen den tatsächlichen Dateiinhalt und addieren nicht bloß die Überschriften einzelner Bearbeitungsschritte. Mehrere Bearbeitungen können sich gegenseitig aufheben, und die reine Zeilenanzahl ersetzt keine inhaltliche Prüfung.</p>
+<p>Sieh dir den Diff an und führe die relevanten Tests erneut aus, bevor du das Ergebnis übernimmst. Ein erfolgreicher Testbefehl beweist nur das, was dieser Befehl konkret geprüft hat. Rune erstellt keine automatischen Git-Commits, und die Dateiwiederherstellung ist kein Ersatz für eine Versionsverwaltung oder ein konsistentes Backup.</p>
+<h2 id="restore-a-file">Eine Datei wiederherstellen</h2>
+<ol><li>Warte, bis alle laufenden Arbeiten an der Datei abgeschlossen sind.</li><li>Öffne <code>/undo</code> und wähle die gewünschte Datei aus. Nutze die angebotene Diff-Ansicht (auch über Alt+S in der Liste), um genau zu prüfen, was zurückgesetzt wird.</li><li>Leite die Wiederherstellung mit Enter ein und bestätige sie innerhalb des angezeigten Zeitfensters erst, nachdem du den aktuellen Inhalt kontrolliert hast.</li><li>Überprüfe anschließend die wiederhergestellte Datei und alle davon abhängigen Stellen im Projekt.</li></ol>
+<p>Undo setzt die Datei auf den Zustand vor der <strong>allerersten Änderung in dieser Sitzung</strong> zurück – nicht bloß vor den letzten Patch. Spätere Bearbeitungen, die außerhalb von Rune nach diesem Snapshot vorgenommen wurden, werden dabei überschrieben. Jede Wiederherstellung ist eine echte Dateiänderung und wird entsprechend protokolliert.</p>
+<h2 id="redo">Redo ist begrenzt</h2>
+<p>Mit <code>/redo</code> kannst du genau den Stand wiederherstellen, den das letzte Undo ersetzt hat. Prüfe die Änderung vor dem Bestätigen genauso sorgfältig. Redo ist keine unbegrenzte Zeitleiste beliebiger Zwischenversionen und sollte nicht als alleinige Backup-Strategie dienen.</p>
+<h2 id="limits">Was die Wiederherstellung nicht leisten kann</h2>
+<p>Datei-Snapshots machen weder ein entferntes Deployment noch eine Datenbanktransaktion bei einem externen Dienst, eine versendete E-Mail, eine Paketinstallation oder beliebige Nebenwirkungen von Shell-Befehlen rückgängig. Dateien außerhalb des geschützten und verfolgten Bereichs sowie Änderungen durch andere Programme erfordern eigene Sicherungsmaßnahmen. Prüfe die konkrete Dateiliste in Undo, statt davon auszugehen, dass das gesamte System abgedeckt ist.</p>
+<p>Das Standardlimit ab Werk für geschützte Dateisicherungen liegt bei 64 MiB. Ein größerer Schreibvorgang auf eine zu schützende Datei bricht vor der Änderung ab, statt ungeschützt fortzufahren. Eine Erhöhung dieses Limits belegt mehr Speicherplatz; eine Verringerung kann Schreibvorgänge auf größere Dateien blockieren. Betrachte externe Nebenwirkungen niemals als per Undo umkehrbar.</p>
+<h2 id="advanced-options">Erweiterte Optionen</h2>
+<dl class="ref">
+<div><dt>checkpoint.max_file_size</dt><dd>64 MiB Werkslimit für den Snapshot einer einzelnen geschützten Datei.</dd></div>
+<div><dt>checkpoint.refresh_interval</dt><dd>1 Sekunde Standardintervall zur Aktualisierung bereits verfolgter Dateien (einstellbar von 100 ms bis 1 Minute).</dd></div>
+<div><dt>checkpoint.diff.context</dt><dd>Standardmäßig drei umgebende Kontextzeilen im Diff (einstellbar von 0 bis 100).</dd></div>
+<div><dt>checkpoint.diff.max_cells</dt><dd>Rechenbudget für den Diff-Vergleich, standardmäßig 1.000.000. Beeinflusst die Vergleichsstrategie bei großen Dateien, nicht jedoch den Dateizugriff oder die Anzahl zulässiger Änderungen.</dd></div>
+</dl>
+<p>Dies sind erweiterte Konfigurationsschlüssel ohne eigene Zeilen im interaktiven Einstellungsmenü. Prüfe eine Option mit <code>rune -config explain &lt;key&gt;</code> und setze sie mit <code>rune -config reset &lt;key&gt;</code> zurück.</p>
+{{end}}

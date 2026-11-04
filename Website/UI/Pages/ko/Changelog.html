@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>변경 내역</h1>
+      <p class="article-lead">공개된 모든 RuneAgent 빌드입니다. 모든 빌드는 서명되어 있으며, 설치 스크립트는 최신 버전을 설치하고 버전 번호를 지정해 이전 버전을 설치할 수도 있습니다.</p>
+    </header>
+    {{- range $i, $r := .Catalog.Releases}}
+    <section class="release" id="v{{$r.Version}}">
+      <div class="release-meta">
+        {{- if eq $i 0}}<span class="tag">최신</span>{{end}}
+        <span class="date">{{$r.Date}}</span>
+      </div>
+      <div class="release-body">
+        <h2>버전 {{$r.Version}}</h2>
+        {{- if $r.Notes}}
+        <ul class="release-notes">
+          {{- range $r.Notes}}
+          <li>{{.}}</li>
+          {{- end}}
+        </ul>
+        {{- end}}
+        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
+        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
+      </div>
+    </section>
+    {{- else}}
+    <div class="empty" id="empty">첫 번째 릴리스가 공개되면 날짜, 변경 사항, 배포 파일이 여기에 표시됩니다.</div>
+    {{- end}}
+    {{- with .Latest}}
+    <p class="small after">다운로드 파일을 직접 검증하는 방법은 <a class="link" href="{{url "install"}}">설치 페이지</a>에서 확인하세요.</p>
+    {{- end}}
+  </article>
+  <aside class="read-index">
+    {{- if .Catalog.Releases}}
+    <nav class="index" aria-label="이 페이지 목차">
+      <p class="index-title">릴리스</p>
+      <ol>
+        {{- range $i, $r := .Catalog.Releases}}
+        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
+        {{- end}}
+      </ol>
+    </nav>
+    {{- end}}
+  </aside>
+</div>
+{{end}}

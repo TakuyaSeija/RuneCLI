@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">Kapabilitas eksternal</h2>
+<p>MCP menyambungkan server eksternal yang menyediakan perangkat (tools), sumber daya, atau prompt. Gunakan <code>/mcp</code> atau <code>rune -mcp</code>; fitur ini tidak berada di tab tersendiri pada menu Settings saat ini. Menyambungkan server berbeda dengan menyetujui setiap tugas yang dijalankan melalui perangkatnya.</p>
+<p>Server jarak jauh menerima data yang Anda kirimkan kepadanya. Server lokal menjalankan kode program di komputer ini. Teks yang dikembalikan oleh server MCP diperlakukan sebagai data tugas yang tidak dipercaya begitu saja, bahkan jika teks tersebut mengklaim berisi instruksi resmi.</p>
+<h2 id="scope-and-approval">Cakupan dan persetujuan</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Definisi pribadi yang tersedia lintas proyek Anda.</dd></div>
+<div><dt>Project</dt><dd>Definisi bersama di dalam berkas konfigurasi MCP proyek. Tinjau dan setujui secara eksplisit; definisi bersama yang berubah memerlukan persetujuan ulang.</dd></div>
+<div><dt>Private project</dt><dd>Definisi pribadi khusus untuk satu proyek, yang menjadi cakupan bawaan saat Anda mengubah pengaturan MCP. Cakupan ini dapat menimpa definisi proyek bersama dengan ID yang sama, dan definisi proyek bersama dapat menimpa definisi pengguna pribadi.</dd></div>
+</dl>
+<p>Periksa dengan perintah <code>list</code>/<code>status</code> dan validasi definisinya sebelum menyambungkan. Validasi sintaks bukanlah pengujian koneksi langsung. Perintah <code>add</code> menerima ID server beserta URL jarak jauh atau path absolut program lokal lengkap dengan argumennya. Lihat bantuan perintah pada versi yang terpasang untuk sintaks lengkap setiap operasi.</p>
+<h2 id="access-review">Meninjau hak akses</h2>
+<p>Sebelum menambahkan atau mengaktifkan sebuah server, periksa program/argumennya atau alamat tujuan jarak jauhnya, cara autentikasinya, variabel lingkungannya, izin tulis ke proyek, folder baca/tulis tambahan, serta aksesnya ke layanan lokal yang sedang berjalan. Berikan hanya hak akses yang benar-benar dibutuhkan untuk tugas tersebut.</p>
+<p>Endpoint jarak jauh mewajibkan HTTPS; HTTP biasa hanya diizinkan untuk alamat loopback lokal. Jangan menanamkan rahasia secara langsung di dalam URL bersama atau nilai variabel lingkungan mentah. Gunakan alur kredensial yang didukung. Program lokal dan folder tambahan adalah keputusan pemberian akses nyata, bukan sekadar label deskriptif.</p>
+<p>Folder tambahan di luar ruang kerja dapat meminta persetujuan dalam mode Ask/Auto sebelum server lokal dijalankan. Akses luas ke layanan lokal dapat menjangkau program lain yang berjalan dengan hak akun pengguna Anda. Jangan memperluas opsi akses ini hanya untuk membungkam kegagalan koneksi.</p>
+<h2 id="lifecycle">Menyambungkan, menguji, dan menghapus</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Memeriksa server yang dikonfigurasikan beserta status koneksinya saat ini.</dd></div>
+<div><dt>validate</dt><dd>Memeriksa keabsahan definisi tanpa mengklaim koneksi telah berhasil.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Melakukan koneksi nyata, yang dapat menjalankan kode lokal atau menghubungi layanan jarak jauh.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Menyetujui definisi proyek bersama yang telah Anda tinjau. Jangan memberikan persetujuan untuk berkas yang belum Anda periksa isinya.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Menutup koneksi yang sedang aktif tanpa menghapus definisi yang tersimpan.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Mengubah ketersediaan definisi yang dimaksud atau menghapusnya, sesuai cakupan konfigurasi yang dipilih.</dd></div>
+<div><dt>reload</dt><dd>Menyegarkan daftar koneksi yang telah dikonfigurasikan.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Memulai alur autentikasi yang didukung atau memeriksa status masuknya.</dd></div>
+</dl>
+<p>Operasi-operasi ini dijalankan setelah <code>rune -mcp</code>, misalnya <code>rune -mcp status</code>. Periksa cakupan dan ID yang dipilih pada setiap perubahan. Perintah kredensial lanjutan seperti token/secret menerima nilai sensitif; utamakan antarmuka autentikasi yang didukung agar rahasia tidak tercatat di riwayat shell.</p>
+<p>Autentikasi dapat menggunakan kredensial bearer atau alur OAuth. Jangan menempelkan token ke dalam percakapan chat. Server yang berhasil tersambung bukan bukti bahwa setiap perangkat di dalamnya aman, dapat dibatalkan perubahannya, atau didukung sepenuhnya. Model akan membaca skema masukan perangkat yang sebenarnya dan tetap melewati kontrol eksekusi normal, bukan mengarang API sendiri.</p>
+{{end}}

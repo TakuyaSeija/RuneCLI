@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">使用斜杠命令</h2>
+<p>在输入框中输入 <code>/</code> 即可搜索命令面板。使用上下方向键选择，按 <kbd>Tab</kbd> 补全，按 <kbd>Enter</kbd> 执行。方括号 <code>[...]</code> 中的参数为可选项；尖括号 <code>&lt;...&gt;</code> 表示需要由你填入的具体值，请勿原样输入尖括号本身。当前已安装版本的权威命令列表以 <code>/help</code> 为准。</p>
+<h2 id="session-and-context">会话与上下文</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>在当前工作区开启一段新对话。不会删除当前会话记录。</dd></div>
+<div><dt>/session</dt><dd>打开当前工作区的可搜索会话选择器。</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>恢复指定 ID 的已保存会话。</dd></div>
+<div><dt>/compact</dt><dd>压缩并总结较早的上下文。此操作会发起一次模型请求并可能省略部分历史细节，但不会清除磁盘上的历史存储。</dd></div>
+<div><dt>/context</dt><dd>查看当前提供给模型的上下文内容。对外分享前请将其视为私有工作内容妥善检查。</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>打开诊断事件视图，可按严重程度筛选。失败的请求与重试记录均在此展示；查看日志本身并不会自动重试请求或切换账户。</dd></div>
+</dl>
+<h2 id="model-and-permissions">模型与权限</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>选择提供商/模型组合；不带参数时直接打开 Models 列表。若模型 ID 在多个提供商下重名，建议在列表中按提供商明确选择。</dd></div>
+<div><dt>/provider [name]</dt><dd>选择负责回答的提供商；不带名称时打开提供商列表。切换此项会改变后续任务发送的目标服务端。</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>查看或从当前模型支持的选项中选择推理强度。按 Alt+T 可循环切换。设为 <code>off</code> 仅代表向服务端发起关闭推理的请求，并不能证明上游路由完全不进行推理。</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>循环切换或显式指定当前会话的权限模式。Full 模式会授予广泛的自主执行权限，切勿仅仅为了掩盖报错而切换到 Full。</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>查看或配置策略审查。<code>reload</code> 会为空闲会话重新加载策略文件；仅凭开关处于开启状态并不能证明审查正在生效。</dd></div>
+<div><dt>/set key=value</dt><dd>修改受支持的模型或会话控制项，例如 <code>/set temperature=0.2</code>。清空可选值（如 <code>/set temperature=</code>）会将控制权交还给默认值或提供商。</dd></div>
+</dl>
+<h2 id="files-and-capabilities">文件与扩展能力</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>为下一条消息添加文件附件。发送前请先审阅待发送附件；受支持的文件内容将发送给所选提供商。</dd></div>
+<div><dt>/detach number|all</dt><dd>按序号移除单个待发送附件，或清空全部待发送附件。</dd></div>
+<div><dt>/undo</dt><dd>预览并将符合条件的文件恢复到本次会话首次修改前的状态。注意：此操作可能会覆盖外部编辑器刚刚所做的修改。</dd></div>
+<div><dt>/redo</dt><dd>预览并恢复最近一次撤销（undo）所替换的内容。它不是无限层级的备份历史。</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>管理可用的技能指南。<code>show</code>、<code>enable</code> 和 <code>disable</code> 接收列表中显示的技能 ID。编辑技能文件后可运行 <code>reload</code> 刷新目录。</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>在当前对话中激活某项技能指南。激活指南并不代表自动批准该指南中提到的所有操作。</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>管理外部工具连接。添加或连接前请先审阅服务器、目标地址与访问权限；本地 MCP 服务器可能会直接启动可执行代码。</dd></div>
+</dl>
+<h2 id="views-and-application">视图与应用控制</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>打开设置（Settings）页面。<code>/*</code> 是它的简写别名，键盘快捷键为 Ctrl+G。</dd></div>
+<div><dt>/theme [name]</dt><dd>选择 violet、cyan 或 amber 主题。终端自身的背景色与透明度仍由终端模拟器控制。</dd></div>
+<div><dt>/panel</dt><dd>显示或隐藏对话侧边栏。在较窄的终端窗口中仍可能自动隐藏。</dd></div>
+<div><dt>/verbose</dt><dd>展开或收起工具步骤与思考过程。此开关不会调大工具返回输出的长度上限。</dd></div>
+<div><dt>/help</dt><dd>查阅当前构建版本的命令与键盘快捷键参考。</dd></div>
+<div><dt>/quit</dt><dd>退出 Rune。关闭最后一个窗口会停止正在运行的 AI 任务；已保留的后台进程则有独立的生命周期。</dd></div>
+</dl>
+<p>诸如 <code>rune -config</code> 之类的命令行参数需要在操作系统的终端 shell 中运行，而非输入在斜杠命令面板中；详见<a href="{{url "docs/cli"}}">命令行参考</a>。若想直接从输入框手动执行一条 shell 命令，请以 <code>!</code> 开头输入，详见<a href="{{url "docs/shell"}}">手动命令</a>。</p>
+{{end}}

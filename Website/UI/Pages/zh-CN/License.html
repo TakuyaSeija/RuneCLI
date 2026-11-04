@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>许可证</h1>
+      <p class="article-lead">随每次 RuneAgent 下载附带的协议，此处为便于阅读的译文。具有约束力的仅为英文文本，即每个归档中的 <code>LICENSE.txt</code> 文件和<a href="{{(index .Locales 0).Href}}" hreflang="en" lang="en">英文页面</a>；两者如有出入，以英文文本为准。</p>
+      <p class="meta">2026 年 10 月 29 日起生效。每个版本均受其发布时随附的许可证约束。</p>
+    </header>
+    {{/* A reading translation of LICENSE.txt. Only the English page and file bind (owner, 2026-11-04); the lead says so and a test holds it. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. 授权许可</h2>
+      <p>Atoryn 授予你一项免费、非独占、不可转让的许可，允许你在任意数量的自有设备上下载、安装和使用发布于 {{.Origin}}{{url ""}} 的官方 RuneAgent 二进制程序，可用于个人及商业用途。</p>
+
+      <h2 id="limits">2. 限制条款</h2>
+      <ul>
+        <li>不得出售、出租、出借、转授权或重新分发 RuneAgent（无论是否经过修改）。请引导他人前往官方渠道下载。</li>
+        <li>不得修改、反编译、反汇编或逆向工程 RuneAgent，但适用法律在有此限制的情况下仍明确允许的除外。</li>
+        <li>不得移除或更改任何版权、许可证或署名声明。</li>
+        <li>不得将 RuneAgent、Atoryn 或 Atoryn Studio 的名称或徽标用于你自己的产品，或用于暗示官方背书。</li>
+      </ul>
+
+      <h2 id="work">3. 你的作品归你所有</h2>
+      <p>你使用 RuneAgent 处理的代码、提示词和数据仍归你所有。RuneAgent 不会将它们发送给 Atoryn。你在工作过程中发送给模型提供商、网站或其他第三方服务的任何内容，均适用该第三方的服务条款。</p>
+
+      <h2 id="third">4. 第三方服务</h2>
+      <p>你需自行对所接入的各提供商或服务的账户、API 密钥、所产生的费用以及遵守其服务条款负责。</p>
+
+      <h2 id="components">5. 开源组件</h2>
+      <p>RuneAgent 包含遵循各自许可证的开源组件。相关声明随每个下载包一并提供，这些组件适用其各自的许可证条款。</p>
+
+      <h2 id="warranty">6. 免责声明</h2>
+      <p>RuneAgent 按“原样”提供，不附带任何明示或暗示的担保，包括但不限于对特定用途适用性及不侵权的担保。AI 智能体可能会出错：在依赖其工作成果前，请务必人工审阅。</p>
+
+      <h2 id="liability">7. 责任限制</h2>
+      <p>在法律允许的最大范围内，对于因使用或无法使用 RuneAgent 而导致的任何间接、附带、特殊、后果性或惩罚性损害，或任何数据、利润或业务损失，Atoryn 概不承担责任。</p>
+
+      <h2 id="termination">8. 许可终止</h2>
+      <p>若你违反本许可协议的条款，本许可将自动终止。届时你必须停止使用 RuneAgent 并删除所有副本。</p>
+
+      <h2 id="changes">9. 条款变更</h2>
+      <p>Atoryn 可能会根据不同的条款（包括开源许可证）发布后续版本。你已获取的版本仍适用其随附的许可证。</p>
+
+      <p class="license-copyright">Copyright (c) 2026 Atoryn. All rights reserved.</p>
+    </div>
+    <p class="license-aside">本网站使用的字体遵循各自的许可协议，<a class="link" href="{{asset "Fonts/LICENSES.txt"}}">详见此处</a>。</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="本页目录">
+      <p class="index-title">本页目录</p>
+      <ol>
+        <li><a href="#grant">授权许可</a></li>
+        <li><a href="#limits">限制条款</a></li>
+        <li><a href="#work">你的作品归你所有</a></li>
+        <li><a href="#third">第三方服务</a></li>
+        <li><a href="#components">开源组件</a></li>
+        <li><a href="#warranty">免责声明</a></li>
+        <li><a href="#liability">责任限制</a></li>
+        <li><a href="#termination">许可终止</a></li>
+        <li><a href="#changes">条款变更</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

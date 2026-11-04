@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Localização e escopo</h2>
+<p>A configuração global fica no arquivo <code>rune.toml</code> dentro da pasta de dados selecionada do Rune, normalmente <code>~/.rune/</code>. A <a href="{{url "docs/reference"}}">Referência de configurações</a> lista todas as chaves que ele pode conter. A variável <code>RUNE_HOME</code> seleciona uma pasta de dados diferente. Um arquivo chamado rune.toml dentro de um projeto não se torna automaticamente o arquivo de configurações, e <code>-project</code> escolhe um workspace, não uma pasta de configurações.</p>
+<p>Use <code>rune -config</code> para ver a localização exata. O arquivo guarda apenas as escolhas que você salvou; valores ausentes herdam os padrões atuais. A linha superior <code>version = 1</code> descreve o formato da configuração, não a versão do aplicativo. Não a altere para tentar solicitar uma atualização.</p>
+<h2 id="inspect">Inspecione um item por vez</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Lê o valor efetivo de uma chave, sua descrição e quando ela entra em vigor.</dd></div>
+<div><dt>-config defaults</dt><dd>Lê os padrões de fábrica separadamente das suas escolhas salvas.</dd></div>
+<div><dt>-config check</dt><dd>Valida a sintaxe da configuração e os valores aceitos. Não testa chaves, saldo nem conectividade.</dd></div>
+<div><dt>-config show</dt><dd>Inspeciona a configuração efetiva. Pode conter metadados privados de contas; oculte informações sensíveis antes de compartilhar.</dd></div>
+<div><dt>-settings</dt><dd>Inspeciona os controles do modelo para o workspace selecionado.</dd></div>
+</dl>
+<h2 id="change-and-reset">Alterar e redefinir</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>Execute o comando set apenas quando desejar fazer essa alteração global. O comando reset remove a substituição; ele não grava uma cópia do valor padrão. Em Settings, a opção Use default cumpre a mesma função para valores globais. Chaves desconhecidas ou descontinuadas geram erro, não sendo tratadas silenciosamente como apelidos compatíveis.</p>
+<p>O formato TOML não possui um valor nulo nativo. Remova uma chave opcional ou use o comando reset suportado em vez de escrever <code>null</code>. Não presuma que uma string vazia, “auto”, “none” ou uma lista vazia significam redefinição para todas as configurações.</p>
+<h2 id="types-and-units">Tipos e unidades</h2>
+<dl class="ref">
+<div><dt>Booleano</dt><dd><code>true</code> ou <code>false</code>, sem aspas no TOML.</dd></div>
+<div><dt>Contagem / tokens</dt><dd>Um número inteiro dentro do intervalo aceito pela configuração. Tokens, caracteres e bytes são medidas diferentes.</dd></div>
+<div><dt>Duração</dt><dd>Uma string com unidades explícitas, como <code>"500ms"</code>, <code>"60s"</code> ou <code>"2m"</code>. Apenas os tempos de espera de permissão e de pergunta aceitam unlimited.</dd></div>
+<div><dt>Tamanho</dt><dd>Use unidades binárias explícitas, como <code>"16MiB"</code>. Um tamanho sem unidade é interpretado como KiB, não como bytes.</dd></div>
+<div><dt>Lista</dt><dd>Use exatamente as entradas documentadas. <code>[]</code> representa uma seleção explicitamente vazia, não necessariamente uma redefinição.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>Isto é apenas um exemplo de sintaxe, não uma configuração universal recomendada. O array stop preserva strings exatas, incluindo vírgulas; já o editor da sessão aceita entradas separadas por vírgula. Os padrões globais de geração não sobrescrevem todas as sessões atuais.</p>
+<h2 id="timing-and-risk">Momento de aplicação e riscos</h2>
+<p>As alterações normalmente se propagam sem precisar reiniciar. Use explain para consultar uma configuração específica: valores imediatos (live) e valores aplicados na próxima operação têm comportamentos diferentes. Editar o arquivo CLASSIFIER.md não recarrega uma política já fixada na sessão; use a ação de recarregamento quando a sessão estiver ociosa.</p>
+<p>Mantenha endpoints de contas e credenciais fora de exemplos públicos. Valide edições manuais sem substituir escolhas não relacionadas. Limites mais altos podem aumentar o uso de memória, disco, contexto e custo; eles não concedem acesso nem fazem um modelo incompatível funcionar.</p>
+{{end}}

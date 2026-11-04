@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Controles para esta sesión</h2>
+<p>Settings → Generation controla la sesión y el modelo activos. Los valores opcionales se pueden vaciar para devolver el control al proveedor o al valor inicial predeterminado. Los valores iniciales globales definidos en rune.toml son independientes de las opciones elegidas en las sesiones existentes. Los controles no admitidos por un modelo pueden no mostrarse.</p>
+<h2 id="reasoning">Razonamiento y esfuerzo</h2>
+<p>Usa Generation, <code>/thinking</code> o Alt+T para elegir entre los niveles de razonamiento que ofrece el modelo seleccionado. En cambio, Models → Alt+C configura el comportamiento inicial persistente y las opciones disponibles. La etiqueta Thinking en una lista de modelos indica compatibilidad, no que esté activado actualmente.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Solicita desactivar el razonamiento. No garantiza que el proveedor o enrutador remoto aplique cero razonamiento.</dd></div>
+<div><dt>On / esfuerzo</dt><dd>Activa el razonamiento compatible o selecciona uno de los niveles ofrecidos. Un esfuerzo mayor puede aumentar la latencia y el coste en tokens sin garantizar una respuesta mejor.</dd></div>
+<div><dt>Route default</dt><dd>Cuando se ofrece, deja el control del razonamiento en manos de la ruta. No equivale ni a Off ni a un nivel concreto de esfuerzo.</dd></div>
+</dl>
+<p>En 9router, si una ruta informa explícitamente de que el razonamiento no puede desactivarse, recibe Low cuando solicitas Off; Minimal queda excluido de las opciones efectivas aunque figure en un ajuste guardado anteriormente. Las rutas que sí permiten desactivar el razonamiento reciben la solicitud de desactivación, aunque el ejecutor final puede modificarla igualmente. Lee la explicación situada junto al control en lugar de deducir el comportamiento a partir del identificador del modelo.</p>
+<p>El razonamiento mostrado como texto se contabiliza en palabras; si una ruta informa de los tokens de razonamiento consumidos, pueden mostrarse esos tokens en su lugar. Rune nunca inventa una estimación de tokens. Que no aparezca texto de razonamiento visible tampoco demuestra que estuviera desactivado, ya que algunos puntos de conexión no lo devuelven.</p>
+<h2 id="sampling">Muestreo</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Control</th><th>Propósito y rango habitual</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Aleatoriedad, habitualmente entre 0 y 2. Un valor bajo no garantiza respuestas idénticas.</td></tr>
+<tr><td>Top P</td><td>Muestreo por núcleo, habitualmente entre 0,01 y 1. Suele ajustarse este valor o la temperatura, pero no ambos a la vez.</td></tr>
+<tr><td>Frequency penalty</td><td>Reduce la repetición de los mismos tokens, habitualmente entre −2 y 2; los valores negativos fomentan la repetición.</td></tr>
+<tr><td>Presence penalty</td><td>Reduce la repetición de los mismos temas, habitualmente entre −2 y 2.</td></tr>
+</tbody></table></div>
+<p>El rango realmente admitido depende del modelo y del punto de conexión. Activar el razonamiento puede hacer que algunos controles de muestreo no estén disponibles temporalmente. Aplicar penalizaciones o niveles de aleatoriedad excesivos puede restar utilidad a las respuestas.</p>
+<h2 id="output">Salida y secuencias de parada</h2>
+<p>Max output define un límite máximo de tokens enteros positivos para la respuesta, dentro del límite conocido del modelo. El razonamiento puede consumir parte de ese margen antes de producir la respuesta final. Un límite demasiado bajo puede dejar la respuesta incompleta; un margen mayor puede permitir un gasto superior. Omitir este valor no significa disponer de una salida ilimitada.</p>
+<p>Puedes definir hasta cuatro cadenas de parada para finalizar la generación. El editor de la sesión acepta entradas separadas por comas; en cambio, un array en TOML conserva las cadenas exactas, incluidas las comas que formen parte de una entrada. Una cadena de parada que coincida con código habitual puede cortar una respuesta antes de tiempo.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>El primer ejemplo establece una preferencia para la sesión; el segundo borra esa elección opcional. Los controles de modelos auxiliares situados más abajo en Generation son globales y se explican en el <a href="{{url "docs/auxiliary"}}">artículo siguiente</a>.</p>
+{{end}}

@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">添加模型提供商</h2>
+<p>提供商（provider）即负责响应 Rune 模型请求的服务端账户。Rune 本身不内置账户，也不附带任何预置 API 额度：每次请求均直接发送给你所接入的提供商，并由其计费。</p>
+<ol>
+<li>按 <kbd>Ctrl+G</kbd>，打开 <strong>Connections</strong> 并选择 <strong>Add connection</strong>。</li>
+<li>在 <strong>MODEL PROVIDERS</strong> 下选择对应的提供商预设；若接入其他兼容 OpenAI 协议的接口，请选择 <strong>compatible</strong>。</li>
+<li>如果所选预设没有固定接口地址，请先输入你的接口地址；随后将 API 密钥粘贴到带掩码的输入框中并按 <kbd>Enter</kbd>。</li>
+<li>在保存连接前，Rune 会发送一次真实请求来验证账户。该请求可能会产生计费，并会向提供商发送简短的测试文本。</li>
+<li>打开 <strong>Models</strong>，选择该提供商并按 <kbd>Enter</kbd> 选定一个模型。</li>
+</ol>
+<p>成功保存连接证明该账户完成了一次响应，但并不代表该提供商列表中的每一个模型都对你的账户开放。API 密钥在你的电脑上加密存储，详见<a href="{{url "docs/credentials"}}">凭据加密</a>。</p>
+
+<h2 id="presets">全部受支持的预设</h2>
+<p>Rune 内置了 31 种提供商预设。预设会自动填好接口地址与请求协议格式，你只需提供密钥即可。对于具有已知固定前缀格式的密钥，Rune 会在发送请求前先校验密钥格式。</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>预设名称</th><th>所需密钥</th><th>默认接口地址</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>OpenAI 密钥，<code>sk-…</code></td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>Anthropic 密钥，<code>sk-ant-…</code></td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>Google AI Studio 密钥，<code>AIza…</code> 或 <code>AQ.…</code></td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>xAI 密钥，<code>xai-…</code></td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>DeepSeek 密钥，<code>sk-…</code></td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>Mistral 密钥</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>Groq 密钥，<code>gsk_…</code></td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>OpenRouter 密钥，<code>sk-or-…</code></td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>Moonshot AI (Kimi) 密钥</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>MiniMax 密钥</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>Z.ai 标准 API 密钥（非 Coding Plan 密钥）</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>Meta Model API 密钥</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>StepFun（阶跃星辰）密钥</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>Ant Ling（蚂蚁百灵）API 密钥</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>小米 MiMo 密钥：按量计费为 <code>sk-…</code>，Token Plan 为 <code>tp-…</code></td><td>根据密钥类型自动选择</td></tr>
+<tr><td><code>nvidia</code></td><td>NVIDIA 密钥，<code>nvapi-…</code></td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>Cerebras 密钥，<code>csk-…</code></td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>Hugging Face 令牌，<code>hf_…</code></td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>Fireworks AI 密钥</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>Together AI 密钥</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>SiliconFlow（硅基流动）密钥</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>DeepInfra 密钥</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>Novita AI 密钥</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>Inference.net 密钥</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>来自 tokenrouter.com 的 TokenRouter 密钥</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>与接口地址同一地域的百炼（Model Studio）密钥</td><td>你工作区所属地域的兼容模式地址</td></tr>
+<tr><td><code>tencent</code></td><td>与接口地址同一站点的 TokenHub 密钥</td><td>你所属地域的 TokenHub 地址</td></tr>
+<tr><td><code>cloudflare</code></td><td>具备 Workers AI 权限的 API 令牌</td><td>包含你账户 ID 的专属地址</td></tr>
+<tr><td><code>ollama</code></td><td>无需密钥：Ollama 运行在本机</td><td>本机，端口 11434</td></tr>
+<tr><td><code>9router</code></td><td>9router 密钥（若 9router 未设密钥则留空）</td><td>运行在本机的 9router 应用，端口 20128</td></tr>
+<tr><td><code>compatible</code></td><td>目标接口的密钥（若无需密钥则留空）</td><td>你输入的任意 OpenAI 兼容接口地址</td></tr>
+</tbody>
+</table></div>
+<p>上表的“默认接口地址”列出了各预设在不修改地址时使用的主机名。在地址字段上选择 Use default 可恢复为预设自带的地址。遇到请求失败时请先阅读报错信息，不要盲目猜测并替换其他地址。</p>
+
+<h2 id="provider-notes">各提供商使用说明</h2>
+<p>不同提供商和不同模型的推理控制方式各有差异。以下说明列出了 Rune 实际发送的参数行为；上游提供商仍可能自行调整模型的具体执行方式。你可以在 Models 页面对模型按 <kbd>Alt+C</kbd> 配置可选推理级别，详见<a href="{{url "docs/generation"}}">生成与推理</a>。</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>请使用阿里云百炼（Model Studio）对应工作区与地域的兼容模式地址，并搭配同一地域的密钥。思考模式仅支持开启（on）或关闭（off），不区分强度级别。对于始终强制思考的模型，切勿将其配置为可选 Off，否则服务端会拒绝请求。百炼上的 GLM 模型需要传入 Rune 未发送的特定专有参数才会返回工具调用，建议通过 Z.ai 调用 GLM 模型。</dd></div>
+<div><dt>cerebras</dt><dd>各模型的推理级别不尽相同，且服务端模型列表不会直接返回这些级别。<code>gpt-oss-120b</code> 与 <code>qwen-3.8-27b</code> 支持 Low、Medium 和 High，可通过 <kbd>Alt+C</kbd> 手动添加。</dd></div>
+<div><dt>cloudflare</dt><dd>即 Workers AI。接口地址中包含你的账户 ID，密钥需使用具备 Workers AI 访问权限的 API 令牌（而非 Tunnel 令牌）。可用模型从你账户的模型列表中读取。</dd></div>
+<div><dt>compatible</dt><dd>任意兼容 OpenAI 协议的接口。Rune 不会对其模型能力做任何预设假设：请对照该接口自身的文档，使用 <kbd>Alt+C</kbd> 设置上下文窗口、输出上限及推理选项。</dd></div>
+<div><dt>deepinfra</dt><dd>其模型列表会返回价格并标记支持推理的模型。推理级别为 Low、Medium 和 High；未显式选择级别时使用模型自身的默认设置。</dd></div>
+<div><dt>fireworks</dt><dd>推理级别涵盖 Low 到 Max。若某个模型仅支持其中部分级别，可通过 <kbd>Alt+C</kbd> 调整。</dd></div>
+<div><dt>huggingface</dt><dd>接入 Inference Providers 路由服务，需使用具备调用 Inference Providers 权限的令牌。具体由哪家后端服务商承载某模型及其支持的特性，取决于该模型与路由组合。</dd></div>
+<div><dt>inclusionai</dt><dd>通过蚂蚁集团百灵（Ling）API 调用 InclusionAI 的 Ling 系列模型。3.0 和 3.1 系列模型仅支持开启或关闭思考，不区分级别。若为你自行托管的 Ling 服务，请使用 <code>compatible</code> 预设添加。</dd></div>
+<div><dt>inference</dt><dd>其模型列表会直接声明每个模型支持的思考级别，Rune 会原样提供这些选项。</dd></div>
+<div><dt>meta</dt><dd>接入 Meta Model API（非 Meta AI 聊天网页版登录）。推理级别从 Minimal 到 Extra high。Muse Spark 模型始终启用推理，且会拒绝 Off 请求与停止词（stop words），因此在 Generation 中请将 Stop 留空。</dd></div>
+<div><dt>mimo</dt><dd>按量计费密钥与 Token Plan 密钥对应不同的接口地址；Rune 会根据你输入的密钥前缀自动匹配地址。</dd></div>
+<div><dt>minimax</dt><dd>Rune 会请求将思考过程与正文回答分离返回。目前仅 <code>MiniMax-M3.1-Flash</code> 支持推理强度级别（Low 到 Max），可通过 <kbd>Alt+C</kbd> 添加。请勿为 MiniMax 模型配置 Off 选项。</dd></div>
+<div><dt>moonshot</dt><dd>即 Kimi。<code>kimi-k3</code> 支持 Low、High 和 Max 级别（可通过 <kbd>Alt+C</kbd> 添加）；<code>kimi-k2</code> 系列不设强度级别。请勿为 Kimi 模型配置 Off 选项。</dd></div>
+<div><dt>novita</dt><dd>在同时支持思考开关的模型上，思考模式仅分开启或关闭，不设强度级别。单价直接从其模型列表中读取。</dd></div>
+<div><dt>nvidia</dt><dd>托管版 NIM API。各模型的思考控制方式不同且未在服务端列表中标出，请对照对应模型的文档卡片逐个配置。自托管 NIM 请填入你自己的服务地址。</dd></div>
+<div><dt>openrouter</dt><dd>单个账户即可调用众多不同价格与配额的模型。请准确选择目标模型并核对其当前单价。</dd></div>
+<div><dt>siliconflow</dt><dd>默认使用国际站地址；<code>.cn</code> 国内站账户请填入对应的国内站地址与密钥。对于 SiliconFlow 标记支持思考开关的模型，可切换思考开启或关闭。注意：<code>deepseek-ai/DeepSeek-V3.1</code> 仅在关闭思考（off）时才支持工具调用。</dd></div>
+<div><dt>stepfun</dt><dd>推理级别为 Low、Medium 和 High。其中 <code>step-3.5-flash-2603</code> 仅支持 Low 与 High，请通过 <kbd>Alt+C</kbd> 为其移除 Medium。</dd></div>
+<div><dt>tencent</dt><dd>腾讯混元正在迁移至 TokenHub：请输入输入框旁提示的对应地域 TokenHub 地址，并搭配同一地域的密钥。思考模式支持开关及 Low、Medium、High 三个级别。TokenHub 代托管的部分第三方厂商模型会拒绝 Off 请求。</dd></div>
+<div><dt>together</dt><dd>其模型列表提供单价信息，但不包含思考级别元数据：请根据模型文档使用 <kbd>Alt+C</kbd> 手动添加支持的级别。</dd></div>
+<div><dt>tokenrouter</dt><dd>指位于 tokenrouter.com 的 TokenRouter 服务。其他域名上的同名或近似名称服务属于不同公司，各自使用不同的接口地址。</dd></div>
+<div><dt>zai</dt><dd>Z.ai 标准 API。Coding Plan 套餐拥有独立的密钥、接口地址和受支持工具列表。推理级别从 Minimal 到 Max，未指定时默认使用服务端默认值（Max）。<code>glm-5.3</code> 始终开启思考且仅接受 Low、High 和 Max。停止序列最多只接受 1 个停止词。</dd></div>
+</dl>
+
+<h2 id="on-this-computer">本机运行的模型服务</h2>
+<p><strong>Ollama</strong> 在本机 11434 端口提供本地模型推理服务，无需密钥。注意这与 Ollama 的云端网页搜索服务不同。使用本地模型可将提示词留在你的电脑上，但网页工具、辅助任务和终端命令仍可能访问外部网络服务。</p>
+<p><strong>9router</strong> 是运行在你电脑上的本地路由应用（默认监听 20128 端口），负责将请求转发给由你在其中配置的上游账户。只需在 Rune 中添加一次连接，即可使用它提供的所有模型。对于 Claude Code 系列模型（<code>cc/…</code>），Rune 会自动走 9router 的 Anthropic 原生协议接口，从而准确获取缓存与思考 token 统计，无需额外配置。Off 仅代表关闭推理请求：当某条路由声明无法关闭思考时，选择 Off 会自动改为请求 Low 级别。</p>
+<p>预设中的本机地址只是默认端口配置，并不代表相关服务已经在你的电脑上运行。请先启动对应的本地服务，Rune 的连接测试会告诉你服务是否正常响应。</p>
+
+<h2 id="keys">密钥环与账户管理</h2>
+<p>单个连接下可以保存多把密钥。运行 <code>rune -provider keys &lt;name&gt;</code> 可查看脱敏后的密钥列表，Connections 页面也可在不暴露明文的情况下管理它们。当某把密钥返回余额不足错误时，Rune 会让该密钥冷却休息 15 分钟，并自动切换使用该连接下的其他可用密钥；详见<a href="{{url "docs/runtime"}}">运行时与重试</a>。</p>
+<p>移除连接会删除其账户配置，但关联的密钥仍可能保留在加密凭据库中供日后复用；若需彻底删除某把密钥，请显式执行删除密钥操作。API 密钥绝不会通过明文 HTTP 发送给其他机器。</p>
+
+<h2 id="choose-a-model">选择模型</h2>
+<p>Settings → Models 会列出已接入提供商返回的模型，并支持手动刷新列表。按 <kbd>Enter</kbd> 即可选定模型，也可直接在对话中输入 <code>/model provider:id</code>。在模型条目上按 <kbd>Alt+C</kbd> 可编辑 Rune 记录的模型元数据：上下文窗口大小、输出上限、可选推理级别以及单价。你填入的单价仅用于计算侧边栏显示的估算花费，不等同于提供商的正式账单。</p>
+<p>Models → New-session fallback 用于指定新建会话默认使用的初始提供商，不会切换已打开的现有对话；若要在当前会话中切换，请使用 <code>/provider</code> 或 <code>/model</code>。</p>
+{{end}}

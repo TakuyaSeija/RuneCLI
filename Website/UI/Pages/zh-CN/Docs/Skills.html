@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="what-a-skill-is">技能（Skill）是一份操作指南</h2>
+<p>技能（Skill）用于封装特定任务的可复用指令与参考资料。它只是一份文本指南，而非可执行权限许可。智能体可以按需发现相关技能并读取其 <code>SKILL.md</code>，你也可以在对话中显式激活某项技能。采纳他人编写的技能指南和脚本前，请先自行审阅内容。</p>
+<h2 id="discover-and-use">发现与使用技能</h2>
+<dl class="ref">
+<div><dt>/skills list</dt><dd>列出当前可用的技能指南及其准确 ID。</dd></div>
+<div><dt>/skills show &lt;id&gt;</dt><dd>查看指定技能指南的详细信息。</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>在当前对话中激活某项技能指南。指南中的文本无法自动批准无关操作，也无法绕过底层执行检查。</dd></div>
+<div><dt>/skills enable|disable &lt;id&gt;</dt><dd>在当前项目中启用或禁用某项技能；不会为所有用户或所有项目卸载该技能。</dd></div>
+<div><dt>/skills reload</dt><dd>修改技能文件后刷新技能目录。在依赖修改后的指南前，请先让模型重新读取。</dd></div>
+</dl>
+<h2 id="locations-and-install">存放位置与安装更新</h2>
+<p>项目级技能存放在 <code>.rune/skills/&lt;name&gt;/SKILL.md</code>；跨工具通用的项目级技能也可放在 <code>.agents/skills/</code> 下。个人级技能存放在当前选定的 Rune 主目录下的 skills 文件夹中（启用通用个人路径时也支持对应目录）。</p>
+<p>运行 <code>rune -skills install &lt;folder-or-zip&gt;</code> 会将已审阅的技能包安装到当前项目的 <code>.rune/skills/</code> 目录下，使其仅服务于当前项目而不会混入其他项目；该目录会与使用该项目文件（包括代码仓库）的所有成员共享。添加 <code>--scope user</code> 标志可将其安装为在所有项目中均可见的个人级技能。<code>rune -skills update &lt;folder-or-zip&gt;</code> 会按相同作用域直接替换已安装的副本，且不保留旧版本备份，因此请自行保留源文件或配合版本控制使用。每个技能包拥有独立的小写名称与同名文件夹、包含 <code>name</code> / <code>description</code> 元数据的 <code>SKILL.md</code>，以及可选的相对路径参考文件。安装与更新技能应经过人工审阅，切勿盲目信任下载的外部文本。</p>
+<h2 id="catalogue">AI 如何看到你的技能</h2>
+<p>Rune 不会把所有技能指南的全文一次性塞给 AI。AI 在初始上下文中只会收到一份简短的可用技能目录（包含技能名称与单行简介），唯有在真正需要用到某项技能时才会去读取完整指南。该技能目录默认限制为 8 KiB 文本（由 <code>skills.max_catalog_size</code> 控制）；超出该配额而未放入初始摘要的技能依然保持可发现状态，AI 仍可通过搜索找到并读取它。注意该限制的单位是 UTF-8 字节数，而非模型 token 数。如果你保存了 <code>capabilities.catalog_bytes</code> 覆盖值，则以该覆盖值为准。</p>
+<p>可通过 <code>rune -config set skills.max_catalog_size 16KiB</code> 修改目录配额，或通过 <code>rune -config reset skills.max_catalog_size</code> 恢复默认值。调大目录配额会在每次模型请求中占用更多上下文空间。</p>
+<h2 id="official-help">内置离线设置指南</h2>
+<p>Rune 内置了官方的设置指南技能（<code>rune-settings-guide</code>），无需额外下载或配置服务账户即可离线使用。若这份受托管的官方指南文件被意外修改或损坏，系统会自动修复还原。如有自定义需求，请另行创建个人级或项目级技能，不要直接编辑内置的托管副本。</p>
+<p>名称 <code>rune-settings-guide</code> 为官方内置帮助保留：任何外部技能包都无法使用该名称安装或更新，同名副本也绝不会顶替它（在列表中会显示为 shadowed 被遮蔽状态）。其余普通技能若在不同作用域下出现重名，则以项目级副本优先；请使用列表中显示的完整 ID 加以区分。禁用扩展能力或禁用该指南也会使内置帮助不可用，但这并不代表当前安装的程序缺少相关功能。</p>
+{{end}}

@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="inspect-changes">Inspecter les modifications réelles</h2>
+<p>Le panneau latéral affiche les différences actuelles pour les fichiers suivis par la session. Les compteurs de lignes ajoutées et supprimées comparent le contenu réel ; ils ne font pas la somme des intitulés de chaque étape d’édition. Des modifications successives peuvent s’annuler mutuellement, et le simple nombre de lignes affiché par un outil ne remplace pas une vraie relecture.</p>
+<p>Examinez le diff et relancez les vérifications pertinentes avant de conserver le résultat. Une commande qui réussit prouve uniquement ce que cette commande a testé. Rune n’effectue aucun commit automatique de votre travail, et la restauration de fichiers ne remplace ni un gestionnaire de versions ni une sauvegarde cohérente.</p>
+<h2 id="restore-a-file">Restaurer un fichier</h2>
+<ol><li>Attendez que le travail touchant ce fichier soit terminé.</li><li>Ouvrez <code>/undo</code> et sélectionnez le fichier souhaité. Utilisez l’action d’affichage du diff proposée, notamment Alt+S dans la liste, pour lire exactement ce qui va changer.</li><li>Lancez la demande de confirmation avec Entrée et confirmez dans le délai affiché uniquement après avoir vérifié le contenu actuel.</li><li>Vérifiez le fichier restauré ainsi que les éléments qui en dépendent.</li></ol>
+<p>La fonction d’annulation restaure le fichier à son état d’avant la toute première modification de cette session, et <strong>pas seulement avant le dernier patch</strong>. Elle peut écraser des modifications effectuées en dehors de Rune après la prise de cet instantané. Une restauration est une véritable modification de fichier et est enregistrée comme telle.</p>
+<h2 id="redo">Le rétablissement est limité</h2>
+<p>La commande <code>/redo</code> peut rétablir ce que la dernière annulation a remplacé. Relisez-en les effets de la même manière. Il ne s’agit pas d’un historique illimité de versions arbitraires et vous ne devez pas vous reposer uniquement sur cette commande comme plan de reprise.</p>
+<h2 id="limits">Ce que la restauration ne peut pas garantir</h2>
+<p>Les instantanés de fichiers n’annulent ni un déploiement distant, ni une transaction de base de données sur un service externe, ni l’envoi d’un e-mail, ni l’installation d’un paquet, ni l’ensemble des effets d’une commande arbitraire. Les fichiers situés en dehors du périmètre protégé et suivi ainsi que les modifications effectuées par d’autres programmes nécessitent leur propre stratégie de sauvegarde. Vérifiez toujours la liste réelle des fichiers suivis plutôt que de supposer que toute la machine est couverte.</p>
+<p>La taille maximale par défaut d’un fichier protégé est de 64 MiB. Une écriture éligible dépassant cette limite échoue avant toute modification du fichier au lieu de s’exécuter sans protection. Augmenter cette limite consomme davantage d’espace disque ; la réduire peut bloquer certaines écritures. Ne considérez jamais un effet secondaire externe non protégé comme annulable.</p>
+<h2 id="advanced-options">Options avancées</h2>
+<dl class="ref">
+<div><dt>checkpoint.max_file_size</dt><dd>Taille maximale par défaut de 64 MiB pour l’instantané d’un fichier éligible.</dd></div>
+<div><dt>checkpoint.refresh_interval</dt><dd>Cadence de rafraîchissement par défaut de 1 seconde pour les fichiers déjà suivis, configurable de 100 ms à 1 minute.</dd></div>
+<div><dt>checkpoint.diff.context</dt><dd>Trois lignes de contexte autour des modifications par défaut, configurable de 0 à 100.</dd></div>
+<div><dt>checkpoint.diff.max_cells</dt><dd>Budget de calcul de comparaison, fixé à 1 000 000 par défaut. Ce paramètre agit sur la stratégie de calcul du diff, et non sur l’accès aux fichiers ni sur le nombre de modifications autorisées.</dd></div>
+</dl>
+<p>Il s’agit de clés de configuration avancées qui ne possèdent pas de ligne dédiée dans Settings. Inspectez une option avec <code>rune -config explain &lt;key&gt;</code> ; réinitialisez-la avec <code>rune -config reset &lt;key&gt;</code>.</p>
+{{end}}

@@ -4,17 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{.Page.Title}}</title>
-  <meta name="description" content="{{.Page.Lead}}">
+  <meta name="description" content="{{meta .Page.Lead}}">
   {{- if not .Indexing}}
   <meta name="robots" content="noindex, nofollow">
   {{- end}}
   <link rel="canonical" href="{{.Canonical}}">
+  {{if ne .Page.Route "-"}}{{range .Locales}}<link rel="alternate" hreflang="{{.Code}}" href="{{$.Origin}}{{.Href}}">
+  {{end}}<link rel="alternate" hreflang="x-default" href="{{.Origin}}{{(index .Locales 0).Href}}">{{end}}
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0a0908">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Atoryn Studio">
   <meta property="og:title" content="{{.Page.Title}}">
-  <meta property="og:description" content="{{.Page.Lead}}">
+  <meta property="og:description" content="{{meta .Page.Lead}}">
   <meta property="og:url" content="{{.Canonical}}">
   <link rel="icon" type="image/png" sizes="96x96" href="{{asset "Images/Icon.png"}}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{asset "Images/Icon-32.png"}}">
@@ -40,6 +42,15 @@
         <span class="brand-name-wrap"><span class="brand-name">RuneAgent</span><span class="brand-by">Atoryn Studio</span></span>
       </a>
       <nav class="nav" aria-label="Main">
+        <details class="lang-switch">
+          <summary class="lang-trigger" aria-label="Language: English">
+            <svg class="lang-chevron" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 3.5L5.5 8l4.5 4.5"/></svg>
+            <span class="lang-current" translate="no">{{.Locale.Name}}</span><span class="lang-code" translate="no" aria-hidden="true">{{.Locale.Short}}</span>
+          </summary>
+          <div class="lang-menu" role="region" aria-label="Language">
+          {{range .Locales}}<a class="lang-item" href="{{.Href}}" hreflang="{{.Code}}" lang="{{.Code}}"{{if .Current}} aria-current="true"{{end}} translate="no">{{.Name}}</a>{{end}}
+          </div>
+        </details>
         <a class="nav-link" href="{{url "docs"}}"{{if .Page.Section}} aria-current="page"{{end}}>Docs</a>
         <a class="nav-link" href="{{url "install"}}">Install</a>
       </nav>

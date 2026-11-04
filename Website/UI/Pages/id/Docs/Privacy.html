@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Berjalan di mesin lokal bukan berarti luring</h2>
+<p>Rune berjalan di komputer Anda dan menyimpan pengaturan, sesi, serta data proyek secara lokal. Aplikasi ini tidak memerlukan akun Atoryn dan tidak mengumpulkan telemetri produk. Namun, aplikasi tetap melakukan permintaan jaringan yang diperlukan oleh akun penyedia, katalog, model, dan perangkat yang Anda gunakan.</p>
+<p>Menggunakan model jarak jauh berarti mengirim isi permintaan yang relevan ke penyedia tersebut. Menjalankan program secara lokal bukanlah jaminan bahwa seluruh kode Anda tidak pernah keluar dari mesin. Untuk pekerjaan yang sensitif, periksa alamat tujuan, konfigurasi model, berkas yang dilampirkan, dan kebijakan penyimpanan data milik penyedia yang bersangkutan.</p>
+<h2 id="what-is-sent">Apa saja yang dapat dikirim ke luar</h2>
+<dl class="ref">
+<div><dt>Model utama</dt><dd>Prompt Anda, konteks percakapan yang dipilih, deklarasi serta hasil perangkat, dan lampiran yang didukung yang diperlukan untuk permintaan tersebut.</dd></div>
+<div><dt>Model bantu (Auxiliary)</dt><dd>Materi yang relevan untuk peninjauan kebijakan, ekstraksi instruksi, pembuatan ringkasan, atau pembuatan judul sesi. Jika Anda mengonfigurasi penyedia terpisah untuk model bantu, penyedia itulah yang menerima bagian data tersebut.</dd></div>
+<div><dt>Layanan pencarian dan halaman web</dt><dd>Kueri pencarian, atau alamat halaman target beserta permintaan khusus layanan tersebut. Pengambilan halaman bawaan menghubungi situs target secara langsung.</dd></div>
+<div><dt>MCP dan perintah shell</dt><dd>Data yang diteruskan ke perangkat eksternal atau program yang dijalankan. Perilaku jaringan dan kebijakan penyimpanan data dari program-program tersebut berada di luar kendali klaim “agen lokal”.</dd></div>
+<div><dt>Pengujian akun dan katalog</dt><dd>Permintaan autentikasi/pengujian koneksi dan permintaan daftar informasi model. Permintaan pengujian dapat dikenai biaya.</dd></div>
+</dl>
+<p>Memilih endpoint lain adalah keputusan perutean data. Penyedia layanan web yang Anda pilih secara eksplisit tidak akan diam-diam dialihkan ke pihak ketiga lain apabila sedang tidak tersedia.</p>
+<h2 id="what-is-kept">Apa yang disimpan secara lokal</h2>
+<p>Folder home Rune yang dipilih menyimpan berkas konfigurasi, kredensial terenkripsi, data percakapan dan proyek, memori proyek, serta data pemulihan berkas yang memenuhi syarat. Berpindah ruang kerja tidak menghapus riwayatnya. Dengan demikian, sebuah sesi tetap menyimpan prompt pribadi dan keluaran perangkat setelah Anda selesai bekerja.</p>
+<p>Peringkasan (compaction) hanya memadatkan konteks yang dikirim ke model, bukan menghapus data secara permanen dari disk. Penghapusan sesi dan pemangkasan penyimpanan (storage prune) adalah tindakan pemeliharaan eksplisit yang harus Anda jalankan sendiri. Menghapus koneksi penyedia juga bukan jaminan bahwa seluruh kredensial atau metadata permintaan di riwayat telah terhapus sepenuhnya.</p>
+<h2 id="sharing-diagnostics">Membagikan data diagnostik</h2>
+<p>Log, tampilan konteks, pratinjau permintaan (dry run), dan hasil cetak konfigurasi efektif dapat memuat potongan kode pribadi, path direktori, nama akun, atau deskripsi pekerjaan Anda. Penyamaran kredensial otomatis membantu menyembunyikan rahasia yang sudah dikenal Rune, namun bukan jaminan bahwa setiap teks rahasia pasti terhapus.</p>
+<p>Bagikan hanya cuplikan terkecil yang relevan setelah Anda memeriksanya sendiri. Jangan pernah menempelkan kunci API asli ke dalam chat, repositori Git, atau laporan bug publik. Gunakan metadata kunci yang telah disamarkan dan langkah reproduksi minimal alih-alih membagikan seluruh isi folder data Anda.</p>
+<h2 id="your-controls">Kendali di tangan Anda</h2>
+<p>Pilih ruang kerja dan mode izin yang tepat, lampirkan hanya berkas yang diperlukan, periksa endpoint akun, dan gunakan pengaturan retensi data serta batas anggaran di sisi penyedia bila diperlukan. Menggunakan model lokal dapat mencegah pengiriman kode ke penyedia model jarak jauh, tetapi perangkat web, rute model bantu, atau perintah shell masih dapat menghubungi layanan luar.</p>
+<p>Flag <code>-read-only</code> membatasi perangkat yang mengubah berkas, tetapi tidak menghentikan pembacaan berkas maupun pengiriman data melalui jaringan. Peringatan biaya bukanlah batas penghenti otomatis. Fitur undo memulihkan berkas lokal yang memenuhi syarat, namun tidak dapat menarik kembali informasi yang sudah telanjur dikirim ke penyedia eksternal.</p>
+{{end}}

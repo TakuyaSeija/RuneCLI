@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">Añadir un proveedor</h2>
+<p>Un proveedor es la cuenta que responde a las solicitudes de modelos de Rune. Rune no incluye ninguna cuenta ni crédito de API propio: cada solicitud se envía al proveedor que conectes y es facturada por él.</p>
+<ol>
+<li>Pulsa <kbd>Ctrl+G</kbd>, abre <strong>Connections</strong> y elige <strong>Add connection</strong>.</li>
+<li>En <strong>MODEL PROVIDERS</strong>, selecciona el perfil predefinido de tu proveedor, o bien <strong>compatible</strong> para cualquier otro punto de conexión compatible con OpenAI.</li>
+<li>Si el perfil no tiene una dirección fija, introduce primero tu dirección. Después, pega la clave de API en el campo oculto y pulsa <kbd>Enter</kbd>.</li>
+<li>Rune envía una solicitud real para comprobar la cuenta antes de guardar la conexión. Esa solicitud puede facturarse y envía texto de prueba al proveedor.</li>
+<li>Abre <strong>Models</strong>, elige el proveedor y selecciona un modelo con <kbd>Enter</kbd>.</li>
+</ol>
+<p>Guardar una conexión demuestra que la cuenta respondió una vez, pero no garantiza que todos los modelos de la lista del proveedor estén disponibles para tu cuenta. Las claves se almacenan cifradas en tu ordenador; consulta <a href="{{url "docs/credentials"}}">Credenciales</a>.</p>
+
+<h2 id="presets">Todos los perfiles predefinidos</h2>
+<p>Rune reconoce 31 proveedores. Cada perfil predefinido rellena la dirección del proveedor y el formato de sus solicitudes; tú solo tienes que aportar la clave. Cuando la clave tiene un formato conocido, Rune comprueba ese formato antes de enviar nada.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Perfil</th><th>Clave</th><th>Dirección</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>Clave de OpenAI, <code>sk-…</code></td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>Clave de Anthropic, <code>sk-ant-…</code></td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>Clave de Google AI Studio, <code>AIza…</code> o <code>AQ.…</code></td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>Clave de xAI, <code>xai-…</code></td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>Clave de DeepSeek, <code>sk-…</code></td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>Clave de Mistral</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>Clave de Groq, <code>gsk_…</code></td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>Clave de OpenRouter, <code>sk-or-…</code></td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>Clave de Moonshot AI (Kimi)</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>Clave de MiniMax</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>Clave de API estándar de Z.ai, no una clave de Coding Plan</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>Clave de Meta Model API</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>Clave de StepFun</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>Clave de API de Ant Ling</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>Clave de Xiaomi MiMo: <code>sk-…</code> para pago por uso, <code>tp-…</code> para un Token Plan</td><td>Se elige según el tipo de clave</td></tr>
+<tr><td><code>nvidia</code></td><td>Clave de NVIDIA, <code>nvapi-…</code></td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>Clave de Cerebras, <code>csk-…</code></td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>Token de Hugging Face, <code>hf_…</code></td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>Clave de Fireworks AI</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>Clave de Together AI</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>Clave de SiliconFlow</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>Clave de DeepInfra</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>Clave de Novita AI</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>Clave de Inference.net</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>Clave de TokenRouter de tokenrouter.com</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>Clave de Model Studio de la misma región que la dirección</td><td>La dirección de modo compatible de tu espacio de trabajo</td></tr>
+<tr><td><code>tencent</code></td><td>Clave de TokenHub del mismo sitio que la dirección</td><td>La dirección de TokenHub de tu región</td></tr>
+<tr><td><code>cloudflare</code></td><td>Token de API con acceso a Workers AI</td><td>Una dirección que incluye tu identificador de cuenta</td></tr>
+<tr><td><code>ollama</code></td><td>Ninguna: Ollama se ejecuta en este ordenador</td><td>Este ordenador, puerto 11434</td></tr>
+<tr><td><code>9router</code></td><td>Clave de 9router, o ninguna si 9router no la pide</td><td>La aplicación 9router en este ordenador, puerto 20128</td></tr>
+<tr><td><code>compatible</code></td><td>La clave del punto de conexión, o ninguna si no la necesita</td><td>Cualquier dirección compatible con OpenAI que introduzcas</td></tr>
+</tbody>
+</table></div>
+<p>La columna de dirección muestra el servidor que utiliza cada perfil a menos que lo cambies. Usar Use default sobre el campo de dirección restaura la dirección propia del perfil. No intentes adivinar otra dirección tras un fallo; lee antes el mensaje de error.</p>
+
+<h2 id="provider-notes">Notas por proveedor</h2>
+<p>Los controles de razonamiento varían según el proveedor y el modelo. Estas notas describen lo que envía Rune; el proveedor puede seguir modificando lo que el modelo hace con ello. Configura las opciones de razonamiento de un modelo pulsando <kbd>Alt+C</kbd> en Models, tal como se explica en <a href="{{url "docs/generation"}}">Generación y razonamiento</a>.</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>Usa la dirección de modo compatible de tu espacio de trabajo y región de Model Studio, junto con una clave de esa misma región. El razonamiento se activa o desactiva, sin niveles. Nunca ofrezcas Off a un modelo que razona siempre, ya que rechazará la solicitud. Los modelos GLM en Model Studio solo devuelven llamadas a herramientas mediante una opción que Rune no envía, así que utilízalos a través de Z.ai.</dd></div>
+<div><dt>cerebras</dt><dd>Los niveles de razonamiento varían según el modelo y el servicio no los enumera. <code>gpt-oss-120b</code> y <code>qwen-3.8-27b</code> admiten Low, Medium y High; añádelos con <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>cloudflare</dt><dd>Workers AI. La dirección contiene tu identificador de cuenta y la clave es un token de API con acceso a Workers AI, no un token de Tunnel. Los modelos se leen de la lista de modelos de tu cuenta.</dd></div>
+<div><dt>compatible</dt><dd>Cualquier punto de conexión compatible con OpenAI. No se presupone nada sobre sus modelos: configura el contexto, la salida y el razonamiento con <kbd>Alt+C</kbd> consultando la documentación propia del punto de conexión.</dd></div>
+<div><dt>deepinfra</dt><dd>Su lista de modelos proporciona los precios e indica qué modelos razonan. Los niveles son Low, Medium y High; si no se elige un nivel, se aplica el valor predeterminado del propio modelo.</dd></div>
+<div><dt>fireworks</dt><dd>Los niveles van de Low a Max. Si un modelo admite menos niveles, configúralo con <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>huggingface</dt><dd>El enrutador de Inference Providers, con un token autorizado para invocar Inference Providers. Qué proveedor sirve cada modelo y qué funciones admite depende de esa combinación.</dd></div>
+<div><dt>inclusionai</dt><dd>Modelos Ling de InclusionAI a través de la API Ling de Ant Group. Los modelos 3.0 y 3.1 activan o desactivan el razonamiento, sin niveles. Si alojas tú mismo un servidor Ling, añádelo mediante <code>compatible</code>.</dd></div>
+<div><dt>inference</dt><dd>Su lista de modelos indica los niveles de razonamiento de cada modelo, y Rune ofrece exactamente esos niveles.</dd></div>
+<div><dt>meta</dt><dd>La API de modelos de Meta, no un inicio de sesión del chatbot de Meta AI. Los niveles van de Minimal a Extra high. Muse Spark razona siempre y rechaza tanto Off como las secuencias de parada, así que deja vacío el campo Stop en Generation.</dd></div>
+<div><dt>mimo</dt><dd>Las claves de pago por uso y las claves de Token Plan se conectan a direcciones distintas; Rune selecciona automáticamente la dirección a partir de la clave que introduzcas.</dd></div>
+<div><dt>minimax</dt><dd>Rune solicita el razonamiento separado de la respuesta. Solo <code>MiniMax-M3.1-Flash</code> admite niveles (de Low a Max): añádelos con <kbd>Alt+C</kbd>. No ofrezcas Off en los modelos de MiniMax.</dd></div>
+<div><dt>moonshot</dt><dd>Kimi. <code>kimi-k3</code> admite Low, High y Max; añádelos con <kbd>Alt+C</kbd>. Los modelos <code>kimi-k2</code> no admiten niveles. No ofrezcas Off en los modelos de Kimi.</dd></div>
+<div><dt>novita</dt><dd>El razonamiento se activa o desactiva en los modelos que ofrecen ambas opciones, sin niveles. Los precios proceden de su lista de modelos.</dd></div>
+<div><dt>nvidia</dt><dd>La API alojada de NIM. Los controles de razonamiento varían según el modelo y el servicio no los enumera; configúralos en cada modelo según su ficha técnica. Un servidor NIM autoalojado utiliza su propia dirección.</dd></div>
+<div><dt>openrouter</dt><dd>Una sola cuenta ofrece numerosos modelos con distintos precios y límites. Selecciona el modelo exacto y comprueba su precio actual.</dd></div>
+<div><dt>siliconflow</dt><dd>La dirección global; una cuenta .cn utiliza su propia dirección y clave. El razonamiento se activa o desactiva en los modelos en que SiliconFlow lo indica. <code>deepseek-ai/DeepSeek-V3.1</code> solo invoca herramientas cuando el razonamiento está desactivado.</dd></div>
+<div><dt>stepfun</dt><dd>Los niveles son Low, Medium y High. <code>step-3.5-flash-2603</code> solo admite Low y High: quita Medium para ese modelo con <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tencent</dt><dd>Hunyuan está migrando a TokenHub: introduce la dirección de TokenHub de tu región (mostrada junto al campo de dirección) con una clave de esa misma región. El razonamiento se activa o desactiva, con los niveles Low, Medium y High. Algunos modelos de terceros servidos por TokenHub rechazan Off.</dd></div>
+<div><dt>together</dt><dd>Su lista de modelos incluye precios pero no niveles de razonamiento: añade los niveles documentados del modelo con <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tokenrouter</dt><dd>TokenRouter en tokenrouter.com. Otros servicios con nombres parecidos en dominios distintos pertenecen a otras empresas y usan sus propias direcciones.</dd></div>
+<div><dt>zai</dt><dd>La API estándar de Z.ai. Un Coding Plan utiliza sus propias claves, direcciones y lista de herramientas permitidas. Los niveles van de Minimal a Max; si no se elige ninguno, se aplica el predeterminado del servicio (Max). <code>glm-5.3</code> razona siempre y solo admite Low, High y Max. Solo se acepta una secuencia de parada.</dd></div>
+</dl>
+
+<h2 id="on-this-computer">Modelos en este ordenador</h2>
+<p><strong>Ollama</strong> sirve modelos locales desde este ordenador en el puerto 11434, sin clave. Es un servicio distinto de la búsqueda web en la nube de Ollama. Un modelo local mantiene tus instrucciones dentro de tu máquina, aunque las herramientas web, los trabajos auxiliares y los comandos pueden seguir contactando con otros servicios.</p>
+<p><strong>9router</strong> es una aplicación enrutadora que se ejecuta en tu ordenador, por defecto en el puerto 20128, y reenvía las solicitudes a las cuentas de proveedores que hayas configurado en ella. Una sola conexión da acceso a todos los modelos que ofrece. Para los modelos de Claude Code (<code>cc/…</code>), Rune utiliza automáticamente la interfaz de estilo Anthropic de 9router, de modo que llegan sus recuentos de caché y razonamiento sin necesidad de configurar nada adicional. Off actúa como solicitud: cuando una ruta informa de que el razonamiento no puede desactivarse, Off pide Low en su lugar.</p>
+<p>La dirección local de un perfil predefinido es un valor por defecto, no una prueba de que el servicio esté ejecutándose en tu equipo. Inicia primero el servicio; la solicitud de prueba de Rune te indicará si responde.</p>
+
+<h2 id="keys">Claves y cuentas</h2>
+<p>Una conexión puede almacenar varias claves. <code>rune -provider keys &lt;name&gt;</code> las enumera de forma oculta, y Connections permite gestionarlas sin mostrar sus valores. Cuando una clave devuelve un error de saldo insuficiente, Rune la deja en reposo durante 15 minutos y pasa a usar otra clave si la conexión dispone de ella; consulta <a href="{{url "docs/runtime"}}">Tiempo de ejecución y reintentos</a>.</p>
+<p>Eliminar una conexión borra su configuración, pero sus claves pueden permanecer en el almacén cifrado para reutilizarse; elimina la clave explícitamente cuando esa sea tu intención. Una clave nunca viaja por HTTP sin cifrar hacia otra máquina.</p>
+
+<h2 id="choose-a-model">Elegir un modelo</h2>
+<p>Settings → Models muestra los modelos que devuelven tus proveedores conectados y permite actualizar esa lista. Selecciona uno con <kbd>Enter</kbd>, o escribe <code>/model provider:id</code> en la conversación. Pulsar <kbd>Alt+C</kbd> sobre un modelo permite editar lo que Rune sabe de él: tamaño de contexto, límite de salida, opciones de razonamiento y precio. El precio que introduzcas se utiliza para calcular el gasto mostrado en el panel lateral, que es orientativo y no sustituye a la factura del proveedor.</p>
+<p>Models → New-session fallback elige el proveedor con el que se inician las sesiones nuevas. No cambia las conversaciones que ya están abiertas; para eso, usa <code>/provider</code> o <code>/model</code> dentro de la sesión.</p>
+{{end}}

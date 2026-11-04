@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Lokasi dan cakupan</h2>
+<p>Konfigurasi global disimpan di <code>rune.toml</code> dalam folder home data Rune yang dipilih, biasanya <code>~/.rune/</code>. Halaman <a href="{{url "docs/reference"}}">Referensi pengaturan</a> mencantumkan setiap kunci yang dapat dimuatnya. Variabel <code>RUNE_HOME</code> memilih folder home yang berbeda. Berkas bernama rune.toml di dalam folder proyek tidak otomatis menjadi berkas pengaturan, dan flag <code>-project</code> memilih ruang kerja, bukan folder home pengaturan.</p>
+<p>Gunakan <code>rune -config</code> untuk melihat lokasi sebenarnya. Berkas ini menyimpan pilihan yang Anda tetapkan; nilai yang tidak dicantumkan akan mewarisi nilai bawaan saat ini. Baris tingkat atas <code>version = 1</code> menjelaskan versi format konfigurasi, bukan versi aplikasi. Jangan mengubah angka tersebut untuk meminta pembaruan aplikasi.</p>
+<h2 id="inspect">Periksa satu per satu</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Membaca nilai efektif suatu kunci, penjelasannya, serta kapan perubahannya berlaku.</dd></div>
+<div><dt>-config defaults</dt><dd>Membaca nilai bawaan pabrik secara terpisah dari pilihan yang Anda simpan.</dd></div>
+<div><dt>-config check</dt><dd>Memvalidasi sintaks konfigurasi dan nilai yang didukung. Perintah ini tidak menguji kunci API, saldo kredit, maupun konektivitas jaringan.</dd></div>
+<div><dt>-config show</dt><dd>Memeriksa konfigurasi efektif saat ini. Keluarannya dapat memuat metadata akun pribadi; samarkan bagian sensitif sebelum dibagikan.</dd></div>
+<div><dt>-settings</dt><dd>Memeriksa kontrol model untuk ruang kerja yang dipilih.</dd></div>
+</dl>
+<h2 id="change-and-reset">Mengubah dan mengatur ulang</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>Jalankan perintah <code>set</code> hanya bila Anda benar-benar menginginkan perubahan global tersebut. Perintah <code>reset</code> menghapus penimpaan yang tersimpan, bukan menuliskan salinan nilai bawaan ke dalam berkas. Di menu Settings, tombol Use default memiliki fungsi yang sama untuk nilai global. Kunci yang tidak dikenal atau sudah tidak dipakai lagi akan dilaporkan sebagai galat, bukan dianggap sebagai alias secara diam-diam.</p>
+<p>Format TOML tidak memiliki tipe <code>null</code> bawaan. Hapus kunci opsional yang bersangkutan atau gunakan perintah reset yang didukung alih-alih menulis <code>null</code>. Jangan berasumsi bahwa string kosong, “auto”, “none”, atau daftar kosong berarti reset untuk setiap pengaturan.</p>
+<h2 id="types-and-units">Tipe nilai dan satuan</h2>
+<dl class="ref">
+<div><dt>Boolean</dt><dd><code>true</code> atau <code>false</code>, ditulis tanpa tanda kutip di TOML.</dd></div>
+<div><dt>Jumlah / token</dt><dd>Bilangan bulat di dalam rentang yang didukung pengaturan tersebut. Token, karakter, dan byte adalah satuan ukuran yang berbeda.</dd></div>
+<div><dt>Durasi</dt><dd>String dengan satuan eksplisit seperti <code>"500ms"</code>, <code>"60s"</code>, atau <code>"2m"</code>. Hanya waktu tunggu izin/pertanyaan yang menerima nilai tak terbatas (unlimited).</dd></div>
+<div><dt>Ukuran</dt><dd>Gunakan satuan biner eksplisit seperti <code>"16MiB"</code>. Angka ukuran tanpa satuan ditafsirkan sebagai KiB, bukan byte.</dd></div>
+<div><dt>Daftar (List)</dt><dd>Gunakan entri persis seperti yang terdokumentasi. <code>[]</code> adalah pilihan daftar kosong secara eksplisit, belum tentu berarti reset.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>Contoh di atas adalah panduan sintaks, bukan rekomendasi konfigurasi umum. Array <code>stop</code> di TOML mempertahankan string persis apa adanya, termasuk tanda koma di dalamnya; sebaliknya, editor sesi menerima entri yang dipisahkan dengan koma. Nilai bawaan generasi global tidak menimpa seluruh sesi yang sudah ada.</p>
+<h2 id="timing-and-risk">Waktu berlaku dan risiko</h2>
+<p>Perubahan pengaturan umumnya langsung diterapkan tanpa perlu memulai ulang aplikasi. Gunakan <code>explain</code> untuk memeriksa kunci tertentu: nilai yang langsung berlaku (live) dan nilai yang berlaku pada operasi berikutnya memiliki waktu penerapan yang berbeda. Mengedit CLASSIFIER.md tidak otomatis memuat ulang kebijakan yang sudah dikunci pada sesi aktif; gunakan tindakan muat ulang saat sesi sedang diam.</p>
+<p>Jangan sertakan endpoint akun dan kredensial dalam contoh publik. Validasi pengeditan manual tanpa menimpa pilihan lain yang tidak berkaitan. Menaikkan batas dapat meningkatkan pemakaian memori, disk, konteks, dan biaya; namun tidak memberikan izin akses baru atau membuat model yang tidak didukung menjadi berfungsi.</p>
+{{end}}

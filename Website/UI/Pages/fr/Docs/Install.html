@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">Ce dont vous avez besoin</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 ou arm64, partout où une version signée pour ce processeur est publiée. Chaque version indique les architectures qu’elle propose. La version glibc fonctionne sur les distributions dotées de glibc 2.17 ou plus récent, et a été testée sur CentOS 7, Debian 11 et 12 et Ubuntu 24.04. La version statique musl ne nécessite aucune bibliothèque C du système et a été testée sur Alpine.</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 ou version ultérieure, sur Apple Silicon ou Intel. La prise en charge de macOS est en version bêta.</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 version 1809 ou ultérieure, ou Windows 11, sur x64 ou ARM64. La prise en charge de Windows est en version bêta.</dd></div>
+<div><dt>L’installateur</dt><dd>Sous Linux et macOS : <code>curl</code>, <code>tar</code>, <code>gzip</code> et <code>openssl</code> (OpenSSL ou le LibreSSL inclus dans macOS) pour la vérification de signature. Sous Windows : PowerShell, inclus dans toutes les versions prises en charge de Windows. Sous Linux et macOS, exécutez-le avec votre compte utilisateur normal, sans root ; sous Windows, aucun droit d’administrateur n’est requis.</dd></div>
+<div><dt>Un compte de modèle</dt><dd>Un compte auprès du fournisseur de votre choix, ou un service de modèle installé sur votre propre ordinateur. Voir <a href="{{url "docs/providers"}}">Fournisseurs de modèles</a>.</dd></div>
+</dl>
+<p>Les systèmes disposant d’une version signée dans la publication actuelle sont indiqués sous chaque commande d’installation sur la <a href="{{url "install"}}">page d’accueil</a>. Les différences entre systèmes sont détaillées dans <a href="{{url "docs/platforms"}}">Plateformes prises en charge</a>.</p>
+
+<h2 id="install">Installateur</h2>
+<p>Les commandes d’installation se trouvent sur la <a href="{{url "install"}}">page d’accueil</a> : <code>install.sh</code> pour Linux et macOS, exécuté par <code>sh</code>, et <code>install.ps1</code> pour Windows, exécuté dans PowerShell. Vous pouvez lire le script au préalable : tous deux sont servis en texte brut, <a href="{{url "install.sh"}}">install.sh</a> et <a href="{{url "install.ps1"}}">install.ps1</a>, exactement tels que la commande les reçoit. Chacun exécute les étapes suivantes et s’arrête dès la première qui échoue, sans rien modifier :</p>
+<ol>
+<li>Vérifie le système et sa version, s’assure qu’il tourne sous un compte utilisateur normal et contrôle la présence des outils requis.</li>
+<li>Détecte le processeur et, sous Linux, la bibliothèque C (glibc ou musl).</li>
+<li>Télécharge la liste des sommes de contrôle de la version et vérifie sa signature à l’aide de la clé de publication intégrée au script.</li>
+<li>Télécharge l’archive correspondant à votre machine et la contrôle par rapport à cette liste signée.</li>
+<li>Vérifie que l’archive contient uniquement le programme et ses fichiers de licence, et que le programme démarre et renvoie la version attendue.</li>
+<li>Met le programme en place en un seul renommage, et place la licence ainsi que les avis relatifs aux composants tiers à côté de vos autres données utilisateur.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>Système</th><th>Programme</th><th>Avis de licence</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (ou <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>Il ne modifie jamais votre profil shell ni votre variable PATH. Si le dossier ne figure pas dans votre PATH, il vous l’indique. La page <a href="{{url "docs/verification"}}">Vérification des versions</a> explique ce que la signature prouve ou non, et comment vérifier un téléchargement manuellement.</p>
+<p>Les commandes d’installation téléchargent les fichiers avec <code>curl</code> et PowerShell, qui ne marquent pas le programme comme provenant d’Internet. En revanche, une archive téléchargée depuis un navigateur reçoit ce marquage. Sur macOS, Gatekeeper refuse alors de lancer cette copie de <code>rune</code> ; après avoir vérifié l’archive, retirez l’attribut de quarantaine avec <code>xattr -d com.apple.quarantine rune</code>. Sur Windows, SmartScreen peut afficher un avertissement lorsqu’un tel programme est ouvert depuis l’Explorateur de fichiers.</p>
+
+<h2 id="installer-options">Options de l’installateur</h2>
+<p>Sans variable définie, l’installateur prend la dernière version publiée, votre dossier bin utilisateur et, sous Linux, la bibliothèque C détectée. Sous Linux et macOS, enregistrez le script sous le nom <code>install.sh</code>, lisez-le, puis exécutez-le avec l’une de ces variables. Sous Windows, définissez-les dans la même fenêtre PowerShell avant de lancer la commande.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>Une version publiée telle que <code>{{.DocVersion}}</code>. Les versions antérieures s’installent par leur numéro.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>Un chemin absolu de dossier pour le programme à la place du dossier par défaut.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Linux uniquement : <code>gnu</code> ou <code>musl</code>, pour choisir la variante au lieu de la détecter. Toute combinaison sans archive publiée est refusée.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">Ajouter rune à votre PATH</h2>
+<p>De nombreuses distributions Linux incluent déjà <code>~/.local/bin</code>, mais uniquement si ce dossier existe au moment où vous ouvrez votre session ; macOS ne l’inclut pas par défaut. Si la commande <code>rune</code> est introuvable, ajoutez le dossier vous-même. Pour bash ou zsh (le shell par défaut sur macOS), ajoutez cette ligne à <code>~/.bashrc</code> ou <code>~/.zshrc</code>, puis ouvrez un nouveau terminal :</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>Sous fish, exécutez une seule fois <code>fish_add_path ~/.local/bin</code>. Sous Windows, cette commande PowerShell ajoute le dossier à votre PATH utilisateur ; ouvrez ensuite un nouveau terminal :</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>Utilisez votre propre dossier si vous avez défini <code>RUNE_INSTALL_DIR</code>.</p>
+
+<h2 id="first-start">Le premier démarrage</h2>
+<p>Ouvrez un terminal dans votre projet et lancez <code>rune</code>. Lors de son premier démarrage, Rune crée son dossier de données, <code>.rune</code> dans votre répertoire personnel (<code>%USERPROFILE%\.rune</code> sous Windows), ou le dossier désigné par <code>RUNE_HOME</code>. Ce dossier contient :</p>
+<ul>
+<li><code>rune.toml</code>, vos paramètres. Il n’enregistre que les choix que vous avez modifiés ; toutes les autres valeurs proviennent de la version que vous exécutez.</li>
+<li>Vos clés API, chiffrées.</li>
+<li>Les sessions, la mémoire de projet et les instantanés utilisés par la fonction d’annulation, conservés par projet.</li>
+</ul>
+<p>Sous Windows, le premier démarrage demande également une seule fois une confirmation Administrateur afin de configurer le compte séparé dans lequel Rune exécute les commandes. Si vous refusez, Rune ne vous le redemandera pas à chaque lancement ; exécutez <code>rune -sandbox setup</code> lorsque vous souhaiterez l’activer. La page <a href="{{url "docs/security"}}">Sécurité</a> explique ce qui change sans ce compte.</p>
+<p>La commande <code>rune -config</code> affiche le dossier utilisé sur sa première ligne. Rune y conserve ses propres données, et non dans vos projets : un projet n’est modifié que par les outils de l’IA selon le mode que vous choisissez, par vos propres commandes <code>!</code>, ou par une compétence ou une configuration MCP que vous enregistrez avec une portée projet. Poursuivez avec la section <a href="{{url "docs"}}#connect-and-select">Connecter et sélectionner un modèle</a> de l’Introduction.</p>
+
+<h2 id="update">Mise à jour</h2>
+<p>Relancez l’installateur pour la version souhaitée, avec le même <code>RUNE_INSTALL_DIR</code> si vous en aviez défini un. Il vérifie le téléchargement et remplace le programme en une seule étape ; contrôlez le résultat avec <code>rune -version</code>.</p>
+<p>Les fenêtres Rune déjà ouvertes continuent de fonctionner. Sous Linux et macOS, elles passent d’elles-mêmes à la nouvelle version dès qu’elles sont inactives, et le premier lancement d’une nouvelle version met à jour votre dossier de données en conséquence. Sous Windows, un programme en cours d’exécution ne peut pas être remplacé à chaud : les fenêtres ouvertes conservent la version avec laquelle elles ont démarré, et la prochaine fenêtre Rune que vous ouvrirez utilisera la nouvelle. Ne fermez pas un travail en cours pour forcer ce passage.</p>
+
+<h2 id="uninstall">Désinstallation</h2>
+<p>Terminez ou arrêtez votre travail et fermez toutes les fenêtres Rune. Supprimez ensuite le programme et ses avis de licence. Sous Linux et macOS :</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>Sous Windows, dans PowerShell :</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>Sous Windows, <code>rune -sandbox reset</code> retire d’abord les accès accordés au bac à sable de commandes de Rune sur vos dossiers et supprime son compte dédié ; une confirmation Administrateur peut être demandée. Votre dossier de données reste en place jusqu’à ce que vous le supprimiez vous-même. Il contient votre historique, vos paramètres, vos clés et vos points de restauration, et il n’est pas nécessaire de le supprimer pour désinstaller le programme. Si vous décidez de le supprimer, vérifiez d’abord son emplacement avec <code>rune -config</code>, et ne le supprimez jamais pendant que Rune est en cours d’exécution.</p>
+
+<h2 id="environment">Variables d’environnement</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>Utilise un autre dossier de données à la place de <code>.rune</code> dans votre répertoire personnel : avec ses propres paramètres, clés et sessions.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>Affiche sans couleur, comme l’option <code>--no-color</code>.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>Indique à Rune la couleur de fond de votre terminal lorsque celui-ci ne la communique pas : <code>dark</code>, <code>light</code> ou une couleur hexadécimale. Ce n’est pas le choix du thème de couleurs, qui se règle dans Appearance.</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>Lues uniquement par l’installateur ; voir <a href="#installer-options">Options de l’installateur</a>.</dd></div>
+</dl>
+{{end}}

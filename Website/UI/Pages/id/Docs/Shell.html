@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">Menjalankan perintah sendiri</h2>
+<p>Ketik tanda <code>!</code> sebagai karakter paling pertama di kolom tulis, diikuti dengan perintah shell, lalu tekan <kbd>Enter</kbd>. Rune menjalankan skrip tersebut langsung untuk Anda, bukan melalui AI. Sebelum Anda menekan <kbd>Enter</kbd>, kolom tulis menampilkan penanda <strong>Shell · full access once</strong> sehingga Anda tahu bahwa masukan ini adalah perintah shell langsung dan bukan pesan chat.</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>Contoh di atas adalah satu skrip yang terdiri dari dua baris: keduanya akan dijalankan. Hanya baris pertama yang diawali tanda <code>!</code>; tanda <code>!</code> kedua di dalam skrip akan dibaca oleh shell itu sendiri (yang di bash dan sh berarti membalikkan status gagal/berhasil dari perintah berikutnya). Gunakan fitur ini untuk pemeriksaan cepat, menjalankan build yang ingin Anda pantau langsung, atau mengeksekusi langkah yang tidak diizinkan bagi AI. Perintah beserta hasil keluarannya kemudian masuk ke dalam transkrip percakapan, lalu AI akan merespons setelah perintah tersebut selesai.</p>
+
+<h2 id="what-counts">Apa yang dihitung sebagai perintah manual</h2>
+<ul>
+<li>Hanya tanda <code>!</code> di posisi paling awal yang memulai perintah manual. Masukan seperti <code>hello ! echo test</code>, tanda <code>!</code> setelah spasi, atau tanda <code>!</code> pada baris berikutnya di dalam pesan biasa tetap diperlakukan sebagai teks pesan biasa.</li>
+<li>Begitu masukan diawali dengan <code>!</code>, seluruh baris di dalamnya menjadi bagian dari satu skrip yang sama. Tanda <code>!</code> pada baris selanjutnya adalah sintaks shell, bukan perintah Rune kedua.</li>
+<li>Menempelkan teks (paste) tidak pernah langsung menjalankan apa pun. Tombol <kbd>Enter</kbd> yang akan menjalankan seluruh skrip saat ini, termasuk semua baris yang ditempelkan.</li>
+<li>Ketikan <code>!</code> sendirian tanpa perintah tidak menjalankan apa pun. Hapus tanda <code>!</code> di awal untuk mengubah masukan kembali menjadi pesan biasa.</li>
+</ul>
+
+<h2 id="access">Hak akses yang dimiliki</h2>
+<p>Menekan tombol <kbd>Enter</kbd> adalah pemberian izinnya. Skrip berjalan satu kali dengan hak akses penuh akun sistem operasi Anda: di luar batas ruang kerja dan di luar sandbox perintah, tanpa pemeriksaan pengklasifikasi atau sanitizer, serta tanpa kartu pertanyaan izin tambahan.</p>
+<p>Perintah ini tidak berjalan sebagai Administrator atau root, tidak mengubah mode izin sesi, dan tidak memberikan izin untuk tindakan AI berikutnya. Baca seluruh isi skrip dengan cermat sebelum menekan <kbd>Enter</kbd>, terutama jika Anda menempelkannya dari sumber lain.</p>
+
+<h2 id="while-the-ai-works">Saat AI sedang bekerja</h2>
+<p>Perintah manual yang Anda kirim saat AI sedang menjalankan giliran kerja akan menunggu hingga giliran tersebut selesai, lalu dieksekusi sesuai urutan pengiriman. Keluaran langsungnya tampil selama perintah berjalan. Saat perintah selesai—atau saat dipindahkan ke latar belakang karena masih berjalan melewati batas waktu tunggu latar depan atau sedang menunggu ketikan masukan—Rune menambahkan perintah beserta keluarannya ke dalam percakapan, lalu AI memberikan tanggapan. Tanggapan AI tersebut adalah permintaan model biasa yang dapat dikenai biaya.</p>
+<p>Jika jendela terputus lalu tersambung kembali, Rune tidak akan menjalankan perintah yang sama dua kali. Setelah terjadi penghentian mendadak (crash), Rune juga tidak pernah memutar ulang perintah yang mungkin sudah sempat dieksekusi.</p>
+
+<h2 id="when-the-ai-was-refused">Saat perintah usulan AI ditolak</h2>
+<p>Ketika perintah yang diusulkan oleh AI ditolak, pemberitahuan penolakannya dapat menyebutkan opsi perintah manual <code>!</code> ini. Rune tidak pernah mengirimkan perintah <code>!</code> secara otomatis atas nama Anda dan tidak pernah mencoba ulang tindakan yang telah ditolak secara sepihak. Perangkat lain selain shell tidak memiliki jalur pintas semacam ini.</p>
+
+<h2 id="which-shell">Shell mana yang menjalankannya</h2>
+<p>Program shell ditentukan oleh pengaturan <code>terminal.shell</code>. Dengan nilai bawaan <code>auto</code>, Rune menggunakan bash bila tersedia di komputer dan <code>/bin/sh</code> bila tidak ada; di Windows, Rune memilih PowerShell 7, lalu Windows PowerShell, lalu Command Prompt. Setiap shell membaca sintaks perintah sesuai bahasanya masing-masing.</p>
+<p>Kotak langkah perintah menampilkan penanda shell yang benar-benar menjalankannya: <code>$</code> untuk bash dan zsh, <code>PS&gt;</code> untuk PowerShell, dan <code>&gt;</code> untuk Command Prompt. Kotak yang terlipat menampilkan baris pertama skrip; klik kotak tersebut untuk membuka seluruh skrip beserta baris-baris aslinya.</p>
+
+<h2 id="privacy">Privasi</h2>
+<p>Perintah manual beserta seluruh teks keluarannya akan dikirimkan ke model AI pada permintaan berikutnya. Jangan mencetak rahasia, kunci API, atau isi berkas pribadi yang tidak ingin Anda tempelkan ke dalam percakapan. Rune menyamarkan kunci API yang sudah terdaftar di penyimpanannya, namun itu bukan jaminan untuk setiap nilai rahasia lainnya.</p>
+{{end}}

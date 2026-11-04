@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">Was du benötigst</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 oder arm64, sofern für den jeweiligen Prozessor ein signierter Build veröffentlicht wurde. Jedes Release gibt an, welche Builds enthalten sind. Der glibc-Build läuft auf Distributionen mit glibc 2.17 oder neuer und wurde unter CentOS 7, Debian 11 und 12 sowie Ubuntu 24.04 getestet. Der statische musl-Build benötigt keine C-Bibliothek des Systems und wurde unter Alpine getestet.</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 oder neuer, auf Apple Silicon oder Intel. Die macOS-Unterstützung befindet sich in der Beta-Phase.</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 Version 1809 oder neuer bzw. Windows 11, auf x64 oder ARM64. Die Windows-Unterstützung befindet sich in der Beta-Phase.</dd></div>
+<div><dt>Das Installationsskript</dt><dd>Unter Linux und macOS: <code>curl</code>, <code>tar</code>, <code>gzip</code> und <code>openssl</code> (OpenSSL oder das mit macOS ausgelieferte LibreSSL) für die Signaturprüfung. Unter Windows: PowerShell, das auf jedem unterstützten Windows vorhanden ist. Führe das Skript unter Linux und macOS als normaler Benutzer aus, nicht als root; unter Windows sind keine Administratorrechte erforderlich.</dd></div>
+<div><dt>Ein Modellkonto</dt><dd>Ein Konto bei einem Anbieter deiner Wahl oder ein Modelldienst auf deinem eigenen Rechner. Siehe <a href="{{url "docs/providers"}}">Modellanbieter</a>.</dd></div>
+</dl>
+<p>Für welche dieser Systeme im aktuellen Release ein signierter Build vorliegt, steht direkt unter jedem Installationsbefehl auf der <a href="{{url "install"}}">Startseite</a>. Unterschiede zwischen den Systemen erläutert <a href="{{url "docs/platforms"}}">Plattformunterstützung</a>.</p>
+
+<h2 id="install">Installieren</h2>
+<p>Die Installationsbefehle findest du auf der <a href="{{url "install"}}">Startseite</a>: <code>install.sh</code> für Linux und macOS (ausgeführt mit <code>sh</code>) sowie <code>install.ps1</code> für Windows (ausgeführt in PowerShell). Du kannst das Skript vorab durchlesen: Beide werden als Klartext ausgeliefert – <a href="{{url "install.sh"}}">install.sh</a> und <a href="{{url "install.ps1"}}">install.ps1</a> –, genau so, wie der Befehl sie abruft. Jedes Skript arbeitet die folgenden Schritte ab und bricht beim ersten Fehler sofort ab, ohne etwas am System zu verändern:</p>
+<ol>
+<li>Prüft das Betriebssystem und dessen Version, ob es als normaler Benutzer läuft und ob die benötigten Werkzeuge vorhanden sind.</li>
+<li>Erkennt den Prozessor und unter Linux die C-Bibliothek (glibc oder musl).</li>
+<li>Lädt die Prüfsummenliste des Releases herunter und verifiziert deren Signatur mit dem im Skript hinterlegten öffentlichen Release-Schlüssel.</li>
+<li>Lädt das Archiv für deinen Rechner herunter und gleicht es mit der signierten Liste ab.</li>
+<li>Prüft, ob das Archiv ausschließlich das Programm und seine Lizenzdateien enthält und ob das Programm startet und die erwartete Version meldet.</li>
+<li>Legt das Programm in einem einzigen atomaren Umbenennungsschritt am Zielort ab und speichert die Lizenz- sowie Drittanbieterhinweise neben deinen übrigen Benutzerdaten.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>System</th><th>Programm</th><th>Lizenzhinweise</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (oder <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>Das Skript verändert niemals dein Shell-Profil oder deinen PATH. Falls der Zielordner nicht in deinem PATH liegt, weist es dich darauf hin. <a href="{{url "docs/verification"}}">Release-Prüfung</a> erklärt, was die Signatur beweist (und was nicht) und wie du einen Download manuell überprüfst.</p>
+<p>Die Installationsbefehle laden Dateien mit <code>curl</code> bzw. PowerShell herunter, wodurch das Programm nicht als aus dem Internet stammend markiert wird. Ein im Browser heruntergeladenes Archiv erhält dagegen eine solche Markierung. Unter macOS verweigert Gatekeeper dann den Start dieser Kopie von <code>rune</code>; entferne nach der Verifizierung des Archivs die Markierung mit <code>xattr -d com.apple.quarantine rune</code>. Unter Windows kann SmartScreen warnen, wenn ein solches Programm aus dem Datei-Explorer heraus geöffnet wird.</p>
+
+<h2 id="installer-options">Optionen des Installationsskripts</h2>
+<p>Ohne gesetzte Variablen wählt das Installationsskript die neueste veröffentlichte Version, dein Benutzer-Bin-Verzeichnis und unter Linux die automatisch erkannte C-Bibliothek. Speichere unter Linux und macOS das Skript als <code>install.sh</code>, lies es durch und führe es mit den gewünschten Variablen aus. Unter Windows setzt du die Variablen im selben PowerShell-Fenster vor dem Ausführen des Befehls.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>Eine veröffentlichte Version wie <code>{{.DocVersion}}</code>. Ältere Versionen lassen sich gezielt über ihre Versionsnummer installieren.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>Ein absoluter Zielordner für das Programm anstelle des Standardpfads.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Nur unter Linux: <code>gnu</code> oder <code>musl</code>, um den Build manuell auszuwählen statt ihn automatisch zu erkennen. Existiert für eine Kombination kein veröffentlichtes Archiv, wird die Installation abgelehnt.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">rune zum PATH hinzufügen</h2>
+<p>Viele Linux-Distributionen binden <code>~/.local/bin</code> bereits automatisch ein, allerdings oft erst, wenn der Ordner beim Anmelden schon existiert; macOS tut dies standardmäßig nicht. Wird <code>rune</code> nicht gefunden, füge den Ordner selbst hinzu. Für bash oder zsh (die Standardshell unter macOS) fügst du diese Zeile in <code>~/.bashrc</code> bzw. <code>~/.zshrc</code> ein und öffnest danach ein neues Terminal:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>Unter fish führst du einmalig <code>fish_add_path ~/.local/bin</code> aus. Unter Windows fügt diese PowerShell-Zeile den Ordner zu deinem Benutzer-PATH hinzu; öffne anschließend ein neues Terminal:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>Verwende deinen eigenen Pfad, falls du <code>RUNE_INSTALL_DIR</code> gesetzt hast.</p>
+
+<h2 id="first-start">Der erste Start</h2>
+<p>Öffne ein Terminal in deinem Projektordner und führe <code>rune</code> aus. Beim ersten Start legt Rune seinen Datenordner an: <code>.rune</code> in deinem Home-Verzeichnis (<code>%USERPROFILE%\.rune</code> unter Windows) oder den über <code>RUNE_HOME</code> angegebenen Ordner. Darin befinden sich:</p>
+<ul>
+<li><code>rune.toml</code>, deine Einstellungen. Die Datei speichert nur die von dir geänderten Optionen; alle übrigen Werte stammen aus der jeweils ausgeführten Programmversion.</li>
+<li>Deine API-Schlüssel, verschlüsselt gespeichert.</li>
+<li>Sitzungen, Projektgedächtnis (Memory) und die Sicherungskopien für Undo, jeweils getrennt nach Projekt.</li>
+</ul>
+<p>Unter Windows fragt der erste Start außerdem einmalig nach einer Administratorbestätigung, um das separate lokale Konto einzurichten, in dem Rune Befehle isoliert ausführt. Lehnst du ab, fragt Rune nicht bei jedem Start erneut; führe bei Bedarf später <code>rune -sandbox setup</code> aus. <a href="{{url "docs/security"}}">Sicherheit</a> erläutert, was sich ohne dieses Konto ändert.</p>
+<p><code>rune -config</code> gibt in der ersten Zeile den genutzten Datenordner aus. Rune speichert seine eigenen Daten dort und nicht in deinen Projekten: Ein Projekt verändert sich nur durch die Werkzeuge der KI im von dir gewählten Modus, durch deine eigenen <code>!</code>-Befehle oder durch eine Skill- bzw. MCP-Änderung, die du explizit auf Projektebene speicherst. Fahre als Nächstes mit dem <a href="{{url "docs"}}#connect-and-select">Verbinden eines Modells</a> in der Einführung fort.</p>
+
+<h2 id="update">Aktualisieren</h2>
+<p>Führe das Installationsskript einfach erneut für die gewünschte Version aus – gegebenenfalls mit demselben <code>RUNE_INSTALL_DIR</code>. Es verifiziert den Download und ersetzt das Programm in einem Schritt; prüfe das Ergebnis mit <code>rune -version</code>.</p>
+<p>Bereits geöffnete Rune-Fenster arbeiten normal weiter. Unter Linux und macOS wechseln sie im Leerlauf von selbst auf den neuen Build, und der erste Start einer neuen Version aktualisiert bei Bedarf deinen Datenordner. Unter Windows kann ein laufendes Programm nicht im Betrieb ausgetauscht werden: Offene Fenster behalten die Version, mit der sie gestartet wurden, und das nächste geöffnete Rune-Fenster nutzt die neue Version. Schließe keine laufenden Aufgaben, um dies zu erzwingen.</p>
+
+<h2 id="uninstall">Deinstallieren</h2>
+<p>Beende oder stoppe deine Arbeit und schließe alle Rune-Fenster. Entferne anschließend das Programm und seine Lizenzhinweise. Unter Linux und macOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>Unter Windows in PowerShell:</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>Unter Windows nimmt <code>rune -sandbox reset</code> zunächst die Zugriffsrechte zurück, die Runes Befehls-Sandbox auf deine Ordner erhalten hat, und entfernt das zugehörige Konto; hierfür kann eine Administratorbestätigung angefordert werden. Dein Datenordner bleibt erhalten, bis du ihn selbst löschst. Er enthält deinen Verlauf, deine Einstellungen, Schlüssel und Wiederherstellungspunkte und muss für eine reine Deinstallation nicht gelöscht werden. Wenn du ihn löschen möchtest, lies seinen Pfad zuvor mit <code>rune -config</code> ab und entferne ihn niemals, solange Rune noch läuft.</p>
+
+<h2 id="environment">Umgebungsvariablen</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>Verwendet einen anderen Datenordner anstelle von <code>.rune</code> in deinem Home-Verzeichnis – mit eigenen Einstellungen, Schlüsseln und Sitzungen.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>Deaktiviert die Farbausgabe, genau wie <code>--no-color</code>.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>Teilt Rune den Hintergrund deines Terminals mit, falls das Terminal ihn nicht selbst meldet: <code>dark</code>, <code>light</code> oder eine Hex-Farbe. Dies ist nicht das Farbschema von Rune (dieses stellst du unter Appearance ein).</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>Werden ausschließlich vom Installationsskript ausgewertet; siehe <a href="#installer-options">Optionen des Installationsskripts</a>.</dd></div>
+</dl>
+{{end}}

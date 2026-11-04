@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">打开与导航</h2>
+<p>按 <kbd>Ctrl+G</kbd>、输入 <code>/settings</code> 或使用简写别名 <code>/*</code> 即可打开设置界面。概览页（Overview）通往六个子页面。使用方向键选择行或卡片，按 Enter 打开；按 Tab / Shift+Tab 切换焦点，按 Esc 取消编辑或返回上一级。底部状态栏会显示当前选中控件的说明。</p>
+<p>打开某个设置项，修改数值后选择 Apply 即可生效；选择 Cancel 则保留原值。部分选项行支持按左右方向键直接切换并立即保存，请留意底部提示并等待保存成功消息。在独立弹出列表中仅仅高亮选中某一项并不一定代表已应用该项，需按 Enter 确认。</p>
+<h2 id="sections">六大设置分区</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models（模型）</a></dt><dd>浏览已配置账户下的可用模型、应用提供商/模型组合、刷新模型目录，并通过 Alt+C 配置持久化的模型能力与单价信息。</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation（生成）</a></dt><dd>调整当前会话的推理强度、采样参数与最大输出长度。页面下方还包含全局辅助模型控制项。</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections（连接）</a></dt><dd>管理账户接入：API 接口地址与命名密钥。注意它不负责选择网页搜索/抓取服务商，也不管理模型请求超时。</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime（运行时）</a></dt><dd>管理模型请求超时、自动重试策略、余额不足冷却时间以及共享连接与流等待时长。</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools（工具）</a></dt><dd>管理各工具专用的超时与输出/工作量上限、提问与权限确认超时，以及独立的网页服务商选择。</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance（外观）</a></dt><dd>管理配色主题与对话侧边栏显示偏好。终端壁纸、模糊效果和透明度由终端模拟器自身控制，不在此处配置。</dd></div>
+</dl>
+<h2 id="scope">全局设置与会话设置</h2>
+<p>工具限制、重试/网络参数以及辅助模型选项属于所选 Rune 主目录下的全局设置。主 Generation 控制项与模型选择则作用于当前活动会话与模型。已保存的模型偏好会在你下次切回该模型时自动恢复。</p>
+<p>全局配置文件中的 <code>[generation]</code> 表仅提供新会话的初始默认值，不会强行覆盖所有已存在的现有会话。New-session fallback（新会话回退提供商）仅决定未来新建会话的初始提供商，不会改变已打开对话的提供商。</p>
+<h2 id="reset-and-timing">重置与生效时机</h2>
+<p>选择 <strong>Use default</strong> 会移除已保存的全局覆盖值，使当前版本的默认值或继承关系重新生效。手动保存一个与出厂默认值相同的数字属于显式覆盖，不同于保持该键未设置。对于可选的会话级 Generation 参数，清空字段即可将控制权交还给提供商或默认值。</p>
+<p>绝大多数设置修改无需重启 Rune 即可生效。部分组件会实时读取新值（live）；另一些组件则在下一次操作（next operation）时采用新值，而正在进行的任务继续使用启动时的设置快照。可使用 <code>rune -config explain &lt;key&gt;</code> 查看特定配置键的准确生效时机。分类器策略文件则需通过专门的重新加载操作刷新。</p>
+<h2 id="inspect-before-changing">修改前先核实</h2>
+<p>配置文件语法有效并不证明网络连接一定畅通，状态显示为 Configured（已配置）也不证明账户内有可用余额。连接测试会发起真实请求并可能产生费用。切换提供商可能会改变数据发送的目标方；调高重试次数或最大输出上限则可能增加开销。</p>
+<p>并非所有高级配置项都在图形界面中设有开关。<a href="{{url "docs/configuration"}}">配置文件指南</a>详细说明了如何查看和重置这些高级选项，避免凭空臆造配置项或误改无关设置。</p>
+{{end}}

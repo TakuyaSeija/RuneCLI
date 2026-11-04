@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Tema warna</h2>
+<p>Settings → Appearance → Color theme menyediakan pilihan Violet, Cyan, dan Amber. Tombol Left/Right pada baris tersebut langsung mengganti dan menyimpan tema; Enter membuka daftar terpisah tempat menekan Enter akan menerapkan tema yang dipilih. Esc keluar tanpa menerapkan item yang baru Anda lihat. Tema bawaan adalah Amber.</p>
+<p>Tema hanya mengatur tampilan, bukan perilaku model atau izin. Perintah <code>/theme violet</code>, <code>/theme cyan</code>, dan <code>/theme amber</code> juga dapat dipakai untuk memilih tema. Kunci globalnya adalah <code>ui.theme</code>; reset akan menghapus penimpaan Anda.</p>
+<h2 id="side-panel">Panel samping percakapan</h2>
+<p>Nyalakan atau sembunyikan panel di Appearance, dengan Ctrl+O, atau lewat <code>/panel</code>. Pengaturan bawaannya aktif. Terminal yang sempit dapat menyembunyikan panel berdampingan meskipun preferensi tersebut aktif. Menyembunyikan panel tidak menghentikan pencatatan penggunaan, pelacakan berkas, maupun rencana kerja.</p>
+<h2 id="terminal-owns-background">Apa yang diatur oleh terminal</h2>
+<p>Terminal atau lingkungan desktop Anda yang mengatur gambar latar, transparansi, efek buram (blur), dekorasi jendela, dan perenderan fon. Rune tidak memiliki pengaturan gambar latar atau blur. Tema yang sama dapat tampak berbeda di atas latar terminal yang terang atau gelap.</p>
+<p>Tombol modifikasi dan gestur mouse juga bergantung pada terminal. Profil terminal tertentu mungkin mencadangkan Ctrl+wheel untuk memperbesar tampilan, Alt+wheel untuk menggulir mendatar, atau pintasan tertentu untuk tindakannya sendiri.</p>
+<h2 id="advanced-options">Pilihan tampilan lanjutan</h2>
+<p>Beberapa nilai warna, mouse, pengguliran, dan waktu perenderan hanya tersedia melalui berkas TOML, bukan sebagai kontrol tambahan di halaman Appearance. Periksa dokumentasi kunci yang bersangkutan sebelum mengubahnya. Menaikkan frekuensi penyegaran layar dapat memakai lebih banyak sumber daya; preferensi pengguliran tidak dapat memaksa terminal melaporkan masukan yang tidak didukungnya.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>Reset mengubah preferensi global kembali ke bawaan. Gunakan <code>/help</code> untuk melihat tombol baca dan navigasi alih-alih menebak dari aplikasi terminal lain.</p>
+{{end}}

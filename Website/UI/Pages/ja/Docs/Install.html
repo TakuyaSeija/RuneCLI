@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">必要な環境</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 または arm64（該当プロセッサ向けの署名付きビルドが公開されている環境）。各リリースで対応ビルドが明記されます。glibc ビルドは glibc 2.17 以降のディストリビューションで動作し、CentOS 7、Debian 11・12、Ubuntu 24.04 で動作確認されています。静的リンクされた musl ビルドはシステム側の C ライブラリを必要とせず、Alpine で動作確認されています。</dd></div>
+<div><dt>macOS</dt><dd>Apple silicon または Intel 上の macOS 11 以降（macOS 対応はベータ版です）。</dd></div>
+<div><dt>Windows</dt><dd>x64 または ARM64 上の Windows 10 バージョン 1809 以降、または Windows 11（Windows 対応はベータ版です）。</dd></div>
+<div><dt>インストーラ</dt><dd>Linux・macOS では署名検証と展開のために <code>curl</code>、<code>tar</code>、<code>gzip</code>、<code>openssl</code>（OpenSSL または macOS 標準搭載の LibreSSL）が必要です。Windows では対応バージョンの Windows に標準搭載されている PowerShell のみが必要です。Linux・macOS では root ではなく一般ユーザーとして実行してください。Windows でも管理者権限は不要です。</dd></div>
+<div><dt>モデルアカウント</dt><dd>選択したプロバイダのアカウント、またはご自身の PC 上で動作するモデルサービスが必要です。詳しくは<a href="{{url "docs/providers"}}">モデルプロバイダ</a>をご覧ください。</dd></div>
+</dl>
+<p>現在のリリースでどのシステム向けの署名付きビルドが公開されているかは、<a href="{{url "install"}}">ホームページ</a>の各インストールコマンドの下に記載されています。OS ごとの動作の違いについては<a href="{{url "docs/platforms"}}">対応プラットフォーム</a>をご覧ください。</p>
+
+<h2 id="install">インストール</h2>
+<p>インストールコマンドは<a href="{{url "install"}}">ホームページ</a>に掲載されています。Linux・macOS では <code>sh</code> で実行する <code>install.sh</code>、Windows では PowerShell で実行する <code>install.ps1</code> を使用します。事前にスクリプトの内容を確認したい場合は、コマンドが受け取るものとまったく同じプレーンテキストの <a href="{{url "install.sh"}}">install.sh</a> および <a href="{{url "install.ps1"}}">install.ps1</a> を閲覧できます。各スクリプトは以下のステップを順番に実行し、1 つでも失敗した場合は環境を一切変更せずに停止します：</p>
+<ol>
+<li>OS とそのバージョン、一般ユーザーで実行されていること、および必要なツールが揃っていることを確認します。</li>
+<li>プロセッサ（Linux ではさらに C ライブラリの glibc／musl）を検出します。</li>
+<li>リリースのチェックサム一覧をダウンロードし、スクリプト内に記載されたリリース公開鍵で署名を検証します。</li>
+<li>お使いのマシン向けのアーカイブをダウンロードし、署名済みの一覧と照合します。</li>
+<li>アーカイブ内にプログラム本体とライセンスファイルのみが含まれていること、およびプログラムが起動して期待どおりのバージョンを返すことを確認します。</li>
+<li>アトミックなリネーム操作でプログラムを所定の位置に配置し、ライセンスおよびサードパーティ表記をユーザーデータ領域に保存します。</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>システム</th><th>プログラムの配置先</th><th>ライセンス表記の保存先</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code>（または <code>$XDG_DATA_HOME/runeagent</code>）</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>インストーラがシェルの設定ファイルや PATH を勝手に書き換えることはありません。配置先フォルダが PATH に含まれていない場合は、その旨を案内します。署名によって何が証明され何が証明されないか、および手動でダウンロードを検証する手順については、<a href="{{url "docs/verification"}}">リリースの署名検証</a>をご覧ください。</p>
+<p>インストールコマンドは <code>curl</code> や PowerShell を使用してダウンロードするため、プログラムにインターネット経由の隔離マークは付きません。一方、ブラウザでアーカイブをダウンロードした場合はマークが付きます。そのため macOS では Gatekeeper によって <code>rune</code> の起動がブロックされます。アーカイブを検証した後、<code>xattr -d com.apple.quarantine rune</code> で隔離属性を解除してください。Windows では、エクスプローラーから開いた際に SmartScreen の警告が表示されることがあります。</p>
+
+<h2 id="installer-options">インストーラのオプション</h2>
+<p>環境変数を指定しない場合、インストーラは最新の公開バージョン、ユーザー用の bin フォルダ、および（Linux では）自動検出された C ライブラリを使用します。Linux・macOS ではスクリプトを <code>install.sh</code> として保存して内容を確認したうえで、以下の環境変数を付けて実行してください。Windows では、同じ PowerShell ウィンドウ内で先に環境変数を設定してからインストールコマンドを実行します。</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd><code>{{.DocVersion}}</code> などの公開済みバージョン番号を指定します。過去のバージョンも番号指定でインストールできます。</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>デフォルトの代わりにプログラムを配置する絶対パスを指定します。</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Linux 専用：自動検出の代わりに <code>gnu</code> または <code>musl</code> を指定します。公開されていない組み合わせは拒否されます。</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">PATH を通す</h2>
+<p>多くの Linux ディストリビューションでは、ログイン時に <code>~/.local/bin</code> が存在していれば自動的に PATH に含まれますが、macOS では含まれません。<code>rune</code> が見つからない場合は、ご自身でフォルダを PATH に追加してください。bash または zsh（macOS のデフォルトシェル）の場合は、<code>~/.bashrc</code> または <code>~/.zshrc</code> に次の行を追加し、新しいターミナルを開きます：</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>fish の場合は <code>fish_add_path ~/.local/bin</code> を 1 回実行します。Windows では、次の PowerShell コマンドでユーザー PATH にフォルダを追加し、その後新しいターミナルを開いてください：</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p><code>RUNE_INSTALL_DIR</code> を設定した場合は、そのフォルダのパスに置き換えてください。</p>
+
+<h2 id="first-start">初回起動</h2>
+<p>プロジェクトフォルダでターミナルを開き、<code>rune</code> を実行します。初回起動時に、ホームフォルダ内の <code>.rune</code>（Windows では <code>%USERPROFILE%\.rune</code>）、または <code>RUNE_HOME</code> で指定した場所にデータフォルダが作成されます。この中には以下が保存されます：</p>
+<ul>
+<li>設定ファイル <code>rune.toml</code>。あなたが変更した項目のみが記録され、その他の値は実行中のバージョンから引き継がれます。</li>
+<li>暗号化された API キー。</li>
+<li>プロジェクトごとに管理されるセッション履歴、プロジェクトメモリ、および undo が使用するスナップショット。</li>
+</ul>
+<p>Windows では、初回起動時に一度だけ、Rune がコマンドを実行するための専用アカウントを作成する管理者確認が表示されます。ここで拒否しても、起動のたびに確認が出ることはありません。後から作成したい場合は <code>rune -sandbox setup</code> を実行してください。専用アカウントがない場合の違いについては<a href="{{url "docs/security"}}">セキュリティ</a>で説明しています。</p>
+<p>使用中のデータフォルダの場所は、<code>rune -config</code> の出力の 1 行目に表示されます。Rune は自身のデータをプロジェクト内ではなくこのデータフォルダに保存するため、プロジェクト内のファイルが変更されるのは、選択したモードの下で AI がツールを実行したとき、あなた自身が <code>!</code> コマンドを実行したとき、またはプロジェクトスコープを指定してスキルや MCP 設定を保存したときだけです。続いて、「概要」の<a href="{{url "docs"}}#connect-and-select">モデルの接続と選択</a>へ進んでください。</p>
+
+<h2 id="update">アップデート</h2>
+<p>目的のバージョンに対してインストーラを再度実行してください（<code>RUNE_INSTALL_DIR</code> を設定していた場合は同じパスを指定します）。ダウンロードの検証とプログラムの置き換えが一括で行われます。完了後に <code>rune -version</code> で結果を確認してください。</p>
+<p>すでに開いている Rune ウィンドウはそのまま動作を続けます。Linux・macOS では、セッションが待機状態になると自動的に新しいビルドへ切り替わり、新バージョンの初回起動時にデータフォルダも更新されます。Windows では実行中のプログラムをその場で置き換えられないため、開いているウィンドウは起動時のバージョンのまま動作し、次に新しく開いた Rune から新しいバージョンが使われます。切り替えのために実行中の作業を強制終了しないでください。</p>
+
+<h2 id="uninstall">アンインストール</h2>
+<p>作業を完了または停止し、すべての Rune ウィンドウを閉じてから、プログラムとライセンス表記ファイルを削除します。Linux・macOS の場合：</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>Windows（PowerShell）の場合：</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>Windows では、まず <code>rune -sandbox reset</code> を実行することで、Rune のコマンドサンドボックスに付与されたフォルダへのアクセス権を解除し、専用アカウントを削除します（管理者確認が表示される場合があります）。データフォルダはご自身で削除しない限りそのまま残ります。このフォルダには履歴、設定、キー、復元ポイントが保存されており、通常のアンインストールでは削除する必要はありません。削除する場合は、先に <code>rune -config</code> で場所を確認し、Rune の実行中には絶対に削除しないでください。</p>
+
+<h2 id="environment">環境変数</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>ホームフォルダ内の <code>.rune</code> の代わりに別のデータフォルダを使用します（設定、キー、セッションが独立して管理されます）。</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd><code>--no-color</code> と同様に、色なしで出力します。</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>ターミナルが背景色を報告しない場合に、ターミナルの背景（<code>dark</code>、<code>light</code>、または 16 進カラーコード）を Rune に伝えます（Appearance にあるテーマ選択とは異なります）。</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>インストーラのみが参照する変数です。詳しくは<a href="#installer-options">インストーラのオプション</a>をご覧ください。</dd></div>
+</dl>
+{{end}}

@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>Lizenz</h1>
+      <p class="article-lead">Die Vereinbarung, die jedem RuneAgent-Download beiliegt, zum leichteren Lesen übersetzt. Verbindlich ist allein der englische Text: die Datei <code>LICENSE.txt</code> in jedem Archiv und die <a href="{{(index .Locales 0).Href}}" hreflang="en" lang="en">englische Seite</a>; weichen beide voneinander ab, gilt der englische Text.</p>
+      <p class="meta">Gültig ab 29. Oktober 2026. Für jedes Release gilt die Lizenz, die zusammen mit ihm veröffentlicht wurde.</p>
+    </header>
+    {{/* A reading translation of LICENSE.txt. Only the English page and file bind (owner, 2026-11-04); the lead says so and a test holds it. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. Lizenzgewährung</h2>
+      <p>Atoryn gewährt dir eine kostenlose, nicht ausschließliche und nicht übertragbare Lizenz, die unter {{.Origin}}{{url ""}} veröffentlichten offiziellen RuneAgent-Binärdateien für persönliche und kommerzielle Zwecke auf beliebig vielen deiner eigenen Rechner herunterzuladen, zu installieren und zu nutzen.</p>
+
+      <h2 id="limits">2. Was nicht gestattet ist</h2>
+      <ul>
+        <li>RuneAgent – verändert oder unverändert – zu verkaufen, zu vermieten, zu verleasen, unterzulizenzieren oder weiterzuverbreiten. Verweise andere stattdessen auf den offiziellen Download.</li>
+        <li>RuneAgent zu verändern, zu dekompilieren, zu disassemblieren oder durch Reverse Engineering zu analysieren, außer soweit dies gesetzlich trotz dieser Einschränkung ausdrücklich gestattet ist.</li>
+        <li>Urheberrechts-, Lizenz- oder Herkunftshinweise zu entfernen oder zu verändern.</li>
+        <li>Die Namen RuneAgent, Atoryn oder Atoryn Studio oder deren Logos für eigene Produkte zu verwenden oder eine Unterstützung bzw. Empfehlung nahezulegen.</li>
+      </ul>
+
+      <h2 id="work">3. Deine Arbeit bleibt dein Eigentum</h2>
+      <p>Code, Prompts und Daten, die du mit RuneAgent verarbeitest, bleiben dein Eigentum. RuneAgent sendet sie nicht an Atoryn. Alles, was im Rahmen deiner Arbeit an einen Modellanbieter, eine Website oder einen anderen Dienst übertragen wird, unterliegt den Bedingungen des jeweiligen Drittanbieters.</p>
+
+      <h2 id="third">4. Dienste von Drittanbietern</h2>
+      <p>Du bist selbst verantwortlich für deine Konten, API-Schlüssel, entstehenden Kosten und die Einhaltung der Bedingungen jedes Anbieters oder Dienstes, den du verbindest.</p>
+
+      <h2 id="components">5. Open-Source-Komponenten</h2>
+      <p>RuneAgent enthält Open-Source-Komponenten unter deren eigenen Lizenzen. Die entsprechenden Lizenzhinweise liegen jedem Download bei, und für diese Komponenten gelten deren jeweilige Lizenzen.</p>
+
+      <h2 id="warranty">6. Gewährleistungsausschluss</h2>
+      <p>RuneAgent wird im vorliegenden Zustand („wie besehen“) und ohne jegliche ausdrückliche oder stillschweigende Gewährleistung bereitgestellt, einschließlich der Eignung für einen bestimmten Zweck und der Nichtverletzung von Rechten Dritter. Ein KI-Agent kann Fehler machen: Prüfe seine Ergebnisse, bevor du dich darauf verlässt.</p>
+
+      <h2 id="liability">7. Haftungsbeschränkung</h2>
+      <p>Soweit gesetzlich zulässig, haftet Atoryn nicht für indirekte, zufällige, besondere oder mittelbare Schäden, Strafschadensersatz oder für den Verlust von Daten, Gewinnen oder Geschäftsmöglichkeiten, die aus der Nutzung oder der Unmöglichkeit der Nutzung von RuneAgent entstehen.</p>
+
+      <h2 id="termination">8. Beendigung</h2>
+      <p>Diese Lizenz endet automatisch, wenn du gegen ihre Bedingungen verstößt. In diesem Fall musst du die Nutzung von RuneAgent einstellen und deine Kopien löschen.</p>
+
+      <h2 id="changes">9. Änderungen</h2>
+      <p>Atoryn kann zukünftige Releases unter anderen Bedingungen veröffentlichen, einschließlich einer Open-Source-Lizenz. Ein Release, das du bereits hast, unterliegt weiterhin der Lizenz, mit der es ausgeliefert wurde.</p>
+
+      <p class="license-copyright">Copyright (c) 2026 Atoryn. Alle Rechte vorbehalten.</p>
+    </div>
+    <p class="license-aside">Die Schriftarten dieser Website werden unter ihren jeweiligen Lizenzen verwendet, <a class="link" href="{{asset "Fonts/LICENSES.txt"}}">die hier aufgeführt sind</a>.</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="Auf dieser Seite">
+      <p class="index-title">Inhalt</p>
+      <ol>
+        <li><a href="#grant">Lizenzgewährung</a></li>
+        <li><a href="#limits">Was nicht gestattet ist</a></li>
+        <li><a href="#work">Deine Arbeit bleibt dein Eigentum</a></li>
+        <li><a href="#third">Dienste von Drittanbietern</a></li>
+        <li><a href="#components">Open-Source-Komponenten</a></li>
+        <li><a href="#warranty">Gewährleistungsausschluss</a></li>
+        <li><a href="#liability">Haftungsbeschränkung</a></li>
+        <li><a href="#termination">Beendigung</a></li>
+        <li><a href="#changes">Änderungen</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

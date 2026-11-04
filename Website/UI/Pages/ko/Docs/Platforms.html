@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">지원 현황 한눈에 보기</h2>
+<p>Rune은 모든 운영체제에서 동일한 모드, 도구, 설정, 데이터 구조를 가진 단일 프로그램으로 작동합니다. 달라지는 부분은 실행 중인 프로그램 교체 방식, 명령어 격리 방식, 입력 대기 중인 명령어 감지 여부처럼 각 운영체제가 프로그램에 허용하는 시스템 기능입니다. Linux가 주력 플랫폼이며, macOS와 Windows는 실제 기기에서 빌드 및 테스트를 거친 베타 지원 단계입니다.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>항목</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>지원 단계</td><td>주력(Primary)</td><td>베타(Beta)</td><td>베타(Beta)</td></tr>
+<tr><td>지원 버전</td><td>glibc 2.17 이상, 또는 정적 musl 빌드를 실행할 수 있는 모든 시스템</td><td>macOS 11 이상</td><td>Windows 10 버전 1809 이상, Windows 11</td></tr>
+<tr><td>프로세서</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>설치 스크립트</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td>PowerShell용 <code>install.ps1</code></td></tr>
+<tr><td>업데이트 후 열려 있는 창</td><td>유휴 상태일 때 새 빌드로 전환</td><td>유휴 상태일 때 새 빌드로 전환</td><td>기존 버전 유지, 다음에 여는 Rune부터 새 버전 적용</td></tr>
+<tr><td>명령어 샌드박스</td><td>커널이 지원하는 경우 커널 자체 샌드박스</td><td>macOS 자체 샌드박스</td><td>별도의 Windows 로컬 계정(최초 1회 관리자 확인으로 설정)</td></tr>
+<tr><td>키보드 입력 대기 감지</td><td>모든 입력 대기 감지</td><td>비밀번호 프롬프트 등 에코가 숨겨진 입력만 감지</td><td>감지하지 않음</td></tr>
+<tr><td>명령어 실행 셸</td><td>bash, 없으면 <code>/bin/sh</code></td><td>bash, 없으면 <code>/bin/sh</code></td><td>PowerShell 7, 없으면 Windows PowerShell, 없으면 명령 프롬프트(cmd)</td></tr>
+<tr><td>Rune에서 텍스트 복사</td><td>터미널을 통해 복사</td><td>시스템 클립보드 및 터미널 동시 사용</td><td>시스템 클립보드 및 터미널 동시 사용</td></tr>
+<tr><td>링크 열기</td><td><code>xdg-open</code>을 통해 기본 브라우저로 열기</td><td>기본 브라우저로 열기</td><td>기본 브라우저로 열기</td></tr>
+</tbody></table></div>
+<p>현재 릴리스에서 서명된 빌드가 제공되는 시스템은 <a href="{{url "install"}}">홈페이지</a>의 각 설치 명령어 아래에 표시됩니다.</p>
+
+<h2 id="linux">Linux</h2>
+<p>대부분의 최신 배포판 커널처럼 커널이 자체 샌드박스를 제공하는 환경에서는 커널 샌드박스로 명령어를 격리합니다. 구형 커널 등에서 샌드박스를 지원하지 않으면 Rune이 이를 알리며, 이 경우 Auto 모드에서도 모든 명령어가 실행 전에 승인을 요청하고 Full 모드에서는 묻지 않고 실행합니다. <code>/help</code>의 <em>This machine</em> 항목에서 샌드박스 활성화 여부와 예외 사항을 확인할 수 있습니다.</p>
+<p>텍스트 복사는 터미널을 거치므로 터미널에서 프로그램의 클립보드 설정(OSC 52 등)을 허용해야 합니다. SSH 접속 중이거나 tmux, screen 내부에서는 이 권한이 꺼져 있을 수 있으니 터미널이나 멀티플렉서에서 기능을 켜거나, <kbd>Shift</kbd>를 누른 채 드래그하여 터미널 자체 선택 기능을 사용하세요. 링크를 열려면 데스크톱 환경에서 제공하는 <code>xdg-open</code>이 필요합니다.</p>
+<p>NixOS나 Guix처럼 프로그램을 읽기 전용 패키지 스토어에 보관하는 시스템에서는 명령어가 해당 스토어의 내용을 읽고 실행할 수 있습니다.</p>
+
+<h2 id="macos">macOS</h2>
+<p>명령어는 macOS 자체 샌드박스 안에서 실행되며 Linux와 동일한 경계로 제한됩니다. 텍스트 복사 시에는 시스템 클립보드에 직접 복사하므로, 터미널 경유 클립보드 요청을 무시하는 기본 Terminal 앱에서도 정상 작동합니다.</p>
+<p>macOS는 비밀번호 입력창처럼 화면에 입력 글자가 표시되지 않는(echo off) 대기 상태만 Rune에 알려 줍니다. 그 외 일반 입력을 조용히 기다리는 백그라운드 명령어는 계속 작업 중인 명령어처럼 보이므로, 판단하기 전에 먼저 로그를 확인하고 조용하다는 이유만으로 비밀번호를 추측해 보내거나 프롬프트를 임의로 승인하지 마세요.</p>
+<p>명령어는 터미널의 기본 로그인 셸(macOS 기본값은 zsh)과 관계없이 macOS에 기본 포함된 bash에서 실행됩니다. 설치된 다른 셸을 쓰려면 <code>terminal.shell</code>에 절대 경로를 지정하세요.</p>
+<p>설치는 홈페이지의 명령어를 사용하세요. 브라우저에서 직접 내려받은 파일에는 인터넷 다운로드 표시가 붙어 이를 제거하기 전까지 Gatekeeper가 실행을 차단합니다. 해제 방법은 <a href="{{url "docs/install"}}#install">설치 및 업데이트</a>를 참고하세요.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune은 별도의 전용 로컬 계정을 사용해 명령어를 격리합니다. Rune을 처음 열 때 해당 계정을 설정하기 위해 관리자 권한 확인을 한 번 요청합니다. 거절하더라도 시작할 때마다 다시 묻지 않으며, 원할 때 <code>rune -sandbox setup</code>으로 설정하거나 <code>rune -sandbox reset</code>으로 전용 계정과 폴더 접근 권한을 모두 제거할 수 있습니다. <code>rune -sandbox</code>를 실행하면 부여된 접근 권한 목록과 현재 사용 중인 격리 방식이 표시됩니다.</p>
+<p>전용 계정을 설정하지 않은 경우, Rune은 현재 사용자 계정의 제한된 토큰(restricted token)으로 명령어를 격리하며 다음과 같은 한계가 있습니다:</p>
+<ul>
+<li>드라이브 루트 폴더, 다른 드라이브, ProgramData 등 Windows가 모든 사용자에게 읽기를 허용하는 영역은 명령어가 여전히 읽을 수 있으며, ProgramData 안에 파일을 생성할 수 있습니다. 단, 사용자의 프로필 폴더에는 접근할 수 없습니다.</li>
+<li>다른 프로그램이 Windows 기본 보안 설정으로 만든 명명된 파이프(named pipe)를 읽기 전용으로 열 수 있습니다. 이러한 파이프에 쓰는 작업은 거부됩니다.</li>
+<li>Git Bash 및 기타 MSYS2·Cygwin 프로그램은 매 명령어마다 승인을 요청한 뒤 전체 권한으로 실행됩니다. <code>curl.exe</code>와 <code>Invoke-WebRequest</code>가 사용하는 Windows 자체 HTTPS는 실패하지만, Git의 HTTPS는 정상 작동합니다.</li>
+</ul>
+<p>전용 계정을 설정하면 격리된 명령어 안에서도 Git Bash와 Windows 자체 HTTPS가 정상 작동합니다. Rune은 Windows 시스템 폴더, 드라이브 루트, 전체 사용자 프로필 상위 폴더에는 접근 권한을 추가하지 않으므로, 이러한 위치에서 프로젝트를 열면 Ask와 Auto 모드에서 매 명령어마다 승인을 요청합니다.</p>
+<p>Windows는 명령어가 키보드 입력을 기다리고 있는지 Rune에 알려 주지 않습니다. 조용히 실행 중인 백그라운드 명령어는 응답을 기다리는 중이거나 아직 작업 중일 수 있으므로, 입력을 보내기 전에 먼저 로그를 확인하세요. 또한 Windows에서는 실행 중인 프로그램 파일을 교체할 수 없으므로 업데이트는 이미 열린 창이 아니라 다음에 새로 여는 Rune부터 적용됩니다.</p>
+
+<h2 id="terminals">터미널 환경</h2>
+<p>키 입력과 마우스 제스처는 터미널이 Rune에 전달해 줄 때만 작동합니다. 예를 들어 Konsole은 프로필 설정을 바꾸지 않으면 <kbd>Ctrl</kbd>+휠을 화면 확대/축소로 처리하며, 일부 터미널은 <kbd>Alt</kbd>+휠을 가로 스크롤로 전환합니다. 일반 마우스 휠과 키보드 조작은 언제나 작동합니다. 마우스 휠의 부드러운 스크롤은 전체 프레임을 한 번에 빠르게 렌더링하는 터미널에서만 작동하며, 그 외 터미널에서는 한 칸씩 즉시 이동합니다. 색상, 투명도, 글꼴은 터미널 자체 설정을 따릅니다. 현재 빌드가 지원하는 단축키와 기능은 <code>/help</code>에서 확인하세요.</p>
+{{end}}

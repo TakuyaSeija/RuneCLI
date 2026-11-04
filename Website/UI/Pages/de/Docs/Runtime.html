@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Das richtige Timeout wählen</h2>
+<p>Settings → Runtime steuert die Zeitlimits für Modellanfragen, gemeinsame Netzwerk-Timeouts und Wiederholungsversuche. Die Wartezeit für Vordergrundbefehle im Terminal, das Zeitlimit für Web-Werkzeuge und die Ablauffrist für Berechtigungskarten sind separate Einstellungen unter Tools. Wenn du pauschal alle Timeouts erhöhst, kaschierst du oft nur das Symptom, ohne die Ursache zu beheben.</p>
+<p>Das optionale Anfrage-Timeout eines Kontos akzeptiert ganze Sekunden von 5 bis 3.600. Ein leeres Feld bzw. default entfernt diese Überschreibung. Hilfsaufgaben (Auxiliary Jobs) besitzen eigene Zeitlimits. Ein aktiver Stream und ein Stream, über den keinerlei Daten mehr eintreffen, werden unterschiedlich behandelt.</p>
+<h2 id="retry">Lineare Wiederholungsversuche</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Schlüssel</th><th>Standardwert</th><th>Bedeutung</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Wiederholungsversuche nach dem ersten Versuch: insgesamt also bis zu sechs Versuche. Null deaktiviert Wiederholungen.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Grundschritt: Die Wartezeit steigt linear um 3, 6, 9 … Sekunden an.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>Würde die nächste Wartezeit diesen Wert überschreiten, beginnt die Reihe wieder beim Grundschritt. Es handelt sich nicht um exponentielles Backoff.</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>Wie lange ein Schlüssel ohne Guthaben pausiert, bevor er wieder berücksichtigt wird. Lädt kein neues Guthaben auf.</td></tr>
+</tbody></table></div>
+<p>Nicht jeder Fehler löst einen Wiederholungsversuch aus. Ein erneuter Versuch kann weder einen falschen API-Schlüssel noch einen nicht unterstützten Parameter oder eine falsche Endpunkt-Adresse reparieren. Sehr hohe Wiederholungszahlen können einen Fehler unnötig in die Länge ziehen und zusätzliche Kosten verursachen; prüfe zuerst die genaue Fehlermeldung in den Logs.</p>
+<h2 id="network">Netzwerk-Zeitlimits</h2>
+<dl class="ref">
+<div><dt>Leerlauf-Timeout (Stall limit)</dt><dd><code>network.stream_idle_timeout</code>: 5 Minuten ohne eingehende Antwortdaten. Dies ist kein Gesamtlimit von fünf Minuten für einen kontinuierlich laufenden Stream.</dd></div>
+<div><dt>Verbindungsaufbau</dt><dd><code>network.connect_timeout</code>: 10 Sekunden für den Aufbau einer Netzwerkverbindung.</dd></div>
+<div><dt>Test-Timeout</dt><dd><code>network.probe_timeout</code>: 45 Sekunden für einen expliziten Anbietertest.</dd></div>
+<div><dt>Katalog</dt><dd>Erweiterte Werte: 10 Sekunden Anfrage-Timeout, 1 Stunde Gültigkeitsdauer (TTL) und höchstens 100 Seiten pro Aktualisierung. Die Katalog-Gültigkeit hat nichts mit der Lebensdauer eines Prompt-Caches zu tun.</dd></div>
+</dl>
+<p>Weitere erweiterte Limits begrenzen die Größe gestreamter und nicht gestreamter Antworten. Sie messen Bytes, nicht Tokens. Die Kompatibilitätsoption token_saver kann die Komprimierung von Tool-Ergebnissen einem unterstützten Router überlassen; das Aktivieren garantiert jedoch keine Komprimierung und kann die Detailtiefe der Modellantworten verringern.</p>
+<h2 id="detached-lifetime">Lebensdauer getrennter Sitzungen</h2>
+<p><code>host.idle_lifetime</code> ist eine erweiterte globale Einstellung und beträgt standardmäßig 60 Sekunden. Sobald das letzte Fenster geschlossen wird, stoppt die aktive KI-Arbeit; laufende Hintergrundbefehle können während dieser Haltezeit weiterlaufen. Öffne die Sitzung rechtzeitig wieder, um sie weiter zu beobachten. Dies ist weder ein Abmelde-Timer für Konten noch eine Zusage für dauerhaft laufende Hintergrunddienste.</p>
+<h2 id="change-and-reset">Gezielt ändern und zurücksetzen</h2>
+<p>Öffne die gewünschte Zeile unter Runtime, passe den Wert an und wähle Apply. Use default entfernt eine Überschreibung; <code>rune -config explain &lt;key&gt;</code> zeigt den wirksamen Wert und den Gültigkeitszeitpunkt an. Änderungen am Stream-Leerlauf-Timeout können sich bereits auf eine aktuell wartende Anfrage auswirken, während andere Einstellungen erst ab der nächsten Operation greifen.</p>
+<p>Unterscheide bei Problemen zuerst zwischen einem langsam arbeitenden Dienst, einer still hängenden Verbindung, einem aufgebrauchten Schlüssel und einer vom Modell nicht unterstützten Anfrage. Eine erfolgreich gespeicherte Konfiguration ersetzt keinen Netzwerktest.</p>
+{{end}}

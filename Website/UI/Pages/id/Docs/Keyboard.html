@@ -1,0 +1,44 @@
+{{define "article"}}
+<h2 id="application">Percakapan dan aplikasi</h2>
+<dl class="ref">
+<div><dt>Enter · Alt+Enter</dt><dd>Mengirim pesan, atau menyisipkan baris baru. Kombinasi tombol Return dengan tombol modifikasi bergantung pada apa yang dilaporkan oleh terminal Anda.</dd></div>
+<div><dt>Ctrl+G · Ctrl+O</dt><dd>Membuka Settings, atau menampilkan/menyembunyikan panel samping.</dd></div>
+<div><dt>Ctrl+T · Ctrl+R</dt><dd>Membuka rencana kerja, atau membentangkan/melipat langkah perangkat dan penalaran. Di pemilih sesi, Ctrl+R berfungsi untuk mengubah nama sesi.</dd></div>
+<div><dt>Alt+T</dt><dd>Menggilir pilihan tingkat penalaran yang tersedia pada model yang dipilih.</dd></div>
+<div><dt>Tab</dt><dd>Melengkapi perintah garis miring atau menggilir mode izin. Di dalam formulir, Tab tetap berfungsi untuk berpindah fokus antar-elemen.</dd></div>
+<div><dt>Esc dua kali</dt><dd>Menghentikan pekerjaan AI yang sedang berjalan: tekanan pertama menampilkan konfirmasi, tekanan kedua dalam 3 detik menghentikan proses. Saat sedang diam, Esc menutup tampilan yang sedang terbuka.</dd></div>
+<div><dt>Ctrl+C dua kali</dt><dd>Keluar dari Rune. Tekanan pertama menyiapkan keluar; tekanan pertama ini tidak membatalkan giliran kerja atau menghapus draf tulisan Anda.</dd></div>
+<div><dt>Ctrl+L · Ctrl+↓</dt><dd>Menggambar ulang layar terminal, atau melompat ke bagian terbaru percakapan.</dd></div>
+</dl>
+<h2 id="text-editing">Pengeditan teks</h2>
+<p>Pintasan ini berlaku sama di kolom tulis, kolom jawaban yang dapat diketik, kolom isian Settings, pencarian model, kolom MCP, serta pencarian dan pengubahan nama sesi. Daftar dan tombol memiliki navigasinya sendiri. Satu baris logis berakhir pada karakter ganti baris (newline); satu baris visual dapat berupa lipatan baris otomatis (soft wrap).</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Tombol</th><th>Tindakan</th></tr></thead><tbody>
+<tr><td>← / →</td><td>Berpindah satu karakter terlihat.</td></tr>
+<tr><td>Ctrl+← / Ctrl+→</td><td>Berpindah ke awal kata sebelumnya / akhir kata berikutnya yang dipisahkan spasi.</td></tr>
+<tr><td>↑ / ↓</td><td>Berpindah antarbaris visual sambil mempertahankan posisi kolom.</td></tr>
+<tr><td>Ctrl+A / Ctrl+E</td><td>Berpindah ke awal / akhir baris logis saat ini.</td></tr>
+<tr><td>Home / End</td><td>Berpindah ke awal / akhir seluruh teks masukan.</td></tr>
+<tr><td>Backspace / Delete</td><td>Menghapus karakter terlihat sebelum / sesudah kursor, atau menghapus teks yang sedang dipilih.</td></tr>
+<tr><td>Ctrl+U / Ctrl+K</td><td>Memotong (kill) teks ke belakang / ke depan hingga batas baris logis. Ctrl+K tepat pada karakter ganti baris hanya menghapus ganti baris tersebut; di ujung akhir masukan tidak melakukan apa-apa.</td></tr>
+<tr><td>Ctrl+W / Alt+D</td><td>Memotong kata yang dipisahkan spasi di sebelah kiri / kanan, termasuk spasi yang berdekatan ke arah tersebut.</td></tr>
+<tr><td>Ctrl+Y / Alt+Y</td><td>Menempelkan (yank) potongan terakhir / menggilir potongan sebelumnya tepat setelah melakukan yank.</td></tr>
+<tr><td>Ctrl+_ / Alt+R</td><td>Membatalkan (undo) / mengulangi (redo) pengeditan teks di kolom ini.</td></tr>
+<tr><td>Shift+←/→/↑/↓</td><td>Memperluas pilihan teks per karakter atau per baris visual.</td></tr>
+<tr><td>Ctrl+Shift+← / →</td><td>Memperluas pilihan teks per kata.</td></tr>
+<tr><td>Alt+X / Alt+W</td><td>Menukar posisi karakter / kata yang bersebelahan.</td></tr>
+<tr><td>Alt+U / Alt+L / Alt+V</td><td>Mengubah kata berikutnya atau teks yang dipilih menjadi huruf besar semua / huruf kecil semua / huruf kapital di awal kata.</td></tr>
+</tbody></table></div>
+<p>Mengetik, menempelkan, atau menghapus akan langsung menggantikan teks yang sedang dipilih. Riwayat undo sementara dan cincin potongan teks (kill ring) berlaku khusus untuk kolom tersebut, memiliki batas kapasitas, dan dibersihkan saat kolom atau sesi berganti. Fitur ini bukan cadangan berkas. Rune tidak menyediakan seluruh alias Readline; misalnya Ctrl+B/F dan Alt+B/F tidak dipakai sebagai pintasan gerak kursor.</p>
+<h2 id="history-and-reading">Riwayat masukan dan pembacaan</h2>
+<p>Di kolom tulis, tombol Up/Down terlebih dahulu berpindah antarbaris teks yang terlihat, lalu mencapai ujung awal/akhir tulisan, barulah memanggil riwayat prompt sebelumnya. Tombol <kbd>PgUp</kbd>/<kbd>PgDn</kbd> langsung memanggil riwayat prompt. Riwayat prompt disimpan per sesi.</p>
+<p>Satu takik roda gulir mouse menggeser sejumlah baris yang dikonfigurasikan (dua baris secara bawaan). Kombinasi Ctrl+wheel atau Alt+wheel menggulir tiga kali lebih jauh bila diteruskan oleh terminal. Beberapa terminal mencadangkan gestur tersebut untuk memperbesar tampilan atau menggulir mendatar; guliran biasa dan tombol papan ketik tetap dapat digunakan.</p>
+<h2 id="mouse">Mouse</h2>
+<p>Klik menempatkan kursor teks atau mengaktifkan kontrol. Seret di atas teks lalu lepaskan untuk menyalinnya: sorotan akan hilang begitu teks masuk ke papan klip Anda. Menyeret di area percakapan hanya menyalin panel tersebut tanpa menyertakan panel samping atau garis tepi kotak Rune, dan tabel disalin sebagai sel yang dipisahkan karakter tab. Menyalin kotak perintah yang terlipat akan mengembalikan baris aslinya secara utuh tanpa penanda tampilan <code>↵</code> dan <code>…</code>. Di dalam kolom masukan, menyeret mouse akan menyalin teks tanpa memindahkan posisi kursor atau menimpa draf Anda; untuk memilih teks guna diedit, gunakan <kbd>Shift</kbd> dan tombol panah. Kolom rahasia yang disamarkan tidak pernah disalin.</p>
+<p>Terminal Anda harus mengizinkan penulisan ke papan klip agar salinan berhasil masuk; sesi SSH atau multiplexer seperti tmux dapat memblokirnya. Kombinasi <kbd>Shift</kbd>+seret, bila didukung terminal, akan menggunakan fitur blok bawaan terminal Anda sendiri (termasuk garis tepi kotak). Jika <code>ui.mouse = false</code>, seluruh pemilihan teks menggunakan mekanisme bawaan terminal.</p>
+<p>Klik sebuah tautan untuk membuka panel <strong>REFERENCE</strong>: tekan <kbd>Enter</kbd> untuk membuka alamat web di peramban Anda, <kbd>C</kbd> untuk menyalin alamat tujuan lengkap, dan <kbd>Esc</kbd> untuk menutup panel. Menyeret mouse melintasi tautan hanya akan menyalin teksnya dan tidak pernah membuka tautan tersebut.</p>
+<h2 id="lists-and-forms">Daftar dan formulir</h2>
+<p>Tombol panah memilih item dan <kbd>Enter</kbd> membuka atau mengonfirmasi. <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> memindahkan fokus. <kbd>Esc</kbd> membatalkan pengeditan atau kembali satu tingkat. Di menu Models, Ctrl+F memfokuskan kolom pencarian, Alt+C membuka konfigurasi kapabilitas model, T menguji model dengan permintaan nyata, dan Delete menghapus konfigurasi lokal untuk hasil yang dipilih.</p>
+<p>Di dalam formulir pertanyaan, Alt+Left/Right berpindah antarpertanyaan. Tombol Left/Right biasa mengedit teks atau memilih tombol jawaban. Tombol Page Up/Page Down menggulir kartu yang panjang tanpa mengirim jawaban. Tombol Up/Down di dalam kolom jawaban kustom terlebih dahulu menggerakkan kursor di dalam teks sebelum berpindah keluar dari kolom tersebut. Menyeret mouse akan memilih teks alih-alih menekan tombol kontrol di bawahnya.</p>
+<h2 id="terminal-differences">Perbedaan antar-terminal</h2>
+<p>Pintasan papan ketik hanya bekerja jika terminal meneruskannya ke Rune. Pintasan sistem operasi, profil terminal, dan pengodean kontrol tradisional dapat menahan kombinasi tombol tertentu. Gambar latar, efek blur, dan transparansi juga dikendalikan oleh terminal, bukan oleh Rune. Periksa <code>/help</code> pada biner yang Anda pasang alih-alih mengasumsikan peta tombol shell biasa berlaku sama.</p>
+{{end}}

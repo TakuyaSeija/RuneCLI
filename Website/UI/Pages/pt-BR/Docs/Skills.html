@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="what-a-skill-is">Uma skill é um guia</h2>
+<p>Uma skill reúne instruções e referências reutilizáveis para uma tarefa. Ela não é uma concessão executável de permissão. O agente pode descobrir uma skill relevante e ler seu arquivo SKILL.md, ou você pode ativar uma explicitamente na conversa. Revise orientações e scripts de outros autores antes de segui-los.</p>
+<h2 id="discover-and-use">Descobrir e usar</h2>
+<dl class="ref">
+<div><dt>/skills list</dt><dd>Lista os guias disponíveis e seus IDs exatos.</dd></div>
+<div><dt>/skills show &lt;id&gt;</dt><dd>Lê as informações de um guia específico.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Ativa um guia para esta conversa. Seu texto não pode aprovar ações não relacionadas nem ignorar as verificações de execução.</dd></div>
+<div><dt>/skills enable|disable &lt;id&gt;</dt><dd>Altera a disponibilidade no projeto atual; isso não desinstala a skill para todos os usuários ou projetos.</dd></div>
+<div><dt>/skills reload</dt><dd>Atualiza o catálogo após alterações. Leia novamente um guia alterado antes de se basear nele.</dd></div>
+</dl>
+<h2 id="locations-and-install">Localizações e instalação</h2>
+<p>Um guia de projeto fica em <code>.rune/skills/&lt;name&gt;/SKILL.md</code>; guias de projeto portáteis podem usar <code>.agents/skills/</code>. Guias pessoais ficam na pasta skills dentro da pasta de dados selecionada do Rune, com a localização pessoal portátil disponível quando ativada.</p>
+<p>O comando <code>rune -skills install &lt;folder-or-zip&gt;</code> instala um pacote revisado em <code>.rune/skills/</code> deste projeto, mantendo-o junto ao projeto ao qual serve sem misturá-lo a outros projetos; ele é compartilhado com todos que usam os arquivos do projeto, inclusive no repositório. Adicione <code>--scope user</code> para torná-lo um guia pessoal disponível em todos os projetos. O comando <code>rune -skills update &lt;folder-or-zip&gt;</code> substitui uma cópia instalada no escopo escolhido da mesma forma e não guarda cópia da versão anterior, portanto mantenha seu original ou use controle de versão. Cada pacote possui seu próprio nome em letras minúsculas e pasta correspondente, um arquivo SKILL.md com metadados de nome e descrição e referências relativas opcionais. A instalação e as atualizações devem ser deliberadas, sem confiar cegamente em textos baixados.</p>
+<h2 id="catalogue">O que a IA vê das suas skills</h2>
+<p>A IA não recebe todos os guias na íntegra de uma vez. Ela recebe um catálogo curto das skills disponíveis, com seus nomes e descrições de uma linha, e só lê um guia completo quando precisa dele. Esse catálogo é limitado a 8 KiB de texto por padrão (<code>skills.max_catalog_size</code>); uma skill que não caiba ali continua descobrível, de modo que a IA ainda pode encontrá-la e lê-la. O limite é um tamanho em bytes, não uma contagem de tokens do modelo. Um valor definido em <code>capabilities.catalog_bytes</code>, quando salvo, tem precedência sobre ele.</p>
+<p>Altere esse limite com <code>rune -config set skills.max_catalog_size 16KiB</code> e volte ao padrão com <code>rune -config reset skills.max_catalog_size</code>. Um catálogo maior consome mais contexto do modelo em cada requisição.</p>
+<h2 id="official-help">Ajuda oficial offline</h2>
+<p>O Rune traz embutida a skill settings-guide; ela não exige nenhum download adicional nem conta de serviço. O texto oficial gerenciado pode ser reparado automaticamente caso seja alterado ou corrompido. Coloque suas personalizações em uma skill pessoal ou de projeto separada em vez de editar essa cópia gerenciada.</p>
+<p>O nome <code>rune-settings-guide</code> pertence a esta ajuda integrada: nenhum pacote pode ser instalado ou atualizado sob esse nome, e outra cópia com o mesmo nome nunca toma o seu lugar (a lista mostra essa cópia como oculta/shadowed). Outros guias com nomes iguais podem vir de escopos diferentes, tendo precedência a cópia do projeto. Use o ID exato listado para diferenciá-los. Desativar capacidades ou um guia específico também pode tornar a ajuda oficial indisponível; isso não significa que o binário instalado não possua o recurso.</p>
+{{end}}

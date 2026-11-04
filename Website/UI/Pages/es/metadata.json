@@ -1,0 +1,181 @@
+{
+  "pages": {
+    "": {
+      "title": "RuneAgent | un agente de programación para tu terminal",
+      "lead": "RuneAgent, de Atoryn Studio, trabaja en tu proyecto con el modelo que elijas, con resultados de herramientas visibles, permisos configurables y cambios de archivos revisables."
+    },
+    "changelog": {
+      "title": "Historial de versiones | RuneAgent",
+      "lead": "Cada versión publicada de RuneAgent."
+    },
+    "license": {
+      "title": "Licencia | RuneAgent",
+      "lead": "La licencia con la que se ofrece RuneAgent, traducida para su lectura; el texto en inglés es el vinculante."
+    },
+    "notfound": {
+      "title": "Página no encontrada | RuneAgent",
+      "lead": "Esta página no existe."
+    }
+  },
+  "groups": {
+    "Get started": "Primeros pasos",
+    "Use Rune": "Usar Rune",
+    "Configure": "Configurar",
+    "Extend": "Ampliar",
+    "Trust & understand": "Confianza y comprensión"
+  },
+  "docs_title": "{label} | documentación de RuneAgent",
+  "docs": {
+    "docs": {
+      "label": "Introducción",
+      "lead": "Qué hace Rune, qué envía a un modelo y cómo empezar tu primera sesión."
+    },
+    "docs/install": {
+      "label": "Instalación y actualización",
+      "lead": "Requisitos del sistema, qué hacen los instaladores, PATH, la carpeta de datos, actualizaciones y desinstalación en Linux, macOS y Windows."
+    },
+    "docs/platforms": {
+      "label": "Plataformas compatibles",
+      "lead": "Qué funciona igual en Linux, macOS y Windows, y qué hace cada sistema de forma distinta."
+    },
+    "docs/interface": {
+      "label": "Interfaz",
+      "lead": "Lee la conversación, las tarjetas de permiso, el plan, los cambios de archivos y el estado de la sesión."
+    },
+    "docs/sessions": {
+      "label": "Sesiones y contexto",
+      "lead": "Inicia, reanuda y dirige el trabajo; consulta el contexto y compacta el historial antiguo."
+    },
+    "docs/commands": {
+      "label": "Comandos de barra",
+      "lead": "Los comandos de la conversación, sus argumentos y qué cambia cada uno."
+    },
+    "docs/cli": {
+      "label": "Referencia de la línea de comandos",
+      "lead": "Opciones de inicio y subcomandos de rune para configuración, cuentas, sesiones y mantenimiento."
+    },
+    "docs/keyboard": {
+      "label": "Teclado y ratón",
+      "lead": "Atajos canónicos para editar, navegar, responder preguntas y la conversación."
+    },
+    "docs/shell": {
+      "label": "Comandos manuales",
+      "lead": "Ejecuta tú mismo un comando con un ! inicial: qué puede hacer, cuándo se ejecuta y qué ve la IA."
+    },
+    "docs/instructions": {
+      "label": "Instrucciones y adjuntos",
+      "lead": "Aporta indicaciones del proyecto, adjunta archivos y conserva una memoria duradera del proyecto."
+    },
+    "docs/memory": {
+      "label": "Memoria",
+      "lead": "Qué guarda la memoria del proyecto, qué llega realmente al modelo, su único presupuesto en bytes y qué no puede decidir nunca."
+    },
+    "docs/undo": {
+      "label": "Revisar, deshacer y rehacer",
+      "lead": "Revisa los diffs reales de los archivos y entiende qué puede y qué no puede revertir una restauración de sesión."
+    },
+    "docs/settings": {
+      "label": "Resumen de ajustes",
+      "lead": "Encuentra la sección adecuada de Settings y distingue las opciones globales de los controles de la sesión."
+    },
+    "docs/configuration": {
+      "label": "Archivo de configuración",
+      "lead": "Consulta, cambia y restablece valores de rune.toml sin confundir tus elecciones con los valores por defecto."
+    },
+    "docs/reference": {
+      "label": "Referencia de ajustes",
+      "lead": "Cada ajuste de rune.toml: su valor de fábrica, qué hace, los valores que acepta y cuándo surte efecto un cambio."
+    },
+    "docs/connections": {
+      "label": "Conexiones",
+      "lead": "Añade cuentas de modelos y web, gestiona credenciales y verifica el destino antes de conectar."
+    },
+    "docs/providers": {
+      "label": "Proveedores de modelos",
+      "lead": "Los 31 preajustes de proveedores, sus claves y direcciones, los servicios locales y notas sobre el razonamiento por proveedor."
+    },
+    "docs/models": {
+      "label": "Modelos y capacidades",
+      "lead": "Elige un par proveedor/modelo y configura los límites conocidos, las opciones de razonamiento y los precios."
+    },
+    "docs/generation": {
+      "label": "Generación y razonamiento",
+      "lead": "Controla el razonamiento, el muestreo y la salida solicitada del modelo actual."
+    },
+    "docs/auxiliary": {
+      "label": "Modelos auxiliares",
+      "lead": "Configura las tareas de sanitizer, classifier, compaction y título, incluidas sus implicaciones de datos y coste."
+    },
+    "docs/runtime": {
+      "label": "Ejecución y reintentos",
+      "lead": "Entiende los plazos de las solicitudes, las esperas lineales entre reintentos, la pausa por crédito y la vida de una sesión separada."
+    },
+    "docs/tools": {
+      "label": "Herramientas y límites",
+      "lead": "Fija los límites de salida devuelta y de trabajo, y distínguelos de un plegado en pantalla o de un permiso."
+    },
+    "docs/terminal": {
+      "label": "Terminal y tareas en segundo plano",
+      "lead": "Cómo pasan los comandos a segundo plano, reciben entrada e informan de su fin o de su pérdida."
+    },
+    "docs/web": {
+      "label": "Búsqueda y lectura web",
+      "lead": "Configura proveedores separados de búsqueda y de lectura de páginas sin cambiar destinos en silencio."
+    },
+    "docs/appearance": {
+      "label": "Apariencia",
+      "lead": "Elige un tema, muestra u oculta el panel lateral y entiende la representación que depende de la terminal."
+    },
+    "docs/skills": {
+      "label": "Skills",
+      "lead": "Descubre, activa y gestiona guías reutilizables sin tratarlas como una autorización."
+    },
+    "docs/mcp": {
+      "label": "Conexiones MCP",
+      "lead": "Revisa los servidores de herramientas externos, sus alcances y su acceso antes de conectarlos a Rune."
+    },
+    "docs/security": {
+      "label": "Seguridad",
+      "lead": "El límite de confianza, los modos de permiso, las limitaciones de cada plataforma y los límites del aislamiento."
+    },
+    "docs/classifier": {
+      "label": "Política del clasificador",
+      "lead": "Escribe y recarga la política CLASSIFIER.md y entiende cuándo está activa de verdad la revisión por IA."
+    },
+    "docs/privacy": {
+      "label": "Privacidad y datos",
+      "lead": "Qué se queda en local, qué sale hacia un proveedor y qué revisar antes de compartir diagnósticos."
+    },
+    "docs/credentials": {
+      "label": "Credenciales",
+      "lead": "Usa la interfaz de introducción de credenciales, distingue las claves ausentes de las no disponibles y recupera con intención."
+    },
+    "docs/verification": {
+      "label": "Verificación de la versión",
+      "lead": "Verifica la firma de la versión y la suma de comprobación del archivo, y entiende los límites de confianza de la clave de firma."
+    },
+    "docs/architecture": {
+      "label": "Arquitectura",
+      "lead": "Una visión general pública del frontend, el motor local, los proveedores de modelos, la ejecución de herramientas y los datos de sesión."
+    },
+    "docs/troubleshooting": {
+      "label": "Solución de problemas",
+      "lead": "Diagnostica el estado real antes de cambiar plazos, proveedores o accesos."
+    }
+  },
+  "chapters": {
+    "Plan": "Plan",
+    "Build": "Construir",
+    "Test": "Probar",
+    "Fix": "Corregir",
+    "Verify": "Verificar",
+    "Report": "Informe"
+  },
+  "install_note": {
+    "none": "Todavía no se ha publicado ninguna versión firmada. Por ahora, el comando termina sin instalar nada.",
+    "missing": "La versión {version} no tiene ninguna compilación firmada para {system}. El comando termina sin instalar nada.",
+    "release": "Versión {version}, publicada el {date}, para {system} ({builds}).",
+    "beta": "La compatibilidad con {system} está en beta.",
+    "and": "y"
+  }
+}

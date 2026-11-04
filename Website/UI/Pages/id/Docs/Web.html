@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Pencarian dan pembacaan halaman adalah dua perangkat terpisah</h2>
+<p>Perangkat <code>web_search</code> mencari halaman web berdasarkan kueri kata kunci. Perangkat <code>web_fetch</code> membaca satu halaman HTTP(S) publik sebagai teks. URL yang dimasukkan sebagai kueri pencarian akan dicari melalui mesin pencari, bukan langsung dibuka halamannya. Pembaca halaman bawaan bukanlah peramban interaktif sehingga tidak dapat mengambil isi halaman di balik layar login atau aplikasi web yang sepenuhnya bergantung pada eksekusi skrip di sisi klien.</p>
+<p>Pencarian web membutuhkan layanan yang telah Anda konfigurasikan. Sementara itu, pengambilan halaman (fetch) secara bawaan menggunakan pembaca halaman internal Rune. Kedua perangkat ini memiliki pilihan penyedia, batas waktu, dan anggaran keluaran yang terpisah; mengaktifkan satu layanan untuk pencarian tidak otomatis memilihnya untuk pembacaan halaman.</p>
+<h2 id="add-an-account">Tambahkan akses akun terlebih dahulu</h2>
+<p>Di menu Settings → Connections, tambahkan akun Search &amp; Fetch yang ingin digunakan beserta alamat dan kredensialnya. Menyimpan akses akun saja belum membuktikan bahwa layanan tersebut berfungsi. Endpoint model dan endpoint layanan web dari satu vendor yang sama bisa saja merupakan layanan terpisah dengan kuota atau kunci yang berbeda.</p>
+<h2 id="add-and-select">Menambahkan dan memilih penyedia layanan</h2>
+<ol><li>Buka Settings → Tools → Web search atau Web fetch → Provider.</li><li>Pilih Add provider lalu pilih akun yang telah tersambung.</li><li>Untuk layanan gateway, masukkan nama rute persis yang dimaksud pada kolom yang tersedia. Jangan menebak nama rute dari contoh atau dari nama model.</li><li>Rune akan menguji satu permintaan nyata sebelum menyimpan penyedia tersebut. Pengujian ini mengirim kueri atau alamat halaman uji dan dapat dikenai biaya oleh penyedia.</li><li>Kembali ke daftar lalu pilih penyedia yang diinginkan dengan menekan Enter. Langkah pemilihan ini akan menguji dan mengunci pilihan tersebut; sekadar menambahkan penyedia ke daftar belum menguncinya secara eksplisit.</li></ol>
+<p>Jika penambahan atau pemilihan gagal, pengaturan sebelumnya tetap dipertahankan. Pengujian yang berhasil membuktikan permintaan uji tersebut bekerja, namun bukan jaminan bahwa setiap halaman web atau permintaan di masa mendatang bebas dari pembatasan.</p>
+<h2 id="services">Layanan yang dapat digunakan Rune</h2>
+<p>Setiap layanan di bawah ini memerlukan akun Anda sendiri pada penyedia terkait. Rune hanya menggunakan fitur pencarian atau pembacaan halaman yang disebutkan di sini, bukan seluruh lini produk yang dijual oleh vendor tersebut. Kecuali disebutkan lain pada kolom catatan, setiap layanan memiliki satu alamat tetap dan memerlukan kunci API.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Layanan</th><th>Pencarian (Search)</th><th>Pembacaan (Fetch)</th><th>Catatan</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Ya</td><td>Tidak</td><td>Mencari di Google melalui zona SERP pada akun Bright Data Anda.</td></tr>
+<tr><td>Exa</td><td>Ya</td><td>Ya</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Ya</td><td>Ya</td><td></td></tr>
+<tr><td>Jina AI</td><td>Ya</td><td>Ya</td><td>Pencarian dan pembacaan memakai dua alamat berbeda; kuncinya diawali dengan <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>9router</td><td>Ya</td><td>Ya</td><td>Aplikasi 9router di komputer ini, pada port 20128 secara bawaan. Kuncinya bersifat opsional, dan setiap layanan pencarian atau pembacaan yang ditawarkannya dimasukkan sebagai nama rute.</td></tr>
+<tr><td>Ollama Web Search</td><td>Ya</td><td>Ya</td><td>Layanan cloud milik Ollama dengan kunci dari ollama.com, bukan daemon Ollama lokal.</td></tr>
+<tr><td>Perplexity Search</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>SearXNG</td><td>Ya</td><td>Tidak</td><td>Server milik Anda sendiri: masukkan alamatnya; tidak memerlukan kunci. Pengaturan server harus mencantumkan format <code>json</code> di bawah bagian <code>search: formats:</code>.</td></tr>
+<tr><td>SerpApi</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Serper</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Serpex</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Serplify</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>serpstack</td><td>Ya</td><td>Tidak</td><td></td></tr>
+<tr><td>Tavily</td><td>Ya</td><td>Ya</td><td></td></tr>
+<tr><td>TinyFish</td><td>Ya</td><td>Ya</td><td>Pencarian dan pembacaan memakai dua alamat berbeda.</td></tr>
+<tr><td>You.com</td><td>Ya</td><td>Tidak</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Tanpa salah satu layanan di atas, fitur pencarian web tidak akan tersedia, sedangkan pengambilan halaman web tetap dapat menggunakan pembaca bawaan Rune yang tidak memerlukan akun eksternal.</p>
+<h2 id="default-and-pin">Pilihan bawaan dan penguncian eksplisit</h2>
+<dl class="ref">
+<div><dt>Bawaan pencarian (Search default)</dt><dd>Jika tidak dikunci secara khusus, Rune menggunakan penyedia pencarian aktif pertama sesuai urutan penambahan. Karena itu, menambahkan penyedia pencarian pertama sekaligus menjadikannya penyedia bawaan yang aktif.</dd></div>
+<div><dt>Bawaan pembacaan (Fetch default)</dt><dd>Menggunakan pembaca halaman bawaan Rune. Menambahkan layanan pembaca eksternal tidak otomatis mengalihkan bawaan ke layanan tersebut.</dd></div>
+<div><dt>Pilihan eksplisit</dt><dd>Mengunci satu akun atau satu pasangan akun:rute tertentu. Jika layanan yang dikunci tersebut hilang atau sedang tidak tersedia, perangkat tidak akan diam-diam mengalihkan permintaan Anda ke penyedia pihak ketiga lain.</dd></div>
+</dl>
+<p>Gunakan opsi Use default atau jalankan reset pada <code>web_search.provider</code>/<code>web_fetch.provider</code> untuk menghapus penguncian eksplisit. Pilih penyedia lain terlebih dahulu sebelum menghapus penyedia yang sedang aktif digunakan. Menghapus penyedia di menu Tools hanya menghapus pilihan penyedia perangkat tersebut, bukan menghapus akun atau kunci di menu Connections. Satu layanan gateway dapat menyimpan paling banyak 32 rute.</p>
+<h2 id="limits-and-privacy">Batas dan privasi</h2>
+<p>Nilai bawaan pabrik adalah delapan hasil pencarian, batas waktu 60 detik per permintaan perangkat, dan maksimal 100.000 karakter yang dikembalikan untuk masing-masing perangkat. Argumen jumlah hasil pada saat pemanggilan dapat meminta lebih sedikit hasil dari batas maksimum. Menaikkan batas karakter keluaran tidak melewati pembatasan akses jaringan.</p>
+<p>Penyedia pencarian pihak ketiga menerima teks kueri pencarian; penyedia pembaca halaman eksternal menerima alamat URL halaman dan dapat mengenakan biaya sesuai layanannya. Pembaca bawaan Rune menghubungi situs web yang diminta secara langsung dari mesin Anda. Alamat target yang mengarah ke jaringan lokal atau internal akan ditolak. Penanganan cookie opsional pada pembaca bawaan hanya berlaku selama satu rangkaian pengalihan (redirect) pembacaan dan tidak menyimpan sesi login peramban permanen.</p>
+{{end}}

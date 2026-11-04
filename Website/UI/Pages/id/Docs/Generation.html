@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Kontrol untuk sesi ini</h2>
+<p>Settings → Generation mengatur sesi dan model yang sedang aktif. Nilai opsional dapat dikosongkan untuk mengembalikan pengaturan ke penyedia atau nilai bawaan awal. Nilai awal global di rune.toml terpisah dari pilihan pada sesi yang sudah ada. Kontrol yang tidak didukung oleh model mungkin tidak ditampilkan.</p>
+<h2 id="reasoning">Penalaran dan tingkat upaya</h2>
+<p>Gunakan menu Generation, perintah <code>/thinking</code>, atau pintasan Alt+T untuk memilih tingkat penalaran yang ditawarkan oleh model aktif. Sebaliknya, Models → Alt+C mengonfigurasi perilaku awal permanen serta pilihan yang tersedia untuk model tersebut. Lencana Thinking pada daftar model menandakan dukungan kapabilitas, bukan bahwa penalaran sedang aktif pada sesi saat ini.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Meminta agar penalaran dinonaktifkan. Ini bukan jaminan bahwa penyedia hulu atau router sama sekali tidak melakukan penalaran.</dd></div>
+<div><dt>On / effort</dt><dd>Mengaktifkan penalaran yang didukung atau memilih tingkat upaya yang tersedia. Upaya yang lebih tinggi dapat menambah latensi dan biaya token tanpa menjamin jawaban yang lebih baik.</dd></div>
+<div><dt>Route default</dt><dd>Bila tersedia, menyerahkan pengaturan penalaran kepada rute penyedia. Pilihan ini bukan Off maupun tingkat upaya positif tertentu.</dd></div>
+</dl>
+<p>Pada 9router, rute yang secara eksplisit melaporkan bahwa penalaran tidak dapat dinonaktifkan akan menerima nilai Low saat Anda memilih Off; opsi Minimal dikecualikan dari pilihan efektif meskipun opsi lama yang tersimpan pernah memuatnya. Rute yang mengizinkan penonaktifan penalaran akan menerima permintaan nonaktif, namun eksekutor di sisi penyedia tetap dapat mengubahnya. Baca keterangan di samping kontrol alih-alih menebak perilaku dari ID model.</p>
+<p>Penalaran yang ditampilkan sebagai teks dihitung dalam satuan kata; rute yang melaporkan jumlah token penalaran dapat menampilkan angka token tersebut. Rune tidak pernah mengarang perkiraan jumlah token. Tidak adanya teks penalaran yang tampil bukan bukti bahwa penalaran mati: beberapa endpoint memang tidak mengembalikan teks penalaran.</p>
+<h2 id="sampling">Sampling</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Kontrol</th><th>Tujuan dan rentang umum</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Tingkat keacakan, umumnya 0–2. Nilai yang lebih rendah bukan jaminan jawaban akan selalu identik.</td></tr>
+<tr><td>Top P</td><td>Sampling inti (nucleus sampling), umumnya 0,01–1. Biasanya cukup sesuaikan ini atau temperature, jangan keduanya sekaligus.</td></tr>
+<tr><td>Frequency penalty</td><td>Mencegah pengulangan token yang sama, umumnya −2–2; nilai negatif justru mendorong pengulangan.</td></tr>
+<tr><td>Presence penalty</td><td>Mencegah pembahasan topik yang berulang-ulang, umumnya −2–2.</td></tr>
+</tbody></table></div>
+<p>Rentang nilai yang benar-benar diterima ditentukan oleh model atau endpoint. Saat penalaran aktif, beberapa kontrol sampling mungkin tidak tersedia untuk sementara. Nilai penalti atau keacakan yang berlebihan dapat membuat hasil keluaran menjadi kurang berguna.</p>
+<h2 id="output">Keluaran dan urutan penghenti</h2>
+<p>Max output adalah batas atas jumlah token balasan (bilangan bulat positif) di dalam kapasitas model yang diketahui. Proses penalaran dapat memakai sebagian jatah tersebut sebelum jawaban akhir ditulis. Nilai yang terlalu kecil dapat membuat jawaban terpotong; jatah yang lebih besar dapat memungkinkan biaya yang lebih tinggi. Mengosongkan nilai ini tidak berarti keluaran tanpa batas.</p>
+<p>Hingga empat string penghenti (stop sequences) dapat mengakhiri pembuatan teks. Editor sesi menerima entri yang dipisahkan koma; array di berkas TOML mempertahankan string persis apa adanya, termasuk tanda koma di dalam satu entri. String penghenti yang kebetulan cocok dengan potongan kode biasa dapat memotong jawaban secara tak terduga.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>Contoh pertama menetapkan preferensi sesi; contoh kedua menghapus pilihan opsional tersebut. Kontrol model bantu (auxiliary) di bagian bawah halaman Generation bersifat global dan dijelaskan pada <a href="{{url "docs/auxiliary"}}">artikel berikutnya</a>.</p>
+{{end}}

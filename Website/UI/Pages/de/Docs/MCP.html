@@ -1,0 +1,29 @@
+{{define "article"}}
+<h2 id="external-capabilities">Externe Fähigkeiten</h2>
+<p>MCP bindet externe Server an, die Werkzeuge, Ressourcen oder Prompts bereitstellen. Nutze dafür <code>/mcp</code> oder <code>rune -mcp</code>; einen eigenen Reiter in den interaktiven Einstellungen gibt es dafür aktuell nicht. Das Herstellen einer Verbindung ist getrennt von der Freigabe einzelner Aufgaben, die über ein solches Werkzeug ausgeführt werden.</p>
+<p>Ein entfernter Server empfängt die Daten, die du an ihn sendest. Ein lokaler Server startet Programmcode auf deinem Rechner. Zurückgegebener Text gilt als nicht vertrauenswürdige Aufgabendaten – selbst dann, wenn er behauptet, verbindliche Anweisungen zu enthalten.</p>
+<h2 id="scope-and-approval">Geltungsbereich und Freigabe</h2>
+<dl class="ref">
+<div><dt>User</dt><dd>Persönliche Definitionen, die projektübergreifend zur Verfügung stehen.</dd></div>
+<div><dt>Project</dt><dd>Geteilte Definitionen in der MCP-Konfiguration des Projekts. Prüfe sie sorgfältig und gib sie explizit frei; ändert sich eine geteilte Definition, ist eine erneute Freigabe erforderlich.</dd></div>
+<div><dt>Private project</dt><dd>Persönliche Definitionen für ein einzelnes Projekt (der Standardbereich bei MCP-Änderungen). Sie überschreiben geteilte Projektdefinitionen mit derselben ID, welche wiederum persönliche Benutzerdefinitionen überschreiben.</dd></div>
+</dl>
+<p>Prüfe Server mit list/status und validiere Definitionen vor dem Verbinden. Eine Validierung ist kein Live-Verbindungstest. Der Befehl add erwartet eine Server-ID sowie eine entfernte Ziel-URL oder eine lokale ausführbare Datei mit absolutem Pfad und Argumenten. Die genaue Befehlssyntax zeigt die Hilfe deines installierten Builds.</p>
+<h2 id="access-review">Zugriffsrechte prüfen</h2>
+<p>Prüfe vor dem Hinzufügen oder Aktivieren eines Servers dessen ausführbare Datei samt Argumenten bzw. die entfernte Zieladresse, die Authentifizierung, Umgebungsvariablen, Schreibrechte im Projekt, zusätzliche Lese-/Schreibordner sowie den Zugriff auf bereits laufende lokale Dienste. Gewähre nur die Rechte, die für die jeweilige Aufgabe wirklich benötigt werden.</p>
+<p>Entfernte Endpunkte erfordern HTTPS; unverschlüsseltes HTTP ist nur auf Loopback-Adressen erlaubt. Bette keine Geheimnisse direkt in geteilte URLs oder ungeschützte Umgebungsvariablen ein. Nutze den vorgesehenen Weg für Zugangsdaten. Lokale Programme und zusätzliche Wurzelverzeichnisse sind echte Sicherheitsentscheidungen, keine bloßen Beschriftungen.</p>
+<p>Zusätzliche Ordner außerhalb des Workspace können in den Modi Ask und Auto vor dem Start eines lokalen Servers eine Freigabe erfordern. Ein weitreichender Zugriff auf lokale Dienste kann Programme erreichen, die mit den Rechten deines Benutzerkontos laufen. Erweitere diese Rechte niemals pauschal, nur um einen Verbindungsfehler zu umgehen.</p>
+<h2 id="lifecycle">Verbinden, testen und entfernen</h2>
+<dl class="ref">
+<div><dt>list · status</dt><dd>Zeigt konfigurierte Server und den aktuellen Verbindungsstatus an.</dd></div>
+<div><dt>validate</dt><dd>Prüft die Definitionen formal, ohne eine echte Verbindung aufzubauen.</dd></div>
+<div><dt>connect &lt;id&gt; · test &lt;id&gt;</dt><dd>Baut eine echte Verbindung auf und startet dabei gegebenenfalls lokalen Code oder kontaktiert einen entfernten Dienst.</dd></div>
+<div><dt>approve &lt;id&gt;</dt><dd>Gibt eine geprüfte geteilte Projektdefinition frei. Gib niemals eine Datei frei, die du zuvor nicht selbst geprüft hast.</dd></div>
+<div><dt>disconnect &lt;id&gt;</dt><dd>Trennt die aktive Verbindung; die gespeicherte Definition bleibt dabei erhalten.</dd></div>
+<div><dt>enable|disable|remove &lt;id&gt;</dt><dd>Ändert die Verfügbarkeit der gewählten Definition oder entfernt sie unter Angabe des passenden Geltungsbereichs (Scope).</dd></div>
+<div><dt>reload</dt><dd>Lädt die konfigurierten Verbindungen neu.</dd></div>
+<div><dt>login &lt;id&gt; · login-status &lt;id&gt;</dt><dd>Startet einen unterstützten Authentifizierungsablauf oder prüft dessen Status.</dd></div>
+</dl>
+<p>Diese Unterbefehle folgen auf <code>rune -mcp</code>, zum Beispiel <code>rune -mcp status</code>. Kontrolliere bei jeder Änderung den gewählten Geltungsbereich und die ID. Erweiterte Befehle für Zugangsdaten wie token oder secret nehmen sensible Werte entgegen; nutze nach Möglichkeit den vorgesehenen Authentifizierungsdialog, statt Geheimnisse im Shell-Verlauf zu hinterlassen.</p>
+<p>Die Authentifizierung kann über ein Bearer-Token oder einen OAuth-Ablauf erfolgen. Füge niemals Tokens in den Chat ein. Ein erfolgreich verbundener Server ist kein Beweis dafür, dass jedes seiner Werkzeuge sicher, umkehrbar oder unterstützt ist. Das Modell liest die exakten Tool-Parameter aus und unterliegt denselben Ausführungskontrollen wie bei integrierten Werkzeugen, statt eine fremde Server-API zu erraten.</p>
+{{end}}

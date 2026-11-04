@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Local ne veut pas dire hors ligne</h2>
+<p>Rune s’exécute sur votre ordinateur et conserve localement vos paramètres, vos sessions et les données de vos projets. L’application ne nécessite aucun compte Atoryn et ne collecte aucune télémétrie produit. Elle effectue néanmoins les requêtes réseau nécessaires aux comptes, catalogues, modèles et outils que vous utilisez.</p>
+<p>Utiliser un modèle distant envoie le contenu pertinent de la requête à ce fournisseur. Exécuter le programme localement ne garantit pas que tout votre code reste sur la machine. Pour les travaux sensibles, vérifiez la destination, la configuration du modèle, les fichiers joints et la politique de conservation des données propre au fournisseur.</p>
+<h2 id="what-is-sent">Ce qui peut être envoyé</h2>
+<dl class="ref">
+<div><dt>Modèle principal</dt><dd>Votre invite, le contexte de conversation sélectionné, les déclarations et résultats d’outils ainsi que les pièces jointes prises en charge nécessaires à la requête.</dd></div>
+<div><dt>Modèles auxiliaires</dt><dd>Les éléments pertinents pour l’examen de conformité à la politique, l’extraction d’instructions, les résumés ou les titres. Un fournisseur distinct configuré à cet effet peut recevoir ce sous-ensemble.</dd></div>
+<div><dt>Services de recherche et de lecture de pages</dt><dd>Une requête de recherche, ou l’adresse de la page cible accompagnée de la requête propre au service. Le lecteur intégré contacte directement le site cible.</dd></div>
+<div><dt>MCP et commandes</dt><dd>Les données transmises aux outils ou programmes externes. Leur propre comportement réseau et leur conservation des données ne sont pas couverts par une promesse générale d’« agent local ».</dd></div>
+<div><dt>Tests de comptes et catalogues</dt><dd>Les requêtes d’authentification ou de test ainsi que les requêtes d’information sur les modèles. Les tests peuvent être facturés.</dd></div>
+</dl>
+<p>Choisir un autre point de terminaison constitue une décision de routage de vos données. Si un service Web explicitement épinglé est indisponible, Rune ne se rabat jamais en silence sur un autre service tiers.</p>
+<h2 id="what-is-kept">Ce qui est conservé localement</h2>
+<p>Le répertoire de données Rune sélectionné contient la configuration, les identifiants chiffrés, les données de conversation et de projet, la mémoire ainsi que les données de restauration des fichiers éligibles. Changer d’espace de travail ne supprime pas son historique. Une session peut donc conserver des invites privées et des sorties d’outils après la fin de votre travail.</p>
+<p>La compaction modifie le contexte envoyé au modèle, mais ne constitue pas une politique d’effacement sécurisé. La suppression d’une session et le nettoyage du stockage (prune) sont des actions de maintenance explicites. Supprimer une connexion ne garantit pas que tous ses identifiants ou métadonnées historiques de requêtes ont été effacés.</p>
+<h2 id="sharing-diagnostics">Partager des éléments de diagnostic</h2>
+<p>Les journaux, les vues de contexte, les aperçus de requêtes (dryrun) et la configuration effective peuvent contenir du code privé, des chemins de fichiers, des noms de comptes ou des descriptions de tâches. Le masquage automatique aide à protéger les secrets connus, mais ne garantit pas que chaque chaîne confidentielle a été retirée.</p>
+<p>Ne partagez que le plus petit extrait pertinent après l’avoir relu. Ne collez jamais une vraie clé dans une discussion, un dépôt de code ou un rapport de bogue public. Préférez les métadonnées de clés masquées et un cas de reproduction minimal plutôt qu’une copie complète de votre dossier de données.</p>
+<h2 id="your-controls">Vos moyens de contrôle</h2>
+<p>Choisissez l’espace de travail et le mode appropriés, ne joignez que les fichiers nécessaires, vérifiez les points de terminaison des comptes et utilisez les contrôles de conservation et de budget proposés par votre fournisseur lorsque c’est requis. Un modèle local permet de réduire l’envoi de données vers un modèle distant, mais des outils Web distincts, des routes auxiliaires ou des commandes peuvent toujours contacter des services externes.</p>
+<p>L’option <code>-read-only</code> restreint les outils de modification ; elle n’empêche ni la lecture de fichiers ni les transmissions réseau. Un avertissement de dépense n’est pas un plafond bloquant. Une annulation (undo) restaure les fichiers locaux éligibles ; elle ne peut pas retirer des informations déjà envoyées sur le réseau.</p>
+{{end}}

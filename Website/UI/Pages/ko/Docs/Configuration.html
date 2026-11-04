@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">파일 위치 및 적용 범위</h2>
+<p>전역 구성 파일은 선택된 Rune 데이터 홈(일반적으로 <code>~/.rune/</code>) 아래의 <code>rune.toml</code>입니다. 이 파일에 지정할 수 있는 모든 키는 <a href="{{url "docs/reference"}}">설정 레퍼런스</a>에 나와 있습니다. <code>RUNE_HOME</code>을 사용하면 다른 데이터 홈을 선택할 수 있습니다. 프로젝트 폴더 안에 있는 <code>rune.toml</code>이라는 파일이 자동으로 전역 설정 파일이 되지는 않으며, <code>-project</code> 플래그는 설정 홈이 아니라 작업 공간을 지정합니다.</p>
+<p>실제 설정 파일 위치는 <code>rune -config</code>로 확인하세요. 이 파일에는 사용자가 직접 저장한 선택 사항만 기록되며, 적혀 있지 않은 값은 현재 버전의 기본값을 상속받습니다. 최상단의 <code>version = 1</code>은 애플리케이션 버전이 아니라 구성 파일 형식 버전을 나타내므로, 업그레이드를 요청하려는 목적으로 이 숫자를 바꾸지 마세요.</p>
+<h2 id="inspect">한 번에 하나씩 확인하기</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>특정 키의 현재 유효 값, 설명, 적용 시점을 확인합니다.</dd></div>
+<div><dt>-config defaults</dt><dd>내가 저장한 설정과 분리하여 초기 기본값을 확인합니다.</dd></div>
+<div><dt>-config check</dt><dd>구성 파일의 문법과 허용 값 여부를 검증합니다. API 키, 잔액, 네트워크 연결 상태는 테스트하지 않습니다.</dd></div>
+<div><dt>-config show</dt><dd>현재 유효한 전체 구성을 확인합니다. 비공개 계정 메타데이터가 포함될 수 있으므로 외부에 공유하기 전에 민감한 정보를 가리세요.</dd></div>
+<div><dt>-settings</dt><dd>선택한 작업 공간의 모델 제어 설정을 확인합니다.</dd></div>
+</dl>
+<h2 id="change-and-reset">변경 및 초기화</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>전역 설정을 실제로 바꿀 때만 <code>set</code> 명령어를 실행하세요. <code>reset</code>은 재정의(override) 항목을 제거할 뿐 기본값을 복사해 적어 넣지 않습니다. Settings 화면에서는 Use default가 전역 값에 대해 동일한 역할을 합니다. 알 수 없거나 폐기된 키는 조용히 무시되지 않고 오류로 처리됩니다.</p>
+<p>TOML에는 기본 <code>null</code> 타입이 없습니다. 선택적 키를 해제하려면 <code>null</code>을 적는 대신 해당 키를 지우거나 지원되는 <code>reset</code> 명령어를 사용하세요. 빈 문자열, “auto”, “none” 또는 빈 배열이 모든 설정에서 초기화를 뜻한다고 가정하지 마세요.</p>
+<h2 id="types-and-units">값 타입 및 단위</h2>
+<dl class="ref">
+<div><dt>불리언(Boolean)</dt><dd>TOML에서 따옴표 없이 <code>true</code> 또는 <code>false</code>로 적습니다.</dd></div>
+<div><dt>개수 / 토큰(Count / tokens)</dt><dd>설정 허용 범위 안의 정수입니다. 토큰, 문자 수, 바이트는 서로 다른 측정 단위입니다.</dd></div>
+<div><dt>시간(Duration)</dt><dd><code>"500ms"</code>, <code>"60s"</code>, <code>"2m"</code>처럼 단위를 명시한 문자열입니다. 권한 및 질문 대기 시간만 unlimited를 허용합니다.</dd></div>
+<div><dt>크기(Size)</dt><dd><code>"16MiB"</code>처럼 이진 단위를 명시해 적습니다. 단위가 없는 숫자는 바이트가 아니라 KiB로 해석됩니다.</dd></div>
+<div><dt>목록(List)</dt><dd>문서에 명시된 정확한 항목 이름을 사용합니다. <code>[]</code>는 명시적인 빈 목록 선택이며 초기화(reset)를 뜻하지 않을 수 있습니다.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>위 예시는 문법 안내일 뿐 모든 환경에 권장하는 보편적 설정이 아닙니다. TOML의 <code>stop</code> 배열은 쉼표가 포함된 문자열도 그대로 보존하는 반면, 세션 편집기는 쉼표로 구분된 입력을 받습니다. 전역 generation 기본값은 현재 열려 있는 모든 세션을 덮어쓰지 않습니다.</p>
+<h2 id="timing-and-risk">적용 시점 및 주의 사항</h2>
+<p>변경 사항은 보통 재시작 없이 전파됩니다. 즉시 반영되는 값과 다음 작업부터 반영되는 값은 시점이 다르므로 개별 설정에 대해 <code>explain</code>을 확인하세요. <code>CLASSIFIER.md</code>를 편집하더라도 이미 세션에 고정된 정책이 자동으로 다시 로드되지는 않으므로 유휴 상태에서 reload 동작을 사용하세요.</p>
+<p>공개 예제에는 계정 엔드포인트나 자격 증명을 넣지 마세요. 직접 파일을 편집한 뒤에는 관련 없는 설정을 덮어쓰지 말고 유효성을 검사하세요. 한도를 높이면 메모리, 디스크, 컨텍스트, 비용 소모가 늘어날 수 있으며, 한도를 높인다고 해서 접근 권한이 부여되거나 미지원 모델이 작동하게 되지는 않습니다.</p>
+{{end}}

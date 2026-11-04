@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="open-and-navigate">Abrir e navegar</h2>
+<p>Pressione <kbd>Ctrl+G</kbd>, digite <code>/settings</code> ou use o atalho equivalente <code>/*</code>. A visão geral leva a seis seções. As setas direcionais escolhem uma linha ou cartão; Enter o abre. Tab/Shift+Tab movem o foco e Esc cancela uma edição ou volta um nível. O rodapé descreve o controle selecionado.</p>
+<p>Abra um valor, edite-o e escolha Apply. Cancel mantém o valor anterior. Algumas linhas de seleção salvam diretamente conforme você alterna com as setas Esquerda/Direita; leia a dica e aguarde a mensagem de confirmação. Apenas destacar um item em um seletor separado não significa que ele foi aplicado.</p>
+<h2 id="sections">Um lugar para cada configuração</h2>
+<dl class="ref">
+<div><dt><a href="{{url "docs/models"}}">Models</a></dt><dd>Navegue pelos modelos das contas configuradas, aplique um par provedor/modelo, atualize o catálogo e configure capacidades persistentes e preços com Alt+C.</dd></div>
+<div><dt><a href="{{url "docs/generation"}}">Generation</a></dt><dd>Raciocínio, amostragem e limite de saída solicitados para a sessão atual. Os controles globais de modelos auxiliares ficam mais abaixo na mesma página.</dd></div>
+<div><dt><a href="{{url "docs/connections"}}">Connections</a></dt><dd>Acesso a contas: endereços de API e chaves nomeadas. Não escolhe o provedor web nem controla os tempos limite de requisição aos modelos.</dd></div>
+<div><dt><a href="{{url "docs/runtime"}}">Runtime</a></dt><dd>Tempos limite de requisição aos modelos, comportamento de novas tentativas, pausa por falta de saldo e tempos de espera compartilhados de conexão e streaming.</dd></div>
+<div><dt><a href="{{url "docs/tools"}}">Tools</a></dt><dd>Tempos de espera e limites de saída/trabalho específicos de cada ferramenta, prazos de perguntas e permissões, além da seleção independente de provedores web.</dd></div>
+<div><dt><a href="{{url "docs/appearance"}}">Appearance</a></dt><dd>Tema de cores e preferência de exibição do painel lateral da conversa. Não configura papel de parede, desfoque nem transparência do terminal.</dd></div>
+</dl>
+<h2 id="scope">Escolhas globais e por sessão</h2>
+<p>Limites de ferramentas, configurações de rede/novas tentativas e escolhas de modelos auxiliares são globais para a pasta de dados selecionada do Rune. Já os controles principais de Generation e a seleção de modelo afetam a sessão e o modelo ativos. Preferências salvas para um modelo podem ser recuperadas quando você volta a usá-lo.</p>
+<p>A tabela global <code>[generation]</code> fornece valores iniciais padrão, não uma instrução para sobrescrever todas as sessões já existentes. A opção New-session fallback seleciona um provedor inicial para sessões futuras, sem alterar o provedor das conversas já abertas.</p>
+<h2 id="reset-and-timing">Redefinição e momento de aplicação</h2>
+<p>A opção <strong>Use default</strong> remove a substituição global salva para que o padrão atual ou a herança volte a valer. Salvar manualmente o mesmo número do valor de fábrica registra uma escolha fixa, o que é diferente de deixar a chave sem definição. Para valores opcionais de Generation na sessão, limpar o campo devolve o controle ao provedor ou ao padrão.</p>
+<p>As configurações normalmente entram em vigor sem precisar reiniciar o Rune. Alguns componentes se atualizam na hora (live); outros aplicam o novo valor na próxima operação, enquanto o trabalho em andamento mantém as configurações com que iniciou. Use <code>rune -config explain &lt;key&gt;</code> para consultar o comportamento exato de uma chave. A política do classificador possui uma ação explícita e separada de recarregamento.</p>
+<h2 id="inspect-before-changing">Inspecione antes de alterar</h2>
+<p>Uma configuração válida não prova que uma conexão esteja funcionando, e o estado Configured não prova que uma conta tenha saldo. Testes de conexão realizam requisições reais e podem gerar custos. Trocar de provedor pode mudar para onde seus dados são enviados; aumentar o número de tentativas ou o limite de saída pode elevar os gastos.</p>
+<p>Nem toda opção avançada possui uma linha na interface gráfica. O <a href="{{url "docs/configuration"}}">guia do arquivo de configuração</a> explica como inspecionar e redefinir essas opções sem inventar controles nem substituir escolhas não relacionadas.</p>
+{{end}}

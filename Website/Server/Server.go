@@ -88,19 +88,25 @@ func acceptsGzip(r *http.Request) bool {
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 	base := s.cfg.BasePath
-	mux.HandleFunc("GET "+base+"/{$}", s.page(""))
-	for _, p := range pages {
-		if p.Route == "" {
-			continue
+	// Every language has the same pages, English at the base path and each
+	// translation below its code; anything else under a code is that
+	// language's own 404 (notFound).
+	for _, l := range locales {
+		at := base + l.prefix()
+		mux.HandleFunc("GET "+at+"/{$}", s.page(l, ""))
+		for _, p := range pages {
+			if p.Route == "" {
+				continue
+			}
+			mux.HandleFunc("GET "+at+"/"+p.Route, s.page(l, p.Route))
+			mux.HandleFunc("GET "+at+"/"+p.Route+"/{$}", redirectTo(at+"/"+p.Route))
 		}
-		mux.HandleFunc("GET "+base+"/"+p.Route, s.page(p.Route))
-		mux.HandleFunc("GET "+base+"/"+p.Route+"/{$}", redirectTo(base+"/"+p.Route))
+		mux.HandleFunc("GET "+at+"/install", redirectTo(at+"/#install"))
+		mux.HandleFunc("GET "+at+"/install/{$}", redirectTo(at+"/#install"))
+		mux.HandleFunc("GET "+at+"/security", redirectTo(at+"/docs/security"))
+		mux.HandleFunc("GET "+at+"/security/{$}", redirectTo(at+"/docs/security"))
+		mux.HandleFunc("GET "+at, redirectTo(at+"/"))
 	}
-	mux.HandleFunc("GET "+base+"/install", redirectTo(base+"/#install"))
-	mux.HandleFunc("GET "+base+"/install/{$}", redirectTo(base+"/#install"))
-	mux.HandleFunc("GET "+base+"/security", redirectTo(base+"/docs/security"))
-	mux.HandleFunc("GET "+base+"/security/{$}", redirectTo(base+"/docs/security"))
-	mux.HandleFunc("GET "+base, redirectTo(base+"/"))
 	mux.HandleFunc("GET "+base+"/install.sh", s.install)
 	mux.HandleFunc("GET "+base+"/install.ps1", s.installPS)
 	mux.HandleFunc("GET "+base+"/releases.json", s.releases)
@@ -118,10 +124,10 @@ func redirectTo(target string) http.HandlerFunc {
 	}
 }
 
-func (s *server) page(route string) http.HandlerFunc {
-	p := s.site.pages[route]
+func (s *server) page(l *locale, route string) http.HandlerFunc {
+	p := s.site.pages[l.Code][route]
 	return func(w http.ResponseWriter, r *http.Request) {
-		b, gz, err := s.rendered("page:"+route, func(c *Catalog) ([]byte, error) { return s.site.render(p, c) })
+		b, gz, err := s.rendered("page:"+l.Code+":"+route, func(c *Catalog) ([]byte, error) { return s.site.render(p, c) })
 		if err != nil {
 			log.Printf("render %s: %v", p.File, err)
 			http.Error(w, "Internal error", http.StatusInternalServerError)
@@ -132,7 +138,13 @@ func (s *server) page(route string) http.HandlerFunc {
 }
 
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
-	b, _, _ := s.rendered("notfound", func(c *Catalog) ([]byte, error) { return s.site.renderNotFound(c), nil })
+	l := english
+	for _, other := range locales[1:] {
+		if strings.HasPrefix(r.URL.Path, s.cfg.BasePath+other.prefix()+"/") {
+			l = other
+		}
+	}
+	b, _, _ := s.rendered("notfound:"+l.Code, func(c *Catalog) ([]byte, error) { return s.site.renderNotFound(l, c), nil })
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusNotFound)
@@ -197,8 +209,10 @@ func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 	}
 	var b bytes.Buffer
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range pages {
-		fmt.Fprintf(&b, "  <url><loc>%s%s</loc></url>\n", s.cfg.Origin, s.site.url(p.Route))
+	for _, l := range locales {
+		for _, p := range pages {
+			fmt.Fprintf(&b, "  <url><loc>%s%s</loc></url>\n", s.cfg.Origin, s.site.urlIn(l, p.Route))
+		}
 	}
 	b.WriteString("</urlset>\n")
 	writeBody(w, r, "application/xml; charset=utf-8", "no-cache", b.Bytes(), nil)

@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">Menambahkan penyedia</h2>
+<p>Penyedia (provider) adalah akun layanan yang menjawab permintaan model dari Rune. Rune tidak menyertakan akun bawaan maupun saldo kredit API sendiri: setiap permintaan dikirim langsung ke penyedia yang Anda sambungkan dan ditagih oleh penyedia tersebut.</p>
+<ol>
+<li>Tekan <kbd>Ctrl+G</kbd>, buka <strong>Connections</strong>, lalu pilih <strong>Add connection</strong>.</li>
+<li>Di bawah <strong>MODEL PROVIDERS</strong>, pilih preset untuk penyedia Anda, atau pilih <strong>compatible</strong> untuk endpoint lain yang kompatibel dengan format OpenAI.</li>
+<li>Jika preset tidak memiliki alamat tetap, masukkan alamat endpoint Anda terlebih dahulu. Setelah itu, tempelkan kunci API ke kolom bertopeng lalu tekan <kbd>Enter</kbd>.</li>
+<li>Rune mengirim satu permintaan nyata untuk memeriksa akun sebelum menyimpan koneksi. Permintaan uji tersebut dapat dikenai biaya dan mengirim teks pengujian singkat ke penyedia.</li>
+<li>Buka <strong>Models</strong>, pilih penyedia tersebut, lalu pilih model dengan menekan <kbd>Enter</kbd>.</li>
+</ol>
+<p>Tersimpannya koneksi membuktikan bahwa akun tersebut berhasil menjawab satu kali pengujian. Hal itu belum membuktikan bahwa setiap model di dalam daftar penyedia tersebut tersedia untuk paket akun Anda. Kunci API disimpan dalam keadaan terenkripsi di komputer Anda; lihat <a href="{{url "docs/credentials"}}">Kredensial</a>.</p>
+
+<h2 id="presets">Daftar seluruh preset</h2>
+<p>Rune mengenali 31 penyedia. Setiap preset mengisi alamat penyedia beserta format permintaannya secara otomatis; Anda cukup memasukkan kunci API. Bila suatu kunci memiliki pola awalan yang baku, Rune memeriksa bentuk kunci tersebut sebelum mengirim permintaan apa pun.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Preset</th><th>Kunci</th><th>Alamat</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>Kunci OpenAI, <code>sk-…</code></td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>Kunci Anthropic, <code>sk-ant-…</code></td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>Kunci Google AI Studio, <code>AIza…</code> atau <code>AQ.…</code></td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>Kunci xAI, <code>xai-…</code></td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>Kunci DeepSeek, <code>sk-…</code></td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>Kunci Mistral</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>Kunci Groq, <code>gsk_…</code></td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>Kunci OpenRouter, <code>sk-or-…</code></td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>Kunci Moonshot AI (Kimi)</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>Kunci MiniMax</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>Kunci API standar Z.ai, bukan kunci Coding Plan</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>Kunci Meta Model API</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>Kunci StepFun</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>Kunci API Ant Ling</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>Kunci Xiaomi MiMo: <code>sk-…</code> untuk pay-as-you-go, <code>tp-…</code> untuk Token Plan</td><td>Dipilih otomatis dari jenis kunci</td></tr>
+<tr><td><code>nvidia</code></td><td>Kunci NVIDIA, <code>nvapi-…</code></td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>Kunci Cerebras, <code>csk-…</code></td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>Token Hugging Face, <code>hf_…</code></td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>Kunci Fireworks AI</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>Kunci Together AI</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>Kunci SiliconFlow</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>Kunci DeepInfra</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>Kunci Novita AI</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>Kunci Inference.net</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>Kunci TokenRouter dari tokenrouter.com</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>Kunci Model Studio dari wilayah (region) yang sama dengan alamat</td><td>Alamat mode kompatibel ruang kerja Anda</td></tr>
+<tr><td><code>tencent</code></td><td>Kunci TokenHub dari situs wilayah yang sama dengan alamat</td><td>Alamat TokenHub wilayah Anda</td></tr>
+<tr><td><code>cloudflare</code></td><td>Token API dengan akses Workers AI</td><td>Alamat yang memuat ID akun Cloudflare Anda</td></tr>
+<tr><td><code>ollama</code></td><td>Tidak perlu kunci: Ollama berjalan di komputer ini</td><td>Komputer ini, port 11434</td></tr>
+<tr><td><code>9router</code></td><td>Kunci 9router, atau kosongkan bila 9router tidak memintanya</td><td>Aplikasi 9router di komputer ini, port 20128</td></tr>
+<tr><td><code>compatible</code></td><td>Kunci endpoint tersebut, atau kosongkan bila tidak diperlukan</td><td>Alamat apa pun yang kompatibel dengan OpenAI yang Anda masukkan</td></tr>
+</tbody>
+</table></div>
+<p>Kolom alamat menampilkan host bawaan yang dipakai setiap preset kecuali Anda mengubahnya. Opsi Use default pada kolom alamat akan mengembalikan alamat bawaan preset tersebut. Jangan menebak-nebak alamat lain saat terjadi kegagalan; baca pesan galatnya terlebih dahulu.</p>
+
+<h2 id="provider-notes">Catatan khusus per penyedia</h2>
+<p>Kontrol penalaran berbeda-beda menurut penyedia dan modelnya. Catatan di bawah ini menjelaskan apa yang dikirimkan oleh Rune; penyedia tetap dapat menyesuaikan perilaku model di sisi server. Atur pilihan penalaran sebuah model dengan menekan <kbd>Alt+C</kbd> di menu Models, sebagaimana dijelaskan di halaman <a href="{{url "docs/generation"}}">Generasi &amp; penalaran</a>.</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>Gunakan alamat mode kompatibel dari ruang kerja dan wilayah Model Studio Anda, dipasangkan dengan kunci dari wilayah yang sama. Penalaran hanya berupa nyala (on) atau mati (off) tanpa tingkatan. Jangan pernah memilih Off untuk model yang selalu melakukan penalaran karena permintaan akan ditolak. Model keluarga GLM di Model Studio hanya mengembalikan pemanggilan perangkat jika disertai opsi khusus yang tidak dikirim oleh Rune, jadi gunakan model GLM melalui preset Z.ai.</dd></div>
+<div><dt>cerebras</dt><dd>Tingkat penalaran berbeda-beda menurut model dan tidak dicantumkan secara otomatis oleh layanan. Model <code>gpt-oss-120b</code> dan <code>qwen-3.8-27b</code> menerima tingkat Low, Medium, dan High; tambahkan ketiganya dengan <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>cloudflare</dt><dd>Workers AI. Alamat endpoint memuat ID akun Anda, dan kuncinya adalah token API dengan hak akses Workers AI (bukan token Tunnel). Daftar model dibaca langsung dari daftar model akun Anda.</dd></div>
+<div><dt>compatible</dt><dd>Endpoint apa pun yang kompatibel dengan format OpenAI. Rune tidak mengasumsikan spesifikasi modelnya: atur ukuran konteks, batas keluaran, dan dukungan penalaran dengan <kbd>Alt+C</kbd> sesuai dokumentasi endpoint tersebut.</dd></div>
+<div><dt>deepinfra</dt><dd>Daftar modelnya menyertakan informasi harga dan menandai model mana saja yang mendukung penalaran. Tingkatannya adalah Low, Medium, dan High; jika tidak dipilih, nilai bawaan model akan berlaku.</dd></div>
+<div><dt>fireworks</dt><dd>Tingkatan penalaran mulai dari Low hingga Max. Untuk model yang hanya mendukung sebagian tingkatan, sesuaikan pilihannya dengan <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>huggingface</dt><dd>Router Inference Providers, menggunakan token yang memiliki izin memanggil Inference Providers. Penyedia mana yang melayani suatu model dan fitur apa yang didukungnya bergantung pada pasangan model dan penyedia tersebut.</dd></div>
+<div><dt>inclusionai</dt><dd>Model keluarga Ling dari InclusionAI melalui Ling API milik Ant Group. Model versi 3.0 dan 3.1 hanya menyalakan atau mematikan penalaran tanpa tingkatan. Server Ling yang Anda jalankan sendiri dapat ditambahkan menggunakan preset <code>compatible</code>.</dd></div>
+<div><dt>inference</dt><dd>Daftar modelnya menyebutkan tingkat penalaran untuk setiap model, dan Rune menawarkan pilihan persis seperti yang dilaporkan.</dd></div>
+<div><dt>meta</dt><dd>Meta Model API, bukan akun login chatbot Meta AI biasa. Tingkat penalaran mulai dari Minimal hingga Extra high. Model Muse Spark selalu melakukan penalaran serta menolak opsi Off maupun kata penghenti (stop words), jadi biarkan kolom Stop kosong di menu Generation.</dd></div>
+<div><dt>mimo</dt><dd>Kunci pay-as-you-go dan kunci Token Plan mengarah ke alamat endpoint yang berbeda; Rune memilih alamat yang tepat secara otomatis berdasarkan awalan kunci yang Anda masukkan.</dd></div>
+<div><dt>minimax</dt><dd>Rune meminta isi penalaran dipisahkan dari teks jawaban utama. Hanya <code>MiniMax-M3.1-Flash</code> yang menerima tingkatan (Low hingga Max): tambahkan pilihan tersebut dengan <kbd>Alt+C</kbd>. Jangan menawarkan opsi Off untuk model MiniMax.</dd></div>
+<div><dt>moonshot</dt><dd>Kimi. Model <code>kimi-k3</code> menerima tingkat Low, High, dan Max; tambahkan dengan <kbd>Alt+C</kbd>. Keluarga model <code>kimi-k2</code> tidak memakai tingkatan. Jangan menawarkan opsi Off untuk model Kimi.</dd></div>
+<div><dt>novita</dt><dd>Penalaran berupa nyala atau mati pada model yang mendukung keduanya, tanpa tingkatan. Informasi harga diambil langsung dari daftar modelnya.</dd></div>
+<div><dt>nvidia</dt><dd>Layanan NIM API terkelola. Kontrol penalaran berbeda-beda untuk setiap model dan tidak dicantumkan di katalog layanan; atur per model dengan <kbd>Alt+C</kbd> sesuai kartu dokumentasi model yang bersangkutan. Untuk NIM yang di-host sendiri, masukkan alamat server Anda.</dd></div>
+<div><dt>openrouter</dt><dd>Satu akun menyediakan banyak model dengan harga dan batas yang beragam. Pilih ID model yang tepat dan periksa harganya saat ini.</dd></div>
+<div><dt>siliconflow</dt><dd>Menggunakan alamat global secara bawaan; akun .cn menggunakan alamat dan kuncinya sendiri. Penalaran berupa nyala atau mati pada model yang ditandai oleh SiliconFlow. Model <code>deepseek-ai/DeepSeek-V3.1</code> hanya dapat memanggil perangkat apabila penalaran dimatikan (off).</dd></div>
+<div><dt>stepfun</dt><dd>Tingkat penalaran adalah Low, Medium, dan High. Model <code>step-3.5-flash-2603</code> hanya menerima Low dan High: hapus opsi Medium untuk model tersebut melalui <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tencent</dt><dd>Layanan Hunyuan beralih ke TokenHub: masukkan alamat TokenHub wilayah Anda (ditampilkan di samping kolom alamat) beserta kunci dari wilayah yang sama. Penalaran dapat dinyalakan atau dimatikan, dengan tingkatan Low, Medium, dan High. Beberapa model pihak ketiga yang dilayani melalui TokenHub menolak opsi Off.</dd></div>
+<div><dt>together</dt><dd>Daftar modelnya menyertakan harga tetapi tidak mencantumkan tingkat penalaran: tambahkan tingkatan yang terdokumentasi untuk suatu model melalui <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tokenrouter</dt><dd>Layanan TokenRouter di tokenrouter.com. Layanan dengan nama serupa pada domain lain adalah perusahaan berbeda yang memiliki alamat sendiri.</dd></div>
+<div><dt>zai</dt><dd>API standar Z.ai. Paket Coding Plan memiliki kunci, alamat, dan daftar perangkat yang diizinkan tersendiri. Tingkat penalaran mulai dari Minimal hingga Max; tanpa pilihan eksplisit, nilai bawaan layanan (Max) akan digunakan. Model <code>glm-5.3</code> selalu melakukan penalaran dan hanya menerima Low, High, serta Max. Layanan ini hanya menerima maksimal satu kata penghenti (stop word).</dd></div>
+</dl>
+
+<h2 id="on-this-computer">Model di komputer ini</h2>
+<p><strong>Ollama</strong> melayani model lokal dari komputer ini pada port 11434 tanpa kunci API. Ini adalah layanan yang berbeda dari fitur pencarian web cloud milik Ollama. Model lokal menjaga prompt tetap di mesin Anda, namun perangkat web, tugas model bantu, dan perintah shell tetap dapat menghubungi layanan luar bila digunakan.</p>
+<p><strong>9router</strong> adalah aplikasi router yang berjalan di komputer Anda (pada port 20128 secara bawaan) dan meneruskan permintaan ke akun-akun hulu yang Anda siapkan di dalamnya. Satu koneksi di Rune melayani seluruh model yang ditawarkan oleh 9router. Untuk model Claude Code (<code>cc/…</code>), Rune secara otomatis memakai jalur bergaya Anthropic milik 9router sehingga angka token cache dan penalarannya tetap tercatat tanpa perlu pengaturan tambahan. Opsi Off bersifat permintaan: bila suatu rute melaporkan bahwa penalaran tidak dapat dimatikan, memilih Off akan meminta tingkat Low sebagai gantinya.</p>
+<p>Alamat lokal pada sebuah preset hanyalah nilai bawaan, bukan bukti bahwa layanan lokal tersebut sudah berjalan di mesin Anda. Jalankan layanannya terlebih dahulu; permintaan uji dari Rune akan memberi tahu Anda apakah layanan tersebut merespons.</p>
+
+<h2 id="keys">Kunci dan akun</h2>
+<p>Satu koneksi dapat menyimpan beberapa kunci API sekaligus. Perintah <code>rune -provider keys &lt;name&gt;</code> mencantumkan daftarnya dalam keadaan disamarkan, dan menu Connections mengelolanya tanpa memperlihatkan teks kunci secara terbuka. Saat sebuah kunci melaporkan saldo tidak mencukupi, Rune mengistirahatkannya selama 15 menit dan otomatis beralih memakai kunci berikutnya pada koneksi tersebut jika ada; lihat <a href="{{url "docs/runtime"}}">Runtime &amp; percobaan ulang</a>.</p>
+<p>Menghapus sebuah koneksi akan menghapus konfigurasinya. Kunci-kuncinya dapat tetap tersimpan di penyimpanan terenkripsi untuk digunakan kembali; hapus kunci secara eksplisit jika Anda memang ingin membuangnya. Kunci API tidak pernah dikirim melalui koneksi HTTP biasa tanpa enkripsi ke mesin lain.</p>
+
+<h2 id="choose-a-model">Memilih model</h2>
+<p>Menu Settings → Models mencantumkan seluruh model yang dikembalikan oleh penyedia Anda yang tersambung, serta dapat menyegarkan katalog tersebut. Pilih satu model dengan <kbd>Enter</kbd>, atau ketik <code>/model provider:id</code> di dalam percakapan. Menekan <kbd>Alt+C</kbd> pada sebuah model akan mengedit informasi yang diketahui Rune tentang model tersebut: ukuran jendela konteks, batas keluaran, pilihan tingkat penalaran, dan harga. Harga yang Anda masukkan dipakai untuk menghitung angka biaya (Spend) di panel samping, yang merupakan perkiraan lokal dan bukan tagihan resmi dari penyedia.</p>
+<p>Pengaturan Models → New-session fallback memilih penyedia awal yang dipakai saat membuka sesi baru. Pengaturan ini tidak mengubah percakapan yang sedang terbuka; gunakan <code>/provider</code> atau <code>/model</code> di dalam sesi untuk menggantinya.</p>
+{{end}}

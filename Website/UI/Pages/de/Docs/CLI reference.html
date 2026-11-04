@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">Starten und prüfen</h2>
+<p>Führe diese Befehle in der Shell deines Betriebssystems aus. Nutze <code>rune -help</code> für deinen installierten Build. Befehle, die Anbieter kontaktieren, Konten ändern, Daten löschen oder Server starten, führen echte Aktionen aus und sind keine bloßen Diagnose-Flags.</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>Öffnet den interaktiven Agenten im aktuellen oder angegebenen Workspace.</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>Führt einen einzelnen Prompt aus und gibt die Antwort sowie den Tool-Fortschritt ohne Vollbild-Oberfläche aus. Berechtigungsanfragen werden abgelehnt statt stillschweigend freigegeben, wenn niemand antworten kann.</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>Wählt den Workspace für einen anderen Befehl aus.</dd></div>
+<div><dt>-version · -help</dt><dd>Gibt die Programmversion oder die Befehlsreferenz aus.</dd></div>
+<div><dt>-settings · -tools</dt><dd>Zeigt die wirksamen Modellparameter oder die dem Agenten angebotenen Werkzeuge an.</dd></div>
+<div><dt>-read-only</dt><dd>Schränkt schreibende Werkzeuge ein. Dies garantiert jedoch nicht, dass keine Datei gelesen oder keine Daten gesendet werden.</dd></div>
+<div><dt>--no-color</dt><dd>Deaktiviert Farben. Die Umgebungsvariable NO_COLOR wird ebenfalls unterstützt.</dd></div>
+</dl>
+<h2 id="configuration">Konfiguration</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>Zeigt den Pfad der aktiven Einstellungsdatei an.</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>Zeigt die wirksamen Werte, die Standardwerte ab Werk oder validiert die Datei. Die Ausgabe von show kann private Kontometadaten enthalten; check prüft keine Netzwerkverbindung.</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>Erklärt den wirksamen Wert eines Schlüssels und ab wann Änderungen greifen.</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>Speichert eine globale Einstellung. Beispiel: <code>rune -config set terminal.command_timeout 2m</code>.</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>Entfernt eine globale Überschreibung, sodass wieder der aktuelle Standardwert oder die Vererbung gilt.</dd></div>
+<div><dt>-config format</dt><dd>Formatiert gruppierte Einstellungen neu, ohne ihre Bedeutung zu verändern.</dd></div>
+<div><dt>-set key=value</dt><dd>Ändert eine unterstützte Workspace- oder Modelleinstellung, keinen beliebigen globalen Konfigurationsschlüssel.</dd></div>
+</dl>
+<h2 id="accounts-and-models">Konten und Modelle</h2>
+<p>Nutze nach Möglichkeit das maskierte Eingabefeld unter Connections. Echte Schlüssel in Kommandozeilenargumenten können im Shell-Verlauf und in Prozesslisten landen. Die folgende Syntax verwendet bewusst Platzhalter.</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>Listet Konten, Vorlagen (Presets) und die Verfügbarkeit von Webdiensten auf.</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>Fügt dem Schlüsselbund eines Kontos einen Schlüssel hinzu. Dies ändert gespeicherte Zugangsdaten.</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>Zeigt maskierte Schlüssel-Metadaten an.</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>Entfernt den nummerierten Schlüssel nach Prüfung seiner Identität.</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>Legt den Standardanbieter für neue Sitzungen fest; bestehende Unterhaltungen werden dadurch nicht umgeschaltet.</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>Entfernt die Anbieterkonfiguration. Gehe nicht davon aus, dass damit jeder gespeicherte Schlüssel unwiderruflich überschrieben wird.</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>Sendet eine echte, möglicherweise kostenpflichtige Anfrage, um das Konto zu testen.</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>Fragt den Modellkatalog des Kontos ab. Führt eine Netzwerkanfrage aus.</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>Zeigt die Vorschau einer Anfrage an, ohne sie abzusenden. Die Vorschau kann privaten Kontext enthalten; teile sie nicht ungeprüft.</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>Legt ein optionales Anfrage-Timeout für das Konto fest (5–3600 Sekunden); <code>default</code> entfernt die Überschreibung.</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>Legt ein nicht mehr lesbares Schlüsselpaar beiseite und beginnt mit einem leeren Speicher. Nutze dies nur nach einer bewussten Wiederherstellungsentscheidung; jeder Schlüssel muss danach neu eingetragen werden.</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>Listet Modelle auf oder wählt ein Modell für den angegebenen Workspace aus.</dd></div>
+</dl>
+<h2 id="sessions-and-storage">Sitzungen und Speicher</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>Öffnet die Sitzungsauswahl (bzw. gibt bei einer Pipe eine Liste aus) oder setzt eine bekannte Sitzung fort.</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>Benennt eine einzelne Sitzung um.</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>Löscht eine einzelne Sitzung dauerhaft. Prüfe zuvor, um welche Sitzung es sich handelt.</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>Prüft den Projektspeicher oder entfernt geeignete Daten von Projekten, die nicht mehr vorhanden sind.</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>Prüft den Status der Befehlsisolierung unter Windows, richtet das zugehörige dedizierte Konto explizit ein oder entfernt die Sandbox-Einrichtung von Rune. Andere Plattformen nutzen diese Einrichtung nicht.</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">Erweiterungen und Diagnose</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>Listet wiederverwendbare Anleitungen auf, zeigt sie an, aktiviert, deaktiviert, installiert oder lädt sie neu. Die Installation übernimmt einen geprüften Ordner oder ein ZIP-Archiv und legt ihn im aktuellen Projekt ab, sofern <code>--scope user</code> ihn nicht benutzerweit speichert.</dd></div>
+<div><dt>-mcp [operation]</dt><dd>Verwaltet, genehmigt, validiert und testet externe Tool-Definitionen. Eine Verbindung kann einen lokalen Prozess starten oder einen entfernten Dienst kontaktieren; eine reine Validierung ist noch keine erfolgreiche Verbindung.</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>Wählt den unterstützten Konfigurationsbereich für eine Erweiterungsänderung. Geteilte Projektänderungen wirken sich auch auf andere Nutzer dieses Projekts aus.</dd></div>
+<div><dt>-doctor</dt><dd>Führt Diagnosen einschließlich Verbindungsprüfungen aus. Kann Netzwerkanfragen senden; prüfe die Ausgabe vor dem Weitergeben.</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>Verwendet eine alternative Engine-Datenbank. Dies ist unabhängig von der Auswahl eines gesamten Einstellungsverzeichnisses über RUNE_HOME.</dd></div>
+<div><dt>-host</dt><dd>Nutzt zeilengetrenntes JSON für die Frontend-Integration anstelle der interaktiven Oberfläche. Dies ist kein öffentlicher Netzwerkserver.</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>Spielt ein geschriebenes Modellskript ab. Ein Skript kann echte Tool-Aufrufe vorschlagen; führe niemals ein ungeprüftes Skript in einer produktiven Arbeitsumgebung aus.</dd></div>
+</dl>
+<p>Wie du Erweiterungen einrichtest und freigibst, erfährst du unter <a href="{{url "docs/skills"}}">Skills</a> und <a href="{{url "docs/mcp"}}">MCP-Verbindungen</a>. Wechsle nicht in den Modus Full und lösche keine lokalen Daten, nur um eine Fehlermeldung zu umgehen.</p>
+{{end}}

@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">Speicherort und Geltungsbereich</h2>
+<p>Die globale Konfiguration liegt in der Datei <code>rune.toml</code> im gewählten Rune-Datenverzeichnis, standardmäßig unter <code>~/.rune/</code>. Die <a href="{{url "docs/reference"}}">Einstellungsreferenz</a> führt jeden unterstützten Schlüssel auf. Über <code>RUNE_HOME</code> lässt sich ein anderes Datenverzeichnis wählen. Eine Datei namens rune.toml innerhalb eines Projektordners wird nicht automatisch als Einstellungsdatei geladen, und <code>-project</code> wählt einen Workspace aus, kein Einstellungsverzeichnis.</p>
+<p>Mit <code>rune -config</code> prüfst du den tatsächlichen Speicherort. Die Datei enthält nur deine gespeicherten Abweichungen; nicht gesetzte Werte erben die aktuellen Standardwerte. Der oberste Eintrag <code>version = 1</code> beschreibt das Format der Konfigurationsdatei, nicht die Programmversion. Ändere ihn nicht, um ein Upgrade anzustoßen.</p>
+<h2 id="inspect">Gezielt einzeln prüfen</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>Zeigt den wirksamen Wert eines Schlüssels, seine Beschreibung und den Zeitpunkt an, ab dem Änderungen greifen.</dd></div>
+<div><dt>-config defaults</dt><dd>Zeigt die Standardwerte ab Werk getrennt von deinen gespeicherten Einstellungen an.</dd></div>
+<div><dt>-config check</dt><dd>Prüft die Syntax der Konfigurationsdatei und die Zulässigkeit der Werte. Testet weder API-Schlüssel noch Guthaben oder Netzwerkverbindungen.</dd></div>
+<div><dt>-config show</dt><dd>Zeigt die wirksame Gesamtkonfiguration an. Kann private Kontometadaten enthalten; schwärze sensible Angaben vor dem Teilen.</dd></div>
+<div><dt>-settings</dt><dd>Zeigt die Modellparameter für den gewählten Workspace an.</dd></div>
+</dl>
+<h2 id="change-and-reset">Ändern und zurücksetzen</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>Führe den Befehl set nur aus, wenn du diese globale Änderung tatsächlich vornehmen willst. Ein Reset entfernt die Überschreibung, statt eine Kopie des Standardwerts in die Datei zu schreiben. In den interaktiven Einstellungen erfüllt Use default denselben Zweck für globale Werte. Unbekannte oder veraltete Schlüssel führen zu einem Fehler und werden nicht stillschweigend als Alias akzeptiert.</p>
+<p>TOML kennt keinen nativen Wert <code>null</code>. Entferne einen optionalen Schlüssel oder nutze den vorgesehenen Reset-Befehl, statt <code>null</code> zu schreiben. Gehe nicht davon aus, dass eine leere Zeichenkette, „auto“, „none“ oder eine leere Liste bei jeder Einstellung ein Zurücksetzen bewirkt.</p>
+<h2 id="types-and-units">Datentypen und Einheiten</h2>
+<dl class="ref">
+<div><dt>Boolean</dt><dd><code>true</code> oder <code>false</code>, in TOML ohne Anführungszeichen.</dd></div>
+<div><dt>Anzahl / Tokens</dt><dd>Eine ganze Zahl innerhalb des zulässigen Bereichs der Einstellung. Tokens, Zeichen und Bytes sind unterschiedliche Maßeinheiten.</dd></div>
+<div><dt>Dauer</dt><dd>Eine Zeichenkette mit expliziter Einheit wie <code>"500ms"</code>, <code>"60s"</code> oder <code>"2m"</code>. Nur Wartezeiten für Berechtigungen und Rückfragen akzeptieren unlimited.</dd></div>
+<div><dt>Größe</dt><dd>Nutze explizite Binäreinheiten wie <code>"16MiB"</code>. Eine Größenangabe ohne Einheit wird als KiB interpretiert, nicht als Bytes.</dd></div>
+<div><dt>Liste</dt><dd>Verwende genau die dokumentierten Einträge. <code>[]</code> ist eine explizit leere Auswahl und nicht zwingend ein Reset.</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>Dies dient als Syntaxbeispiel, nicht als allgemein empfohlene Konfiguration. Das Array stop bewahrt exakte Zeichenfolgen einschließlich enthaltener Kommas; das Sitzungsmenü akzeptiert dagegen kommagetrennte Einträge. Globale Standardwerte unter generation überschreiben nicht pauschal alle bereits laufenden Sitzungen.</p>
+<h2 id="timing-and-risk">Gültigkeitszeitpunkt und Risiken</h2>
+<p>Änderungen werden in der Regel ohne Neustart übernommen. Prüfe mit explain die jeweilige Einstellung: Sofort wirksame Werte und Werte für die nächste Operation greifen zu unterschiedlichen Zeitpunkten. Das Bearbeiten von CLASSIFIER.md lädt eine bereits für die Sitzung fixierte Richtlinie nicht automatisch neu; nutze dafür im Leerlauf die entsprechende Reload-Aktion.</p>
+<p>Halte Konto-Endpunkte und Zugangsdaten aus öffentlichen Beispielen heraus. Prüfe manuelle Bearbeitungen, ohne unbeteiligte Einstellungen zu überschreiben. Höhere Limits können den Bedarf an Arbeitsspeicher, Festplattenplatz, Kontext und Kosten steigern; sie erteilen jedoch keine Berechtigungen und machen nicht unterstützte Modelle nicht funktionsfähig.</p>
+{{end}}

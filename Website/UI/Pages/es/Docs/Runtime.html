@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Elige el tiempo de espera adecuado</h2>
+<p>Settings → Runtime gestiona los tiempos de espera de las solicitudes al modelo, las esperas de red compartidas y los reintentos. El tiempo de espera de un comando en primer plano en la terminal, el plazo de una herramienta web y la caducidad de una tarjeta de permiso son ajustes distintos situados en Tools. Subir todos los tiempos de espera puede ocultar el síntoma sin resolver la causa.</p>
+<p>El tiempo de espera opcional de las solicitudes de una cuenta acepta segundos enteros entre 5 y 3.600. Dejarlo en blanco o usar default elimina ese valor personalizado. Los trabajos auxiliares pueden tener su propio tiempo límite de operación. Una transmisión activa y una transmisión que ha dejado de recibir datos no son la misma situación.</p>
+<h2 id="retry">Los reintentos son lineales</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Clave</th><th>Valor de fábrica</th><th>Significado</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Reintentos posteriores al primer intento: hasta seis intentos en total. Cero desactiva los reintentos.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Paso base: las esperas aumentan en 3, 6, 9… segundos.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>Si la siguiente espera supera este valor, la secuencia vuelve a empezar desde el paso base. No es una espera exponencial.</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>Cuánto tiempo permanece en reposo una clave sin saldo antes de volver a ser elegible. No recarga el saldo.</td></tr>
+</tbody></table></div>
+<p>No todos los fallos se reintentan. Reintentar no soluciona una credencial incorrecta, un control incompatible ni un punto de conexión erróneo. Un número de reintentos muy alto puede prolongar un fallo y añadir cargos; consulta primero el error clasificado en los registros.</p>
+<h2 id="network">Tiempos de espera de red</h2>
+<dl class="ref">
+<div><dt>Límite de inactividad del flujo</dt><dd><code>network.stream_idle_timeout</code>: 5 minutos sin recibir datos de respuesta. No es un límite total de cinco minutos sobre una transmisión que sigue enviando datos de forma continua.</dd></div>
+<div><dt>Tiempo de espera de conexión</dt><dd><code>network.connect_timeout</code>: 10 segundos para establecer la conexión.</dd></div>
+<div><dt>Tiempo de espera de prueba</dt><dd><code>network.probe_timeout</code>: 45 segundos para una prueba explícita de proveedor.</dd></div>
+<div><dt>Catálogo</dt><dd>Valores avanzados: 10 segundos de espera por solicitud, 1 hora de vigencia y un máximo de 100 páginas por actualización. La vigencia del catálogo no tiene relación con la duración de la caché de instrucciones (prompt cache).</dd></div>
+</dl>
+<p>Otros límites avanzados acotan el tamaño de las respuestas con y sin transmisión continua; miden bytes, no tokens. La opción de compatibilidad token-saver puede delegar la compresión en un enrutador compatible; activarla no garantiza la compresión y puede reducir el nivel de detalle devuelto.</p>
+<h2 id="detached-lifetime">Duración de la sesión desconectada</h2>
+<p><code>host.idle_lifetime</code> es un ajuste global avanzado cuyo valor predeterminado es de 60 segundos. Al cerrarse la última ventana, el trabajo activo de la IA se detiene, pero los comandos en segundo plano pueden continuar durante este periodo de retención. Si vuelves a abrir la sesión a tiempo, podrás seguir observándolos. No es un temporizador de cierre de sesión de la cuenta ni una promesa de mantener un servidor ejecutándose indefinidamente.</p>
+<h2 id="change-and-reset">Modifica y restablece con criterio</h2>
+<p>Abre la fila correspondiente en Runtime, edita el valor y pulsa Apply. Use default elimina el valor personalizado; <code>rune -config explain &lt;key&gt;</code> muestra el valor efectivo y cuándo se aplica. Los cambios en el tiempo de inactividad del flujo pueden afectar a una solicitud que ya esté esperando, mientras que el resto de opciones se aplican por lo general a las operaciones siguientes.</p>
+<p>Distingue primero entre un servicio lento que sigue trabajando, una conexión estancada en silencio, una clave sin saldo y una solicitud no admitida. Guardar correctamente una configuración no equivale a haber superado una prueba de red.</p>
+{{end}}

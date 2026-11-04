@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">起動と確認</h2>
+<p>以下のコマンドは OS のシェルから実行します。インストール済みビルドの正確な一覧は <code>rune -help</code> で確認してください。プロバイダへの通信、アカウントの変更、データの削除、またはサーバーの起動を行うコマンドは実際の操作を伴うものであり、単なる診断用フラグではありません。</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>現在のディレクトリ、または指定したワークスペースで対話型エージェントを開きます。</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>フル画面インターフェースを開かずに 1 つのプロンプトを実行し、回答とツールの進捗を出力します。応答するユーザーがいないため、権限確認が必要な操作は黙って承認されるのではなくすべて拒否されます。</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>他のコマンドオプションの対象となるワークスペースを指定します。</dd></div>
+<div><dt>-version · -help</dt><dd>アプリケーションのバージョンまたはコマンドリファレンスを表示します。</dd></div>
+<div><dt>-settings · -tools</dt><dd>有効なモデル制御設定、またはエージェントに提供されるツール一覧を確認します。</dd></div>
+<div><dt>-read-only</dt><dd>変更を伴うツールを制限します。ただし、ファイルの読み取りや外部へのデータ送信が一切行われないことを保証するものではありません。</dd></div>
+<div><dt>--no-color</dt><dd>色表示を無効にします。環境変数 <code>NO_COLOR</code> にも対応しています。</dd></div>
+</dl>
+<h2 id="configuration">設定管理</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>現在選択されている設定ファイルの場所を表示します。</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>有効な設定値の表示、初期設定値の表示、または設定ファイルの検証を行います。<code>show</code> には非公開のアカウントメタデータが含まれる場合があり、<code>check</code> は通信の疎通を証明するものではありません。</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>指定したキーの有効な値と反映タイミングを表示します。</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>グローバル設定を 1 つ保存します（例：<code>rune -config set terminal.command_timeout 2m</code>）。</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>グローバルな上書き設定を削除し、現在の既定値または継承動作に戻します。</dd></div>
+<div><dt>-config format</dt><dd>設定の意味を変えずに、グループ化された設定ファイルの書式を整えます。</dd></div>
+<div><dt>-set key=value</dt><dd>任意のグローバル設定キーではなく、対応しているワークスペース／モデル設定を変更します。</dd></div>
+</dl>
+<h2 id="accounts-and-models">アカウントとモデル</h2>
+<p>認証情報の入力には、Connections 画面のマスクされた入力欄を使用してください。コマンドライン引数に実際のキーを渡すと、シェルの履歴やプロセス一覧から漏洩する恐れがあります。以下の構文ではプレースホルダーを使用しています。</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>アカウント、プリセット、および Web サービスの利用可否を一覧表示します。</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>アカウントのキーリングにキーを追加します（認証情報が変更されます）。</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>マスクされたキーのメタデータを確認します。</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>対象を確認したうえで、指定した番号の認証情報を削除します。</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>新規セッション用のフォールバックプロバイダを選択します（既存のすべての会話を切り替えるものではありません）。</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>プロバイダ設定を削除します。保存されているすべての認証情報が完全に消去されるとは限りません。</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>課金対象となり得る実際のリクエストを送信して、アカウントをテストします。</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>アカウントのモデルカタログを取得します（ネットワークリクエストが発生します）。</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>リクエストを送信せずに内容をプレビューします。プレビューには非公開のコンテキストが含まれる場合があるため、そのまま共有しないでください。</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>アカウントごとのリクエストタイムアウトを 5〜3600 秒の範囲で設定します。<code>default</code> を指定すると上書きを解除します。</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>読み取れなくなった認証情報ストアを退避し、空の状態で新しく開始します。意図的な復旧判断を行った後にのみ使用してください（すべてのキーを再登録する必要があります）。</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>対象ワークスペースのモデル一覧を表示、またはモデルを選択します。</dd></div>
+</dl>
+<h2 id="sessions-and-storage">セッションとストレージ</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>セッション選択画面を開く（パイプ接続時は一覧出力）か、指定した ID のセッションを再開します。</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>指定したセッションの名前を変更します。</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>指定したセッションを完全に削除します。実行前に対象のセッションを確認してください。</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>プロジェクトストレージの使用状況を確認するか、すでに存在しないプロジェクトに属する対象データを整理（prune）します。</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>Windows のコマンド隔離状態の確認、専用アカウントの明示的なセットアップ、または Rune のサンドボックスアクセス権・アカウント設定の削除を行います（他のプラットフォームではこの仕組みは使用しません）。</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">拡張機能と診断</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>再利用可能なスキルガイドの一覧表示、詳細表示、有効化、無効化、インストール、再読み込みを行います。インストールは確認済みのフォルダまたは ZIP を受け取り、<code>--scope user</code> で個人用にしない限り現在のプロジェクトに配置します。</dd></div>
+<div><dt>-mcp [operation]</dt><dd>外部ツール定義の管理、承認、検証、テストを行います。接続するとローカルプロセスの起動やリモートサービスへの通信が発生する場合があります（検証だけでは接続成功の証明にはなりません）。</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>拡張機能の変更を保存する設定スコープを選択します。共有プロジェクト（<code>project</code>）への変更は、そのプロジェクトを参照する他のユーザーにも影響します。</dd></div>
+<div><dt>-doctor</dt><dd>接続チェックを含む診断を実行します。ネットワークリクエストが発生する場合があるため、出力を共有する前に内容を確認してください。</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>別のエンジンストアを使用します（<code>RUNE_HOME</code> で設定ホーム全体を切り替える操作とは異なります）。</dd></div>
+<div><dt>-host</dt><dd>対話型 UI ではなく、フロントエンド連携用の行区切り JSON モードで動作します（公開ネットワークサーバーではありません）。</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>記述されたモデルスクリプトを再生します。スクリプトは実際のツール呼び出しを提案できるため、未確認のスクリプトを本番の作業環境で実行しないでください。</dd></div>
+</dl>
+<p>拡張機能の設定やアクセス権の管理については、<a href="{{url "docs/skills"}}">スキル</a>または <a href="{{url "docs/mcp"}}">MCP 接続</a>を参照してください。エラーを回避する目的で安易に Full モードへ切り替えたり、ローカルデータを削除したりしないでください。</p>
+{{end}}

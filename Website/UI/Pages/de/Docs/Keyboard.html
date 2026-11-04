@@ -1,0 +1,44 @@
+{{define "article"}}
+<h2 id="application">Unterhaltung und Anwendung</h2>
+<dl class="ref">
+<div><dt>Enter · Alt+Enter</dt><dd>Nachricht senden bzw. Zeilenumbruch einfügen. Kombinationen mit der Eingabetaste hängen davon ab, was dein Terminal weitergibt.</dd></div>
+<div><dt>Ctrl+G · Ctrl+O</dt><dd>Einstellungen (Settings) öffnen bzw. die Seitenleiste ein-/ausblenden.</dd></div>
+<div><dt>Ctrl+T · Ctrl+R</dt><dd>Plan öffnen bzw. Tool-Schritte und Gedankengänge auf-/zuklappen. In der Sitzungsauswahl öffnet Ctrl+R stattdessen das Umbenennen.</dd></div>
+<div><dt>Alt+T</dt><dd>Verfügbare Reasoning-Stufen des gewählten Modells durchschalten.</dd></div>
+<div><dt>Tab</dt><dd>Slash-Befehl vervollständigen oder Berechtigungsmodus durchschalten. Innerhalb von Formularen behält Tab seine normale Fokus-Navigation.</dd></div>
+<div><dt>Zweimal Esc</dt><dd>Laufende KI-Arbeit stoppen: Der erste Druck zeigt eine Bestätigung, der zweite innerhalb von 3 Sekunden bricht ab. Im Leerlauf schließt Esc die geöffnete Ansicht.</dd></div>
+<div><dt>Zweimal Ctrl+C</dt><dd>Rune beenden. Der erste Druck bereitet das Beenden vor; er bricht weder einen laufenden Durchlauf ab noch löscht er deinen Entwurf.</dd></div>
+<div><dt>Ctrl+L · Ctrl+↓</dt><dd>Bildschirm neu zeichnen bzw. zum Ende des Chats springen.</dd></div>
+</dl>
+<h2 id="text-editing">Textbearbeitung</h2>
+<p>Diese Tastenkürzel gelten gleichermaßen im Eingabefeld, in bearbeitbaren Antworten, Einstellungsfeldern, der Modellsuche, MCP-Feldern sowie bei der Sitzungssuche und -umbenennung. Listen und Schaltflächen nutzen ihre eigene Navigation. Eine logische Zeile endet an einem eingefügten Zeilenumbruch; eine sichtbare Zeile kann durch automatischen Zeilenumbruch entstehen.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Taste</th><th>Aktion</th></tr></thead><tbody>
+<tr><td>← / →</td><td>Um ein sichtbares Zeichen bewegen.</td></tr>
+<tr><td>Ctrl+← / Ctrl+→</td><td>Zum vorherigen durch Leerzeichen getrennten Wort / zum Ende des nächsten Worts springen.</td></tr>
+<tr><td>↑ / ↓</td><td>Durch sichtbare Zeilen bewegen, wobei die gewünschte Spalte beibehalten wird.</td></tr>
+<tr><td>Ctrl+A / Ctrl+E</td><td>Anfang / Ende der aktuellen logischen Zeile.</td></tr>
+<tr><td>Home / End</td><td>Anfang / Ende der gesamten Eingabe.</td></tr>
+<tr><td>Backspace / Delete</td><td>Das sichtbare Zeichen vor / nach dem Cursor oder die Auswahl löschen.</td></tr>
+<tr><td>Ctrl+U / Ctrl+K</td><td>Rückwärts / vorwärts bis zur Grenze der logischen Zeile ausschneiden (Kill). Ctrl+K an einem Zeilenumbruch entfernt nur diesen Umbruch; am Ende der Eingabe passiert nichts.</td></tr>
+<tr><td>Ctrl+W / Alt+D</td><td>Das durch Leerzeichen getrennte Wort links / rechts samt angrenzendem Leerraum in dieser Richtung ausschneiden.</td></tr>
+<tr><td>Ctrl+Y / Alt+Y</td><td>Den zuletzt ausgeschnittenen Text einfügen (Yank) / direkt nach dem Einfügen durch frühere Einträge im Kill-Ring blättern.</td></tr>
+<tr><td>Ctrl+_ / Alt+R</td><td>Textbearbeitung in diesem Feld rückgängig machen / wiederholen.</td></tr>
+<tr><td>Shift+←/→/↑/↓</td><td>Auswahl zeichenweise oder über sichtbare Zeilen erweitern.</td></tr>
+<tr><td>Ctrl+Shift+← / →</td><td>Auswahl wortweise erweitern.</td></tr>
+<tr><td>Alt+X / Alt+W</td><td>Benachbarte Zeichen / Wörter vertauschen.</td></tr>
+<tr><td>Alt+U / Alt+L / Alt+V</td><td>Das folgende Wort oder den ausgewählten Text in Großbuchstaben / Kleinbuchstaben / mit großem Anfangsbuchstaben umwandeln.</td></tr>
+</tbody></table></div>
+<p>Tippen, Einfügen oder Löschen ersetzt eine bestehende Textauswahl. Das vorübergehende Undo und ausgeschnittene Texte gehören zum jeweiligen Eingabefeld, sind begrenzt und werden beim Wechsel des Felds oder der Sitzung geleert. Sie sind keine Dateisicherungen. Rune implementiert nicht den kompletten Satz an Readline-Aliassen; beispielsweise sind Ctrl+B/F und Alt+B/F keine alternativen Bewegungstasten.</p>
+<h2 id="history-and-reading">Eingabeverlauf und Lesen</h2>
+<p>Im Eingabefeld bewegen Auf/Ab den Cursor zunächst durch den sichtbaren Text, erreichen dann den Anfang bzw. das Ende und rufen anschließend frühere Prompts aus dem Verlauf auf. <kbd>PgUp</kbd>/<kbd>PgDn</kbd> blättern direkt durch den Verlauf. Der Verlauf ist an die jeweilige Sitzung gebunden.</p>
+<p>Eine Raststufe des Mausrads scrollt um die konfigurierte Zeilenanzahl (standardmäßig zwei Zeilen). Ctrl+Mausrad oder Alt+Mausrad scrollt dreimal so weit, sofern das Terminal diese Eingabe weiterleitet. Ein Terminal kann diese Gesten für Zoom oder horizontales Scrollen reservieren; das normale Mausrad und die Tastatur stehen weiterhin zur Verfügung.</p>
+<h2 id="mouse">Maus</h2>
+<p>Ein Klick platziert den Textcursor oder aktiviert ein Bedienelement. Ziehe mit gedrückter Maustaste über Text und lass los, um ihn zu kopieren: Die Markierung verschwindet, sobald der Text in deiner Zwischenablage liegt. Wenn du im Unterhaltungsbereich ziehst, wird nur dieser Bereich kopiert – ohne Seitenleiste und ohne die Rahmenlinien von Rune –, und Tabellen werden als tabulatorgetrennte Zellen kopiert. Beim Kopieren eines eingeklappten Befehls erhältst du dessen ursprüngliche Zeilenumbrüche zurück, ohne die Anzeigezeichen <code>↵</code> und <code>…</code>. In einem Eingabefeld kopiert das Ziehen mit der Maus den Text, ohne den Cursor zu verschieben oder deinen Entwurf zu überschreiben; zum Bearbeiten markierst du Text mit <kbd>Shift</kbd> und den Pfeiltasten. Maskierte Geheimnisfelder werden niemals kopiert.</p>
+<p>Damit kopierter Text ankommt, muss dein Terminal Schreibzugriffe auf die Zwischenablage erlauben; SSH oder ein Terminal-Multiplexer können dies blockieren. <kbd>Shift</kbd>+Ziehen nutzt – sofern vom Terminal unterstützt – stattdessen die native Textauswahl des Terminals einschließlich der Rahmenlinien. Mit <code>ui.mouse = false</code> übernimmt das Terminal die gesamte Mausauswahl.</p>
+<p>Klicke auf einen Link, um sein <strong>REFERENCE</strong>-Fenster zu öffnen: <kbd>Enter</kbd> öffnet eine Webadresse im Browser, <kbd>C</kbd> kopiert die vollständige Zieladresse und <kbd>Esc</kbd> schließt das Fenster. Ziehen über einen Link kopiert lediglich den Text und öffnet ihn niemals.</p>
+<h2 id="lists-and-forms">Listen und Formulare</h2>
+<p>Die Pfeiltasten wählen Einträge aus, und <kbd>Enter</kbd> öffnet oder bestätigt sie. <kbd>Tab</kbd>/<kbd>Shift+Tab</kbd> verschieben den Fokus. <kbd>Esc</kbd> bricht einen Editor ab oder geht eine Ebene zurück. Unter Models fokussiert Ctrl+F die Suche, Alt+C öffnet die Modellkonfiguration, T sendet eine echte Testanfrage und Delete entfernt die lokale Konfiguration des ausgewählten Eintrags.</p>
+<p>In Rückfrageformularen wechselt Alt+Links/Rechts zwischen den Fragen. Einfaches Links/Rechts bearbeitet Text oder wählt Schaltflächen aus. Bild-auf/ab scrollen durch eine lange Karte, senden aber keine Antwort ab. Auf/Ab innerhalb eines freien Antwortfelds navigieren zuerst durch den eingegebenen Text, bevor sie das Feld verlassen. Ziehen mit der Maus markiert Text zum Kopieren, statt das darunterliegende Steuerelement auszulösen.</p>
+<h2 id="terminal-differences">Unterschiede zwischen Terminals</h2>
+<p>Ein Tastenkürzel funktioniert nur, wenn das Terminal es an Rune meldet. Betriebssystem-Kürzel, Terminalprofile und klassische Steuerzeichen-Kodierungen können bestimmte Kombinationen abfangen. Auch Hintergrund, Unschärfe und Transparenz sind Sache des Terminals, nicht von Rune. Prüfe mit <code>/help</code> die Tastaturbelegung deines installierten Builds, statt dich auf die Tastenkürzel deiner Shell zu verlassen.</p>
+{{end}}

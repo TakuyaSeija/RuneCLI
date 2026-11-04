@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Ringkasan dukungan platform</h2>
+<p>Rune adalah satu program dengan mode, perangkat, pengaturan, dan struktur data yang sama di setiap sistem operasi. Perbedaannya terletak pada apa yang diizinkan oleh masing-masing sistem operasi terhadap sebuah program: bagaimana program yang sedang berjalan digantikan saat pembaruan, bagaimana perintah shell dibatasi di dalam sandbox, dan apa yang dapat dilaporkan sistem saat sebuah perintah menunggu masukan. Linux adalah platform utama. macOS dan Windows berstatus beta: dibangun dan diuji pada mesin nyata, namun dengan jam terbang penggunaan harian yang lebih sedikit.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Area</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Status dukungan</td><td>Utama</td><td>Beta</td><td>Beta</td></tr>
+<tr><td>Versi sistem</td><td>glibc 2.17 atau lebih baru, atau sistem apa pun dengan biner musl statis</td><td>macOS 11 atau lebih baru</td><td>Windows 10 versi 1809 atau lebih baru, Windows 11</td></tr>
+<tr><td>Prosesor</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Pemasang</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> di PowerShell</td></tr>
+<tr><td>Jendela terbuka setelah pembaruan</td><td>Beralih ke versi baru saat diam (idle)</td><td>Beralih ke versi baru saat diam (idle)</td><td>Tetap memakai versi awalnya; jendela Rune berikutnya memakai versi baru</td></tr>
+<tr><td>Sandbox perintah</td><td>Sandbox kernel Linux, bila didukung oleh kernel</td><td>Sandbox bawaan macOS</td><td>Akun lokal Windows terpisah, disiapkan sekali dengan konfirmasi Administrator</td></tr>
+<tr><td>Perintah yang menunggu ketikan masukan</td><td>Setiap penungguan masukan terdeteksi</td><td>Hanya masukan tersembunyi, seperti prompt kata sandi</td><td>Tidak terdeteksi otomatis</td></tr>
+<tr><td>Shell untuk perintah</td><td>bash, atau <code>/bin/sh</code></td><td>bash, atau <code>/bin/sh</code></td><td>PowerShell 7, atau Windows PowerShell, atau Command Prompt</td></tr>
+<tr><td>Menyalin teks dari Rune</td><td>Melalui terminal</td><td>Papan klip sistem dan terminal</td><td>Papan klip sistem dan terminal</td></tr>
+<tr><td>Membuka tautan</td><td>Peramban Anda, melalui <code>xdg-open</code></td><td>Peramban Anda</td><td>Peramban Anda</td></tr>
+</tbody></table></div>
+<p>Sistem mana saja yang memiliki biner bertanda tangan pada rilis saat ini tercantum di bawah setiap perintah pemasangan di <a href="{{url "install"}}">halaman pemasangan</a>.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Perintah shell dibatasi oleh sandbox milik kernel Linux selama kernel menyediakannya, sebagaimana pada sebagian besar distribusi Linux modern. Bila kernel tidak menyediakannya—misalnya pada kernel versi lama—Rune akan memberi tahu Anda: dalam mode Auto setiap perintah akan meminta izin terlebih dahulu, sedangkan mode Full berjalan tanpa bertanya. Perintah <code>/help</code> menampilkan di bawah bagian <em>This machine</em> apakah sandbox sedang aktif beserta hal-hal yang dapat melewatinya.</p>
+<p>Penyalinan teks berjalan melalui terminal Anda, sehingga terminal harus mengizinkan program mengisi papan klip (clipboard). Saat terhubung lewat SSH, atau di dalam tmux maupun screen, izin tersebut mungkin mati secara bawaan; aktifkan di pengaturan terminal atau multiplexer Anda, atau tahan tombol <kbd>Shift</kbd> sambil menyeret mouse untuk menggunakan blok bawaan terminal. Membuka tautan web memerlukan <code>xdg-open</code>, yang umumnya sudah tersedia di lingkungan desktop Linux.</p>
+<p>Pada sistem yang menyimpan programnya di dalam penyimpanan paket baca-saja (read-only), seperti NixOS atau Guix, perintah yang dijalankan dapat membaca dan mengeksekusi program yang ada di penyimpanan tersebut.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Perintah dijalankan di dalam sandbox bawaan macOS dengan batasan lokasi yang sama seperti di Linux. Menyalin teks langsung mengisi papan klip sistem macOS, sehingga tetap berfungsi di aplikasi Terminal bawaan macOS yang mengabaikan permintaan pengisian papan klip melalui urutan escape terminal.</p>
+<p>macOS hanya memberi tahu Rune saat sebuah perintah menunggu masukan yang disembunyikan (echo off), seperti prompt kata sandi. Perintah latar belakang yang diam-diam menunggu jawaban biasa akan tampak seperti perintah yang masih bekerja; periksa log keluarannya sebelum mengambil keputusan, dan jangan pernah menebak kata sandi atau mengirim konfirmasi hanya karena sebuah perintah tampak diam.</p>
+<p>Perintah dijalankan menggunakan bash (yang disertakan di macOS), belum tentu sama dengan shell interaktif yang dibuka oleh terminal Anda (shell login bawaan macOS adalah zsh). Anda dapat memilih shell lain yang terpasang dengan menuliskan path absolutnya di pengaturan <code>terminal.shell</code>.</p>
+<p>Pasang Rune menggunakan perintah di halaman pemasangan. Salinan arsip yang diunduh melalui peramban web akan ditandai berasal dari internet sehingga Gatekeeper menolak menjalankannya sebelum tanda karantinanya dihapus; halaman <a href="{{url "docs/install"}}#install">Pasang &amp; perbarui</a> menjelaskan caranya.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune membatasi perintah menggunakan akun lokal terpisah yang dibuat khusus. Saat Anda pertama kali membuka Rune, aplikasi akan meminta konfirmasi Administrator satu kali untuk menyiapkan akun tersebut. Jika Anda menolak, Rune tidak akan menanyakannya setiap kali dibuka; jalankan <code>rune -sandbox setup</code> kapan saja Anda ingin mengaktifkannya, dan <code>rune -sandbox reset</code> untuk menghapus akun tersebut beserta seluruh hak akses yang pernah diberikan pada folder Anda. Perintah <code>rune -sandbox</code> mencantumkan daftar akses tersebut dan menampilkan metode pembatasan mana yang sedang aktif.</p>
+<p>Tanpa akun terpisah tersebut, Rune membatasi perintah menggunakan token terbatas dari akun Anda sendiri, dengan keterbatasan berikut:</p>
+<ul>
+<li>Perintah masih dapat membaca lokasi yang diizinkan Windows untuk dibaca oleh setiap pengguna, seperti folder di akar drive, drive lain, dan ProgramData, serta dapat membuat berkas di dalam ProgramData. Folder profil pengguna pribadi Anda tetap berada di luar jangkauannya.</li>
+<li>Perintah dapat membuka (hanya untuk membaca) named pipe yang dibuat oleh program lain dengan keamanan bawaan Windows. Penulisan ke pipe semacam itu tetap ditolak.</li>
+<li>Git Bash dan program berbasis MSYS2 atau Cygwin lainnya akan meminta izin sebelum setiap perintah dijalankan, lalu menjalankan pemanggilan tersebut dengan akses penuh. Koneksi HTTPS bawaan Windows yang dipakai oleh <code>curl.exe</code> dan <code>Invoke-WebRequest</code> tidak dapat berjalan di dalam token terbatas ini; namun HTTPS milik Git tetap berfungsi.</li>
+</ul>
+<p>Dengan akun sandbox terpisah yang telah disiapkan, Git Bash maupun HTTPS bawaan Windows dapat berjalan normal di dalam perintah yang dibatasi. Rune tidak menambahkan hak akses ke folder sistem Windows, ke akar drive, atau ke folder induk yang menampung seluruh profil pengguna; karena itu, proyek yang dibuka langsung di lokasi-lokasi tersebut akan meminta izin sebelum menjalankan setiap perintah dalam mode Ask maupun Auto.</p>
+<p>Windows tidak memberi tahu Rune saat sebuah perintah sedang menunggu ketikan masukan. Perintah latar belakang yang tampak diam bisa jadi sedang menunggu jawaban atau memang masih bekerja: baca log keluarannya sebelum mengirim masukan. Além itu, berkas program yang sedang berjalan di Windows tidak dapat ditimpa langsung, sehingga pembaruan versi baru akan berlaku pada jendela Rune berikutnya yang Anda buka, bukan pada jendela yang sudah telanjur terbuka.</p>
+
+<h2 id="terminals">Terminal</h2>
+<p>Pintasan papan ketik dan gestur mouse hanya sampai ke Rune apabila terminal meneruskannya. Konsole menggunakan <kbd>Ctrl</kbd>+wheel untuk memperbesar tampilan kecuali profilnya diubah, dan beberapa terminal mengubah <kbd>Alt</kbd>+wheel menjadi guliran mendatar; roda gulir biasa dan tombol panah selalu bekerja. Guliran layar tampak mulus di terminal yang mendukung sinkronisasi gambar satu frame penuh; di terminal lain, layar bergeser per takik. Warna dasar, transparansi, dan fon sepenuhnya diatur oleh terminal Anda. Jalankan <code>/help</code> untuk melihat pintasan yang dikenali oleh versi yang terpasang.</p>
+{{end}}

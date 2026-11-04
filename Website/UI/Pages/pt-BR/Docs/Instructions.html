@@ -1,0 +1,20 @@
+{{define "article"}}
+<h2 id="project-guidance">Orientações do projeto</h2>
+<p>O arquivo <code>AGENTS.md</code> na raiz do workspace fornece orientações sobre o projeto: comandos de build, convenções e limites relevantes para o trabalho. Ele não é um arquivo de chaves de API, uma concessão de permissão nem a política do classificador. Mantenha credenciais fora dele e inclua apenas textos que você deseja enviar como contexto para o modelo.</p>
+<p>O limite de fábrica para instruções automáticas é de 32.768 caracteres, controlado por <code>instructions.max_chars</code> em Settings → Tools → Project instructions. Quando um arquivo ultrapassa esse limite, o Rune informa qual parte ficou de fora, e a IA lê o restante antes de se basear nessas regras; o restante do arquivo não deixa de existir. Se as orientações mudarem durante uma sessão, o Rune pode avisar o modelo para reler a fonte correspondente.</p>
+<h2 id="attachments">Anexe o arquivo desejado</h2>
+<p>O comando <code>/attach &lt;path&gt;</code> adiciona um arquivo à próxima mensagem; <code>/detach &lt;number|all&gt;</code> remove anexos pendentes. Confira a lista de anexos pendentes antes de enviar. Cada modelo pode lidar de forma diferente com textos, imagens ou outras mídias; a presença de um arquivo não garante que seu conteúdo possa ser interpretado pelo modelo.</p>
+<p>Um anexo enviado identifica a versão exata do arquivo no momento do envio. Editar o arquivo no mesmo caminho mais tarde não transforma uma mensagem antiga nos novos bytes. Quando o conteúdo original não pode ser recuperado, o Rune informa que o arquivo mudou ou desapareceu, em vez de apresentar o conteúdo novo como se fosse o antigo. Anexe a nova versão explicitamente quando a tarefa precisar dela.</p>
+<p>Os limites de fábrica incluem 60.000 caracteres de texto por arquivo de texto anexado e até dez anexos no histórico. Limites de contexto e de tamanho de requisição do provedor podem remover mídias mais antigas antes disso. Esses limites são independentes dos anexos da mensagem atual e do recolhimento visual na transcrição.</p>
+<h2 id="project-memory">Memória do projeto</h2>
+<p>O Rune oferece suporte a notas persistentes por projeto com um índice <code>MEMORY.md</code>; <a href="{{url "docs/memory"}}">Memória</a> explica onde essas notas ficam guardadas e o que chega ao modelo. O modelo recebe o índice — não todas as notas automaticamente — e lê uma nota relevante quando necessário. O orçamento de leitura do índice é de 20 KiB por padrão; aumentá-lo consome mais contexto do modelo, mas não torna as notas mais precisas.</p>
+<p>Use a memória para decisões estáveis, correções e trabalhos em andamento. Não armazene credenciais nem resultados temporários de cada comando. As notas podem ser incluídas em requisições posteriores ao modelo e não constituem uma fonte de permissão separada. O modelo acessa a memória do projeto pelas ferramentas de arquivo usando <code>@memory/</code>, sem criar uma pasta de memória dentro do seu repositório.</p>
+<h2 id="separate-purpose">Mantenha as finalidades separadas</h2>
+<dl class="ref">
+<div><dt>AGENTS.md</dt><dd>Orientações do projeto enviadas como contexto para o modelo.</dd></div>
+<div><dt>CLASSIFIER.md</dt><dd>Sua política para revisão de ações aplicáveis da IA. Possui comportamento explícito de recarregamento e não se confunde com as orientações do projeto.</dd></div>
+<div><dt>rune.toml</dt><dd>Configurações na pasta de dados selecionada do Rune. Um arquivo com o mesmo nome dentro de um projeto não se torna automaticamente o arquivo de configurações globais.</dd></div>
+<div><dt>Skill</dt><dd>Um guia reutilizável ativado ou lido para uma tarefa. Não pode conceder acesso por conta própria.</dd></div>
+</dl>
+<p>Textos do repositório, páginas web ou respostas de ferramentas podem conter instruções enganosas. Trate seu conteúdo como dados de trabalho e revise as ações na fronteira de permissão, em vez de confiar na afirmação de um documento dizendo que a aprovação já foi concedida.</p>
+{{end}}

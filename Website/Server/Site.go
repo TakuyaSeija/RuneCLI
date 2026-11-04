@@ -25,15 +25,16 @@ type page struct {
 	Label    string // navigation label for documentation
 	Section  string
 	Headings []docHeading
+	Locale   *locale
 	tmpl     *template.Template
 }
 
 var pages = append([]*page{
-	{Route: "", File: "Home", Title: "RuneAgent — a coding agent for your terminal",
+	{Route: "", File: "Home", Title: "RuneAgent | a coding agent for your terminal",
 		Lead: "RuneAgent by Atoryn Studio works in your project with your chosen model, visible tool results, configurable permissions and reviewable file changes."},
-	{Route: "changelog", File: "Changelog", Title: "Changelog — RuneAgent",
+	{Route: "changelog", File: "Changelog", Title: "Changelog | RuneAgent",
 		Lead: "Every published release of RuneAgent."},
-	{Route: "license", File: "License", Title: "License — RuneAgent",
+	{Route: "license", File: "License", Title: "License | RuneAgent",
 		Lead: "The license under which RuneAgent is provided."},
 }, documentationPages()...)
 
@@ -42,10 +43,13 @@ type site struct {
 	cfg       *Config
 	build     string // hash of every static file: one value for the whole release
 	static    map[string][]byte
-	gzipped   map[string][]byte // text assets compressed once; fonts and images already are
-	pages     map[string]*page
+	gzipped   map[string][]byte           // text assets compressed once; fonts and images already are
+	pages     map[string]map[string]*page // locale code → route → page
+	lists     map[string][]*page          // locale code → pages in catalogue order
+	groups    map[string][]docGroup       // locale code → the docs index in its words
+	demos     map[string]*demoView        // locale code → the replay, chapter names in its words
 	demo      *demoView
-	notFound  *template.Template
+	notFound  map[string]*template.Template
 	installer *texttemplate.Template // install.sh: Linux and macOS
 	installPS *texttemplate.Template // install.ps1: Windows
 }
@@ -62,7 +66,12 @@ var staticTypes = map[string]string{
 }
 
 func newSite(cfg *Config) (*site, error) {
-	s := &site{cfg: cfg, static: map[string][]byte{}, gzipped: map[string][]byte{}, pages: map[string]*page{}}
+	s := &site{cfg: cfg, static: map[string][]byte{}, gzipped: map[string][]byte{},
+		pages: map[string]map[string]*page{}, lists: map[string][]*page{}, groups: map[string][]docGroup{},
+		demos: map[string]*demoView{}, notFound: map[string]*template.Template{}}
+	if err := loadLocaleTexts(); err != nil {
+		return nil, err
+	}
 	var names []string
 	err := fs.WalkDir(ui.Files, "Static", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -94,64 +103,13 @@ func newSite(cfg *Config) (*site, error) {
 	}
 	s.build = hex.EncodeToString(h.Sum(nil))[:16]
 
-	funcs := template.FuncMap{
-		"asset": s.asset,
-		"url":   s.url,
-		"year":  func() int { return time.Now().Year() },
-		"mb":    func(n int64) float64 { return float64(n) / (1 << 20) },
-		"add":   func(a, b int) int { return a + b },
-		// A closed box shows the command's first row, cut, never a wrapped block.
-		"firstLine":  firstLine,
-		"demoInline": demoInline,
-		// The panel prints numbers the way the binary does: `152,211`, `$0.4996`.
-		"num":   func(n int64) string { return thousands(n) },
-		"money": func(v float64) string { return fmt.Sprintf("$%.4f", v) },
-		// What a release really published for each system, so the page never names a build that does not exist.
-		"linuxBuilds": linuxBuilds,
-		"installNote": installNote,
-		"buildLabel":  buildLabel,
-		"doneCount": func(tasks []recTask) int {
-			done := 0
-			for _, task := range tasks {
-				if task.Status == "done" {
-					done++
-				}
-			}
-			return done
-		},
-	}
-	for _, p := range pages {
-		files := []string{"Pages/Layout.html"}
-		if p.Section != "" {
-			files = append(files, "Pages/Docs.html")
-		}
-		if p.Route == "" {
-			files = append(files, "Pages/Terminal.html", "Pages/TerminalContent.html", "Pages/Install.html")
-		}
-		files = append(files, "Pages/"+p.File+".html")
-		t, err := template.New("Layout.html").Funcs(funcs).ParseFS(ui.Files, files...)
-		if err != nil {
-			return nil, fmt.Errorf("page %s: %w", p.File, err)
-		}
-		cp := *p
-		if p.Section != "" {
-			source, err := fs.ReadFile(ui.Files, "Pages/"+p.File+".html")
-			if err != nil {
-				return nil, err
-			}
-			cp.Headings, err = documentationHeadings(source)
-			if err != nil {
-				return nil, fmt.Errorf("page %s: %w", p.File, err)
-			}
-		}
-		cp.tmpl = t
-		s.pages[p.Route] = &cp
-	}
-	if s.notFound, err = template.New("Layout.html").Funcs(funcs).ParseFS(ui.Files, "Pages/Layout.html", "Pages/NotFound.html"); err != nil {
-		return nil, err
-	}
 	if s.demo, err = demoOf(documentedVersion); err != nil {
 		return nil, err
+	}
+	for _, l := range locales {
+		if err := s.parseLocale(l); err != nil {
+			return nil, err
+		}
 	}
 	s.installer, err = texttemplate.New("install.sh").Funcs(texttemplate.FuncMap{"shq": shellQuote}).
 		ParseFS(ui.Files, "Install/install.sh")
@@ -166,6 +124,86 @@ func newSite(cfg *Config) (*site, error) {
 	return s, nil
 }
 
+// parseLocale parses every page of one locale from its own copy of the
+// templates; its url and installNote speak that locale.
+func (s *site) parseLocale(l *locale) error {
+	funcs := template.FuncMap{
+		"asset": s.asset,
+		"url":   func(route string) string { return s.urlIn(l, route) },
+		"year":  func() int { return time.Now().Year() },
+		"mb":    func(n int64) float64 { return float64(n) / (1 << 20) },
+		"add":   func(a, b int) int { return a + b },
+		"meta":  metaText,
+		// A closed box shows the command's first row, cut, never a wrapped block.
+		"firstLine":  firstLine,
+		"demoInline": demoInline,
+		// The panel prints numbers the way the binary does: `152,211`, `$0.4996`.
+		"num":   func(n int64) string { return thousands(n) },
+		"money": func(v float64) string { return fmt.Sprintf("$%.4f", v) },
+		// What a release really published for each system, so the page never names a build that does not exist.
+		"linuxBuilds": linuxBuilds,
+		"installNote": l.installNote,
+		"buildLabel":  buildLabel,
+		// The one-line command that installs one named version: the site lists
+		// every release, and an older one installs by number.
+		"installFor": func(version string) string {
+			return "curl -fsSL " + s.cfg.Origin + s.cfg.BasePath + "/install.sh | RUNE_VERSION=" + version + " sh"
+		},
+		"doneCount": func(tasks []recTask) int {
+			done := 0
+			for _, task := range tasks {
+				if task.Status == "done" {
+					done++
+				}
+			}
+			return done
+		},
+	}
+	list, groups := l.localizedPages()
+	s.pages[l.Code], s.groups[l.Code] = map[string]*page{}, groups
+	for _, p := range list {
+		files := []string{l.pageFile("Layout.html")}
+		if p.Section != "" {
+			files = append(files, l.pageFile("Docs.html"))
+		}
+		if p.Route == "" {
+			files = append(files, l.pageFile("Terminal.html"), l.pageFile("TerminalContent.html"), l.pageFile("Install.html"))
+		}
+		files = append(files, l.pageFile(p.File+".html"))
+		t, err := template.New("Layout.html").Funcs(funcs).ParseFS(ui.Files, files...)
+		if err != nil {
+			return fmt.Errorf("%s page %s: %w", l.Code, p.File, err)
+		}
+		p.Locale = l
+		if p.Section != "" {
+			source, err := fs.ReadFile(ui.Files, l.pageFile(p.File+".html"))
+			if err != nil {
+				return err
+			}
+			if p.Headings, err = documentationHeadings(source); err != nil {
+				return fmt.Errorf("%s page %s: %w", l.Code, p.File, err)
+			}
+		}
+		p.tmpl = t
+		s.pages[l.Code][p.Route] = p
+		s.lists[l.Code] = append(s.lists[l.Code], p)
+	}
+	nf, err := template.New("Layout.html").Funcs(funcs).ParseFS(ui.Files, l.pageFile("Layout.html"), l.pageFile("NotFound.html"))
+	if err != nil {
+		return fmt.Errorf("%s not found page: %w", l.Code, err)
+	}
+	s.notFound[l.Code] = nf
+	demo := *s.demo
+	if l != english {
+		demo.Chapters = append([]demoChapter(nil), s.demo.Chapters...)
+		for i := range demo.Chapters {
+			demo.Chapters[i].Name = l.text.Chapters[demo.Chapters[i].Name]
+		}
+	}
+	s.demos[l.Code] = &demo
+	return nil
+}
+
 // asset is the URL of a static file. The build hash in the path makes every
 // URL immutable: a new release serves new URLs, never stale bytes.
 func (s *site) asset(name string) (string, error) {
@@ -175,14 +213,19 @@ func (s *site) asset(name string) (string, error) {
 	return s.cfg.BasePath + "/static/" + s.build + "/" + name, nil
 }
 
-func (s *site) url(route string) string {
+func (s *site) url(route string) string { return s.urlIn(english, route) }
+
+// urlIn is a route's address in one locale: English at the base path, every
+// translation below its own code.
+func (s *site) urlIn(l *locale, route string) string {
+	base := s.cfg.BasePath + l.prefix()
 	if route == "install" {
-		return s.cfg.BasePath + "/#install"
+		return base + "/#install"
 	}
 	if route == "" {
-		return s.cfg.BasePath + "/"
+		return base + "/"
 	}
-	return s.cfg.BasePath + "/" + route
+	return base + "/" + route
 }
 
 // pageData is what every page template sees.
@@ -196,34 +239,47 @@ type pageData struct {
 	// Windows has no POSIX shell by default: its installer is a PowerShell script.
 	InstallCmdWindows string
 	// Parent is where the footer's "Atoryn" leads on this host.
-	Parent  string
-	Catalog *Catalog
-	Latest            *Release
-	SiteVersion       string
-	DocGroups         []docGroup
-	DocVersion        string
-	Previous, Next    *page
+	Parent         string
+	Catalog        *Catalog
+	Latest         *Release
+	SiteVersion    string
+	DocGroups      []docGroup
+	DocVersion     string
+	Previous, Next *page
+	// Locale is the language of this page; Locales lists every language,
+	// each pointing at this same page in it (its front page from a 404).
+	Locale  *locale
+	Locales []localeLink
 	// The recorded CLI session the home page illustrates. Built once at start:
 	// it is read-only data, and rendering it per request would only repeat work.
 	Demo *demoView
 }
 
 func (s *site) data(p *page, cat *Catalog) pageData {
+	l := p.Locale
 	d := pageData{
 		Page: p, Env: s.cfg.Env, Indexing: s.cfg.Indexing,
-		Canonical:         s.cfg.Origin + s.url(p.Route),
+		Canonical:         s.cfg.Origin + s.urlIn(l, p.Route),
 		Origin:            s.cfg.Origin,
 		InstallCmd:        "curl -fsSL " + s.cfg.Origin + s.cfg.BasePath + "/install.sh | sh",
 		InstallCmdWindows: "irm " + s.cfg.Origin + s.cfg.BasePath + "/install.ps1 | iex",
 		Parent:            s.cfg.parent(),
 		Catalog:           cat, Latest: cat.Latest(), SiteVersion: s.build,
-		DocGroups: docGroups, DocVersion: documentedVersion,
-		Demo: s.demo,
+		DocGroups: s.groups[l.Code], DocVersion: documentedVersion,
+		Demo:   s.demos[l.Code],
+		Locale: l,
+	}
+	for _, other := range locales {
+		route := p.Route
+		if _, ok := s.pages[other.Code][route]; !ok {
+			route = "" // a 404 has no page of its own in another language
+		}
+		d.Locales = append(d.Locales, localeLink{locale: other, Href: s.urlIn(other, route), Current: other == l})
 	}
 	if p.Section != "" {
 		var previous *page
 		found := false
-		for _, candidate := range pages {
+		for _, candidate := range s.lists[l.Code] {
 			if candidate.Section == "" {
 				continue
 			}
@@ -248,10 +304,21 @@ func (s *site) render(p *page, cat *Catalog) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func (s *site) renderNotFound(cat *Catalog) []byte {
+// metaText is a lead as the head's description tags carry it. The browser tab,
+// search results and link previews show no em dash (owner, 2026-11-04); the
+// article itself keeps the lead as written.
+var metaDashes = strings.NewReplacer(" — ", ": ", "——", "：", "—", ": ")
+
+func metaText(s string) string { return metaDashes.Replace(s) }
+
+func (s *site) renderNotFound(l *locale, cat *Catalog) []byte {
 	var b bytes.Buffer
-	p := &page{Route: "-", Title: "Not found — RuneAgent", Lead: "This page does not exist."}
-	if err := s.notFound.Execute(&b, s.data(p, cat)); err != nil {
+	p := &page{Route: "-", Title: "Not found | RuneAgent", Lead: "This page does not exist.", Locale: l}
+	if l != english {
+		t := l.text.Pages["notfound"]
+		p.Title, p.Lead = t.Title, t.Lead
+	}
+	if err := s.notFound[l.Code].Execute(&b, s.data(p, cat)); err != nil {
 		return []byte("Not found\n")
 	}
 	return b.Bytes()
@@ -298,17 +365,34 @@ func (s *site) renderInstallerPS(cat *Catalog) ([]byte, error) {
 func buildLabel(a Artifact) string {
 	switch a.OS {
 	case "macos":
-		return "macOS · " + map[string]string{"aarch64": "Apple silicon", "x86_64": "Intel"}[a.Arch]
+		label := "macOS · " + map[string]string{"aarch64": "Apple silicon", "x86_64": "Intel"}[a.Arch]
+		if a.Package {
+			return label + " · offline package"
+		}
+		return label
 	case "windows":
-		return "Windows · " + map[string]string{"x86_64": "x64", "aarch64": "ARM64"}[a.Arch]
+		label := "Windows · " + map[string]string{"x86_64": "x64", "aarch64": "ARM64"}[a.Arch]
+		if a.Package {
+			return label + " · offline package"
+		}
+		return label
 	}
 	libc := map[string]string{"gnu": "glibc", "musl": "static musl"}[a.Libc]
-	return "Linux · " + a.Arch + " · " + libc
+	label := "Linux · " + a.Arch + " · " + libc
+	if a.Package {
+		return label + " · offline package"
+	}
+	return label
 }
 
 // linuxBuilds names a release's Linux archives the way a person reads them:
 // "x86_64 (glibc and static musl)", arm64 where one was published.
 func linuxBuilds(r *Release) string {
+	return strings.Join(linuxParts(r, "and"), " and ")
+}
+
+// linuxParts are linuxBuilds' pieces, joined inside by the given word.
+func linuxParts(r *Release, and string) []string {
 	var parts []string
 	for _, arch := range []string{"x86_64", "aarch64"} {
 		var libcs []string
@@ -324,9 +408,9 @@ func linuxBuilds(r *Release) string {
 			continue
 		}
 		name := map[string]string{"x86_64": "x86_64", "aarch64": "arm64"}[arch]
-		parts = append(parts, name+" ("+strings.Join(libcs, " and ")+")")
+		parts = append(parts, name+" ("+strings.Join(libcs, " "+and+" ")+")")
 	}
-	return strings.Join(parts, " and ")
+	return parts
 }
 
 // systemNames are the public names of the systems a release can carry builds for.
@@ -338,6 +422,22 @@ var systemNames = map[string]string{"linux": "Linux", "macos": "macOS", "windows
 func platformBuilds(r *Release, system string) string {
 	if system == "linux" {
 		return linuxBuilds(r)
+	}
+	parts := buildParts(r, system)
+	if len(parts) == 0 {
+		return ""
+	}
+	if system == "windows" {
+		return strings.Join(parts, " and ")
+	}
+	return "on " + strings.Join(parts, " and ")
+}
+
+// buildParts names each build one system has in a release, x64 first on
+// Windows (the common machine); Linux's parts carry their C libraries.
+func buildParts(r *Release, system string) []string {
+	if system == "linux" {
+		return linuxParts(r, "and")
 	}
 	names := map[string]map[string]string{
 		"macos":   {"aarch64": "Apple silicon", "x86_64": "Intel"},
@@ -352,16 +452,12 @@ func platformBuilds(r *Release, system string) string {
 			}
 		}
 	}
-	if len(parts) == 0 {
-		return ""
-	}
 	if system == "windows" {
 		for i, j := 0, len(parts)-1; i < j; i, j = i+1, j-1 {
 			parts[i], parts[j] = parts[j], parts[i] // x64 first: the common machine
 		}
-		return strings.Join(parts, " and ")
 	}
-	return "on " + strings.Join(parts, " and ")
+	return parts
 }
 
 // installNote is the line under a system's install command: which signed

@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="checks">Ce que prouve la vérification</h2>
+<p>L’installateur vérifie la signature de publication apposée sur la liste des sommes de contrôle, puis contrôle l’archive par rapport à cette liste signée avant de l’installer. Ces deux contrôles sont complémentaires : une somme de contrôle seule n’authentifie pas son éditeur, et une signature valide ne prouve pas qu’une version est exempte de bogues ou de comportements indésirables.</p>
+<p>L’installateur vérifie également la plateforme sélectionnée, le nom attendu des archives et le bon démarrage du binaire. Il installe le programme via un renommage atomique afin de ne jamais exposer un exécutable partiellement copié. Lisez le code source de l’installateur, <a href="{{url "install.sh"}}">install.sh</a> ou <a href="{{url "install.ps1"}}">install.ps1</a>, avant de l’exécuter si vous souhaitez connaître son fonctionnement exact.</p>
+<h2 id="release-key">Clé de signature des versions</h2>
+{{if .Catalog.KeyFingerprint}}
+<p>Empreinte SHA-256 publiée pour la clé de signature des versions :</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>La clé publique est disponible dans le fichier <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. Vérifiez cette empreinte par un canal de confiance indépendant lorsque c’est possible. Télécharger la clé et son empreinte depuis une même origine compromise ne suffirait pas à établir la confiance de manière indépendante.</p>
+{{else}}
+<p class="notice">Aucune clé de signature des versions n’est publiée dans le catalogue actuel. Une empreinte apparaîtra avec la première version signée ; ne traitez jamais l’absence de clé comme une vérification réussie.</p>
+{{end}}
+<h2 id="manual-verification">Vérifier manuellement les fichiers téléchargés</h2>
+<p>Depuis la <a href="{{url "install"}}">liste des téléchargements</a>, récupérez l’archive souhaitée, SHA256SUMS, SHA256SUMS.sig ainsi que la clé publique vérifiée. Les versions sont signées avec une clé ECDSA P-256 sur SHA-256, que peuvent vérifier aussi bien OpenSSL que le LibreSSL inclus dans macOS. Dans ce dossier, vérifiez d’abord la signature, puis la somme de contrôle de l’archive. Sous Linux :</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS</code></pre>
+<p>Sur macOS, la vérification de la signature est identique ; contrôlez ensuite l’archive téléchargée par son nom :</p>
+<pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
+grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
+<p>Sous Windows, l’installateur vérifie la signature automatiquement. Pour comparer vous-même une archive téléchargée avec la liste signée, affichez sa somme de contrôle dans PowerShell et vérifiez que la même valeur figure sur la ligne correspondante dans SHA256SUMS :</p>
+<pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
+<p>Remplacez VERSION par le numéro de la version téléchargée. La vérification de signature doit afficher <code>Verified OK</code>, et le contrôle de somme de contrôle doit nommer explicitement l’archive que vous comptez utiliser. Une archive absente n’est pas vérifiée simplement parce qu’un autre fichier de la liste a passé le test. Arrêtez-vous immédiatement en cas de discordance et n’exécutez pas le fichier téléchargé.</p>
+<h2 id="limits">Limites et mises à jour</h2>
+<p>Une signature lie une suite d’octets à une clé de publication. Elle ne constitue pas un audit indépendant du code source, ne prouve pas que la compilation est reproductible, ne garantit pas l’innocuité des dépendances et ne remédie pas à une compromission de la clé de signature. Gardez cette distinction à l’esprit lorsque vous partagez des instructions de vérification.</p>
+<p>Installez la version signée souhaitée et vérifiez le résultat avec <code>rune -version</code>. Sous Linux et macOS, les sessions ouvertes compatibles peuvent passer à la nouvelle version installée dès qu’elles sont inactives. Sous Windows, les fenêtres ouvertes conservent leur version initiale jusqu’à l’ouverture d’une nouvelle fenêtre Rune. N’interrompez jamais brutalement un travail actif dans le seul but de voir changer le numéro de version affiché.</p>
+{{end}}

@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Resumo do suporte</h2>
+<p>O Rune é um único programa com os mesmos modos, ferramentas, configurações e dados em todos os sistemas. O que muda é o que cada sistema operacional permite a um programa fazer: como um binário em execução é substituído, como os comandos são confinados e o que o sistema consegue informar sobre um comando que está aguardando entrada. O Linux é a plataforma principal. O macOS e o Windows estão em beta: compilados e testados em máquinas reais, mas com menos tempo de uso diário acumulado.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Área</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Suporte</td><td>Principal</td><td>Beta</td><td>Beta</td></tr>
+<tr><td>Versões</td><td>glibc 2.17 ou superior, ou qualquer sistema com a compilação estática musl</td><td>macOS 11 ou posterior</td><td>Windows 10 versão 1809 ou posterior, Windows 11</td></tr>
+<tr><td>Processadores</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Instalador</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> no PowerShell</td></tr>
+<tr><td>Janelas abertas após atualizar</td><td>Passam para a nova compilação quando ociosas</td><td>Passam para a nova compilação quando ociosas</td><td>Mantêm a versão atual; o próximo Rune que você abrir usará a versão nova</td></tr>
+<tr><td>Sandbox de comandos</td><td>A sandbox do próprio kernel, onde disponível</td><td>A sandbox nativa do macOS</td><td>Uma conta separada do Windows, configurada uma única vez com confirmação de Administrador</td></tr>
+<tr><td>Comando aguardando entrada digitada</td><td>Toda espera é detectada</td><td>Apenas entradas ocultas, como pedidos de senha</td><td>Não é detectado</td></tr>
+<tr><td>Shell para comandos</td><td>bash; caso contrário, <code>/bin/sh</code></td><td>bash; caso contrário, <code>/bin/sh</code></td><td>PowerShell 7; caso contrário, Windows PowerShell ou Prompt de Comando</td></tr>
+<tr><td>Copiar a partir do Rune</td><td>Pelo terminal</td><td>Área de transferência do sistema e pelo terminal</td><td>Área de transferência do sistema e pelo terminal</td></tr>
+<tr><td>Abrir um link</td><td>Seu navegador, via <code>xdg-open</code></td><td>Seu navegador</td><td>Seu navegador</td></tr>
+</tbody></table></div>
+<p>Os sistemas que possuem compilação assinada na versão atual estão informados abaixo de cada comando de instalação na <a href="{{url "install"}}">página inicial</a>.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Os comandos são confinados pela sandbox do próprio kernel onde o kernel oferece esse recurso, como ocorre na maioria das distribuições atuais. Onde não há suporte, como em um kernel antigo, o Rune avisa: no modo Auto, todo comando passa a pedir permissão antes de rodar; no modo Full, ele deixa de perguntar. O comando <code>/help</code> mostra em <em>This machine</em> se a sandbox está ativa e se há algo que possa escapar dela.</p>
+<p>A cópia de texto passa pelo seu terminal, que precisa permitir que programas gravem na área de transferência. Via SSH, ou dentro do tmux ou screen, essa permissão pode estar desativada; ative-a no terminal ou no multiplexador, ou segure <kbd>Shift</kbd> ao arrastar para usar a seleção nativa do terminal. Abrir um link exige o <code>xdg-open</code>, já presente em ambientes de desktop.</p>
+<p>Em sistemas que mantêm seus programas em um repositório de pacotes somente leitura, como NixOS ou Guix, os comandos podem ler e executar o que estiver nesse repositório.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Os comandos rodam na sandbox nativa do macOS, restritos aos mesmos locais do Linux. A cópia de texto grava diretamente na área de transferência do sistema, funcionando inclusive no aplicativo Terminal padrão, que ignora solicitações de programas para definir a área de transferência via sequência de terminal.</p>
+<p>O macOS informa ao Rune apenas entradas ocultas, como solicitações de senha. Um comando em segundo plano que aguarde silenciosamente outro tipo de resposta parece um comando que ainda está trabalhando; leia o log antes de decidir o que fazer e nunca tente adivinhar uma senha nem confirme um prompt apenas porque o comando está em silêncio.</p>
+<p>Os comandos rodam em bash (incluído no macOS), e não necessariamente no shell que o seu terminal abre por padrão (no macOS, o shell de login padrão é o zsh). Você pode escolher outro shell instalado informando o caminho absoluto em <code>terminal.shell</code>.</p>
+<p>Instale usando o comando da página inicial. Uma cópia baixada pelo navegador recebe a marcação de arquivo vindo da internet, e o Gatekeeper se recusa a iniciá-la até que essa marcação seja removida; <a href="{{url "docs/install"}}#install">Instalação e atualização</a> mostra como fazer isso.</p>
+
+<h2 id="windows">Windows</h2>
+<p>O Rune confina comandos usando uma conta local separada própria. Na primeira vez que você abre o Rune, ele pede uma única vez confirmação de Administrador para criar e configurar essa conta. Se você recusar, ele não pergunta novamente a cada inicialização; execute <code>rune -sandbox setup</code> quando quiser configurá-la e <code>rune -sandbox reset</code> para removê-la junto com todas as permissões concedidas aos comandos do Rune nas suas pastas. O comando <code>rune -sandbox</code> lista esses acessos e informa qual método de confinamento está em uso.</p>
+<p>Sem essa conta dedicada, o Rune confina os comandos usando uma forma restrita da sua própria conta, com estas limitações:</p>
+<ul>
+<li>Um comando ainda pode ler o que o Windows permite a qualquer usuário ler, como pastas na raiz de uma unidade, outras unidades e a pasta ProgramData, além de poder criar arquivos em ProgramData. Sua pasta de perfil de usuário permanece fora de alcance.</li>
+<li>Um comando pode abrir, somente para leitura, um named pipe criado por outro programa com a segurança padrão do Windows. A escrita nesse tipo de pipe é recusada.</li>
+<li>O Git Bash e outros programas baseados em MSYS2 ou Cygwin pedem permissão antes de cada comando e executam aquela chamada com acesso total. O HTTPS nativo do Windows, usado por <code>curl.exe</code> e <code>Invoke-WebRequest</code>, falha nesse modo; o HTTPS do próprio Git continua funcionando.</li>
+</ul>
+<p>Com a conta dedicada configurada, tanto o Git Bash quanto o HTTPS nativo do Windows funcionam normalmente dentro de um comando confinado. O Rune não concede acesso às pastas de sistema do Windows, à raiz de uma unidade nem à pasta que reúne os perfis de todos os usuários; por isso, um projeto aberto diretamente em um desses locais pede permissão antes de cada comando nos modos Ask e Auto.</p>
+<p>O Windows não informa ao Rune quando um comando aguarda entrada digitada. Um comando silencioso em segundo plano pode estar esperando uma resposta ou ainda processando: leia o log antes de responder. Como um programa em execução não pode ser substituído no Windows, uma atualização passa a valer na próxima janela do Rune que você abrir, não nas janelas que já estavam abertas.</p>
+
+<h2 id="terminals">Terminais</h2>
+<p>Atalhos de teclado e gestos do mouse só chegam ao Rune quando o terminal os repassa. O Konsole aplica zoom com <kbd>Ctrl</kbd>+roda, a menos que seu perfil seja configurado de outra forma, e alguns terminais transformam <kbd>Alt</kbd>+roda em rolagem horizontal; a roda simples e as teclas funcionam sempre. A rolagem suave só desliza em terminais que desenham quadros inteiros de uma vez e acompanham a taxa de atualização; nos demais, cada passo da roda move as linhas de forma direta. Cores, transparência e fontes pertencem ao terminal. Execute <code>/help</code> para ver a quais atalhos sua compilação responde.</p>
+{{end}}

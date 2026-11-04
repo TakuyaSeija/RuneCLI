@@ -1,0 +1,40 @@
+RuneAgent offline package — Atoryn Studio
+================================================================
+
+This folder is a complete package: it installs RuneAgent without any network.
+
+Files
+  rune                    the Rune executable (Linux and macOS)
+  rune.exe                the Rune executable (Windows, in the Windows package)
+  install.sh              offline installer for Linux and macOS
+  install.ps1             offline installer for Windows
+  SHA256SUMS              sha256 of every file in this package
+  INSTALL.txt             this file
+  LICENSE.txt             the license
+  THIRD-PARTY-NOTICES.txt notices for bundled third-party code
+
+Install
+  Linux and macOS
+      sh ./install.sh
+  Windows (in PowerShell)
+      powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+The installer puts `rune` in ~/.local/bin (%USERPROFILE%\.local\bin on Windows),
+needs no administrator rights, changes nothing outside your home folder, and
+leaves your PATH alone. It prints where it installed and what to add to PATH when
+that folder is not on it yet. To choose another folder:
+
+  Linux and macOS     RUNE_INSTALL_DIR=/absolute/folder sh ./install.sh
+  Windows             $env:RUNE_INSTALL_DIR = 'C:\absolute\folder'  (set it first)
+
+What the checksums prove
+  Each file is checked against SHA256SUMS before anything is installed, so a
+  damaged or half-copied package is refused with nothing changed. That proves the
+  files belong together and match the package you hold; it does not prove who
+  built it — that comes from where you got this package. The published package's
+  own sha256 is listed in Atoryn's signed release, and that list can be verified
+  with the release key shown on the install page.
+
+Keeping this package
+  Keep this folder if you want to install this exact version again later, on this
+  machine or another one. Newer versions are published as their own packages.

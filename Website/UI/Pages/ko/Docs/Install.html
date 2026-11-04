@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">필요 사항</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 또는 arm64(해당 프로세서용 서명된 빌드가 배포된 환경). 각 릴리스에는 포함된 빌드 목록이 명시됩니다. glibc 빌드는 glibc 2.17 이상이 설치된 배포판에서 실행되며 CentOS 7, Debian 11·12, Ubuntu 24.04에서 검증되었습니다. 정적 musl 빌드는 시스템의 C 라이브러리가 필요하지 않으며 Alpine에서 검증되었습니다.</dd></div>
+<div><dt>macOS</dt><dd>Apple silicon 또는 Intel 기반 macOS 11 이상. macOS 지원은 현재 베타 단계입니다.</dd></div>
+<div><dt>Windows</dt><dd>x64 또는 ARM64 기반 Windows 10 버전 1809 이상 또는 Windows 11. Windows 지원은 현재 베타 단계입니다.</dd></div>
+<div><dt>설치 스크립트</dt><dd>Linux 및 macOS: 서명 검증을 위한 <code>curl</code>, <code>tar</code>, <code>gzip</code>, <code>openssl</code>(OpenSSL 또는 macOS에 기본 포함된 LibreSSL). Windows: 지원되는 모든 Windows에 기본 포함된 PowerShell. Linux와 macOS에서는 root가 아닌 일반 사용자로 실행하며, Windows에서도 관리자 권한이 필요하지 않습니다.</dd></div>
+<div><dt>모델 계정</dt><dd>원하는 모델 제공자의 계정 또는 내 컴퓨터에서 실행 중인 로컬 모델 서비스가 필요합니다. 자세한 내용은 <a href="{{url "docs/providers"}}">모델 제공자</a>를 참고하세요.</dd></div>
+</dl>
+<p>현재 릴리스에서 어떤 시스템용 서명된 빌드를 제공하는지는 <a href="{{url "install"}}">홈페이지</a>의 각 설치 명령어 아래에 명시되어 있습니다. 운영체제별 차이점은 <a href="{{url "docs/platforms"}}">플랫폼 지원</a>에서 다룹니다.</p>
+
+<h2 id="install">설치</h2>
+<p>설치 명령어는 <a href="{{url "install"}}">홈페이지</a>에 있습니다. Linux와 macOS는 <code>sh</code>로 실행하는 <code>install.sh</code>를, Windows는 PowerShell에서 실행하는 <code>install.ps1</code>을 사용합니다. 실행 전에 스크립트 내용을 먼저 살펴보고 싶다면 명령어가 내려받는 것과 완전히 동일한 일반 텍스트 파일인 <a href="{{url "install.sh"}}">install.sh</a> 및 <a href="{{url "install.ps1"}}">install.ps1</a>을 직접 읽어 보세요. 각 스크립트는 다음 단계를 순서대로 수행하며, 어느 한 단계라도 실패하면 시스템을 변경하지 않고 즉시 중단합니다:</p>
+<ol>
+<li>운영체제와 버전을 확인하고, 일반 사용자로 실행 중인지, 필요한 도구가 있는지 점검합니다.</li>
+<li>프로세서를 감지하고, Linux에서는 C 라이브러리(glibc 또는 musl)를 감지합니다.</li>
+<li>릴리스의 체크섬 목록을 다운로드하고 스크립트에 내장된 릴리스 공개 키로 서명을 검증합니다.</li>
+<li>현재 머신에 맞는 아카이브를 다운로드하고 서명된 체크섬 목록과 대조합니다.</li>
+<li>아카이브에 실행 파일과 라이선스 파일만 들어 있는지, 프로그램이 정상 실행되어 예상 버전을 출력하는지 확인합니다.</li>
+<li>원자적 이름 변경(rename) 한 번으로 실행 파일을 제자리에 배치하고, 라이선스 및 오픈소스 고지 파일을 사용자 데이터 폴더에 저장합니다.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>운영체제</th><th>실행 파일 위치</th><th>라이선스 고지 위치</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (또는 <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>설치 스크립트는 사용자의 셸 프로필이나 PATH를 절대 수정하지 않으며, 설치 폴더가 PATH에 없는 경우 이를 안내합니다. 서명이 증명하는 것과 증명하지 않는 것, 그리고 다운로드한 파일을 수동으로 검증하는 방법은 <a href="{{url "docs/verification"}}">릴리스 검증</a>에서 설명합니다.</p>
+<p>설치 명령어는 <code>curl</code>과 PowerShell로 파일을 내려받으므로 파일에 인터넷 다운로드 표시(quarantine)가 붙지 않습니다. 반면 웹 브라우저로 직접 다운로드한 아카이브에는 해당 표시가 붙습니다. 이 경우 macOS에서는 Gatekeeper가 <code>rune</code> 실행을 차단하므로, 아카이브를 검증한 뒤 <code>xattr -d com.apple.quarantine rune</code> 명령으로 격리 속성을 제거하세요. Windows에서는 파일 탐색기에서 열 때 SmartScreen 경고가 나타날 수 있습니다.</p>
+
+<h2 id="installer-options">설치 스크립트 옵션</h2>
+<p>별도로 지정하지 않으면 설치 스크립트는 최신 공개 버전, 사용자 bin 폴더, 그리고 Linux의 경우 자동 감지된 C 라이브러리를 사용합니다. Linux와 macOS에서는 스크립트를 <code>install.sh</code>로 저장해 내용을 확인한 뒤 아래 환경 변수와 함께 실행하세요. Windows에서는 명령어를 실행하기 전에 같은 PowerShell 창에서 변수를 먼저 설정합니다.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd><code>{{.DocVersion}}</code>과 같은 공개된 버전 번호입니다. 이전 버전도 번호를 지정해 설치할 수 있습니다.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>기본 경로 대신 실행 파일을 설치할 절대 폴더 경로입니다.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Linux 전용: 자동 감지 대신 사용할 빌드(<code>gnu</code> 또는 <code>musl</code>)를 직접 지정합니다. 공개된 아카이브가 없는 조합은 거부됩니다.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">PATH에 rune 추가하기</h2>
+<p>많은 Linux 배포판은 로그인 시점에 <code>~/.local/bin</code> 폴더가 존재하면 자동으로 PATH에 포함하지만, macOS는 그렇지 않습니다. <code>rune</code> 명령어를 찾을 수 없다고 나오면 폴더를 직접 PATH에 추가하세요. bash 또는 macOS 기본 셸인 zsh를 쓰는 경우 <code>~/.bashrc</code>나 <code>~/.zshrc</code>에 다음 줄을 추가한 뒤 새 터미널을 여세요:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>fish 셸에서는 <code>fish_add_path ~/.local/bin</code>을 한 번 실행하면 됩니다. Windows에서는 다음 PowerShell 명령어로 사용자 PATH에 폴더를 추가한 뒤 새 터미널을 여세요:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p><code>RUNE_INSTALL_DIR</code>을 지정해 설치했다면 해당 폴더 경로를 사용하세요.</p>
+
+<h2 id="first-start">첫 실행</h2>
+<p>프로젝트 폴더에서 터미널을 열고 <code>rune</code>을 실행하세요. 처음 시작할 때 Rune은 홈 폴더 아래의 <code>.rune</code>(Windows는 <code>%USERPROFILE%\.rune</code>) 또는 <code>RUNE_HOME</code>으로 지정한 경로에 데이터 폴더를 생성합니다. 이 폴더에는 다음 항목이 보관됩니다:</p>
+<ul>
+<li>사용자 설정 파일인 <code>rune.toml</code>. 사용자가 직접 변경한 설정만 기록되며 나머지 값은 실행 중인 버전의 기본값을 따릅니다.</li>
+<li>암호화된 API 키.</li>
+<li>프로젝트별로 보관되는 세션, 프로젝트 메모리, 그리고 실행 취소(undo)에 쓰이는 스냅샷.</li>
+</ul>
+<p>Windows에서는 처음 시작할 때 Rune이 명령어를 격리 실행할 전용 계정을 설정하기 위해 관리자 권한 확인을 한 번 요청합니다. 거절하더라도 매번 다시 묻지 않으며, 나중에 원할 때 <code>rune -sandbox setup</code>을 실행해 설정할 수 있습니다. 전용 계정 없이 실행할 때 달라지는 점은 <a href="{{url "docs/security"}}">보안</a> 문서에서 설명합니다.</p>
+<p><code>rune -config</code>를 실행하면 첫 번째 줄에 현재 사용 중인 데이터 폴더 경로가 출력됩니다. Rune은 자체 데이터를 프로젝트 폴더가 아닌 이 데이터 폴더에 보관합니다. 따라서 프로젝트 폴더는 선택한 모드에 따른 AI의 도구 작업, 사용자가 직접 입력한 <code>!</code> 명령어, 또는 프로젝트 범위(scope)로 저장한 스킬이나 MCP 변경을 통해서만 수정됩니다. 이어서 소개 문서의 <a href="{{url "docs"}}#connect-and-select">모델 연결 및 선택</a>을 진행하세요.</p>
+
+<h2 id="update">업데이트</h2>
+<p>원하는 버전에 대해 설치 스크립트를 다시 실행하세요. 이전에 <code>RUNE_INSTALL_DIR</code>을 지정했다면 같은 경로를 사용합니다. 다운로드 파일을 검증한 뒤 한 단계로 프로그램을 교체하며, 완료 후 <code>rune -version</code>으로 결과를 확인할 수 있습니다.</p>
+<p>이미 열려 있는 Rune 창은 중단 없이 계속 작동합니다. Linux와 macOS에서는 열린 창들이 유휴 상태가 되면 스스로 새 빌드로 전환되며, 새 버전이 처음 시작될 때 데이터 폴더 형식도 함께 업데이트합니다. Windows에서는 실행 중인 프로그램 파일을 바로 교체할 수 없으므로 이미 열린 창은 시작할 때의 버전을 유지하고, 다음에 새로 여는 Rune부터 새 버전을 사용합니다. 업데이트를 적용하려고 진행 중인 작업을 강제로 닫지 마세요.</p>
+
+<h2 id="uninstall">제거</h2>
+<p>진행 중인 작업을 마치거나 중지하고 모든 Rune 창을 닫은 뒤, 실행 파일과 라이선스 고지 폴더를 삭제하세요. Linux 및 macOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>Windows(PowerShell):</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>Windows에서 <code>rune -sandbox reset</code>은 먼저 Rune의 명령어 샌드박스에 부여되었던 폴더 접근 권한을 회수하고 전용 계정을 삭제합니다(이 과정에서 관리자 확인을 요청할 수 있습니다). 데이터 폴더는 사용자가 직접 삭제하기 전까지 그대로 남습니다. 여기에는 대화 기록, 설정, 암호화된 키, 복원 지점이 들어 있으며 프로그램을 제거할 때 반드시 지워야 하는 것은 아닙니다. 만약 데이터 폴더까지 삭제하려면 먼저 <code>rune -config</code>로 경로를 확인하고, Rune이 실행 중일 때는 절대 삭제하지 마세요.</p>
+
+<h2 id="environment">환경 변수</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>홈 폴더의 <code>.rune</code> 대신 다른 데이터 폴더를 사용하여 별도의 설정, 키, 세션을 관리합니다.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd><code>--no-color</code>와 동일하게 색상 없이 출력합니다.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>터미널이 배경색을 알려 주지 않을 때 Rune에 터미널 배경을 전달합니다(<code>dark</code>, <code>light</code> 또는 16진수 색상 코드). Appearance에서 고르는 테마 설정과는 다릅니다.</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>설치 스크립트에서만 읽는 변수입니다. <a href="#installer-options">설치 스크립트 옵션</a>을 참고하세요.</dd></div>
+</dl>
+{{end}}

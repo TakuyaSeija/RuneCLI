@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">启动与查看</h2>
+<p>请在操作系统的终端 shell 中运行以下命令。当前已安装版本的权威帮助信息可通过 <code>rune -help</code> 查看。会连接提供商、修改账户、删除数据或启动服务进程的命令属于实际操作，并非无副作用的诊断标志。</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>在当前目录或指定工作区目录中打开交互式智能体界面。</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>执行单次提示词并直接打印回答与工具进度，不进入全屏界面。在无人交互响应的情况下，权限请求会被直接拒绝，而不会静默放行。</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>为其他命令指定目标工作区目录。</dd></div>
+<div><dt>-version · -help</dt><dd>打印应用版本号或命令行参考说明。</dd></div>
+<div><dt>-settings · -tools</dt><dd>查看当前生效的模型控制参数，或提供给智能体的工具列表。</dd></div>
+<div><dt>-read-only</dt><dd>限制会修改文件的工具。注意：这并不保证不读取任何文件或不向外发送任何数据。</dd></div>
+<div><dt>--no-color</dt><dd>禁用彩色输出。同时也支持标准 <code>NO_COLOR</code> 环境变量。</dd></div>
+</dl>
+<h2 id="configuration">配置管理</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>显示当前选定的设置文件路径。</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>显示当前生效值、显示出厂默认值，或校验配置文件语法。<code>show</code> 的输出可能包含私有账户元数据；<code>check</code> 仅校验语法，不验证网络连通性。</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>说明单个配置键的当前生效值及生效时机。</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>保存一项全局配置。例如：<code>rune -config set terminal.command_timeout 2m</code>。</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>移除全局覆盖值，恢复当前默认值或继承关系。</dd></div>
+<div><dt>-config format</dt><dd>在不改变配置语义的前提下重新格式化分组设置。</dd></div>
+<div><dt>-set key=value</dt><dd>修改受支持的工作区/模型偏好，而非任意全局配置键。</dd></div>
+</dl>
+<h2 id="accounts-and-models">账户与模型</h2>
+<p>建议优先使用 Connections 界面下带掩码的凭据编辑器。在命令行参数中直接传入真实密钥容易通过 shell 历史记录和进程列表泄露。下方语法示例特意使用了占位符。</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>列出已配置的账户、预设及网页服务可用状态。</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>向指定账户的密钥环中添加一把密钥。此操作会修改凭据存储。</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>查看脱敏后的密钥元数据。</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>在确认密钥身份后，移除指定序号的凭据。</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>设置新会话的默认回退提供商；不会切换所有现有对话的提供商。</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>移除提供商配置。请勿假设此前保存的所有凭据都已被安全擦除。</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>发送一次真实的、可能产生计费的请求以测试该账户。</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>查询该账户下的可用模型目录。会发起网络请求。</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>预览请求内容而不实际发送。预览中可能包含私有上下文，请勿直接原样公开分享。</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>为该账户设置可选的请求超时（5–3600 秒）；设为 <code>default</code> 可移除覆盖值。</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>将无法读取的旧凭据存储搁置一旁，并初始化全新的空凭据库。仅在深思熟虑决定恢复时使用；执行后需重新添加所有密钥。</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>列出或选择目标工作区使用的模型。</dd></div>
+</dl>
+<h2 id="sessions-and-storage">会话与存储</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>打开会话选择器（通过管道调用时则输出列表），或恢复已知 ID 的会话。</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>重命名指定会话。</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>永久删除指定会话。执行前请先核对会话身份。</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>查看各项目的存储占用，或清理已不存在的旧项目所残留的符合条件的数据。</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>查看 Windows 命令隔离状态、显式配置其专用沙盒账户，或移除 Rune 的沙盒访问权限与账户配置。其他平台不使用此项配置。</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">扩展与诊断</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>列出、查看、启用、禁用、安装或重新加载可复用的技能指南。安装操作会接收已审阅的文件夹或 zip 归档，除非指定 <code>--scope user</code> 设为个人级，否则默认放入当前项目中。</dd></div>
+<div><dt>-mcp [operation]</dt><dd>管理、批准、校验并测试外部工具定义。建立连接可能会启动本地子进程或访问远程服务；仅通过配置校验并不代表连接已成功建立。</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>为扩展能力变更选择配置作用域。修改共享的 <code>project</code> 作用域会影响该项目的所有协作者。</dd></div>
+<div><dt>-doctor</dt><dd>运行诊断检查（包含网络连通性检查）。该命令可能发起网络请求，分享输出前请先审阅内容。</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>使用替代的引擎数据库文件。这与通过 <code>RUNE_HOME</code> 切换整个设置主目录相互独立。</dd></div>
+<div><dt>-host</dt><dd>启用按行分隔的 JSON 协议供前端集成调用，而非打开交互式终端界面。它不是公开的网络服务器。</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>回放预先编写的模型脚本。脚本可能会发起真实的工具调用，切勿在实际工作区中运行未经审阅的脚本。</dd></div>
+</dl>
+<p>关于扩展能力的配置与权限控制，请继续阅读<a href="{{url "docs/skills"}}">技能（Skills）</a>或 <a href="{{url "docs/mcp"}}">MCP 连接</a>。切勿仅仅为了绕过某个报错而盲目切换到 Full 模式或删除本地数据。</p>
+{{end}}

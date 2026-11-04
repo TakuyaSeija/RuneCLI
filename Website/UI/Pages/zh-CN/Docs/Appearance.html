@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">配色主题</h2>
+<p>Settings → Appearance → Color theme 提供 Violet（紫罗兰）、Cyan（青色）和 Amber（琥珀）三种主题。在该行按左右方向键可直接切换并保存；按 Enter 会打开独立列表，在列表中按 Enter 应用所选主题，按 Esc 则放弃仅浏览未确认的选项并返回。出厂默认主题为 Amber。</p>
+<p>主题仅影响界面视觉呈现，不改变模型行为或权限。也可以使用 <code>/theme violet</code>、<code>/theme cyan</code> 和 <code>/theme amber</code> 选择主题。对应的全局配置键为 <code>ui.theme</code>；重置该项将移除你的覆盖设置。</p>
+<h2 id="side-panel">对话侧边栏</h2>
+<p>可在 Appearance 页面、使用快捷键 Ctrl+O 或执行 <code>/panel</code> 切换侧边栏。出厂默认设为开启。在较窄的终端窗口中，即使该偏好处于开启状态，并排显示的侧边栏也可能自动隐藏。隐藏侧边栏不会停止用量统计、文件跟踪或任务计划更新。</p>
+<h2 id="terminal-owns-background">由终端自身控制的外观</h2>
+<p>壁纸、透明度、背景模糊、窗口装饰及字体渲染均由你的终端模拟器或桌面环境控制。Rune 本身不设背景图片或模糊选项。同一套主题在浅色或深色终端背景下可能呈现不同的视觉效果。</p>
+<p>组合键与鼠标手势同样取决于终端配置。某些终端配置可能会将 Ctrl+滚轮保留为缩放、将 Alt+滚轮保留为横向滚动，或将部分快捷键占用为终端自身操作。</p>
+<h2 id="advanced-options">高级显示选项</h2>
+<p>部分颜色、鼠标、滚动及渲染刷新间隔参数仅支持在 TOML 配置文件中设置，不会作为额外控件显示在 Appearance 页面上。修改前请先查看对应配置键的文档说明。提高刷新频率可能会消耗更多系统资源；调整滚动偏好也无法让不支持某种输入事件的终端上报该事件。</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>重置会直接修改全局偏好设置。请使用 <code>/help</code> 查看当前版本的阅读与导航快捷键，不要凭其他终端应用的习惯盲目猜测。</p>
+{{end}}

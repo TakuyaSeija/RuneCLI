@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Compatibilidad de un vistazo</h2>
+<p>Rune es un mismo programa con idénticos modos, herramientas, ajustes y datos en todos los sistemas. Lo que cambia es lo que cada sistema operativo permite hacer a un programa: cómo se reemplaza un binario en ejecución, cómo se aíslan los comandos y qué información puede dar el sistema cuando un comando espera entrada por teclado. Linux es la plataforma principal. macOS y Windows están en fase beta: compilados y probados en máquinas reales, pero con menos horas de uso cotidiano detrás.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Área</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Soporte</td><td>Principal</td><td>Beta</td><td>Beta</td></tr>
+<tr><td>Versiones</td><td>glibc 2.17 o posterior, o cualquier sistema con la compilación estática musl</td><td>macOS 11 o posterior</td><td>Windows 10 versión 1809 o posterior, Windows 11</td></tr>
+<tr><td>Procesadores</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Instalador</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> en PowerShell</td></tr>
+<tr><td>Ventanas abiertas tras actualizar</td><td>Pasan a la nueva compilación al quedar inactivas</td><td>Pasan a la nueva compilación al quedar inactivas</td><td>Mantienen su versión; el próximo Rune que abras usará la nueva</td></tr>
+<tr><td>Aislamiento de comandos</td><td>El entorno aislado del propio kernel, cuando este lo ofrece</td><td>El entorno aislado nativo de macOS</td><td>Una cuenta local independiente de Windows, configurada una sola vez con confirmación de administrador</td></tr>
+<tr><td>Comando esperando entrada por teclado</td><td>Se detecta cualquier espera</td><td>Solo entradas ocultas, como una solicitud de contraseña</td><td>No se detecta</td></tr>
+<tr><td>Shell para comandos</td><td>bash, o en su defecto <code>/bin/sh</code></td><td>bash, o en su defecto <code>/bin/sh</code></td><td>PowerShell 7, o Windows PowerShell, o Símbolo del sistema</td></tr>
+<tr><td>Copiar desde Rune</td><td>A través de la terminal</td><td>Portapapeles del sistema y la terminal</td><td>Portapapeles del sistema y la terminal</td></tr>
+<tr><td>Abrir un enlace</td><td>Tu navegador, mediante <code>xdg-open</code></td><td>Tu navegador</td><td>Tu navegador</td></tr>
+</tbody></table></div>
+<p>Debajo de cada comando de instalación en la <a href="{{url "install"}}">página de inicio</a> se indica qué sistemas disponen de una compilación firmada en la versión actual.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Los comandos quedan confinados mediante el entorno aislado del propio kernel cuando este lo ofrece, como ocurre en la mayoría de las distribuciones actuales. Cuando no está disponible —por ejemplo, en un kernel antiguo—, Rune te lo indica: en ese caso, en el modo Auto cada comando pide permiso primero, mientras que en Full deja de preguntar. <code>/help</code> muestra en la sección <em>This machine</em> si el entorno aislado está activo y si hay algo que quede fuera de su alcance.</p>
+<p>Al copiar texto se utiliza tu terminal, que debe permitir a los programas escribir en el portapapeles. Por SSH, o dentro de tmux o screen, ese permiso puede estar desactivado; actívalo en la terminal o en el multiplexor, o mantén pulsado <kbd>Shift</kbd> mientras arrastras para usar la selección propia de la terminal. Para abrir un enlace se necesita <code>xdg-open</code>, incluido habitualmente en los sistemas de escritorio.</p>
+<p>En sistemas que guardan sus programas en un almacén de paquetes de solo lectura, como NixOS o Guix, los comandos pueden leer y ejecutar lo que haya en ese almacén.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Los comandos se ejecutan dentro del entorno aislado nativo de macOS, sujetos a los mismos límites de carpetas que en Linux. Al copiar texto se escribe directamente en el portapapeles del sistema, por lo que funciona incluso en la aplicación Terminal de macOS, que ignora las solicitudes de portapapeles enviadas a través de secuencias de terminal.</p>
+<p>macOS solo informa a Rune de las entradas ocultas, como las solicitudes de contraseña. Un comando en segundo plano que espere en silencio otro tipo de respuesta parecerá que sigue trabajando; lee su registro antes de decidir, y nunca adivines una contraseña ni confirmes un aviso solo porque el comando esté en silencio.</p>
+<p>Los comandos se ejecutan en bash (incluido en macOS), que no tiene por qué coincidir con la shell interactiva que abre tu terminal (en macOS la shell de inicio de sesión predeterminada es zsh). Si quieres usar otra shell instalada, indica su ruta absoluta en <code>terminal.shell</code>.</p>
+<p>Instala el programa con el comando de la página de inicio. Si descargas una copia desde el navegador, quedará marcada como procedente de internet y Gatekeeper impedirá iniciarla hasta que retires esa marca; en <a href="{{url "docs/install"}}#install">Instalación y actualización</a> se explica cómo hacerlo.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune aísla los comandos utilizando una cuenta local independiente creada para ello. La primera vez que abres Rune, solicita una única confirmación de administrador para configurar esa cuenta. Si la rechazas, no volverá a pedirla en cada inicio; puedes ejecutar <code>rune -sandbox setup</code> cuando quieras crearla y <code>rune -sandbox reset</code> para eliminarla junto con todos los permisos concedidos a los comandos de Rune sobre tus carpetas. <code>rune -sandbox</code> enumera esos accesos e indica qué método de aislamiento está activo.</p>
+<p>Sin esa cuenta dedicada, Rune aísla los comandos mediante una versión restringida de tu propia cuenta, con estas limitaciones:</p>
+<ul>
+<li>Un comando aún puede leer aquello que Windows permite leer a cualquier usuario —como carpetas en la raíz de una unidad, otras unidades y ProgramData— y puede crear archivos en ProgramData. Tu carpeta de perfil personal queda fuera de su alcance.</li>
+<li>Un comando puede abrir, solo para lectura, una tubería con nombre (named pipe) que otro programa haya creado con la seguridad predeterminada de Windows. La escritura en dichas tuberías se rechaza.</li>
+<li>Git Bash y otros programas basados en MSYS2 o Cygwin piden permiso antes de cada comando y luego ejecutan esa llamada con acceso completo. El HTTPS nativo de Windows, utilizado por <code>curl.exe</code> e <code>Invoke-WebRequest</code>, falla en este modo, mientras que el HTTPS de Git sí funciona.</li>
+</ul>
+<p>Con la cuenta dedicada configurada, tanto Git Bash como el HTTPS nativo de Windows funcionan dentro de los comandos aislados. Rune no añade acceso a las carpetas del sistema de Windows, a la raíz de una unidad ni a la carpeta que contiene los perfiles de todos los usuarios, por lo que si abres un proyecto directamente en una de esas ubicaciones, se te pedirá permiso antes de cada comando en los modos Ask y Auto.</p>
+<p>Windows no informa a Rune cuando un comando espera entrada por teclado. Un comando en segundo plano en silencio puede estar esperando una respuesta o seguir trabajando: consulta su registro antes de enviarle texto. Además, en Windows no es posible reemplazar un ejecutable mientras está en uso, así que las actualizaciones se aplican en el próximo Rune que abras, no en las ventanas que ya tengas abiertas.</p>
+
+<h2 id="terminals">Terminales</h2>
+<p>Las teclas y los gestos del ratón solo llegan a Rune cuando la terminal se los transmite. Konsole utiliza <kbd>Ctrl</kbd>+rueda para hacer zoom salvo que cambies su perfil, y algunas terminales convierten <kbd>Alt</kbd>+rueda en desplazamiento horizontal; la rueda normal y las teclas de dirección funcionan siempre. El desplazamiento suave con la rueda solo se aprecia en terminales capaces de dibujar fotogramas completos de una vez al ritmo adecuado; en las demás, cada paso de la rueda salta directamente. Los colores, la transparencia y las fuentes dependen de la terminal. Ejecuta <code>/help</code> para ver qué atajos reconoce tu compilación.</p>
+{{end}}

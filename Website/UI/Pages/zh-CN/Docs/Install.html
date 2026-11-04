@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">系统与环境要求</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>支持 x86_64 或 arm64（以各版本实际发布的已签名构建包为准）。glibc 构建版可在 glibc 2.17 及更新版本的发行版上运行（已在 CentOS 7、Debian 11/12 和 Ubuntu 24.04 上实测通过）。静态编译的 musl 构建版不依赖系统的 C 标准库（已在 Alpine 上实测通过）。</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 及以上版本，支持 Apple silicon 或 Intel 处理器。macOS 支持目前处于公测阶段（beta）。</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 版本 1809 及以上，或 Windows 11，支持 x64 或 ARM64 架构。Windows 支持目前处于公测阶段（beta）。</dd></div>
+<div><dt>安装脚本依赖</dt><dd>在 Linux 和 macOS 上需要：<code>curl</code>、<code>tar</code>、<code>gzip</code> 以及用于签名校验的 <code>openssl</code>（OpenSSL 或 macOS 自带的 LibreSSL）。在 Windows 上仅需系统自带的 PowerShell。在 Linux 和 macOS 上请以普通用户身份运行，切勿使用 root；在 Windows 上无需管理员权限。</dd></div>
+<div><dt>模型账户</dt><dd>准备一个你自选的模型提供商账户，或在你自己电脑上运行的本地模型服务。参阅<a href="{{url "docs/providers"}}">模型提供商</a>。</dd></div>
+</dl>
+<p>当前版本为哪些系统提供了已签名构建包，均标明在<a href="{{url "install"}}">首页</a>各安装命令下方。各操作系统之间的行为差异详见<a href="{{url "docs/platforms"}}">平台支持</a>。</p>
+
+<h2 id="install">安装</h2>
+<p>安装命令位于<a href="{{url "install"}}">首页</a>：Linux 与 macOS 使用由 <code>sh</code> 执行的 <code>install.sh</code>，Windows 使用在 PowerShell 中运行的 <code>install.ps1</code>。你可以先阅读脚本内容：<a href="{{url "install.sh"}}">install.sh</a> 和 <a href="{{url "install.ps1"}}">install.ps1</a> 均以纯文本形式提供，与安装命令实际获取的内容完全一致。脚本会依次执行以下步骤，一旦任意步骤失败便会立即停止，不会对系统做任何改动：</p>
+<ol>
+<li>检查操作系统及其版本、确认当前为普通用户身份，并检查所需命令行工具是否齐全。</li>
+<li>检测处理器架构，并在 Linux 上检测 C 标准库（glibc 或 musl）。</li>
+<li>下载该版本的校验和列表，并使用脚本内嵌的发布公钥校验数字签名。</li>
+<li>下载适用于当前机器的归档包，并与已签名校验和列表进行比对。</li>
+<li>检查归档包内是否仅包含程序文件及其许可证文件，并验证程序能否正常启动及报告预期版本号。</li>
+<li>通过一次原子重命名将程序放置到位，并将许可证与第三方声明保存在用户数据目录旁。</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>操作系统</th><th>可执行文件位置</th><th>许可证声明位置</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code>（或 <code>$XDG_DATA_HOME/runeagent</code>）</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>安装脚本绝不会修改你的 shell 配置文件或 PATH。如果安装目录不在 PATH 中，脚本会明确提示。<a href="{{url "docs/verification"}}">发布校验</a>详细说明了数字签名能证明什么、不能证明什么，以及如何手动校验下载包。</p>
+<p>安装命令通过 <code>curl</code> 和 PowerShell 下载文件，不会给程序打上“来自互联网”的隔离标记。但如果你通过浏览器手动下载归档包，系统会附加该标记：在 macOS 上，Gatekeeper 会因此拒绝启动该 <code>rune</code> 副本，请在完成归档校验后运行 <code>xattr -d com.apple.quarantine rune</code> 移除标记；在 Windows 上，从文件资源管理器打开此类程序时 SmartScreen 可能会弹出警告。</p>
+
+<h2 id="installer-options">安装脚本选项</h2>
+<p>在不设置额外环境变量时，安装脚本默认选择最新发布的版本、安装到你的用户 bin 目录，并在 Linux 上自动检测 C 标准库。在 Linux 和 macOS 上，可将脚本保存为 <code>install.sh</code>，审阅后配合以下任意环境变量运行；在 Windows 上，请在运行安装命令前于同一个 PowerShell 窗口中设置环境变量。</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>指定已发布的版本号，例如 <code>{{.DocVersion}}</code>。可通过指定版本号安装历史版本。</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>指定存放可执行文件的绝对路径目录，替代默认目录。</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>仅限 Linux：设为 <code>gnu</code> 或 <code>musl</code> 以手动指定构建版本，跳过自动检测。若指定的组合没有对应的已发布归档包，安装会被拒绝。</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">将 rune 加入 PATH</h2>
+<p>许多 Linux 发行版默认已将 <code>~/.local/bin</code> 纳入 PATH（前提是你登录系统时该文件夹已存在），而 macOS 默认不包含该目录。如果提示找不到 <code>rune</code>，请手动将该文件夹加入 PATH。对于 bash 或 zsh（macOS 默认 shell），可将以下行添加到 <code>~/.bashrc</code> 或 <code>~/.zshrc</code>，然后打开一个新终端：</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>在 fish 中，只需运行一次 <code>fish_add_path ~/.local/bin</code>。在 Windows 上，可在 PowerShell 中运行以下命令将该目录加入当前用户的 PATH，完成后打开一个新终端：</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>如果你设置了自定义的 <code>RUNE_INSTALL_DIR</code>，请将上述路径替换为你自己的目录。</p>
+
+<h2 id="first-start">首次启动</h2>
+<p>在你的项目目录中打开终端并运行 <code>rune</code>。首次启动时，Rune 会在你的主目录下创建数据文件夹 <code>.rune</code>（Windows 上为 <code>%USERPROFILE%\.rune</code>，或由 <code>RUNE_HOME</code> 指定的文件夹），其中包含：</p>
+<ul>
+<li><code>rune.toml</code>：你的设置文件。它只记录你主动修改过的选项，其余所有默认值均直接取自当前运行的软件版本。</li>
+<li>经加密存储的 API 密钥。</li>
+<li>按项目分别保存的会话历史、项目记忆（memory）以及供撤销（undo）使用的文件快照。</li>
+</ul>
+<p>在 Windows 上，首次启动还会请求一次管理员权限确认，用于配置 Rune 运行命令专用的独立沙盒账户。如果你选择拒绝，Rune 不会在每次启动时反复弹窗；后续想配置时可随时运行 <code>rune -sandbox setup</code>。<a href="{{url "docs/security"}}">安全机制</a>说明了未配置该账户时的防护差异。</p>
+<p>运行 <code>rune -config</code> 输出的第一行即为当前使用的数据文件夹路径。Rune 将自身数据统一保存在那里，不会污染你的项目目录：只有在你所选权限模式下由 AI 工具执行的修改、你手动输入的 <code>!</code> 命令，或你以项目作用域（project scope）保存的技能与 MCP 配置，才会改动项目中的文件。接下来可参阅简介中的<a href="{{url "docs"}}#connect-and-select">接入并选择模型</a>。</p>
+
+<h2 id="update">更新</h2>
+<p>针对目标版本重新运行一次安装脚本即可（若此前设置了 <code>RUNE_INSTALL_DIR</code>，请保持一致）。脚本会校验下载包并一步替换程序文件；完成后可通过 <code>rune -version</code> 检查结果。</p>
+<p>已经打开的 Rune 窗口可以继续正常工作。在 Linux 和 macOS 上，已打开的窗口会在进入空闲状态后自动切换到新版本构建，且新版本首次启动时会自动升级数据文件夹结构。在 Windows 上，正在运行的程序文件无法原地变身为新程序：已打开的窗口会保持启动时的旧版本，而你新打开的下一个 Rune 窗口则会使用新版本。请勿为了强制更新而关闭正在执行任务的窗口。</p>
+
+<h2 id="uninstall">卸载</h2>
+<p>完成或停止手头任务并关闭所有 Rune 窗口，随后删除程序文件及其许可证声明。在 Linux 和 macOS 上运行：</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>在 Windows 的 PowerShell 中运行：</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>在 Windows 上，先运行 <code>rune -sandbox reset</code> 可收回 Rune 命令沙盒在你文件夹上的访问权限并移除专用沙盒账户（可能会请求管理员权限确认）。你的数据文件夹会保留在磁盘上，直到你手动删除它。其中存有你的历史记录、设置、密钥和还原点，仅卸载程序时无需删除它。如果确定要一并删除数据文件夹，请先通过 <code>rune -config</code> 查看其准确路径，且切勿在 Rune 仍在运行时删除它。</p>
+
+<h2 id="environment">环境变量</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>使用另一个数据文件夹替代主目录下的 <code>.rune</code>，拥有独立的设置、密钥和会话记录。</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>禁用彩色输出，效果与 <code>--no-color</code> 相同。</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>当终端模拟器未主动上报背景色时，用它告知 Rune 你的终端背景：可设为 <code>dark</code>、<code>light</code> 或十六进制颜色值。注意它不是界面主题选项（主题选项位于 Appearance 中）。</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>仅供安装脚本读取；详见<a href="#installer-options">安装脚本选项</a>。</dd></div>
+</dl>
+{{end}}

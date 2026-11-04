@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">网页搜索与网页读取相互独立</h2>
+<p><code>web_search</code> 用于根据查询词搜索网页；<code>web_fetch</code> 则用于将单个公开的 HTTP(S) 网页读取为文本。如果把一个 URL 当成搜索词传给 <code>web_search</code>，它只会去搜索该字符串，而不会自动抓取打开该网页。内置的网页读取器并非交互式浏览器，无法读取需要登录认证的内容或纯靠前端脚本动态渲染的单页应用。</p>
+<p>网页搜索需要配置外部服务商才能使用；网页抓取则默认使用 Rune 内置的网页读取器。这两个工具拥有各自独立的服务商绑定（pin）、超时时间和输出字符配额；为其中一个工具启用某项服务，绝不会静默将其选为另一个工具的服务商。</p>
+<h2 id="add-an-account">第一步：添加服务账户</h2>
+<p>前往 Settings → Connections，填入目标 Search &amp; Fetch 服务商的接口地址与凭据并保存账户。注意：仅保存账户凭据并不证明该服务一定可用。同一家厂商的模型推理接口与网页服务接口可能是两套独立的服务，各自拥有不同的计费与权限体系。</p>
+<h2 id="add-and-select">第二步：在工具中添加并选定服务商</h2>
+<ol><li>打开 Settings → Tools → Web search 或 Web fetch → Provider。</li><li>选择 Add provider，并选中已连接的账户。</li><li>若接入的是路由网关服务，请在空白输入框中准确填入目标路由名称（route），切勿根据示例或模型名称去猜测路由名。</li><li>Rune 会在保存该服务商前发送一次真实测试请求（可能会发送测试查询词或网页地址并产生计费）。</li><li>返回列表并选中目标服务商。选中操作会执行测试并保存该明确选择；仅仅添加服务商本身并不会将其显式锁定为当前服务商。</li></ol>
+<p>如果添加或选定失败，系统会保留此前已生效的选择不变。测试成功仅证明所测试的那次请求通过，并不代表后续对任意网页或任意服务的访问都畅通无阻。</p>
+<h2 id="services">Rune 支持的网页服务商</h2>
+<p>以下每项服务均需使用你自己的账户。Rune 仅调用表中标出的网页搜索或网页读取接口，不使用该厂商销售的其他无关产品。除备注另有说明外，各服务均使用固定接口地址并需要提供 API 密钥。</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>服务名称</th><th>网页搜索（Search）</th><th>网页抓取（Fetch）</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>支持</td><td>不支持</td><td>通过你账户下的 SERP zone 搜索 Google。</td></tr>
+<tr><td>Exa</td><td>支持</td><td>支持</td><td></td></tr>
+<tr><td>Firecrawl</td><td>支持</td><td>支持</td><td></td></tr>
+<tr><td>Jina AI</td><td>支持</td><td>支持</td><td>搜索与读取使用两个不同地址；密钥以 <code>jina_</code> 开头。</td></tr>
+<tr><td>Linkup</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>9router</td><td>支持</td><td>支持</td><td>运行在本机的 9router 应用（默认端口 20128）。密钥为可选项；它提供的每项搜索或读取服务均对应一个由你指定的路由名称。</td></tr>
+<tr><td>Ollama Web Search</td><td>支持</td><td>支持</td><td>使用 ollama.com 密钥的 Ollama 云端网页服务（非本机运行的 Ollama）。</td></tr>
+<tr><td>Perplexity Search</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>SearXNG</td><td>支持</td><td>不支持</td><td>你自行搭建的服务器：填入服务地址即可，无需密钥。需在其配置文件的 <code>search: formats:</code> 下开启 <code>json</code> 格式。</td></tr>
+<tr><td>SerpApi</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Serper</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Serpex</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Serplify</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>serpstack</td><td>支持</td><td>不支持</td><td></td></tr>
+<tr><td>Tavily</td><td>支持</td><td>支持</td><td></td></tr>
+<tr><td>TinyFish</td><td>支持</td><td>支持</td><td>搜索与读取使用两个不同地址。</td></tr>
+<tr><td>You.com</td><td>支持</td><td>不支持</td><td></td></tr>
+</tbody>
+</table></div>
+<p>在不配置任何上述外部服务时，网页搜索（<code>web_search</code>）处于不可用状态，而网页抓取（<code>web_fetch</code>）则默认使用无需账户的 Rune 内置读取器。</p>
+<h2 id="default-and-pin">默认选择与显式锁定</h2>
+<dl class="ref">
+<div><dt>搜索默认项（Search default）</dt><dd>未显式锁定时，自动使用按添加顺序排列的第一个已启用搜索服务商。因此，添加第一个搜索服务商后它就会成为当前默认使用的搜索源。</dd></div>
+<div><dt>抓取默认项（Fetch default）</dt><dd>默认使用 Rune 内置网页读取器。添加外部读取服务商不会自动切换过去，需手动选定。</dd></div>
+<div><dt>显式锁定（Explicit choice）</dt><dd>将工具锁定到特定账户或特定 <code>account:route</code>。若锁定的目标缺失或不可用，工具会直接报错，绝不会静默把请求转发给其他第三方服务商。</dd></div>
+</dl>
+<p>在界面中选择 Use default，或重置 <code>web_search.provider</code> / <code>web_fetch.provider</code> 配置键，即可解除显式锁定。在删除某个正在使用的工具服务商前，请先切换到其他选项。从工具中移除服务商仅移除该绑定关系，不会删除底层账户或凭据。单个网关服务最多可保存 32 条路由。</p>
+<h2 id="limits-and-privacy">配额限制与隐私保护</h2>
+<p>出厂默认配额为：每次搜索返回 8 条结果、每次工具请求超时 60 秒，以及每个工具最多返回 100,000 个字符。单次调用传入的参数可缩减搜索结果条数。调高输出字符上限不会绕过任何访问控制限制。</p>
+<p>第三方搜索服务商将收到你的搜索关键词；外部网页读取服务商将收到目标网页 URL 并可能据此计费；内置网页抓取器则会直接从本机连接目标网站。系统严禁抓取私有或内网目标地址（如局域网与回环地址）。可选的 Cookie 处理仅限单次重定向读取周期内有效，不会建立持久化的浏览器登录态。</p>
+{{end}}

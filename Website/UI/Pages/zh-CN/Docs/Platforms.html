@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">跨平台支持概览</h2>
+<p>Rune 在所有受支持系统上都是同一个程序，拥有完全一致的权限模式、工具集、设置体系和数据格式。不同之处仅在于各操作系统对程序的底层支持：如何替换正在运行的程序文件、如何隔离受限命令，以及系统能否感知后台命令正在等待键盘输入。Linux 是主力平台；macOS 与 Windows 目前处于公测阶段（beta）：均已在真实物理机上构建并通过测试，但日常高频使用积累相对较少。</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>维度</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>支持状态</td><td>主力支持（Primary）</td><td>公测（Beta）</td><td>公测（Beta）</td></tr>
+<tr><td>系统版本</td><td>glibc 2.17 及更新版本，或任意可运行静态 musl 构建版的系统</td><td>macOS 11 及以上版本</td><td>Windows 10 版本 1809 及以上、Windows 11</td></tr>
+<tr><td>处理器架构</td><td>x86_64, arm64</td><td>Apple silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>安装脚本</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td>PowerShell 中的 <code>install.ps1</code></td></tr>
+<tr><td>更新后已打开的窗口</td><td>空闲时自动切换至新版本</td><td>空闲时自动切换至新版本</td><td>保持原版本；新打开的下一个窗口使用新版本</td></tr>
+<tr><td>命令沙盒</td><td>内核级沙盒（在内核支持的系统上）</td><td>macOS 原生系统沙盒</td><td>专用独立 Windows 账户（首次启动时经管理员确认一次性配置）</td></tr>
+<tr><td>检测命令等待键盘输入</td><td>可感知所有输入等待</td><td>仅感知不回显输入（如密码提示）</td><td>无法感知</td></tr>
+<tr><td>命令执行 Shell</td><td>优先 bash，否则 <code>/bin/sh</code></td><td>优先 bash，否则 <code>/bin/sh</code></td><td>优先 PowerShell 7，其次 Windows PowerShell，再次命令提示符（cmd）</td></tr>
+<tr><td>从 Rune 复制文本</td><td>通过终端剪贴板协议</td><td>同时写入系统剪贴板与终端</td><td>同时写入系统剪贴板与终端</td></tr>
+<tr><td>打开网页链接</td><td>通过 <code>xdg-open</code> 调用默认浏览器</td><td>调用默认浏览器</td><td>调用默认浏览器</td></tr>
+</tbody></table></div>
+<p>当前版本为哪些系统提供了已签名构建包，均标明在<a href="{{url "install"}}">首页</a>各安装命令下方。</p>
+
+<h2 id="linux">Linux</h2>
+<p>在内核提供沙盒支持的系统上（绝大多数现代主流发行版内核均具备），命令会运行在内核级沙盒的严格限制下。若运行在不支持沙盒的旧内核上，Rune 会明确提示：此时在 Auto 模式下每条命令执行前都会先询问你，而在 Full 模式下则不再询问。运行 <code>/help</code> 可在 <em>This machine</em> 小节下查看当前沙盒是否已启用，以及是否存在不受沙盒限制的例外路径。</p>
+<p>复制文本通过终端模拟器完成，这需要终端允许程序写入剪贴板。在通过 SSH 远程连接，或运行在 tmux、screen 内部时，该权限可能处于关闭状态；你可以在终端或多路复用器中开启剪贴板透传，或者按住 <kbd>Shift</kbd> 键拖选以使用终端自带的选择复制功能。打开网页链接依赖桌面系统提供的 <code>xdg-open</code>。</p>
+<p>在将软件包存放在只读存储池中的系统（如 NixOS 或 Guix）上，沙盒内的命令可以正常读取并运行该只读存储池中的程序。</p>
+
+<h2 id="macos">macOS</h2>
+<p>命令运行在 macOS 自带的系统沙盒中，其读写边界规则与 Linux 保持一致。复制文本时会直接写入 macOS 系统剪贴板，因此即使在忽略终端剪贴板控制序列的 macOS 原生“终端”（Terminal.app）中也能正常复制。</p>
+<p>macOS 仅在命令等待不回显输入（例如密码输入提示）时才会通知 Rune。如果某个后台命令静默等待其他类型的普通输入，在界面上看起来会像仍在运行中；做出处理前请先查看其输出日志，切勿仅仅因为命令没有动静就盲目猜测密码或发送确认字符。</p>
+<p>命令默认在 macOS 自带的 bash 中执行，不一定与你打开终端时使用的交互式登录 shell（macOS 默认为 zsh）相同。如需改用已安装的其他 shell，可在 <code>terminal.shell</code> 中填入其绝对路径。</p>
+<p>建议使用首页提供的命令安装。通过浏览器手动下载的程序包会被标记为来自互联网，在移除隔离标记前 Gatekeeper 会拒绝启动它；移除方法详见<a href="{{url "docs/install"}}#install">安装与更新</a>。</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune 使用专门创建的独立本地 Windows 账户来隔离命令。首次打开 Rune 时，系统会请求一次管理员权限确认以配置该专用账户。如果你拒绝，它不会在每次启动时反复提示；后续可随时运行 <code>rune -sandbox setup</code> 完成配置，或运行 <code>rune -sandbox reset</code> 移除该账户并收回此前授予 Rune 命令的所有文件夹访问权限。运行 <code>rune -sandbox</code> 可列出当前开放的访问权限及正在使用的隔离方式。</p>
+<p>如果未配置专用沙盒账户，Rune 会退而使用当前用户账户的受限令牌（restricted token）来隔离命令，但存在以下局限：</p>
+<ul>
+<li>受限命令仍可读取 Windows 默认允许所有用户读取的位置（如磁盘根目录下的文件夹、其他盘符以及 ProgramData），并可在 ProgramData 中创建文件。你的个人用户配置目录（Profile）依然被严格排除在可访问范围之外。</li>
+<li>受限命令可以只读方式打开其他程序以 Windows 默认安全属性创建的命名管道（named pipe），但写入此类管道会被拒绝。</li>
+<li>Git Bash 及其他基于 MSYS2 或 Cygwin 的程序在每次执行命令前都会先请求你确认，确认后该次调用将以完全访问权限运行。此外，<code>curl.exe</code> 和 <code>Invoke-WebRequest</code> 所依赖的 Windows 原生 HTTPS 栈在此受限模式下无法建立连接，但 Git 自带的 HTTPS 仍可正常工作。</li>
+</ul>
+<p>一旦配置好专用沙盒账户，Git Bash 和 Windows 原生 HTTPS 都能在受限命令内部正常工作。Rune 绝不会向沙盒开放 Windows 系统目录、磁盘根目录或存放所有用户个人目录的父文件夹权限；因此如果直接在这类顶层目录中打开项目，在 Ask 和 Auto 模式下每次执行命令前都会先向你询问。</p>
+<p>Windows 不会在命令等待键盘输入时通知 Rune。安静运行的后台命令可能是在等待输入，也可能仍在正常处理中：回复前请先查看其输出日志。此外，Windows 不允许直接替换正在运行的可执行文件，因此更新版本后，新打开的 Rune 窗口会使用新版本，而已打开的旧窗口则保持原版本不变。</p>
+
+<h2 id="terminals">终端兼容性细节</h2>
+<p>键盘快捷键和鼠标手势只有在终端模拟器将其透传给 Rune 时才能生效。例如 Konsole 默认将 <kbd>Ctrl</kbd>+滚轮用于画面缩放（除非在配置方案中修改），部分终端则会将 <kbd>Alt</kbd>+滚轮转为横向滚动；普通滚轮和键盘按键在所有终端上均可正常工作。只有在支持整帧同步刷新且渲染性能充裕的终端里，滚轮才会呈现平滑滚动效果；在其他终端里则按格跳动。配色、透明度与字体均由终端模拟器自身管理。可运行 <code>/help</code> 查看当前版本实际响应的快捷键列表。</p>
+{{end}}

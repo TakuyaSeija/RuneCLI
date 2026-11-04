@@ -224,4 +224,27 @@
     });
     narrow.addEventListener("change", () => { if (!narrow.matches) setDrawer(false); });
   }
+
+  // Language switcher menu: close on outside click or Escape, scroll active item into view.
+  const langSwitch = document.querySelector(".lang-switch");
+  if (langSwitch) {
+    const langTrigger = langSwitch.querySelector(".lang-trigger");
+    const activeItem = langSwitch.querySelector('.lang-item[aria-current="true"]');
+    langSwitch.addEventListener("toggle", () => {
+      if (langSwitch.open && activeItem && activeItem.scrollIntoView) {
+        activeItem.scrollIntoView({ block: "nearest" });
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (langSwitch.open && !langSwitch.contains(event.target)) {
+        langSwitch.open = false;
+      }
+    });
+    addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && langSwitch.open) {
+        langSwitch.open = false;
+        if (langTrigger) langTrigger.focus({ preventScroll: true });
+      }
+    });
+  }
 })();

@@ -1,0 +1,30 @@
+{{define "article"}}
+<h2 id="different-limits">Tres tipos distintos de límites</h2>
+<p>Un plegado visual controla cuánto texto ves inicialmente en pantalla. Un límite de salida devuelta controla cuánto texto recibe la IA. Un límite de captura o de trabajo puede detener un comando o dar por finalizada una búsqueda. Aumentar uno de ellos no amplía los demás, y ninguno concede permisos de acceso a archivos ni a la red.</p>
+<p>Abre Settings → Tools, elige el grupo correspondiente, edita el valor y pulsa Apply. Use default elimina el ajuste global personalizado. Los valores de fábrica que se indican a continuación corresponden a Rune {{.DocVersion}}, no necesariamente a tus opciones guardadas; consulta cualquier clave con <code>rune -config explain &lt;key&gt;</code>.</p>
+<h2 id="file-tools">Herramientas de archivos</h2>
+<dl class="ref">
+<div><dt>inspect_file</dt><dd>Inspecciona un archivo, admitiendo rangos de líneas inclusivos para archivos de texto. De fábrica, el tamaño máximo de archivo es de 16 MiB y el texto devuelto de 30.000 caracteres. Los archivos no textuales compatibles pueden adjuntarse si el modelo los admite.</dd></div>
+<div><dt>find_files</dt><dd>Búsqueda de rutas mediante patrones glob. El máximo de fábrica es de 200 rutas devueltas y 20.000 caracteres. Un límite menor por llamada puede reducir ese máximo, pero no superarlo.</dd></div>
+<div><dt>search_text</dt><dd>Búsqueda en el contenido. El máximo de fábrica es de 100 líneas coincidentes, 2.000 caracteres por línea y 30.000 caracteres en total. Comparte el límite de tamaño por archivo individual con inspect_file.</dd></div>
+<div><dt>create_file</dt><dd>Crea un archivo, sobrescribiendo el existente si ya lo hubiera. La acción sigue sujeta a los permisos y a la protección de archivos.</dd></div>
+<div><dt>patch_file</dt><dd>Reemplaza un fragmento exacto de texto. El texto original debe aparecer exactamente una vez; una coincidencia ambigua nunca se interpreta como orden de reemplazar todas las apariciones.</dd></div>
+</dl>
+<p>Las búsquedas de rutas y de texto incluyen archivos ocultos e ignorados; en <code>.git</code> y <code>.rune</code> solo se busca cuando un patrón nombra una carpeta dentro de ellos. Los límites compartidos de exploración son de 200.000 entradas, profundidad 32 y 200.000 pasos de evaluación de expresiones regulares por línea. Una búsqueda que se detiene en un límite lo indica y puede tener más resultados. Cada búsqueda empieza en la carpeta que nombra su patrón, así que nombra una antes de subir un límite.</p>
+<h2 id="terminal-and-process">Herramientas de terminal y procesos</h2>
+<p><code>terminal_use</code> ejecuta un comando en una shell nueva. De fábrica, la espera en primer plano es de 120 segundos, el texto devuelto de 30.000 caracteres y el registro por tarea en segundo plano de 100 MiB. Al cumplirse la espera, el comando pasa a segundo plano; en cambio, superar un límite de captura de salida o de registro detiene el proceso. <code>process_control</code> envía una respuesta por teclado a una tarea en espera o la detiene junto con todo su árbol de procesos; nunca lee la salida ni espera. La propia notificación de una tarea terminada o en espera incluye su estado, PID, tiempo de ejecución, ruta del registro y la salida que aún no se había entregado (30.000 caracteres por defecto, compartidos entre las notificaciones que llegan juntas).</p>
+<p>Consulta <a href="{{url "docs/terminal"}}">Terminal y tareas en segundo plano</a> para ver cómo funciona el paso a segundo plano, la detección de entrada en cada plataforma y el tiempo de vida de las tareas.</p>
+<h2 id="web-and-extensions">Herramientas web y de extensiones</h2>
+<dl class="ref">
+<div><dt>web_search</dt><dd>Busca mediante una consulta y un número máximo opcional de resultados. El máximo de fábrica es de ocho resultados, 60 segundos de tiempo de espera y 100.000 caracteres de salida.</dd></div>
+<div><dt>web_fetch</dt><dd>Lee una página pública. De fábrica tiene un tiempo de espera de 60 segundos y un máximo de 100.000 caracteres devueltos. Cuenta con su propia selección independiente de proveedor.</dd></div>
+<div><dt>discover_capabilities</dt><dd>Busca skills, herramientas MCP y recursos que no figuren ya en la lista inicial. El límite de fábrica de texto devuelto es de 30.000 caracteres.</dd></div>
+<div><dt>call_mcp_tool</dt><dd>Invoca una herramienta externa descubierta utilizando exactamente las entradas declaradas por ese servidor; las operaciones y riesgos del servidor dependen de este.</dd></div>
+<div><dt>read_mcp_resource</dt><dd>Lee un recurso descubierto. El límite de fábrica de texto devuelto es de 50.000 caracteres.</dd></div>
+</dl>
+<h2 id="orchestration">Planes, preguntas y coordinación</h2>
+<p><code>track_tasks</code> actualiza la lista de tareas, con un máximo predeterminado de 20 tareas de hasta 120 caracteres cada una. <code>ask_user_questions</code> solicita decisiones mediante un formulario explícito. Por defecto, las preguntas al usuario no caducan y las solicitudes de permiso caducan a los 10 minutos. Que no caduque significa que espera sin límite de tiempo, nunca que se apruebe automáticamente.</p>
+<p><code>tools.max_actions_per_response</code> permite por defecto hasta 20 llamadas a herramientas propuestas en una sola respuesta del modelo. No es un presupuesto total para toda la tarea, ni un número de procesos paralelos, ni una promesa de ejecución simultánea. Cada llamada sigue pasando por su propia validación y control de permisos.</p>
+<h2 id="change-responsibly">Modifica los límites con prudencia</h2>
+<p>No todas las herramientas tienen un campo numérico dedicado en la interfaz. Subir los límites puede exponer más contenido y consumir más tiempo, disco, memoria o contexto del modelo. Bajarlos demasiado puede omitir evidencia necesaria o interrumpir el trabajo. Lee los avisos de salida truncada o incompleta en lugar de dar por hecho que un resultado recortado está completo.</p>
+{{end}}

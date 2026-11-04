@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Escolha o tempo de espera certo</h2>
+<p>Settings → Runtime controla os tempos de requisição ao modelo, as esperas compartilhadas de rede e as novas tentativas. O tempo de espera em primeiro plano do terminal, o prazo de uma ferramenta web e a expiração de um cartão de permissão são configurações separadas dentro de Tools. Aumentar todos os tempos limite pode mascarar o sintoma sem resolver a causa.</p>
+<p>O tempo limite opcional de requisição de uma conta aceita números inteiros de 5 a 3.600 segundos. Deixar em branco ou usar o padrão remove essa substituição. As tarefas auxiliares podem ter seus próprios prazos de operação. Um stream ativo e um stream que parou de receber dados são situações diferentes.</p>
+<h2 id="retry">As novas tentativas são lineares</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Chave</th><th>Valor de fábrica</th><th>Significado</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Novas tentativas após a primeira: até seis tentativas no total. Zero desativa novas tentativas.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Passo base: os tempos de espera aumentam em 3, 6, 9… segundos.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>Se a próxima espera ultrapassar este teto, a sequência recomeça a partir do passo base. Não é um backoff exponencial.</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>Por quanto tempo uma chave sem saldo descansa antes de voltar a ficar elegível. Isso não compra créditos.</td></tr>
+</tbody></table></div>
+<p>Nem toda falha gera uma nova tentativa. Tentar novamente não corrige uma credencial errada, um controle incompatível nem um endpoint incorreto. Um número muito alto de tentativas pode prolongar uma falha e gerar cobranças extras; leia primeiro o erro classificado nos logs.</p>
+<h2 id="network">Tempos de espera de rede</h2>
+<dl class="ref">
+<div><dt>Limite de inatividade (Stall limit)</dt><dd><code>network.stream_idle_timeout</code>: 5 minutos sem receber dados de resposta. Não é um limite total de cinco minutos para um stream que continua transmitindo ativamente.</dd></div>
+<div><dt>Tempo limite de conexão</dt><dd><code>network.connect_timeout</code>: 10 segundos para estabelecer uma conexão.</dd></div>
+<div><dt>Tempo limite de teste (Probe timeout)</dt><dd><code>network.probe_timeout</code>: 45 segundos para um teste explícito de provedor.</dd></div>
+<div><dt>Catálogo</dt><dd>Valores avançados: tempo limite de requisição de 10 segundos, período de validade de 1 hora e no máximo 100 páginas por atualização. A validade do catálogo não equivale ao tempo de vida de um cache de prompt.</dd></div>
+</dl>
+<p>Outros limites avançados restringem o tamanho das respostas com e sem streaming. Eles medem bytes, não tokens. A opção de compatibilidade token-saver pode deixar a compressão a cargo de um roteador compatível; ativá-la não garante compressão e pode reduzir o nível de detalhe retornado.</p>
+<h2 id="detached-lifetime">Tempo de vida da sessão desconectada</h2>
+<p>A chave <code>host.idle_lifetime</code> é uma configuração global avançada, definida como 60 segundos por padrão. Quando a última janela é fechada, o trabalho ativo da IA para; os comandos em segundo plano podem continuar rodando durante esse período de retenção. Reabra a sessão a tempo para voltar a acompanhá-los. Não se trata de um temporizador de logout de conta nem de uma promessa de servidor rodando indefinidamente.</p>
+<h2 id="change-and-reset">Altere e redefina de forma deliberada</h2>
+<p>Abra a linha correspondente em Runtime, edite o valor e escolha Apply. A opção Use default remove uma substituição; <code>rune -config explain &lt;key&gt;</code> mostra o valor efetivo e quando ele entra em vigor. Alterações no tempo limite de inatividade de stream podem afetar uma requisição que já está aguardando, enquanto outras opções geralmente valem a partir das próximas operações.</p>
+<p>Primeiro diferencie entre um serviço lento que está processando, uma conexão travada em silêncio, uma chave sem saldo e uma requisição incompatível. Salvar uma configuração com sucesso não significa que um teste de rede foi bem-sucedido.</p>
+{{end}}

@@ -1,0 +1,22 @@
+{{define "article"}}
+<h2 id="shared-scope">全局辅助任务</h2>
+<p>Settings → Generation 下方的辅助任务设置行适用于使用当前 Rune 主目录的所有会话。它们可以直接继承当前活动模型，也可以显式指定某组提供商与模型。修改这些配置可能会改变费用、延迟以及接收相关数据的提供商；确认修改辅助配置并不代表批准其他无关操作。</p>
+<p>配置的输出 token 配额仍受限于所选模型的实际能力上限及提供商的完整请求大小限制。在 Settings 中调大数值并不会扩大服务端本身的硬性上限。若要恢复继承关系，请重置模型覆盖项，不要凭空填写占位模型名。</p>
+<p>对于强制要求推理过程的模型，可能需要更大的有效输出配额。高级设置项 <code>auxiliary.mandatory_reasoning_output_tokens</code> 的出厂默认值为 4,096；它并非无条件叠加到每个任务上的额外配额，所请求的结果仍需容纳在所选模型的总输出上限之内。</p>
+<h2 id="sanitizer">清洗器（Sanitizer）</h2>
+<p>清洗器协助分类器从原始上下文中提取用户的真实指令和限制条件。它<strong>不会</strong>清理磁盘文件、不会移除每条消息中的特殊 Unicode 字符，也不会改写对话历史。它仅在适用分类器审查的场景下运行。当提取结果不可用时，系统会回退为使用原始指令，用户的限制条件不会因此丢失。</p>
+<dl class="ref"><div><dt>出厂默认值</dt><dd>启用（Enabled）、继承当前模型、120 秒请求超时、4,096 输出 token，且源文本按每批最大 64 KiB 发送。</dd></div><div><dt>配置键</dt><dd><code>sanitizer.enabled</code>、<code>sanitizer.model</code>、<code>sanitizer.timeout</code>、<code>sanitizer.max_output_tokens</code>、<code>sanitizer.max_batch_size</code>。</dd></div></dl>
+<p>批次大小以文本字节数（而非 token 数）计算。调小批次可能会增加请求次数；超出提供商接收上限的批次则会被该提供商拒绝。</p>
+<h2 id="classifier">分类器（Classifier）</h2>
+<p>策略审查模型会根据你编写的 CLASSIFIER.md 规则，对适用的拟议操作进行评估。它在 Ask 模式下不启用，在 Auto 或 Full 模式下则需要有效的策略文件才会生效。涉及人工权限确认的调用以你的明确决定为准，而非依赖 AI 审查。开关显示为启用并不证明某次具体操作经过了分类器审查。</p>
+<p>出厂默认值包括：启用、继承当前模型、120 秒超时、1,024 输出 token、256 KiB 组合文本证据上限，以及单个策略文件 64 KiB 上限。工具排除列表与近期输入上下文列表是相互独立的配置项。关于规则优先级、重新加载及失败处理行为，请参阅<a href="{{url "docs/classifier"}}">分类器策略</a>。</p>
+<h2 id="compaction">上下文压缩（Compaction）</h2>
+<p>上下文压缩通过总结较早的对话历史，为模型上下文腾出空间。输入 <code>/compact</code> 可手动触发压缩；此外，当提供商上报的输入用量达到阈值，或提供商因请求过大而实际拒绝请求后，Rune 也会自动执行压缩。Rune 绝不会根据文本长度、思考内容或图片大小去猜测 token 数量。压缩摘要无法完美保留每一处细节，但不会删除磁盘上保存的会话记录。</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>配置键</th><th>出厂默认值 / 含义</th></tr></thead><tbody>
+<tr><td>compact.model</td><td>继承当前活动模型。</td></tr><tr><td>compact.max_output_tokens</td><td>请求生成 32,768 个摘要 token（受模型实际上限约束）。</td></tr><tr><td>compact.max_batch_size</td><td>每次摘要请求附带 128 KiB 的引用历史文本。单位为字节而非 token；若小型摘要模型拒绝大批次请求，可适当调小。</td></tr><tr><td>compact.keep_recent_turns</td><td>期望完整保留最近 5 轮对话；当可用上下文空间不足时，实际保留轮数可能会减少。</td></tr><tr><td>compact.fallback_context_tokens</td><td>200,000 个上报输入 token：当模型未公布上下文窗口大小时，Rune 自动触发压缩的阈值。它不会扩大已知的模型上限，也不会根据文本长度推算 token。</td></tr><tr><td>compact.message_chars</td><td>每条历史助手回答或工具结果纳入考量的最大字符数（32,000 字符）。</td></tr><tr><td>compact.tool_chars</td><td>每次工具调用纳入考量的历史参数最大字符数（2,000 字符）。</td></tr>
+</tbody></table></div>
+<p>用户的原始指令与上述助手/工具摘录分开处理，会按批次拆分而绝不会被静默截断。当摘要模型因上下文过大实际拒绝请求时，系统可改用上下文更大的当前活动模型。若关键步骤失败，系统会询问是否重试。取消或拒绝会停止本次压缩尝试；失败的摘要绝不会被标记为已完成。</p>
+<h2 id="titles">会话标题与重置</h2>
+<p>标题生成任务会根据会话早期的工作内容自动命名对话。它默认继承当前活动模型，最多请求 256 个输出 token，并将标题长度限制在 60 个字符以内。修改这些设置仅影响后续新生成的标题，不会改动已有标题；若要修改单个现有会话的标题，请使用会话重命名功能。</p>
+<p>可使用 <code>rune -config explain &lt;key&gt;</code> 查看任意配置键的说明。在界面中选择 Use default 或运行 <code>rune -config reset &lt;key&gt;</code> 即可移除全局覆盖值。缩减审查预算可能会降低审查覆盖面，增加辅助任务配额则可能提高费用。修改全局设置前请先确认具体影响。</p>
+{{end}}

@@ -1,0 +1,27 @@
+{{define "article"}}
+<h2 id="session-controls">Controles para esta sessão</h2>
+<p>Settings → Generation controla a sessão e o modelo ativos. Valores opcionais podem ser limpos para devolver o controle ao provedor ou ao padrão inicial. Os valores iniciais globais em rune.toml são independentes das escolhas das sessões já existentes. Controles não suportados pelo modelo podem não aparecer.</p>
+<h2 id="reasoning">Raciocínio e esforço</h2>
+<p>Use Generation, <code>/thinking</code> ou Alt+T para escolher entre os níveis de raciocínio oferecidos pelo modelo selecionado. Já Models → Alt+C configura o comportamento inicial persistente e as opções disponíveis. Um selo Thinking na lista de modelos indica suporte ao recurso, não que ele esteja ativo no momento.</p>
+<dl class="ref">
+<div><dt>Off</dt><dd>Solicita a desativação do raciocínio. Não garante zero raciocínio por parte de um provedor ou roteador externo.</dd></div>
+<div><dt>On / esforço</dt><dd>Ativa o raciocínio suportado ou escolhe um nível oferecido. Maior esforço pode aumentar a latência e o custo em tokens sem garantir uma resposta melhor.</dd></div>
+<div><dt>Route default</dt><dd>Quando oferecido, deixa o controle de raciocínio a cargo da rota. Não equivale nem a Off nem a um nível de esforço positivo específico.</dd></div>
+</dl>
+<p>No 9router, uma rota que informa explicitamente que o raciocínio não pode ser desativado recebe Low quando você pede Off; o nível Minimal é excluído das opções efetivas, mesmo que uma configuração salva anteriormente o contenha. Rotas capazes de desativar o raciocínio recebem a solicitação de desativação, mas os executores ainda podem alterá-la. Leia a explicação ao lado do controle em vez de deduzir o comportamento pelo ID do modelo.</p>
+<p>O raciocínio exibido como texto é contado em palavras; uma rota que informa tokens de raciocínio pode exibir esses tokens reportados. O Rune não inventa uma estimativa de tokens. A ausência de pensamento visível não prova que o raciocínio foi desativado: alguns endpoints não retornam esse texto.</p>
+<h2 id="sampling">Amostragem</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Controle</th><th>Finalidade e intervalo habitual</th></tr></thead><tbody>
+<tr><td>Temperature</td><td>Aleatoriedade, geralmente de 0 a 2. Valores menores não garantem respostas idênticas.</td></tr>
+<tr><td>Top P</td><td>Amostragem por núcleo (nucleus sampling), geralmente de 0,01 a 1. Normalmente ajuste este controle ou a temperatura, não ambos.</td></tr>
+<tr><td>Frequency penalty</td><td>Desestimula a repetição dos mesmos tokens, geralmente de −2 a 2; valores negativos estimulam a repetição.</td></tr>
+<tr><td>Presence penalty</td><td>Desestimula a repetição dos mesmos assuntos, geralmente de −2 a 2.</td></tr>
+</tbody></table></div>
+<p>O intervalo efetivamente aceito cabe ao modelo e ao endpoint. Ativar o raciocínio pode tornar alguns controles de amostragem temporariamente indisponíveis. Penalidades ou aleatoriedade excessivas podem tornar os resultados menos úteis.</p>
+<h2 id="output">Saída e sequências de parada</h2>
+<p>Max output define um teto positivo em números inteiros de tokens para a resposta, dentro do limite conhecido do modelo. O raciocínio pode consumir parte dessa cota antes da resposta final. Um valor muito baixo pode deixar a resposta incompleta; um limite maior pode permitir gastos mais altos. Omitir esse valor não significa saída ilimitada.</p>
+<p>Até quatro sequências de parada (stop strings) podem encerrar a geração. O editor da sessão aceita entradas separadas por vírgula; um array no TOML preserva as strings exatas, inclusive vírgulas dentro de um mesmo item. Uma sequência de parada que coincida com trechos comuns de código pode cortar uma resposta inesperadamente.</p>
+<pre class="block"><code>/set temperature=0.2
+/set temperature=</code></pre>
+<p>O primeiro exemplo define uma preferência para a sessão; o segundo limpa essa escolha opcional. Os controles de modelos auxiliares mais abaixo na tela Generation são globais e estão descritos no <a href="{{url "docs/auxiliary"}}">próximo artigo</a>.</p>
+{{end}}

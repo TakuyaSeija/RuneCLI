@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">إضافة مزود</h2>
+<p>المزود هو الحساب الذي يجيب عن طلبات النماذج في Rune. لا يأتي Rune بحساب مدمج ولا برصيد API خاص به؛ إذ يُرسل كل طلب إلى المزود الذي تربطه به وتُحتسب تكلفته لديه.</p>
+<ol>
+<li>اضغط على <kbd>Ctrl+G</kbd>، وافتح <strong>Connections</strong> واختر <strong>Add connection</strong>.</li>
+<li>تحت قسم <strong>MODEL PROVIDERS</strong>، اختر الإعداد المسبق لمزودك، أو اختر <strong>compatible</strong> لأي نقطة نهاية أخرى متوافقة مع OpenAI.</li>
+<li>إذا لم يكن للإعداد المسبق عنوان ثابت، فأدخل عنوانك أولاً. ثم الصق مفتاح API في الحقل المقنّع واضغط على <kbd>Enter</kbd>.</li>
+<li>يرسل Rune طلباً حقيقياً واحداً للتحقق من الحساب قبل حفظ الاتصال. قد تُحتسب تكلفة ذلك الطلب ويرسل نصاً اختبارياً إلى المزود.</li>
+<li>افتح <strong>Models</strong>، واختر المزود وحدد نموذجاً بالضغط على <kbd>Enter</kbd>.</li>
+</ol>
+<p>يثبت حفظ الاتصال أن الحساب أجاب مرة واحدة، لكنه لا يثبت أن كل نموذج في قائمة المزود متاح لحسابك. تُخزَّن المفاتيح مشفرة على حاسوبك؛ راجع <a href="{{url "docs/credentials"}}">بيانات الاعتماد</a>.</p>
+
+<h2 id="presets">جميع الإعدادات المسبقة</h2>
+<p>يتعرف Rune على 31 مزوداً. يملأ الإعداد المسبق عنوان المزود وطريقة صياغة طلباته، ولا تدخل سوى المفتاح. وعندما يكون للمفتاح نسق معروف، يتحقق Rune من ذلك النسق قبل إرسال أي شيء.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>الإعداد المسبق</th><th>المفتاح</th><th>العنوان</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>مفتاح OpenAI،‏ <code>sk-…</code></td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>مفتاح Anthropic،‏ <code>sk-ant-…</code></td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>مفتاح Google AI Studio،‏ <code>AIza…</code> أو <code>AQ.…</code></td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>مفتاح xAI،‏ <code>xai-…</code></td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>مفتاح DeepSeek،‏ <code>sk-…</code></td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>مفتاح Mistral</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>مفتاح Groq،‏ <code>gsk_…</code></td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>مفتاح OpenRouter،‏ <code>sk-or-…</code></td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>مفتاح Moonshot AI (Kimi)</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>مفتاح MiniMax</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>مفتاح API القياسي من Z.ai، وليس مفتاح خطة Coding Plan</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>مفتاح Meta Model API</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>مفتاح StepFun</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>مفتاح Ant Ling API</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>مفتاح Xiaomi MiMo:‏ <code>sk-…</code> للدفع حسب الاستخدام، و<code>tp-…</code> لخطة Token Plan</td><td>يُختار تلقائياً حسب نوع المفتاح</td></tr>
+<tr><td><code>nvidia</code></td><td>مفتاح NVIDIA،‏ <code>nvapi-…</code></td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>مفتاح Cerebras،‏ <code>csk-…</code></td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>رمز Hugging Face،‏ <code>hf_…</code></td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>مفتاح Fireworks AI</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>مفتاح Together AI</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>مفتاح SiliconFlow</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>مفتاح DeepInfra</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>مفتاح Novita AI</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>مفتاح Inference.net</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>مفتاح TokenRouter من tokenrouter.com</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>مفتاح Model Studio من نفس المنطقة الجغرافية للعنوان</td><td>عنوان الوضع المتوافق لمساحة عملك</td></tr>
+<tr><td><code>tencent</code></td><td>مفتاح TokenHub من نفس موقع العنوان</td><td>عنوان TokenHub لمنطقتك</td></tr>
+<tr><td><code>cloudflare</code></td><td>رمز API بصلاحية الوصول إلى Workers AI</td><td>عنوان يتضمن معرّف حسابك (Account ID)</td></tr>
+<tr><td><code>ollama</code></td><td>بلا مفتاح: يعمل Ollama على هذا الحاسوب</td><td>هذا الحاسوب، المنفذ 11434</td></tr>
+<tr><td><code>9router</code></td><td>مفتاح 9router، أو بلا مفتاح عندما لا يطلب 9router مفتاحاً</td><td>تطبيق 9router على هذا الحاسوب، المنفذ 20128</td></tr>
+<tr><td><code>compatible</code></td><td>مفتاح نقطة النهاية، أو بلا مفتاح عندما لا تتطلب ذلك</td><td>أي عنوان متوافق مع OpenAI تدخله</td></tr>
+</tbody>
+</table></div>
+<p>يعرض عمود العنوان المضيف الذي يستخدمه كل إعداد مسبق ما لم تغيّره. ويعيد خيار Use default في حقل العنوان عنوان الإعداد المسبق الأصلي. لا تخمّن عنواناً آخر بعد فشل الاتصال، بل اقرأ رسالة الخطأ أولاً.</p>
+
+<h2 id="provider-notes">ملاحظات حسب المزود</h2>
+<p>تختلف ضوابط الاستدلال باختلاف المزود والنموذج. تصف هذه الملاحظات ما يرسله Rune؛ ويظل بإمكان المزود تغيير كيفية تعامل النموذج معه. اضبط خيارات الاستدلال للنموذج بالضغط على <kbd>Alt+C</kbd> في قسم Models، كما هو مشروح في <a href="{{url "docs/generation"}}">التوليد والاستدلال</a>.</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>استخدم عنوان الوضع المتوافق لمساحة عمل Model Studio ومنطقتك الجغرافية، مع مفتاح من تلك المنطقة نفسها. يعمل التفكير بنمط تشغيل أو إيقاف دون مستويات. لا تعرض خيار Off لنموذج يفكر دائماً لأنه سيرفض الطلب. وتعيد نماذج GLM على Model Studio استدعاءات الأدوات فقط مع خيار لا يرسله Rune، لذا استخدمها عبر Z.ai.</dd></div>
+<div><dt>cerebras</dt><dd>تختلف مستويات الاستدلال حسب النموذج ولا تسردها الخدمة تلقائياً. يقبل النموذجان <code>gpt-oss-120b</code> و<code>qwen-3.8-27b</code> المستويات Low وMedium وHigh؛ أضفها بالضغط على <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>cloudflare</dt><dd>خدمة Workers AI. يتضمن العنوان معرّف حسابك، والمفتاح هو رمز API يتمتع بصلاحية Workers AI وليس رمز Tunnel. تُقرأ النماذج من قائمة النماذج الخاصة بحسابك.</dd></div>
+<div><dt>compatible</dt><dd>أي نقطة نهاية متوافقة مع OpenAI. لا يفترض البرنامج أي شيء عن نماذجها مسبقاً: اضبط حجم السياق والمخرجات والاستدلال بالضغط على <kbd>Alt+C</kbd> استناداً إلى توثيق نقطة النهاية نفسها.</dd></div>
+<div><dt>deepinfra</dt><dd>تقدم قائمة نماذجه الأسعار وتميز النماذج التي تدعم الاستدلال. المستويات هي Low وMedium وHigh؛ وعند عدم اختيار مستوى ينطبق الإعداد الافتراضي للنموذج نفسه.</dd></div>
+<div><dt>fireworks</dt><dd>تتدرج المستويات من Low إلى Max. ويُضبط النموذج الذي يقبل مستويات أقل باستخدام <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>huggingface</dt><dd>موجه Inference Providers، مع رمز يُسمح له باستدعاء Inference Providers. ويعتمد المزود الذي يخدم النموذج وما يدعمه على ذلك الزوج.</dd></div>
+<div><dt>inclusionai</dt><dd>نماذج Ling من InclusionAI عبر واجهة Ling API التابعة لمجموعة Ant Group. تبدّل نماذج 3.0 و3.1 التفكير تشغيلاً أو إيقافاً دون مستويات. أما خادم Ling الذي تستضيفه بنفسك فيُضاف عبر <code>compatible</code>.</dd></div>
+<div><dt>inference</dt><dd>تسمي قائمة نماذجه مستويات التفكير الخاصة بكل نموذج، ويعرض Rune تلك المستويات تحديداً.</dd></div>
+<div><dt>meta</dt><dd>واجهة Meta Model API، وليست تسجيل دخول لمحادثة Meta AI. تتدرج المستويات من Minimal إلى Extra high. يفكر نموذج Muse Spark دائماً ويرفض خيار Off وكلمات الإيقاف، لذا اترك حقل Stop فارغاً في قسم Generation.</dd></div>
+<div><dt>mimo</dt><dd>تصل مفاتيح الدفع حسب الاستخدام ومفاتيح Token Plan إلى عناوين مختلفة؛ ويختار Rune العنوان المناسب بناءً على المفتاح الذي تدخله.</dd></div>
+<div><dt>minimax</dt><dd>يطلب Rune التفكير منفصلاً عن الإجابة. يقبل النموذج <code>MiniMax-M3.1-Flash</code> وحده المستويات (من Low إلى Max): أضفها عبر <kbd>Alt+C</kbd>. لا تعرض خيار Off لنماذج MiniMax.</dd></div>
+<div><dt>moonshot</dt><dd>نماذج Kimi. يقبل النموذج <code>kimi-k3</code> المستويات Low وHigh وMax؛ أضفها عبر <kbd>Alt+C</kbd>. أما نماذج <code>kimi-k2</code> فلا تقبل مستويات. لا تعرض خيار Off لنماذج Kimi.</dd></div>
+<div><dt>novita</dt><dd>يعمل التفكير بنمط تشغيل أو إيقاف في النماذج التي توفر الخيارين دون مستويات. وتأتي الأسعار من قائمة نماذجه.</dd></div>
+<div><dt>nvidia</dt><dd>واجهة NIM API المستضافة. تختلف ضوابط التفكير حسب النموذج ولا تسردها الخدمة؛ اضبطها لكل نموذج استناداً إلى بطاقة ذلك النموذج. ويستخدم خادم NIM المستضاف ذاتياً عنوانه الخاص.</dd></div>
+<div><dt>openrouter</dt><dd>يوفر حساب واحد العديد من النماذج بأسعار وحدود مختلفة. اختر النموذج الدقيق وتحقق من سعره الحالي.</dd></div>
+<div><dt>siliconflow</dt><dd>العنوان العالمي؛ بينما يستخدم حساب .cn عنوانه ومفتاحه الخاصين. يعمل التفكير بنمط تشغيل أو إيقاف في النماذج التي يسردها SiliconFlow لذلك. ولا يستدعي النموذج <code>deepseek-ai/DeepSeek-V3.1</code> الأدوات إلا عند إيقاف التفكير.</dd></div>
+<div><dt>stepfun</dt><dd>المستويات هي Low وMedium وHigh. يقبل النموذج <code>step-3.5-flash-2603</code> المستويين Low وHigh فقط: أزل المستوى Medium له عبر <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tencent</dt><dd>تنتقل خدمة Hunyuan إلى TokenHub: أدخل عنوان TokenHub الخاص بمنطقتك (المعروض بجانب حقل العنوان) مع مفتاح من تلك المنطقة. يعمل التفكير بنمط تشغيل أو إيقاف مع المستويات Low وMedium وHigh. وترفض بعض النماذج التي يقدمها TokenHub لمزودين آخرين خيار Off.</dd></div>
+<div><dt>together</dt><dd>تقدم قائمة نماذجه الأسعار دون مستويات التفكير: أضف المستويات الموثقة للنموذج عبر <kbd>Alt+C</kbd>.</dd></div>
+<div><dt>tokenrouter</dt><dd>خدمة TokenRouter على النطاق tokenrouter.com. أما الخدمات التي تحمل أسماء مشابهة على نطاقات أخرى فهي شركات مختلفة لها عناوينها الخاصة.</dd></div>
+<div><dt>zai</dt><dd>واجهة API القياسية من Z.ai. تمتلك خطة Coding Plan مفاتيحها وعناوينها وقائمة أدواتها المؤهلة الخاصة بها. تتدرج المستويات من Minimal إلى Max؛ وعند عدم اختيار مستوى ينطبق الإعداد الافتراضي للخدمة (Max). يفكر النموذج <code>glm-5.3</code> دائماً ويقبل المستويات Low وHigh وMax فقط. وتُقبل كلمة إيقاف واحدة فقط.</dd></div>
+</dl>
+
+<h2 id="on-this-computer">النماذج العاملة على هذا الحاسوب</h2>
+<p>يقدم <strong>Ollama</strong> النماذج المحلية من هذا الحاسوب على المنفذ 11434 دون مفتاح. وهذه خدمة مختلفة عن خدمة البحث السحابي في الويب من Ollama. يُبقي النموذج المحلي الموجهات على جهازك، لكن أدوات الويب والمهام المساعدة والأوامر قد تظل تتصل بخدمات أخرى.</p>
+<p>تطبيق <strong>9router</strong> هو موجه يعمل على حاسوبك (على المنفذ 20128 افتراضياً) ويمرر الطلبات إلى الحسابات الخلفية التي أعددتها بداخله. يخدم اتصال واحد كل نموذج يوفره. وبالنسبة لنماذج Claude Code (<code>cc/…</code>)، يستخدم Rune بوابة 9router المتوافقة مع Anthropic تلقائياً بحيث تصل أعداد التخزين المؤقت والتفكير دون حاجة لأي إعداد إضافي. وتُعد القيمة Off طلباً للتعطيل: فعندما يبلّغ المسار بعدم إمكانية تعطيل التفكير، تطلب القيمة Off المستوى Low بدلاً من ذلك.</p>
+<p>العنوان المحلي في الإعداد المسبق هو مجرد قيمة افتراضية وليس دليلاً على أن الخدمة تعمل فعلياً على جهازك. شغّل الخدمة أولاً؛ وسيخبرك طلب الاختبار الذي يجريه Rune ما إذا كانت قد أجابت.</p>
+
+<h2 id="keys">المفاتيح والحسابات</h2>
+<p>يمكن أن يضم الاتصال الواحد عدة مفاتيح. يسردها الأمر <code>rune -provider keys &lt;name&gt;</code> مقنّعة، ويديرها قسم Connections دون إظهار قيمها. وعندما يبلّغ مفتاح عن عدم كفاية الرصيد، يريحه Rune لمدة 15 دقيقة ويستخدم مفتاحاً آخر إذا توفر في الاتصال؛ راجع <a href="{{url "docs/runtime"}}">وقت التشغيل وإعادة المحاولة</a>.</p>
+<p>تزيل إزالة الاتصال تكوينه، بينما قد تبقى مفاتيحه في المخزن المشفر لإعادة الاستخدام؛ احذف المفتاح صراحةً عندما تقصد إزالته. ولا ينتقل أي مفتاح عبر بروتوكول HTTP غير المشفر إلى جهاز آخر أبداً.</p>
+
+<h2 id="choose-a-model">اختيار نموذج</h2>
+<p>يسرد المسار Settings → Models النماذج التي يعيدها المزودون المتصلون لديك، ويمكنه تحديث تلك القائمة. اختر نموذجاً بالضغط على <kbd>Enter</kbd>، أو اكتب <code>/model provider:id</code> في المحادثة. ويعدّل الاختصار <kbd>Alt+C</kbd> على النموذج ما يعرفه Rune عنه: حجم السياق، وحد المخرجات، وخيارات الاستدلال، والسعر. يُستخدم السعر الذي تدخله لحساب الإنفاق المعروض في اللوحة الجانبية، وهو ليس فاتورة المزود الرسمية.</p>
+<p>يختار المسار Models → New-session fallback المزود الذي تبدأ به الجلسة الجديدة، ولا يبدّل المحادثات المفتوحة؛ استخدم الأمر <code>/provider</code> أو <code>/model</code> داخل الجلسة لتغييرها.</p>
+{{end}}

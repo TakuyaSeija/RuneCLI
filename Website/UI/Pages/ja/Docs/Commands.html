@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">コマンドの使い方</h2>
+<p>コンポーザーに <code>/</code> を入力するとコマンドパレットを検索できます。矢印キーで選択し、<kbd>Tab</kbd> で補完、<kbd>Enter</kbd> で実行します。角括弧 <code>[ ]</code> の引数は省略可能で、山括弧 <code>&lt; &gt;</code> はそのまま入力する文字列ではなく、あなたが指定する値を表します。インストール済みビルドの正確な仕様は <code>/help</code> で確認できます。</p>
+<h2 id="session-and-context">セッションとコンテキスト</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>このワークスペースで新しい会話を開始します（現在のセッションは削除されません）。</dd></div>
+<div><dt>/session</dt><dd>このワークスペースの検索可能なセッションピッカーを開きます。</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>保存されている特定のセッションを再開します。</dd></div>
+<div><dt>/compact</dt><dd>古いコンテキストを要約します。モデルへのリクエストが発生し、過去の細部が省略される場合があります（ディスク上の保存データは消去されません）。</dd></div>
+<div><dt>/context</dt><dd>モデルに渡されているコンテキストを確認します。共有する際は非公開の作業データとして扱いに注意してください。</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>診断イベントを開きます（重要度での絞り込みも可能）。失敗したリクエストや再試行の履歴はここに記録されます。ログの確認自体は、再試行やアカウント変更の許可を意味しません。</dd></div>
+</dl>
+<h2 id="model-and-permissions">モデルと権限</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>プロバイダとモデルのペアを選択します（引数なしの場合は Models 画面を開きます）。モデル ID が複数のプロバイダで重複する場合は、一覧からプロバイダごと選択してください。</dd></div>
+<div><dt>/provider [name]</dt><dd>回答を担当するプロバイダを選択します（名前を省略すると一覧を開きます）。以降の作業の送信先が変わります。</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>現在のモデルで利用可能な推論（Reasoning）設定を確認または選択します。Alt+T でも順番に切り替えられます。<code>off</code> は推論無効化の要求であり、上流の経路が推論を一切行わないことを保証するものではありません。</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>セッションの権限モードを順番に切り替えるか、明示的に指定します。Full は広範な自律権限を与えるため、単なるエラー回避目的で使用しないでください。</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>ポリシー審査の確認または設定を行います。<code>reload</code> は待機中のセッションに最新のポリシーを反映します（スイッチが有効なだけでは、審査が実際に稼働している証明にはなりません）。</dd></div>
+<div><dt>/set key=value</dt><dd><code>/set temperature=0.2</code> のように、対応しているモデル／セッション制御パラメータを変更します。<code>/set temperature=</code> のように任意の値を空にすると、既定値またはプロバイダ側の設定に戻ります。</dd></div>
+</dl>
+<h2 id="files-and-capabilities">ファイルと拡張機能</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>次のメッセージにファイルを添付します。送信前に添付待ちリストを確認してください。対応形式のコンテンツは選択中のプロバイダに送信されます。</dd></div>
+<div><dt>/detach number|all</dt><dd>添付待ちのファイルを番号指定で 1 つ外すか、すべて解除します。</dd></div>
+<div><dt>/undo</dt><dd>対象ファイルの差分をプレビューし、このセッションで最初に行われた変更より前の状態に復元します（セッション外で後から加えた編集が上書きされる場合があります）。</dd></div>
+<div><dt>/redo</dt><dd>直前の undo が置き換えた内容をプレビューして元に戻します（無制限のバックアップ履歴ではありません）。</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>利用可能なスキルガイドを管理します。<code>show</code>、<code>enable</code>、<code>disable</code> には一覧表示されるスキル ID を指定します。編集後は <code>reload</code> でカタログを更新してください。</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>現在の会話で指定したガイドを有効化します。ガイドを有効化しても、その中に書かれたすべての操作に実行権限が与えられるわけではありません。</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>外部ツール接続を管理します。追加や接続の前に、サーバー、接続先、アクセス権限を確認してください（ローカルサーバーはコードを実行できます）。</dd></div>
+</dl>
+<h2 id="views-and-application">画面表示とアプリケーション</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>Settings 画面を開きます。<code>/*</code> はエイリアスで、キーボードショートカットは Ctrl+G です。</dd></div>
+<div><dt>/theme [name]</dt><dd>テーマ（violet、cyan、amber）を選択します。ターミナル自体の背景色や透過はターミナル側の設定に従います。</dd></div>
+<div><dt>/panel</dt><dd>会話サイドパネルの表示・非表示を切り替えます（画面幅が狭い場合は非表示のままになることがあります）。</dd></div>
+<div><dt>/verbose</dt><dd>ツールステップや思考過程を展開または折りたたみます（ツールが返す出力文字数の上限を増やすものではありません）。</dd></div>
+<div><dt>/help</dt><dd>現在のビルドのコマンドおよびキーボードリファレンスを表示します。</dd></div>
+<div><dt>/quit</dt><dd>Rune を終了します。最後のウィンドウを閉じると実行中の AI 作業は停止します（保持されたバックグラウンドタスクには個別の生存期間があります）。</dd></div>
+</dl>
+<p><code>rune -config</code> などのシェルコマンドはスラッシュコマンドパレットではなく、OS のターミナルで実行します。それらについては <a href="{{url "docs/cli"}}">CLI リファレンス</a>を参照してください。コンポーザーから自分でシェルコマンドを実行する場合は、先頭に <code>!</code> を付けて入力します（詳しくは<a href="{{url "docs/shell"}}">手動シェルコマンド</a>をご覧ください）。</p>
+{{end}}

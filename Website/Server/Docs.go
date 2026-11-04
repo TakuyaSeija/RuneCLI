@@ -9,7 +9,7 @@ import (
 
 // Documentation is ordinary server-rendered pages. Navigation, pagination and
 // the sitemap share this catalogue; JavaScript never decides what can be read.
-const documentedVersion = "0.11.5"
+const documentedVersion = "0.11.7"
 
 type docGroup struct {
 	Title string
@@ -72,7 +72,7 @@ func documentationPages() []*page {
 	for _, group := range docGroups {
 		for _, p := range group.Pages {
 			p.Section = group.Title
-			p.Title = p.Label + " — RuneAgent docs"
+			p.Title = p.Label + " | RuneAgent docs"
 			p.File = "Docs/" + p.File
 			out = append(out, p)
 		}

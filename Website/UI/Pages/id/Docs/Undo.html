@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="inspect-changes">Periksa perubahan berkas yang sebenarnya</h2>
+<p>Panel samping melaporkan perbedaan terkini untuk berkas-berkas yang dilacak oleh sesi. Jumlah baris yang ditambahkan dan dihapus membandingkan isi berkas saat ini dengan keadaan awalnya, bukan menjumlahkan judul setiap langkah pengeditan. Pengeditan berulang yang saling menghapus akan saling meniadakan, dan angka jumlah baris pada satu langkah perangkat saja bukanlah tinjauan yang utuh.</p>
+<p>Periksa diff perubahan dan jalankan kembali pengujian yang relevan sebelum mempertahankan hasilnya. Perintah pengujian yang lulus hanya membuktikan apa yang diuji oleh perintah tersebut. Rune tidak pernah melakukan commit Git secara otomatis atas nama Anda, dan fitur pemulihan berkas bukanlah pengganti sistem kontrol versi atau cadangan data terpisah.</p>
+<h2 id="restore-a-file">Memulihkan berkas</h2>
+<ol><li>Tunggu hingga pekerjaan yang sedang mengubah berkas tersebut selesai.</li><li>Buka <code>/undo</code> lalu pilih berkas yang dimaksud. Gunakan tindakan peninjauan diff yang tersedia (termasuk pintasan Alt+S di dalam daftar) untuk membaca baris apa saja yang akan berubah.</li><li>Mulai konfirmasi dengan menekan Enter, lalu konfirmasikan lagi dalam rentang waktu yang ditampilkan setelah Anda yakin dengan isinya.</li><li>Periksa kembali berkas yang telah dipulihkan beserta pekerjaan lain yang bergantung padanya.</li></ol>
+<p>Perintah Undo mengembalikan berkas ke keadaannya sebelum diubah pertama kali oleh sesi ini, <strong>bukan sekadar membatalkan satu langkah patch terakhir</strong>. Pemulihan ini dapat menimpa pengeditan yang Anda lakukan di luar Rune setelah potret awal diambil. Pemulihan berkas adalah perubahan berkas nyata dan dicatat demikian di dalam sesi.</p>
+<h2 id="redo">Redo memiliki batasan</h2>
+<p>Perintah <code>/redo</code> dapat mengembalikan isi yang baru saja digantikan oleh tindakan undo terakhir. Tinjau diff-nya dengan cara yang sama sebelum mengonfirmasi. Fitur ini bukanlah garis waktu riwayat tanpa batas untuk sembarang versi berkas dan tidak semestinya dijadikan satu-satunya rencana pemulihan Anda.</p>
+<h2 id="limits">Apa yang tidak dapat dijanjikan oleh pemulihan berkas</h2>
+<p>Potret berkas lokal tidak dapat membatalkan deployment ke server jarak jauh, transaksi basis data di layanan eksternal, pengiriman email, pemasangan paket sistem, atau setiap dampak samping dari sembarang perintah shell. Berkas yang berada di luar cakupan yang dilacak serta perubahan yang dilakukan oleh program lain memerlukan strategi pemulihannya sendiri. Periksa daftar berkas yang benar-benar tercatat di panel samping alih-alih mengasumsikan seluruh isi komputer Anda tercakup.</p>
+<p>Batas ukuran berkas bawaan yang dilindungi potret pemulihan adalah 64 MiB. Penulisan pada berkas yang memenuhi syarat namun ukurannya melampaui batas tersebut akan ditolak sebelum berkas diubah, alih-alih dijalankan tanpa perlindungan undo. Menaikkan batas ini akan memakai lebih banyak ruang disk; sedangkan menurunkannya dapat menghentikan penulisan berkas besar. Jangan pernah menganggap dampak samping eksternal yang tidak terlindungi sebagai sesuatu yang dapat dibatalkan dengan undo.</p>
+<h2 id="advanced-options">Opsi konfigurasi lanjutan</h2>
+<dl class="ref">
+<div><dt>checkpoint.max_file_size</dt><dd>Batas ukuran maksimum bawaan 64 MiB untuk potret satu berkas yang memenuhi syarat.</dd></div>
+<div><dt>checkpoint.refresh_interval</dt><dd>Jeda penyegaran bawaan 1 detik untuk memantau perubahan pada berkas yang sudah dilacak, dapat diatur mulai dari 100 ms hingga 1 menit.</dd></div>
+<div><dt>checkpoint.diff.context</dt><dd>Tiga baris konteks di sekitar perubahan secara bawaan, dapat diatur dari 0 hingga 100 baris.</dd></div>
+<div><dt>checkpoint.diff.max_cells</dt><dd>Batas kerja perhitungan perbandingan diff, 1.000.000 sel secara bawaan. Nilai ini memengaruhi algoritma perbandingan diff, bukan hak akses berkas atau jumlah perubahan yang diizinkan.</dd></div>
+</dl>
+<p>Kunci-kunci di atas adalah pengaturan lanjutan di berkas konfigurasi, bukan baris menu tambahan di halaman Settings saat ini. Periksa rincian sebuah opsi dengan <code>rune -config explain &lt;key&gt;</code>; atur ulang ke nilai bawaan dengan <code>rune -config reset &lt;key&gt;</code>.</p>
+{{end}}

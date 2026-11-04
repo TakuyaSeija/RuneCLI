@@ -1,0 +1,181 @@
+{
+  "pages": {
+    "": {
+      "title": "RuneAgent | ein Coding-Agent für dein Terminal",
+      "lead": "RuneAgent von Atoryn Studio arbeitet in deinem Projekt mit dem Modell deiner Wahl, mit sichtbaren Werkzeugergebnissen, einstellbaren Berechtigungen und prüfbaren Dateiänderungen."
+    },
+    "changelog": {
+      "title": "Änderungsprotokoll | RuneAgent",
+      "lead": "Jedes veröffentlichte Release von RuneAgent."
+    },
+    "license": {
+      "title": "Lizenz | RuneAgent",
+      "lead": "Die Lizenz, unter der RuneAgent bereitgestellt wird, zum Lesen übersetzt; verbindlich ist der englische Text."
+    },
+    "notfound": {
+      "title": "Seite nicht gefunden | RuneAgent",
+      "lead": "Diese Seite gibt es nicht."
+    }
+  },
+  "groups": {
+    "Get started": "Erste Schritte",
+    "Use Rune": "Rune verwenden",
+    "Configure": "Konfigurieren",
+    "Extend": "Erweitern",
+    "Trust & understand": "Vertrauen & Verständnis"
+  },
+  "docs_title": "{label} | RuneAgent-Dokumentation",
+  "docs": {
+    "docs": {
+      "label": "Einführung",
+      "lead": "Was Rune tut, was es an ein Modell sendet und wie du deine erste Sitzung startest."
+    },
+    "docs/install": {
+      "label": "Installieren & aktualisieren",
+      "lead": "Systemvoraussetzungen, was die Installer tun, PATH, der Datenordner, Updates und Entfernen unter Linux, macOS und Windows."
+    },
+    "docs/platforms": {
+      "label": "Plattformunterstützung",
+      "lead": "Was unter Linux, macOS und Windows gleich funktioniert und was jedes System anders macht."
+    },
+    "docs/interface": {
+      "label": "Oberfläche",
+      "lead": "Unterhaltung, Berechtigungskarten, Plan, Dateiänderungen und Sitzungsstatus lesen."
+    },
+    "docs/sessions": {
+      "label": "Sitzungen & Kontext",
+      "lead": "Arbeit starten, fortsetzen und lenken; den Kontext prüfen und ältere Verläufe verdichten."
+    },
+    "docs/commands": {
+      "label": "Slash-Befehle",
+      "lead": "Die Befehle der Unterhaltung, ihre Argumente und was jeder davon ändert."
+    },
+    "docs/cli": {
+      "label": "Kommandozeilenreferenz",
+      "lead": "Startoptionen und rune-Unterbefehle für Konfiguration, Konten, Sitzungen und Wartung."
+    },
+    "docs/keyboard": {
+      "label": "Tastatur & Maus",
+      "lead": "Die maßgeblichen Tastenkürzel für Bearbeiten, Navigieren, Fragen und die Unterhaltung."
+    },
+    "docs/shell": {
+      "label": "Manuelle Befehle",
+      "lead": "Einen Befehl selbst mit vorangestelltem ! ausführen — was er darf, wann er läuft und was die KI sieht."
+    },
+    "docs/instructions": {
+      "label": "Anweisungen & Anhänge",
+      "lead": "Projektvorgaben bereitstellen, Dateien anhängen und ein dauerhaftes Projektgedächtnis führen."
+    },
+    "docs/memory": {
+      "label": "Gedächtnis",
+      "lead": "Was das Projektgedächtnis enthält, was tatsächlich beim Modell ankommt, sein eines Byte-Budget und was es nie entscheiden darf."
+    },
+    "docs/undo": {
+      "label": "Prüfen, Rückgängig & Wiederholen",
+      "lead": "Echte Datei-Diffs prüfen und verstehen, was eine Sitzungswiederherstellung rückgängig machen kann und was nicht."
+    },
+    "docs/settings": {
+      "label": "Einstellungen im Überblick",
+      "lead": "Den richtigen Bereich in Settings finden und globale Einstellungen von Sitzungssteuerungen unterscheiden."
+    },
+    "docs/configuration": {
+      "label": "Konfigurationsdatei",
+      "lead": "Werte in rune.toml prüfen, ändern und zurücksetzen, ohne eigene Entscheidungen mit Standardwerten zu verwechseln."
+    },
+    "docs/reference": {
+      "label": "Einstellungsreferenz",
+      "lead": "Jede Einstellung in rune.toml: ihr Werkswert, was sie bewirkt, welche Werte sie akzeptiert und wann eine Änderung wirkt."
+    },
+    "docs/connections": {
+      "label": "Verbindungen",
+      "lead": "Modell- und Webkonten hinzufügen, Zugangsdaten verwalten und das Ziel vor dem Verbinden prüfen."
+    },
+    "docs/providers": {
+      "label": "Modellanbieter",
+      "lead": "Die 31 Anbieter-Voreinstellungen, ihre Schlüssel und Adressen, lokale Dienste und Hinweise zum Reasoning je Anbieter."
+    },
+    "docs/models": {
+      "label": "Modelle & Fähigkeiten",
+      "lead": "Ein Anbieter/Modell-Paar wählen und bekannte Limits, Reasoning-Optionen und Preise einstellen."
+    },
+    "docs/generation": {
+      "label": "Generierung & Reasoning",
+      "lead": "Reasoning, Sampling und angeforderte Ausgabe des aktuellen Modells steuern."
+    },
+    "docs/auxiliary": {
+      "label": "Hilfsmodelle",
+      "lead": "Sanitizer-, Classifier-, Compaction- und Titel-Aufgaben einstellen, samt ihren Folgen für Daten und Kosten."
+    },
+    "docs/runtime": {
+      "label": "Laufzeit & Wiederholungen",
+      "lead": "Fristen von Anfragen, lineare Wartezeiten zwischen Wiederholungen, die Guthaben-Pause und die Lebensdauer losgelöster Sitzungen verstehen."
+    },
+    "docs/tools": {
+      "label": "Werkzeuge & Limits",
+      "lead": "Limits für zurückgegebene Ausgaben und Arbeit festlegen und sie von einer Faltung in der Anzeige oder einer Berechtigung unterscheiden."
+    },
+    "docs/terminal": {
+      "label": "Terminal & Hintergrundarbeit",
+      "lead": "Wie Befehle in den Hintergrund wechseln, Eingaben erhalten und ihr Ende oder ihren Verlust melden."
+    },
+    "docs/web": {
+      "label": "Websuche & Abruf",
+      "lead": "Getrennte Anbieter für Suche und Seitenabruf einrichten, ohne Ziele stillschweigend zu ändern."
+    },
+    "docs/appearance": {
+      "label": "Darstellung",
+      "lead": "Ein Theme wählen, die Seitenleiste ein- und ausblenden und die vom Terminal abhängige Darstellung verstehen."
+    },
+    "docs/skills": {
+      "label": "Skills",
+      "lead": "Wiederverwendbare Anleitungen finden, aktivieren und verwalten, ohne sie als Erlaubnis zu behandeln."
+    },
+    "docs/mcp": {
+      "label": "MCP-Verbindungen",
+      "lead": "Externe Werkzeugserver, ihre Reichweite und ihren Zugriff prüfen, bevor du sie mit Rune verbindest."
+    },
+    "docs/security": {
+      "label": "Sicherheit",
+      "lead": "Die Vertrauensgrenze, die Berechtigungsmodi, Einschränkungen der Plattformen und die Grenzen der Abschottung."
+    },
+    "docs/classifier": {
+      "label": "Klassifiziererrichtlinie",
+      "lead": "Die Richtlinie CLASSIFIER.md schreiben und neu laden und verstehen, wann die KI-Prüfung wirklich aktiv ist."
+    },
+    "docs/privacy": {
+      "label": "Datenschutz & Daten",
+      "lead": "Was lokal bleibt, was an einen Anbieter geht und was du prüfen solltest, bevor du Diagnosedaten teilst."
+    },
+    "docs/credentials": {
+      "label": "Zugangsdaten",
+      "lead": "Die Eingabe für Zugangsdaten nutzen, fehlende von nicht verfügbaren Schlüsseln unterscheiden und bewusst wiederherstellen."
+    },
+    "docs/verification": {
+      "label": "Release-Prüfung",
+      "lead": "Die Signatur eines Releases und die Prüfsumme des Archivs prüfen und die Vertrauensgrenzen des Signaturschlüssels verstehen."
+    },
+    "docs/architecture": {
+      "label": "Architektur",
+      "lead": "Ein öffentlicher Überblick über Frontend, lokale Engine, Modellanbieter, Werkzeugausführung und Sitzungsdaten."
+    },
+    "docs/troubleshooting": {
+      "label": "Fehlerbehebung",
+      "lead": "Den tatsächlichen Status ermitteln, bevor du Zeitlimits, Anbieter oder Zugriffe änderst."
+    }
+  },
+  "chapters": {
+    "Plan": "Plan",
+    "Build": "Bauen",
+    "Test": "Testen",
+    "Fix": "Beheben",
+    "Verify": "Prüfen",
+    "Report": "Bericht"
+  },
+  "install_note": {
+    "none": "Es ist noch kein signiertes Release veröffentlicht. Der Befehl beendet sich derzeit, ohne etwas zu installieren.",
+    "missing": "Release {version} hat keinen signierten Build für {system}. Der Befehl beendet sich, ohne etwas zu installieren.",
+    "release": "Release {version}, veröffentlicht am {date}, für {system} ({builds}).",
+    "beta": "Die Unterstützung für {system} ist in der Beta.",
+    "and": "und"
+  }
+}

@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="using-commands">Befehle verwenden</h2>
+<p>Tippe <code>/</code> im Eingabefeld, um die Befehlspalette zu durchsuchen. Wähle mit den Pfeiltasten aus, vervollständige mit <kbd>Tab</kbd> und führe den Befehl mit <kbd>Enter</kbd> aus. Argumente in eckigen Klammern sind optional; spitze Klammern kennzeichnen einen Platzhalter für deinen eigenen Wert und werden nicht wörtlich mitgetippt. Verbindlich für deinen installierten Build ist stets <code>/help</code>.</p>
+<h2 id="session-and-context">Sitzung und Kontext</h2>
+<dl class="ref">
+<div><dt>/new</dt><dd>Startet eine neue Unterhaltung in diesem Workspace. Die aktuelle Sitzung wird dabei nicht gelöscht.</dd></div>
+<div><dt>/session</dt><dd>Öffnet die durchsuchbare Sitzungsauswahl für diesen Workspace.</dd></div>
+<div><dt>/resume &lt;id&gt;</dt><dd>Setzt eine bestimmte gespeicherte Sitzung fort.</dd></div>
+<div><dt>/compact</dt><dd>Fasst älteren Kontext zusammen. Dies kann eine Modellanfrage auslösen und Detailinformationen im Kontext verkürzen; der Festplattenspeicher wird dadurch nicht gelöscht.</dd></div>
+<div><dt>/context</dt><dd>Zeigt den Kontext an, der an das Modell übergeben wird. Behandle den Inhalt beim Teilen als vertrauliche Projektdaten.</dd></div>
+<div><dt>/logs [all|warn|error]</dt><dd>Öffnet Diagnoseereignisse, optional gefiltert nach Schweregrad. Fehlgeschlagene Anfragen und Wiederholungsversuche sind hier einsehbar; die Ansicht selbst erteilt keine Berechtigung für Wiederholungen oder Kontoänderungen.</dd></div>
+</dl>
+<h2 id="model-and-permissions">Modell und Berechtigungen</h2>
+<dl class="ref">
+<div><dt>/model [provider:id|id]</dt><dd>Wählt ein Paar aus Anbieter und Modell oder öffnet ohne Argument die Modellübersicht. Bei mehrdeutigen Modell-IDs wählst du das Modell am besten über den jeweiligen Anbieter in der Liste aus.</dd></div>
+<div><dt>/provider [name]</dt><dd>Wählt den antwortenden Anbieter; ohne Namen öffnet sich die Liste. Dies ändert, wohin nachfolgende Anfragen gesendet werden.</dd></div>
+<div><dt>/thinking [off|effort]</dt><dd>Zeigt die verfügbaren Reasoning-Stufen dieses Modells an oder wählt eine aus. Alt+T schaltet durch die Optionen. Off ist ein Wunsch an das Modell, kein Garant dafür, dass der Anbieter intern keinerlei Reasoning nutzt.</dd></div>
+<div><dt>/mode [ask|auto|full]</dt><dd>Schaltet den Berechtigungsmodus der Sitzung durch oder setzt ihn gezielt. Full gewährt weitreichende Autonomie; nutze diesen Modus niemals nur, um eine Fehlermeldung zu umgehen.</dd></div>
+<div><dt>/classifier [on|off|model|reload]</dt><dd>Zeigt die Einstellungen der Richtlinienprüfung an oder passt sie an. Reload übernimmt die aktuelle Richtlinie für eine ruhende Sitzung; ein aktivierter Schalter allein beweist nicht, dass die Prüfung aktiv ist.</dd></div>
+<div><dt>/set key=value</dt><dd>Ändert einen unterstützten Modell- oder Sitzungsparameter, zum Beispiel <code>/set temperature=0.2</code>. Lässt du einen optionalen Wert leer, etwa <code>/set temperature=</code>, gilt wieder der Standardwert bzw. die Vorgabe des Anbieters.</dd></div>
+</dl>
+<h2 id="files-and-capabilities">Dateien und Erweiterungen</h2>
+<dl class="ref">
+<div><dt>/attach path</dt><dd>Fügt eine Datei zur nächsten Nachricht hinzu. Prüfe vorgemerkte Anhänge vor dem Absenden; unterstützte Inhalte werden an den gewählten Anbieter übertragen.</dd></div>
+<div><dt>/detach number|all</dt><dd>Entfernt einen einzelnen vorgemerkten Anhang über seine Nummer oder entfernt alle vorgemerkten Anhänge.</dd></div>
+<div><dt>/undo</dt><dd>Zeigt eine Vorschau und setzt geeignete Dateien auf den Zustand vor der ersten Änderung in dieser Sitzung zurück. Spätere externe Bearbeitungen können dabei überschrieben werden.</dd></div>
+<div><dt>/redo</dt><dd>Zeigt eine Vorschau und stellt wieder her, was das letzte Undo zurückgesetzt hat. Dies ist kein unbegrenzter Backup-Verlauf.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Verwaltet verfügbare Anleitungen (Skills). Show, enable und disable erwarten die angezeigte ID des Skills. Reload aktualisiert den Katalog nach Bearbeitungen.</dd></div>
+<div><dt>/skill &lt;id&gt;</dt><dd>Aktiviert eine Anleitung für die laufende Unterhaltung. Die Aktivierung erteilt keine pauschale Freigabe für alle in der Anleitung beschriebenen Aktionen.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Verwaltet externe Tool-Verbindungen. Prüfe Server, Zieladresse und Zugriffsrechte vor dem Hinzufügen oder Verbinden; ein lokaler Server kann Programmcode ausführen.</dd></div>
+</dl>
+<h2 id="views-and-application">Ansichten und Anwendung</h2>
+<dl class="ref">
+<div><dt>/settings</dt><dd>Öffnet die Einstellungen (Settings). <code>/*</code> ist ein Kurzalias; das Tastenkürzel lautet Strg+G.</dd></div>
+<div><dt>/theme [name]</dt><dd>Wählt das Farbschema violet, cyan oder amber. Hintergrund und Transparenz des Terminals selbst bleiben Einstellungen deines Terminals.</dd></div>
+<div><dt>/panel</dt><dd>Blendet die Seitenleiste der Unterhaltung ein oder aus. Schmale Terminals blenden sie unter Umständen weiterhin aus.</dd></div>
+<div><dt>/verbose</dt><dd>Klappt Tool-Schritte und Gedankengänge auf oder wieder zu. Das Ausgabelimit eines Werkzeugs wird dadurch nicht erhöht.</dd></div>
+<div><dt>/help</dt><dd>Öffnet die Befehls- und Tastaturreferenz des installierten Builds.</dd></div>
+<div><dt>/quit</dt><dd>Beendet Rune. Das Schließen des letzten Fensters stoppt laufende KI-Aufgaben; für beibehaltene Hintergrundprozesse gilt eine eigene Lebensdauer.</dd></div>
+</dl>
+<p>Shell-Befehle wie <code>rune -config</code> gehören in dein Systemterminal, nicht in die Slash-Palette. Siehe dazu die <a href="{{url "docs/cli"}}">CLI-Referenz</a>. Um selbst einen Shell-Befehl direkt aus dem Eingabefeld auszuführen, stelle der Eingabe ein <code>!</code> voran; siehe <a href="{{url "docs/shell"}}">Manuelle Befehle</a>.</p>
+{{end}}

@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Tema de cores</h2>
+<p>Settings → Appearance → Color theme oferece Violet, Cyan e Amber. As setas Esquerda/Direita na linha alternam e salvam; Enter abre a lista separada, onde Enter aplica o tema selecionado. Esc sai sem aplicar um item que você apenas visualizou. O tema de fábrica é Amber.</p>
+<p>O tema afeta apenas a apresentação visual, não o comportamento do modelo nem as permissões. Os comandos <code>/theme violet</code>, <code>/theme cyan</code> e <code>/theme amber</code> também selecionam um tema. A chave global é <code>ui.theme</code>; redefinir remove sua substituição.</p>
+<h2 id="side-panel">Painel lateral da conversa</h2>
+<p>Alterne o painel em Appearance, com Ctrl+O ou <code>/panel</code>. A preferência de fábrica é ativada. Terminais estreitos podem ocultar o painel lado a lado mesmo com essa preferência ativa. Ocultá-lo não interrompe a contabilização de uso, o rastreamento de arquivos nem os planos.</p>
+<h2 id="terminal-owns-background">O que cabe ao terminal</h2>
+<p>Seu terminal e ambiente gráfico controlam o papel de parede, a transparência, o desfoque, as decorações da janela e a renderização de fontes. O Rune não possui uma configuração de imagem de fundo ou desfoque. O mesmo tema pode ter aparência diferente sobre um fundo de terminal claro ou escuro.</p>
+<p>Teclas modificadoras e gestos do mouse também dependem do terminal. Um perfil pode reservar Ctrl+roda para zoom, Alt+roda para rolagem horizontal ou certos atalhos para ações próprias.</p>
+<h2 id="advanced-options">Opções avançadas de exibição</h2>
+<p>Alguns valores de cor, mouse, rolagem e tempo de renderização são opções exclusivas do TOML, não controles extras na página Appearance. Inspecione a chave documentada específica antes de alterá-la. Aumentar a frequência de atualização pode consumir mais recursos; uma preferência de rolagem não faz um terminal informar entradas que ele não suporta.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>Redefinir altera a preferência global. Use <code>/help</code> para consultar as teclas de leitura e navegação em vez de tentar adivinhar a partir de outro aplicativo de terminal.</p>
+{{end}}

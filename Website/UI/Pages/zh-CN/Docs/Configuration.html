@@ -1,0 +1,38 @@
+{{define "article"}}
+<h2 id="location-and-scope">文件位置与作用域</h2>
+<p>全局配置文件为当前 Rune 数据主目录下的 <code>rune.toml</code>（通常位于 <code>~/.rune/</code>）。<a href="{{url "docs/reference"}}">设置项参考</a>列出了它支持的全部配置键。可通过 <code>RUNE_HOME</code> 环境变量指定不同的数据主目录。项目内部名为 <code>rune.toml</code> 的文件不会自动作为设置文件加载，而 <code>-project</code> 标志用于选择工作区，不会改变设置主目录。</p>
+<p>运行 <code>rune -config</code> 可查看配置文件的实际路径。该文件仅记录你主动保存的选项；未填写的项会自动继承当前版本的默认值。文件顶层的 <code>version = 1</code> 描述的是配置文件格式版本，而非应用软件版本，请勿为了升级软件而修改该数字。</p>
+<h2 id="inspect">逐项查看与校验</h2>
+<dl class="ref">
+<div><dt>-config explain &lt;key&gt;</dt><dd>查看某个配置键的当前生效值、用途说明及生效时机。</dd></div>
+<div><dt>-config defaults</dt><dd>单独查看出厂默认值（与你已保存的自定义选项区分开）。</dd></div>
+<div><dt>-config check</dt><dd>校验配置文件语法及值是否在受支持范围内。此命令不会测试 API 密钥、账户余额或网络连通性。</dd></div>
+<div><dt>-config show</dt><dd>查看当前合并后的生效配置。输出中可能包含私有账户元数据，对外分享前请先脱敏。</dd></div>
+<div><dt>-settings</dt><dd>查看目标工作区当前生效的模型控制参数。</dd></div>
+</dl>
+<h2 id="change-and-reset">修改与重置</h2>
+<pre class="block"><code>rune -config explain terminal.command_timeout
+rune -config set terminal.command_timeout 2m
+rune -config reset terminal.command_timeout
+rune -config check</code></pre>
+<p>请仅在确需修改全局设置时运行 <code>set</code> 命令。<code>reset</code> 会直接移除覆盖项，而不会将默认值硬编码写入文件。在交互式 Settings 界面中，选择 Use default 对全局配置项起到相同作用。未知或已废弃的配置键会直接报错，不会被静默当成别名处理。</p>
+<p>TOML 语法没有原生的 <code>null</code> 类型。若要清空可选键，请直接从文件中删除该行或使用受支持的 <code>reset</code> 命令，切勿写入 <code>null</code>。也不要假设空字符串、<code>"auto"</code>、<code>"none"</code> 或空列表对所有设置项都代表重置。</p>
+<h2 id="types-and-units">值类型与单位</h2>
+<dl class="ref">
+<div><dt>布尔值（Boolean）</dt><dd>TOML 中不加引号的 <code>true</code> 或 <code>false</code>。</dd></div>
+<div><dt>数量 / Token（Count / tokens）</dt><dd>位于该设置项允许范围内的整数。注意区分 token 数、字符数与字节数这三种不同的计量单位。</dd></div>
+<div><dt>时长（Duration）</dt><dd>带明确单位的字符串，如 <code>"500ms"</code>、<code>"60s"</code> 或 <code>"2m"</code>。仅权限确认与提问等待时长支持设为无限制（unlimited）。</dd></div>
+<div><dt>大小（Size）</dt><dd>请使用明确的二进制单位，如 <code>"16MiB"</code>。不带单位的数字会被解析为 KiB，而非字节（bytes）。</dd></div>
+<div><dt>列表（List）</dt><dd>请填写文档中列出的准确条目。<code>[]</code> 表示显式选择空列表，不一定代表重置为默认值。</dd></div>
+</dl>
+<pre class="block"><code>[terminal]
+command_timeout = "2m"
+
+[generation]
+temperature = 0.2
+stop = ["END,EXACT", "STOP"]</code></pre>
+<p>以上仅为语法示例，并非推荐所有场景照搬的通用配置。TOML 中的 <code>stop</code> 数组可以原样保留包含英文逗号的字符串；而会话内编辑器则按英文逗号分隔多个条目。修改全局生成默认项不会覆盖当前已存在的所有会话。</p>
+<h2 id="timing-and-risk">生效时机与注意事项</h2>
+<p>配置修改通常无需重启即可生效。具体设置项的生效时机可通过 <code>explain</code> 查看：实时生效（live）与下次操作生效（next-operation）的时机各有不同。编辑 <code>CLASSIFIER.md</code> 不会自动刷新已锁定策略的会话，需在会话空闲时执行重新加载操作。</p>
+<p>切勿在公开示例中包含私有账户接口地址和凭据。手动编辑配置文件后请先运行校验，避免误改无关选项。调高各类配额上限可能会增加内存、磁盘、上下文占用与费用，且不会凭空授予权限或让不受支持的模型正常工作。</p>
+{{end}}

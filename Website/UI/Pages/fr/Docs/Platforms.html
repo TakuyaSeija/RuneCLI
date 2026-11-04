@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Prise en charge en un coup d’œil</h2>
+<p>Rune est un seul et même programme doté des mêmes modes, outils, paramètres et données sur chaque système. Ce qui change, c’est ce que chaque système d’exploitation permet à un programme de faire : comment un programme en cours d’exécution est remplacé, comment les commandes sont confinées et ce que le système peut indiquer lorsqu’une commande attend une saisie. Linux est la plateforme principale. macOS et Windows sont en version bêta : compilés et testés sur de vraies machines, mais avec un recul d’utilisation quotidienne plus court.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Domaine</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Prise en charge</td><td>Principale</td><td>Bêta</td><td>Bêta</td></tr>
+<tr><td>Versions</td><td>glibc 2.17 ou plus récent, ou tout système avec la version statique musl</td><td>macOS 11 ou version ultérieure</td><td>Windows 10 version 1809 ou ultérieure, Windows 11</td></tr>
+<tr><td>Processeurs</td><td>x86_64, arm64</td><td>Apple Silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Installateur</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> dans PowerShell</td></tr>
+<tr><td>Fenêtres ouvertes après une mise à jour</td><td>Passent à la nouvelle version dès qu’elles sont inactives</td><td>Passent à la nouvelle version dès qu’elles sont inactives</td><td>Conservent leur version ; la prochaine fenêtre Rune ouverte utilise la nouvelle</td></tr>
+<tr><td>Bac à sable des commandes</td><td>Bac à sable du noyau, lorsque le noyau le fournit</td><td>Bac à sable natif de macOS</td><td>Un compte Windows séparé, configuré une seule fois avec confirmation Administrateur</td></tr>
+<tr><td>Commande attendant une saisie clavier</td><td>Chaque attente est détectée</td><td>Uniquement les saisies masquées, comme une invite de mot de passe</td><td>Non détectée</td></tr>
+<tr><td>Shell pour les commandes</td><td>bash, sinon <code>/bin/sh</code></td><td>bash, sinon <code>/bin/sh</code></td><td>PowerShell 7, sinon Windows PowerShell, sinon Invite de commandes</td></tr>
+<tr><td>Copier depuis Rune</td><td>Via le terminal</td><td>Presse-papiers système et terminal</td><td>Presse-papiers système et terminal</td></tr>
+<tr><td>Ouvrir un lien</td><td>Votre navigateur, via <code>xdg-open</code></td><td>Votre navigateur</td><td>Votre navigateur</td></tr>
+</tbody></table></div>
+<p>Les systèmes disposant d’une version signée dans la publication actuelle sont indiqués sous chaque commande d’installation sur la <a href="{{url "install"}}">page d’accueil</a>.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Les commandes sont confinées par le bac à sable du noyau lorsque celui-ci le fournit, ce qui est le cas de la plupart des noyaux de distributions actuelles. Lorsqu’il ne le fournit pas, par exemple sur un noyau ancien, Rune vous l’indique : en mode Auto, chaque commande demande alors votre accord au préalable, et seul le mode Full cesse de demander. La commande <code>/help</code> indique sous <em>This machine</em> si le bac à sable est actif ainsi que tout ce qui peut lui échapper.</p>
+<p>La copie de texte passe par votre terminal, qui doit autoriser les programmes à écrire dans le presse-papiers. Via SSH, ou à l’intérieur de tmux ou screen, cette autorisation peut être désactivée ; activez-la dans le terminal ou le multiplexeur, ou maintenez <kbd>Shift</kbd> enfoncé tout en glissant la souris pour utiliser la sélection native du terminal. L’ouverture d’un lien nécessite <code>xdg-open</code>, fourni par les environnements de bureau.</p>
+<p>Sur un système qui conserve ses programmes dans un dépôt de paquets en lecture seule, tel que NixOS ou Guix, les commandes peuvent lire et exécuter ce qui se trouve dans ce dépôt.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Les commandes s’exécutent dans le bac à sable natif de macOS, restreintes aux mêmes emplacements que sous Linux. La copie de texte renseigne directement le presse-papiers du système, ce qui lui permet de fonctionner dans l’application Terminal de macOS, laquelle ignore les demandes d’écriture dans le presse-papiers passant par le terminal.</p>
+<p>macOS ne signale à Rune que les saisies masquées, telles qu’une demande de mot de passe. Une commande en arrière-plan qui attend silencieusement un autre type de réponse ressemble à une commande encore en train de travailler ; lisez son journal avant de décider, et ne devinez jamais un mot de passe ni ne validez une invite simplement parce qu’une commande est silencieuse.</p>
+<p>Les commandes s’exécutent dans bash, inclus dans macOS, et pas nécessairement dans le shell ouvert par votre terminal (le shell de connexion par défaut de macOS étant zsh). Vous pouvez choisir un autre shell installé en indiquant son chemin absolu dans <code>terminal.shell</code>.</p>
+<p>Installez Rune avec la commande figurant sur la page d’accueil. Une copie téléchargée depuis un navigateur est marquée comme provenant d’Internet, et Gatekeeper refuse de la lancer tant que ce marquage n’est pas retiré ; la page <a href="{{url "docs/install"}}#install">Installation et mise à jour</a> indique comment procéder.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune confine les commandes à l’aide d’un compte local séparé qui lui est propre. La première fois que vous ouvrez Rune, il demande une seule fois une confirmation Administrateur pour créer et configurer ce compte. Si vous refusez, il ne le redemandera pas à chaque démarrage ; exécutez <code>rune -sandbox setup</code> lorsque vous souhaitez l’activer, et <code>rune -sandbox reset</code> pour le supprimer ainsi que tous les accès accordés aux commandes de Rune sur vos dossiers. La commande <code>rune -sandbox</code> répertorie ces accès et indique quel mode de confinement est utilisé.</p>
+<p>Sans ce compte dédié, Rune confine les commandes à l’aide d’une forme restreinte de votre propre compte, avec les limites suivantes :</p>
+<ul>
+<li>Une commande peut toujours lire ce que Windows autorise tout utilisateur à lire, comme les dossiers à la racine d’un lecteur, les autres lecteurs et ProgramData, et peut créer des fichiers dans ProgramData. Votre dossier de profil utilisateur reste hors de sa portée.</li>
+<li>Une commande peut ouvrir, en lecture seule uniquement, un tube nommé (named pipe) créé par un autre programme avec la sécurité par défaut de Windows. L’écriture dans un tel tube est refusée.</li>
+<li>Git Bash et les autres programmes MSYS2 ou Cygwin demandent votre accord avant chaque commande, puis exécutent cet appel avec un accès complet. Le HTTPS natif de Windows, utilisé par <code>curl.exe</code> et <code>Invoke-WebRequest</code>, échoue ; le HTTPS de Git continue de fonctionner.</li>
+</ul>
+<p>Lorsque le compte dédié est en place, Git Bash et le HTTPS natif de Windows fonctionnent à l’intérieur d’une commande confinée. Rune n’accorde pas d’accès aux dossiers système de Windows, à la racine d’un lecteur ni au dossier contenant les profils de tous les utilisateurs : un projet ouvert dans l’un de ces emplacements demandera donc confirmation avant chaque commande en mode Ask et Auto.</p>
+<p>Windows n’indique pas à Rune lorsqu’une commande attend une saisie clavier. Une commande silencieuse en arrière-plan peut attendre une réponse ou être encore en train de travailler : consultez son journal avant de lui envoyer une saisie. Sous Windows, un programme en cours d’exécution ne pouvant pas être remplacé sur place, une mise à jour prend effet dans la prochaine fenêtre Rune que vous ouvrez, et non dans les fenêtres déjà ouvertes.</p>
+
+<h2 id="terminals">Terminaux</h2>
+<p>Les touches et les gestes de la souris ne parviennent à Rune que lorsque le terminal les lui transmet. Konsole zoome avec <kbd>Ctrl</kbd>+molette sauf réglage contraire de son profil, et certains terminaux transforment <kbd>Alt</kbd>+molette en défilement horizontal ; la molette simple et le clavier fonctionnent toujours. Le défilement fluide à la molette ne fonctionne que dans un terminal capable de dessiner des trames entières d’un seul bloc et de suivre la cadence ; ailleurs, chaque cran défile immédiatement. Les couleurs, la transparence et les polices relèvent du terminal. Exécutez <code>/help</code> pour voir ce que reconnaît votre version.</p>
+{{end}}

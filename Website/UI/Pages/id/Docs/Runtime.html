@@ -1,0 +1,26 @@
+{{define "article"}}
+<h2 id="choose-the-right-wait">Pilih batas waktu tunggu yang tepat</h2>
+<p>Menu Settings → Runtime mengatur batas waktu permintaan model, waktu tunggu jaringan bersama, dan kebijakan percobaan ulang (retry). Waktu tunggu perintah terminal latar depan, batas waktu perangkat web, dan masa berlaku kartu izin adalah pengaturan terpisah di bawah menu Tools. Menaikkan semua batas waktu begitu saja hanya akan menyembunyikan gejala masalah tanpa memperbaiki penyebabnya.</p>
+<p>Batas waktu permintaan opsional per akun menerima angka detik bulat dari 5 hingga 3.600. Mengosongkan atau memilih default akan menghapus penimpaan tersebut. Tugas model bantu (auxiliary) memiliki batas waktu operasinya masing-masing. Aliran respons yang masih aktif bekerja berbeda dengan aliran yang terhenti tanpa menerima data baru.</p>
+<h2 id="retry">Percobaan ulang bersifat linier</h2>
+<div class="table-wrap"><table class="data"><thead><tr><th>Kunci</th><th>Nilai bawaan</th><th>Arti</th></tr></thead><tbody>
+<tr><td>retry.max_attempts</td><td>5</td><td>Jumlah percobaan ulang setelah percobaan pertama gagal: total hingga enam kali percobaan. Nilai nol menonaktifkan percobaan ulang.</td></tr>
+<tr><td>retry.initial_delay</td><td>3s</td><td>Jeda dasar: waktu tunggu bertambah secara linier menjadi 3, 6, 9… detik.</td></tr>
+<tr><td>retry.max_delay</td><td>1m</td><td>Jika jeda berikutnya melampaui batas ini, urutan jeda akan kembali dimulai dari jeda dasar. Ini bukan jeda eksponensial (exponential backoff).</td></tr>
+<tr><td>retry.credit_cooldown</td><td>15m</td><td>Berapa lama kunci API yang kehabisan saldo kredit diistirahatkan sebelum dapat dicoba kembali. Pengaturan ini tidak mengisi ulang saldo kredit Anda.</td></tr>
+</tbody></table></div>
+<p>Tidak setiap kegagalan akan dicoba ulang. Mencoba ulang tidak akan memperbaiki kredensial yang salah, kontrol yang tidak didukung oleh model, atau alamat endpoint yang keliru. Jumlah percobaan ulang yang terlalu tinggi justru dapat memperpanjang kegagalan dan menambah biaya; periksa kategori galat di dalam log terlebih dahulu.</p>
+<h2 id="network">Waktu tunggu jaringan</h2>
+<dl class="ref">
+<div><dt>Batas aliran macet</dt><dd><code>network.stream_idle_timeout</code>: 5 menit tanpa ada data respons yang masuk. Ini bukan batas durasi total lima menit untuk aliran panjang yang masih terus mengirim data.</dd></div>
+<div><dt>Batas waktu sambungan</dt><dd><code>network.connect_timeout</code>: 10 detik untuk membuka sambungan jaringan awal.</dd></div>
+<div><dt>Batas waktu pengujian</dt><dd><code>network.probe_timeout</code>: 45 detik untuk pengujian koneksi penyedia secara eksplisit.</dd></div>
+<div><dt>Katalog</dt><dd>Nilai lanjutan: batas waktu permintaan 10 detik, masa berlaku kesegaran katalog 1 jam, dan maksimal 100 halaman per penyegaran. Masa kesegaran katalog bukanlah masa aktif prompt cache.</dd></div>
+</dl>
+<p>Batas lanjutan lainnya mengatur ukuran maksimum respons streaming maupun non-streaming. Nilai tersebut diukur dalam satuan byte, bukan token. Opsi kompatibilitas penghemat token (token-saver) dapat menyerahkan kompresi kepada router yang mendukungnya; mengaktifkannya tidak menjamin kompresi pasti terjadi dan dapat mengurangi rincian keluaran yang diterima.</p>
+<h2 id="detached-lifetime">Masa aktif sesi tanpa jendela</h2>
+<p>Pengaturan <code>host.idle_lifetime</code> adalah opsi global lanjutan dengan nilai bawaan 60 detik. Saat jendela Rune terakhir ditutup, pekerjaan AI yang aktif akan berhenti; namun perintah shell latar belakang masih dapat terus berjalan selama masa tenggang ini. Buka kembali sesi tepat waktu jika ingin melanjutkan pemantauan. Pengaturan ini bukan pengatur waktu keluar akun (logout) dan bukan jaminan server latar belakang yang berjalan selamanya.</p>
+<h2 id="change-and-reset">Ubah dan atur ulang secara sadar</h2>
+<p>Buka baris pengaturan Runtime yang relevan, ubah nilainya, lalu pilih Apply. Opsi Use default menghapus penimpaan; perintah <code>rune -config explain &lt;key&gt;</code> menampilkan nilai efektif beserta kapan perubahan tersebut berlaku. Perubahan batas waktu aliran macet (stream-idle) dapat memengaruhi permintaan yang sedang menunggu, sedangkan pilihan lain umumnya berlaku pada operasi berikutnya.</p>
+<p>Bedakan terlebih dahulu antara layanan yang memang bekerja lambat, koneksi yang terputus diam-diam, kunci API yang kehabisan saldo, dan format permintaan yang tidak didukung. Berhasil menyimpan konfigurasi bukan berarti pengujian jaringan telah berhasil.</p>
+{{end}}

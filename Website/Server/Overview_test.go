@@ -31,7 +31,7 @@ func TestOverviewOwnsOneInstallTheSystemChoiceAndTheSessionCanvas(t *testing.T) 
 	if strings.Count(home, "curl -fsSL") != 2 || strings.Count(home, `data-copy="install-cmd-windows"`) != 1 || strings.Count(home, `data-copy="install-cmd"`) != 1 {
 		t.Fatal("the install box does not hold exactly one command per system")
 	}
-	if _, ok := newTestServer(t, testConfig(f.dir)).site.pages["install"]; ok {
+	if _, ok := newTestServer(t, testConfig(f.dir)).site.pages["en"]["install"]; ok {
 		t.Fatal("install still rendered as separate page")
 	}
 }

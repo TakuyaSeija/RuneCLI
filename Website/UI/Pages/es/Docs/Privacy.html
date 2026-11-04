@@ -1,0 +1,23 @@
+{{define "article"}}
+<h2 id="local-does-not-mean-offline">Local no significa sin conexión</h2>
+<p>Rune se ejecuta en tu ordenador y guarda localmente los ajustes, las sesiones y los datos de tus proyectos. La aplicación no requiere ninguna cuenta de Atoryn ni recopila telemetría del producto. Sin embargo, realiza las solicitudes de red necesarias para las cuentas, catálogos, modelos y herramientas que utilices.</p>
+<p>Usar un modelo remoto envía el contenido pertinente de la solicitud a ese proveedor. Ejecutar el programa en local no implica que todo el código permanezca siempre dentro de tu máquina. Cuando trabajes con material sensible, revisa el destino, la configuración del modelo, los archivos adjuntos y la política de retención de datos del proveedor.</p>
+<h2 id="what-is-sent">Qué datos pueden enviarse</h2>
+<dl class="ref">
+<div><dt>Modelo principal</dt><dd>Tu instrucción, el contexto seleccionado de la conversación, las declaraciones y resultados de herramientas, y los archivos adjuntos compatibles necesarios para la solicitud.</dd></div>
+<div><dt>Modelos auxiliares</dt><dd>El material pertinente para la revisión de políticas, la extracción de instrucciones, los resúmenes o los títulos. Si has configurado un proveedor distinto para ellos, ese proveedor recibirá dicho subconjunto de datos.</dd></div>
+<div><dt>Servicios de búsqueda y lectura web</dt><dd>La consulta de búsqueda, o bien la dirección de la página de destino y la solicitud propia del servicio. El lector integrado contacta directamente con el sitio web de destino.</dd></div>
+<div><dt>MCP y comandos</dt><dd>Los datos pasados a herramientas o programas externos. Su comportamiento de red y su política de retención no quedan cubiertos por una promesa genérica de «agente local».</dd></div>
+<div><dt>Pruebas de cuentas y catálogos</dt><dd>Las solicitudes de autenticación o prueba y las consultas de información de modelos. Las pruebas pueden facturarse.</dd></div>
+</dl>
+<p>Elegir otro punto de conexión es una decisión sobre a dónde se envían tus datos. Si un proveedor web fijado explícitamente no está disponible, Rune no recurre en silencio a otro tercero.</p>
+<h2 id="what-is-kept">Qué se conserva localmente</h2>
+<p>El directorio de datos de Rune seleccionado almacena la configuración, las credenciales cifradas, los datos de conversaciones y proyectos, la memoria y los datos de restauración de archivos elegibles. Cambiar de espacio de trabajo no borra su historial. Por tanto, una sesión puede conservar instrucciones privadas y salidas de herramientas después de que termines de trabajar.</p>
+<p>La compactación reduce el contexto enviado al modelo, pero no es un mecanismo de borrado seguro. La eliminación de sesiones y la limpieza de almacenamiento son acciones explícitas de mantenimiento. Eliminar una conexión tampoco garantiza que se hayan borrado todas sus credenciales o los metadatos históricos de sus solicitudes.</p>
+<h2 id="sharing-diagnostics">Compartir información de diagnóstico</h2>
+<p>Los registros, las vistas de contexto, las simulaciones de solicitudes (dryrun) y la configuración efectiva pueden contener código privado, rutas, nombres de cuentas o descripciones de tu trabajo. El ocultamiento automático ayuda con los secretos conocidos, pero no garantiza que se haya eliminado cualquier cadena privada.</p>
+<p>Comparte únicamente el fragmento más pequeño que resulte relevante tras revisarlo. Nunca pegues una clave real en el chat, en el control de versiones ni en un informe de error público. Es preferible compartir metadatos de claves ocultas y un caso mínimo reproducible antes que un volcado completo de tu carpeta de datos.</p>
+<h2 id="your-controls">Tus controles</h2>
+<p>Elige el espacio de trabajo y el modo adecuados, adjunta solo los archivos necesarios, revisa los puntos de conexión de tus cuentas y utiliza los controles de retención y presupuesto del propio proveedor cuando lo necesites. Un modelo local puede reducir el envío de datos a proveedores de modelos remotos, aunque las herramientas web independientes, las rutas auxiliares o los comandos pueden seguir contactando con servicios externos.</p>
+<p>La opción <code>-read-only</code> restringe las herramientas que modifican archivos, pero no impide la lectura ni la transmisión por red. Un aviso de gasto no bloquea el consumo. El comando undo restaura archivos locales elegibles, pero no puede retirar información que ya se haya enviado fuera de tu equipo.</p>
+{{end}}

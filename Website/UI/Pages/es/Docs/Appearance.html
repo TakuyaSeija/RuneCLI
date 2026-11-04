@@ -1,0 +1,15 @@
+{{define "article"}}
+<h2 id="theme">Tema de color</h2>
+<p>Settings → Appearance → Color theme ofrece Violet, Cyan y Amber. Pulsar Izquierda/Derecha sobre la fila cambia y guarda el tema; Enter abre la lista independiente, donde Enter aplica el tema seleccionado. Esc sale sin aplicar el elemento que solo hayas explorado. El tema de fábrica es Amber.</p>
+<p>El tema afecta únicamente a la presentación visual, no al comportamiento del modelo ni a los permisos. También puedes seleccionar un tema con <code>/theme violet</code>, <code>/theme cyan</code> y <code>/theme amber</code>. La clave global es <code>ui.theme</code>; restablecerla elimina tu ajuste personalizado.</p>
+<h2 id="side-panel">Panel lateral de la conversación</h2>
+<p>Muestra u oculta el panel desde Appearance, con Ctrl+O o con <code>/panel</code>. De fábrica viene activado. Las terminales estrechas pueden ocultar el panel lateral aunque esa preferencia esté activa. Ocultarlo no detiene la contabilidad de uso, el seguimiento de archivos ni los planes.</p>
+<h2 id="terminal-owns-background">Qué depende de la terminal</h2>
+<p>Tu terminal o entorno de escritorio controla el fondo de pantalla, la transparencia, el desenfoque, la decoración de ventanas y el renderizado de fuentes. Rune no incluye ningún ajuste de imagen de fondo ni de desenfoque. Un mismo tema puede verse diferente sobre un fondo de terminal claro u oscuro.</p>
+<p>Las teclas modificadoras y los gestos del ratón también dependen de la terminal. Un perfil puede reservar Ctrl+rueda para el zoom, Alt+rueda para el desplazamiento horizontal o determinados atajos para sus propias acciones.</p>
+<h2 id="advanced-options">Opciones avanzadas de visualización</h2>
+<p>Algunos valores de color, ratón, desplazamiento y tiempos de renderizado solo están disponibles en TOML y no aparecen como controles adicionales en la página Appearance. Inspecciona la clave documentada correspondiente antes de modificarla. Aumentar la frecuencia de refresco puede consumir más recursos; una preferencia de desplazamiento no hará que la terminal envíe eventos de entrada que no admite.</p>
+<pre class="block"><code>rune -config explain ui.theme
+rune -config reset ui.theme</code></pre>
+<p>Restablecer modifica la preferencia global. Consulta <code>/help</code> para ver las teclas de lectura y navegación en lugar de suponer que funcionan las de otra aplicación de terminal.</p>
+{{end}}

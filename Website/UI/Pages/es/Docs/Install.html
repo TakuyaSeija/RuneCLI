@@ -1,0 +1,79 @@
+{{define "article"}}
+<h2 id="requirements">Qué necesitas</h2>
+<dl class="ref">
+<div><dt>Linux</dt><dd>x86_64 o arm64, siempre que exista una compilación firmada publicada para ese procesador. Cada versión indica qué compilaciones incluye. La compilación para glibc funciona en distribuciones con glibc 2.17 o posterior, y se ha probado en CentOS 7, Debian 11 y 12, y Ubuntu 24.04. La compilación estática con musl no requiere ninguna biblioteca de C del sistema y se ha probado en Alpine.</dd></div>
+<div><dt>macOS</dt><dd>macOS 11 o posterior, con Apple silicon o Intel. El soporte para macOS está en fase beta.</dd></div>
+<div><dt>Windows</dt><dd>Windows 10 versión 1809 o posterior, o Windows 11, en x64 o ARM64. El soporte para Windows está en fase beta.</dd></div>
+<div><dt>El instalador</dt><dd>En Linux y macOS: <code>curl</code>, <code>tar</code>, <code>gzip</code> y <code>openssl</code> (OpenSSL o el LibreSSL incluido en macOS) para verificar la firma. En Windows: PowerShell, incluido de serie en todas las versiones de Windows compatibles. En Linux y macOS ejecútalo con tu usuario normal, no como root; en Windows no requiere permisos de administrador.</dd></div>
+<div><dt>Una cuenta de modelo</dt><dd>Una cuenta del proveedor que elijas, o un servicio de modelos instalado en tu propio ordenador. Consulta <a href="{{url "docs/providers"}}">Proveedores de modelos</a>.</dd></div>
+</dl>
+<p>Debajo de cada comando de instalación en la <a href="{{url "install"}}">página de inicio</a> se indica qué sistemas cuentan con una compilación firmada en la versión actual. Las diferencias entre sistemas se detallan en <a href="{{url "docs/platforms"}}">Plataformas compatibles</a>.</p>
+
+<h2 id="install">Instalar</h2>
+<p>Los comandos de instalación se encuentran en la <a href="{{url "install"}}">página de inicio</a>: <code>install.sh</code> para Linux y macOS, ejecutado con <code>sh</code>, e <code>install.ps1</code> para Windows, ejecutado en PowerShell. Si lo prefieres, puedes leer antes el script: ambos se sirven como texto plano, <a href="{{url "install.sh"}}">install.sh</a> e <a href="{{url "install.ps1"}}">install.ps1</a>, exactamente igual que los recibe el comando. Cada uno realiza estos pasos y se detiene en el primero que falle, sin modificar nada en tu equipo:</p>
+<ol>
+<li>Comprueba el sistema operativo y su versión, que se esté ejecutando como usuario normal y que las herramientas necesarias estén presentes.</li>
+<li>Detecta el procesador y, en Linux, la biblioteca de C (glibc o musl).</li>
+<li>Descarga la lista de sumas de comprobación de la versión y verifica su firma con la clave de publicación integrada en el script.</li>
+<li>Descarga el paquete correspondiente a tu máquina y lo comprueba frente a esa lista firmada.</li>
+<li>Verifica que el paquete contenga únicamente el programa y sus archivos de licencia, y que el programa se inicie e informe de la versión esperada.</li>
+<li>Coloca el programa en su sitio mediante un único cambio de nombre atómico, y guarda la licencia y los avisos de terceros junto al resto de tus datos de usuario.</li>
+</ol>
+<div class="table-wrap"><table class="data"><thead><tr><th>Sistema</th><th>Programa</th><th>Avisos de licencia</th></tr></thead><tbody>
+<tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (o <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
+<tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
+</tbody></table></div>
+<p>Nunca modifica tu perfil de shell ni tu variable PATH. Si la carpeta no está en tu PATH, te lo indica. En <a href="{{url "docs/verification"}}">Verificación de versiones</a> se explica qué demuestra y qué no demuestra la firma, así como la forma de comprobar una descarga manualmente.</p>
+<p>Los comandos de instalación descargan los archivos con <code>curl</code> y PowerShell, que no marcan el programa como procedente de internet. En cambio, si descargas un paquete desde el navegador, sí queda marcado. En macOS, Gatekeeper se negará entonces a iniciar esa copia de <code>rune</code>; tras verificar el paquete, quita la marca con <code>xattr -d com.apple.quarantine rune</code>. En Windows, SmartScreen puede mostrar una advertencia al abrir un programa descargado así desde el Explorador de archivos.</p>
+
+<h2 id="installer-options">Opciones del instalador</h2>
+<p>Si no defines ninguna variable, el instalador utiliza la versión publicada más reciente, la carpeta bin de tu usuario y, en Linux, la biblioteca de C detectada. En Linux y macOS, guarda el script como <code>install.sh</code>, léelo y ejecútalo con cualquiera de estas variables. En Windows, defínelas en la misma ventana de PowerShell antes de ejecutar el comando.</p>
+<dl class="ref">
+<div><dt><code>RUNE_VERSION</code></dt><dd>Una versión publicada, como <code>{{.DocVersion}}</code>. Permite instalar versiones anteriores indicando su número.</dd></div>
+<div><dt><code>RUNE_INSTALL_DIR</code></dt><dd>Una ruta absoluta de carpeta donde instalar el programa en lugar de la predeterminada.</dd></div>
+<div><dt><code>RUNE_LIBC</code></dt><dd>Solo en Linux: <code>gnu</code> o <code>musl</code>, para elegir la compilación en lugar de detectarla automáticamente. Si no existe paquete publicado para esa combinación, la instalación se rechaza.</dd></div>
+</dl>
+<pre class="block"><code>RUNE_VERSION={{.DocVersion}} sh install.sh
+RUNE_INSTALL_DIR="$HOME/bin" sh install.sh</code></pre>
+<pre class="block"><code>$env:RUNE_VERSION = "{{.DocVersion}}"
+irm {{.Origin}}{{url "install.ps1"}} | iex</code></pre>
+
+<h2 id="path">Añadir rune a tu PATH</h2>
+<p>Muchas distribuciones de Linux ya incluyen <code>~/.local/bin</code> en el PATH, pero solo si la carpeta ya existía al iniciar sesión; macOS no la incluye por defecto. Si el sistema no encuentra <code>rune</code>, añade tú mismo la carpeta. En bash o zsh (la shell predeterminada en macOS), añade esta línea a <code>~/.bashrc</code> o <code>~/.zshrc</code> y abre después una terminal nueva:</p>
+<pre class="block"><code>export PATH="$HOME/.local/bin:$PATH"</code></pre>
+<p>En fish, ejecuta <code>fish_add_path ~/.local/bin</code> una sola vez. En Windows, esta línea de PowerShell añade la carpeta al PATH de tu usuario; abre una terminal nueva a continuación:</p>
+<pre class="block"><code>[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$HOME\.local\bin", "User")</code></pre>
+<p>Usa tu propia carpeta si definiste <code>RUNE_INSTALL_DIR</code>.</p>
+
+<h2 id="first-start">El primer inicio</h2>
+<p>Abre una terminal en tu proyecto y ejecuta <code>rune</code>. Al iniciarse por primera vez, Rune crea su carpeta de datos: <code>.rune</code> dentro de tu carpeta personal (<code>%USERPROFILE%\.rune</code> en Windows), o bien la carpeta indicada en <code>RUNE_HOME</code>. En ella se guarda:</p>
+<ul>
+<li><code>rune.toml</code>, tu archivo de ajustes. Solo registra las opciones que hayas cambiado tú; los demás valores proceden de la versión que estés ejecutando.</li>
+<li>Tus claves de API, cifradas.</li>
+<li>Las sesiones, la memoria del proyecto y las instantáneas que utiliza undo, organizadas por proyecto.</li>
+</ul>
+<p>En Windows, el primer inicio también solicita una sola vez confirmación de administrador para configurar la cuenta independiente en la que Rune ejecuta los comandos. Si rechazas la solicitud, Rune no volverá a preguntarte en cada inicio; puedes ejecutar <code>rune -sandbox setup</code> cuando quieras activarla. En <a href="{{url "docs/security"}}">Seguridad</a> se explica qué cambia si trabajas sin ella.</p>
+<p><code>rune -config</code> muestra en su primera línea la carpeta de datos en uso. Rune guarda allí sus propios datos, nunca dentro de tus proyectos: un proyecto solo se modifica mediante las herramientas de la IA bajo el modo que elijas, mediante tus propios comandos con <code>!</code>, o al guardar cambios de skills o MCP con ámbito de proyecto. Continúa con la sección <a href="{{url "docs"}}#connect-and-select">Conectar y seleccionar un modelo</a> en la Introducción.</p>
+
+<h2 id="update">Actualizar</h2>
+<p>Vuelve a ejecutar el instalador para la versión deseada, indicando el mismo <code>RUNE_INSTALL_DIR</code> si configuraste uno. El instalador verifica la descarga y reemplaza el programa en un solo paso; comprueba el resultado con <code>rune -version</code>.</p>
+<p>Las ventanas de Rune que ya estaban abiertas siguen funcionando. En Linux y macOS pasan automáticamente a la nueva compilación en cuanto quedan inactivas, y el primer inicio de una versión nueva actualiza tu carpeta de datos para ella. En Windows, un programa en ejecución no puede sustituirse a sí mismo en caliente: las ventanas abiertas mantienen la versión con la que se iniciaron y la próxima ventana de Rune que abras ya usará la nueva. No cierres tareas activas a la fuerza para acelerar el cambio.</p>
+
+<h2 id="uninstall">Desinstalar</h2>
+<p>Termina o detén tu trabajo y cierra todas las ventanas de Rune. Después, elimina el programa y sus avisos de licencia. En Linux y macOS:</p>
+<pre class="block"><code>rm ~/.local/bin/rune
+rm -r ~/.local/share/runeagent</code></pre>
+<p>En Windows, desde PowerShell:</p>
+<pre class="block"><code>rune -sandbox reset
+Remove-Item "$HOME\.local\bin\rune.exe"
+Remove-Item -Recurse "$env:LOCALAPPDATA\RuneAgent"</code></pre>
+<p>En Windows, <code>rune -sandbox reset</code> revoca primero los permisos concedidos al entorno aislado de comandos de Rune sobre tus carpetas y elimina su cuenta local; puede pedir confirmación de administrador. Tu carpeta de datos se conserva hasta que decidas borrarla manualmente. Contiene tu historial, ajustes, claves y puntos de restauración, y no hace falta borrarla para desinstalar el programa. Si decides eliminarla, consulta antes su ubicación con <code>rune -config</code> y nunca la borres mientras Rune siga en ejecución.</p>
+
+<h2 id="environment">Variables de entorno</h2>
+<dl class="ref">
+<div><dt><code>RUNE_HOME</code></dt><dd>Utiliza otra carpeta de datos en lugar de <code>.rune</code> en tu carpeta personal, con sus propios ajustes, claves y sesiones.</dd></div>
+<div><dt><code>NO_COLOR</code></dt><dd>Muestra la interfaz sin color, igual que <code>--no-color</code>.</dd></div>
+<div><dt><code>RUNE_THEME</code></dt><dd>Indica a Rune el color de fondo de tu terminal cuando esta no lo comunica automáticamente: <code>dark</code>, <code>light</code> o un color hexadecimal. No selecciona el tema de la interfaz (eso se hace en Appearance).</dd></div>
+<div><dt><code>RUNE_VERSION</code>, <code>RUNE_INSTALL_DIR</code>, <code>RUNE_LIBC</code></dt><dd>Variables leídas únicamente por el instalador; consulta <a href="#installer-options">Opciones del instalador</a>.</dd></div>
+</dl>
+{{end}}

@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>Lisensi</h1>
+      <p class="article-lead">Perjanjian yang menyertai setiap unduhan RuneAgent, diterjemahkan agar mudah dibaca. Yang mengikat hanya teks bahasa Inggris, yaitu berkas <code>LICENSE.txt</code> di setiap arsip dan <a href="{{(index .Locales 0).Href}}" hreflang="en" lang="en">halaman bahasa Inggris</a>; bila keduanya berbeda, teks bahasa Inggris yang berlaku.</p>
+      <p class="meta">Berlaku mulai 29 Oktober 2026. Setiap rilis diatur oleh lisensi yang diterbitkan bersamanya.</p>
+    </header>
+    {{/* A reading translation of LICENSE.txt. Only the English page and file bind (owner, 2026-11-04); the lead says so and a test holds it. */}}
+    <div class="prose license-text">
+      <h2 id="grant">1. Pemberian lisensi</h2>
+      <p>Atoryn memberi Anda lisensi gratis, non-eksklusif, dan tidak dapat dipindahtangankan untuk mengunduh, memasang, serta menggunakan biner resmi RuneAgent yang diterbitkan di {{.Origin}}{{url ""}}, untuk keperluan pribadi maupun komersial, di sebanyak mungkin mesin milik Anda sendiri.</p>
+
+      <h2 id="limits">2. Hal yang tidak boleh Anda lakukan</h2>
+      <ul>
+        <li>Menjual, menyewakan, meminjamkan, mensublisensikan, atau mendistribusikan ulang RuneAgent, baik dimodifikasi maupun tidak. Arahkan orang lain ke unduhan resmi.</li>
+        <li>Memodifikasi, mendekompilasi, membongkar, atau merekayasa balik RuneAgent, kecuali sejauh diizinkan secara tegas oleh hukum terlepas dari batasan ini.</li>
+        <li>Menghapus atau mengubah pemberitahuan hak cipta, lisensi, atau atribusi apa pun.</li>
+        <li>Menggunakan nama RuneAgent, Atoryn, atau Atoryn Studio, maupun logonya, untuk produk Anda sendiri atau untuk menyiratkan dukungan resmi.</li>
+      </ul>
+
+      <h2 id="work">3. Pekerjaan Anda tetap milik Anda</h2>
+      <p>Kode, prompt, dan data yang Anda olah dengan RuneAgent tetap menjadi milik Anda. RuneAgent tidak mengirimkannya ke Atoryn. Apa pun yang dikirimkan pekerjaan Anda ke penyedia model, situs web, atau layanan lain tunduk pada ketentuan pihak tersebut.</p>
+
+      <h2 id="third">4. Layanan pihak ketiga</h2>
+      <p>Anda bertanggung jawab atas akun, kunci API, biaya, serta kepatuhan Anda terhadap ketentuan setiap penyedia atau layanan yang Anda sambungkan.</p>
+
+      <h2 id="components">5. Komponen sumber terbuka</h2>
+      <p>RuneAgent menyertakan komponen sumber terbuka di bawah lisensinya masing-masing. Pemberitahuan lisensi tersebut disertakan dalam setiap unduhan, dan lisensi tersebut mengatur komponen yang bersangkutan.</p>
+
+      <h2 id="warranty">6. Tanpa jaminan</h2>
+      <p>RuneAgent disediakan "apa adanya", tanpa jaminan dalam bentuk apa pun, baik tersurat maupun tersirat, termasuk kelayakan untuk tujuan tertentu dan ketiadaan pelanggaran hak. Agen AI dapat membuat kesalahan: periksa hasil kerjanya sebelum Anda mengandalkannya.</p>
+
+      <h2 id="liability">7. Batasan tanggung jawab</h2>
+      <p>Sejauh diizinkan oleh hukum, Atoryn tidak bertanggung jawab atas kerugian tidak langsung, insidental, khusus, konsekuensial, atau ganti rugi penghukuman, maupun atas kehilangan data, keuntungan, atau bisnis yang timbul dari penggunaan atau ketidakmampuan menggunakan RuneAgent.</p>
+
+      <h2 id="termination">8. Pengakhiran</h2>
+      <p>Lisensi ini berakhir secara otomatis jika Anda melanggar ketentuannya. Setelah itu, Anda wajib berhenti menggunakan RuneAgent dan menghapus semua salinan Anda.</p>
+
+      <h2 id="changes">9. Perubahan</h2>
+      <p>Atoryn dapat menerbitkan rilis mendatang dengan ketentuan yang berbeda, termasuk di bawah lisensi sumber terbuka. Rilis yang sudah Anda miliki tetap diatur oleh lisensi yang menyertainya.</p>
+
+      <p class="license-copyright">Hak Cipta (c) 2026 Atoryn. Seluruh hak cipta dilindungi.</p>
+    </div>
+    <p class="license-aside">Fon di situs web ini digunakan di bawah lisensinya masing-masing, <a class="link" href="{{asset "Fonts/LICENSES.txt"}}">tercantum di sini</a>.</p>
+  </article>
+  <aside class="read-index">
+    <nav class="index" aria-label="Di halaman ini">
+      <p class="index-title">Daftar isi</p>
+      <ol>
+        <li><a href="#grant">Pemberian lisensi</a></li>
+        <li><a href="#limits">Hal yang tidak boleh Anda lakukan</a></li>
+        <li><a href="#work">Pekerjaan Anda tetap milik Anda</a></li>
+        <li><a href="#third">Layanan pihak ketiga</a></li>
+        <li><a href="#components">Komponen sumber terbuka</a></li>
+        <li><a href="#warranty">Tanpa jaminan</a></li>
+        <li><a href="#liability">Batasan tanggung jawab</a></li>
+        <li><a href="#termination">Pengakhiran</a></li>
+        <li><a href="#changes">Perubahan</a></li>
+      </ol>
+    </nav>
+  </aside>
+</div>
+{{end}}

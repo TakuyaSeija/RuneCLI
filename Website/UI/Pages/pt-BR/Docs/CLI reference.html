@@ -1,0 +1,59 @@
+{{define "article"}}
+<h2 id="launch">Iniciar e inspecionar</h2>
+<p>Execute estes comandos no shell do seu sistema operacional. Use <code>rune -help</code> para consultar a sua compilação instalada. Comandos que contatam provedores, alteram contas, excluem dados ou iniciam servidores são operações reais, não flags de diagnóstico inofensivas.</p>
+<dl class="ref">
+<div><dt>rune [dir]</dt><dd>Abre o agente interativo no workspace atual ou no diretório informado.</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>Executa um único prompt e imprime a resposta e o progresso das ferramentas sem a interface em tela cheia. Solicitações de permissão são recusadas em vez de aprovadas silenciosamente quando não há ninguém para responder.</dd></div>
+<div><dt>-project &lt;dir&gt;</dt><dd>Seleciona o workspace para outro comando.</dd></div>
+<div><dt>-version · -help</dt><dd>Imprime a versão do aplicativo ou a referência de comandos.</dd></div>
+<div><dt>-settings · -tools</dt><dd>Inspeciona os controles efetivos do modelo ou as ferramentas oferecidas ao agente.</dd></div>
+<div><dt>-read-only</dt><dd>Restringe ferramentas que modificam dados. Isso não garante que nenhum arquivo seja lido nem que nenhum dado seja enviado.</dd></div>
+<div><dt>--no-color</dt><dd>Desativa o uso de cores. A variável de ambiente NO_COLOR também é suportada.</dd></div>
+</dl>
+<h2 id="configuration">Configuração</h2>
+<dl class="ref">
+<div><dt>-config</dt><dd>Mostra a localização das configurações selecionadas.</dd></div>
+<div><dt>-config show|defaults|check</dt><dd>Mostra os valores efetivos, exibe os padrões de fábrica ou valida o arquivo. O comando show pode conter metadados privados de contas; o comando check não comprova conectividade.</dd></div>
+<div><dt>-config explain &lt;key&gt;</dt><dd>Explica o valor efetivo de uma chave e quando ela entra em vigor.</dd></div>
+<div><dt>-config set &lt;key&gt; &lt;value&gt;</dt><dd>Salva uma escolha global. Exemplo: <code>rune -config set terminal.command_timeout 2m</code>.</dd></div>
+<div><dt>-config reset &lt;key&gt;</dt><dd>Remove uma substituição global para que o padrão atual ou a herança volte a valer.</dd></div>
+<div><dt>-config format</dt><dd>Reformata as configurações agrupadas sem alterar intencionalmente o seu significado.</dd></div>
+<div><dt>-set key=value</dt><dd>Altera uma preferência compatível do workspace/modelo, e não uma chave arbitrária da configuração global.</dd></div>
+</dl>
+<h2 id="accounts-and-models">Contas e modelos</h2>
+<p>Prefira o editor de credenciais mascarado em Connections. Chaves reais passadas como argumentos de comando podem vazar pelo histórico do shell e pela listagem de processos. A sintaxe abaixo usa espaços reservados propositalmente.</p>
+<pre class="block"><code>rune -provider add &lt;name&gt; -key &lt;key&gt; [-preset &lt;p&gt;] [-base &lt;url&gt;] [-model &lt;id&gt;]</code></pre>
+<dl class="ref">
+<div><dt>-provider list</dt><dd>Lista contas, predefinições e disponibilidade de serviços web.</dd></div>
+<div><dt>-provider key &lt;name&gt; &lt;key&gt;</dt><dd>Adiciona uma chave ao chaveiro de uma conta. Isso altera as credenciais.</dd></div>
+<div><dt>-provider keys &lt;name&gt;</dt><dd>Inspeciona os metadados mascarados das chaves.</dd></div>
+<div><dt>-provider dropkey &lt;name&gt; &lt;n&gt;</dt><dd>Remove a credencial de número correspondente após revisar sua identidade.</dd></div>
+<div><dt>-provider default &lt;name&gt;</dt><dd>Escolhe o provedor padrão para novas sessões; isso não altera todas as conversas já existentes.</dd></div>
+<div><dt>-provider remove &lt;name&gt;</dt><dd>Remove a configuração do provedor. Não presuma que todas as credenciais retidas foram apagadas de forma irreversível.</dd></div>
+<div><dt>-provider test &lt;name&gt;</dt><dd>Envia uma requisição real, potencialmente tarifada, para testar a conta.</dd></div>
+<div><dt>-provider models &lt;name&gt;</dt><dd>Consulta o catálogo de modelos da conta. Faz uma requisição de rede.</dd></div>
+<div><dt>-provider dryrun &lt;name&gt; [model]</dt><dd>Pré-visualiza uma requisição sem enviá-la. A prévia pode incluir contexto privado; não a compartilhe integralmente.</dd></div>
+<div><dt>-provider timeout &lt;name&gt; &lt;seconds&gt;</dt><dd>Define um tempo limite opcional para requisições da conta, de 5 a 3600 segundos; <code>default</code> remove a substituição.</dd></div>
+<div><dt>-provider new-store --yes</dt><dd>Separa um par de credenciais ilegível e inicia um cofre vazio. Use apenas após uma decisão deliberada de recuperação; todas as chaves precisarão ser adicionadas novamente.</dd></div>
+<div><dt>-model list · -model set &lt;id&gt;</dt><dd>Lista ou seleciona um modelo para o workspace escolhido.</dd></div>
+</dl>
+<h2 id="sessions-and-storage">Sessões e armazenamento</h2>
+<dl class="ref">
+<div><dt>-session · -resume &lt;id&gt;</dt><dd>Abre o seletor de sessões (ou lista quando redirecionado via pipe) ou retoma uma sessão conhecida.</dd></div>
+<div><dt>-session rename &lt;id&gt; &lt;title&gt;</dt><dd>Renomeia uma sessão.</dd></div>
+<div><dt>-session delete &lt;id&gt;</dt><dd>Exclui permanentemente uma sessão. Verifique a identidade dela primeiro.</dd></div>
+<div><dt>-storage [list|prune]</dt><dd>Inspeciona o armazenamento dos projetos ou remove dados elegíveis pertencentes a projetos que não existem mais no disco.</dd></div>
+<div><dt>-sandbox [setup|reset]</dt><dd>Inspeciona o estado do isolamento de comandos no Windows, configura explicitamente sua conta dedicada ou remove o acesso e a configuração da conta de sandbox do Rune. Outras plataformas não utilizam essa configuração.</dd></div>
+</dl>
+<h2 id="extensions-and-diagnostics">Extensões e diagnóstico</h2>
+<dl class="ref">
+<div><dt>-skills [operation]</dt><dd>Lista, mostra, ativa, desativa, instala ou recarrega guias reutilizáveis. A instalação recebe uma pasta ou arquivo zip revisado e o coloca no projeto atual, a menos que <code>--scope user</code> o torne pessoal.</dd></div>
+<div><dt>-mcp [operation]</dt><dd>Gerencia, aprova, valida e testa definições de ferramentas externas. Uma conexão pode iniciar um processo ou contatar um serviço remoto; apenas validar não equivale a uma conexão estabelecida com sucesso.</dd></div>
+<div><dt>--scope user|project|private-project</dt><dd>Escolhe o escopo de configuração compatível para uma alteração de capacidade. Alterações compartilhadas no projeto afetam outras pessoas que utilizam esse projeto.</dd></div>
+<div><dt>-doctor</dt><dd>Executa diagnósticos, incluindo verificações de conectividade. Pode fazer requisições de rede; revise a saída antes de compartilhá-la.</dd></div>
+<div><dt>-db &lt;path&gt;</dt><dd>Usa um banco de dados alternativo para o motor. Isso é independente de escolher uma pasta inteira de configurações com RUNE_HOME.</dd></div>
+<div><dt>-host</dt><dd>Usa JSON delimitado por linhas para integração de interface, em vez da interface interativa. Não é um servidor de rede público.</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>Reproduz um script de modelo escrito. Um script pode propor ferramentas reais, portanto nunca execute um script não revisado em um trabalho real.</dd></div>
+</dl>
+<p>Para configurar capacidades e acessos, continue em <a href="{{url "docs/skills"}}">Skills</a> ou <a href="{{url "docs/mcp"}}">Conexões MCP</a>. Não mude para o modo Full nem exclua dados locais apenas para contornar um erro.</p>
+{{end}}

@@ -1,0 +1,92 @@
+{{define "article"}}
+<h2 id="add-a-provider">プロバイダを追加する</h2>
+<p>プロバイダとは、Rune からのモデルリクエストに応答するアカウントのことです。Rune 自体にはアカウントも API クレジットも同梱されておらず、各リクエストはあなたが接続したプロバイダに送信され、そのプロバイダから課金されます。</p>
+<ol>
+<li><kbd>Ctrl+G</kbd> を押し、<strong>Connections</strong> を開いて <strong>Add connection</strong> を選択します。</li>
+<li><strong>MODEL PROVIDERS</strong> の中から使用するプロバイダのプリセットを選択します（一覧にない OpenAI 互換エンドポイントの場合は <strong>compatible</strong> を選びます）。</li>
+<li>プリセットに固定のアドレスがない場合は、まずアドレスを入力します。続いてマスクされた入力欄に API キーを貼り付け、<kbd>Enter</kbd> を押します。</li>
+<li>Rune は接続を保存する前に、アカウントを確認するためのテストリクエストを 1 回送信します。このリクエストはプロバイダへテスト用テキストを送信し、課金対象となる場合があります。</li>
+<li><strong>Models</strong> を開き、接続したプロバイダを選んで <kbd>Enter</kbd> でモデルを選択します。</li>
+</ol>
+<p>接続の保存は「そのアカウントが 1 回応答したこと」を確認するものであり、プロバイダの一覧にあるすべてのモデルが利用できることを保証するものではありません。キーはお使いの PC 上に暗号化して保存されます（詳しくは<a href="{{url "docs/credentials"}}">認証情報の保護</a>をご覧ください）。</p>
+
+<h2 id="presets">プリセット一覧</h2>
+<p>Rune は 31 種類のプロバイダプリセットを備えています。プリセットを選ぶとプロバイダのアドレスとリクエスト形式が自動設定されるため、キーを入力するだけで接続できます。キーの形式が決まっているプロバイダでは、送信前にキーの形式もチェックされます。</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>プリセット</th><th>キーの形式</th><th>接続先アドレス</th></tr></thead>
+<tbody>
+<tr><td><code>openai</code></td><td>OpenAI キー（<code>sk-…</code>）</td><td>api.openai.com</td></tr>
+<tr><td><code>anthropic</code></td><td>Anthropic キー（<code>sk-ant-…</code>）</td><td>api.anthropic.com</td></tr>
+<tr><td><code>google</code></td><td>Google AI Studio キー（<code>AIza…</code> または <code>AQ.…</code>）</td><td>generativelanguage.googleapis.com</td></tr>
+<tr><td><code>xai</code></td><td>xAI キー（<code>xai-…</code>）</td><td>api.x.ai</td></tr>
+<tr><td><code>deepseek</code></td><td>DeepSeek キー（<code>sk-…</code>）</td><td>api.deepseek.com</td></tr>
+<tr><td><code>mistral</code></td><td>Mistral キー</td><td>api.mistral.ai</td></tr>
+<tr><td><code>groq</code></td><td>Groq キー（<code>gsk_…</code>）</td><td>api.groq.com</td></tr>
+<tr><td><code>openrouter</code></td><td>OpenRouter キー（<code>sk-or-…</code>）</td><td>openrouter.ai</td></tr>
+<tr><td><code>moonshot</code></td><td>Moonshot AI（Kimi）キー</td><td>api.moonshot.ai</td></tr>
+<tr><td><code>minimax</code></td><td>MiniMax キー</td><td>api.minimax.io</td></tr>
+<tr><td><code>zai</code></td><td>Z.ai 標準 API キー（Coding Plan キーではありません）</td><td>api.z.ai</td></tr>
+<tr><td><code>meta</code></td><td>Meta Model API キー</td><td>api.meta.ai</td></tr>
+<tr><td><code>stepfun</code></td><td>StepFun キー</td><td>api.stepfun.ai</td></tr>
+<tr><td><code>inclusionai</code></td><td>Ant Ling API キー</td><td>api.ant-ling.com</td></tr>
+<tr><td><code>mimo</code></td><td>Xiaomi MiMo キー（従量課金は <code>sk-…</code>、Token Plan は <code>tp-…</code>）</td><td>キーの種類に応じて自動選択</td></tr>
+<tr><td><code>nvidia</code></td><td>NVIDIA キー（<code>nvapi-…</code>）</td><td>integrate.api.nvidia.com</td></tr>
+<tr><td><code>cerebras</code></td><td>Cerebras キー（<code>csk-…</code>）</td><td>api.cerebras.ai</td></tr>
+<tr><td><code>huggingface</code></td><td>Hugging Face トークン（<code>hf_…</code>）</td><td>router.huggingface.co</td></tr>
+<tr><td><code>fireworks</code></td><td>Fireworks AI キー</td><td>api.fireworks.ai</td></tr>
+<tr><td><code>together</code></td><td>Together AI キー</td><td>api.together.ai</td></tr>
+<tr><td><code>siliconflow</code></td><td>SiliconFlow キー</td><td>api.siliconflow.com</td></tr>
+<tr><td><code>deepinfra</code></td><td>DeepInfra キー</td><td>api.deepinfra.com</td></tr>
+<tr><td><code>novita</code></td><td>Novita AI キー</td><td>api.novita.ai</td></tr>
+<tr><td><code>inference</code></td><td>Inference.net キー</td><td>api.inference.net</td></tr>
+<tr><td><code>tokenrouter</code></td><td>tokenrouter.com の TokenRouter キー</td><td>api.tokenrouter.com</td></tr>
+<tr><td><code>alibaba</code></td><td>接続先アドレスと同じリージョンの Model Studio キー</td><td>お使いのワークスペースの互換モードアドレス</td></tr>
+<tr><td><code>tencent</code></td><td>接続先アドレスと同じサイトの TokenHub キー</td><td>お使いのリージョンの TokenHub アドレス</td></tr>
+<tr><td><code>cloudflare</code></td><td>Workers AI アクセス権を持つ API トークン</td><td>アカウント ID を含むアドレス</td></tr>
+<tr><td><code>ollama</code></td><td>不要（この PC 上で動作する Ollama）</td><td>この PC のポート 11434</td></tr>
+<tr><td><code>9router</code></td><td>9router キー（9router 側で不要な場合は省略可）</td><td>この PC のポート 20128 で動作する 9router アプリ</td></tr>
+<tr><td><code>compatible</code></td><td>エンドポイントのキー（不要な場合は省略可）</td><td>入力した任意の OpenAI 互換アドレス</td></tr>
+</tbody>
+</table></div>
+<p>「接続先アドレス」列は、変更しない場合に各プリセットが使用するホスト名です。アドレス欄で Use default を選ぶとプリセット本来の値に戻ります。接続に失敗した際は、当て推量で別のアドレスを入れるのではなく、まずエラー内容を確認してください。</p>
+
+<h2 id="provider-notes">プロバイダ別の補足事項</h2>
+<p>推論（Reasoning）の制御方法はプロバイダやモデルによって異なります。以下は Rune が送信する内容をまとめたものですが、プロバイダ側でモデルの実際の挙動が変更されることもあります。各モデルの推論オプションは、Models 画面で <kbd>Alt+C</kbd> を押して設定します（詳しくは<a href="{{url "docs/generation"}}">生成と推論</a>をご覧ください）。</p>
+<dl class="ref">
+<div><dt>alibaba</dt><dd>お使いの Model Studio ワークスペースおよびリージョンの互換モードアドレスと、同じリージョンのキーを使用します。思考（Thinking）は段階なしのオン／オフ切り替えです。常時思考するモデルに対して Off を設定するとリクエストが拒否されるため、Off を選択肢に入れないでください。Model Studio 上の GLM モデルは Rune が送信しない独自オプションがないとツール呼び出しを返さないため、GLM モデルは Z.ai 経由で使用してください。</dd></div>
+<div><dt>cerebras</dt><dd>推論レベルはモデルごとに異なり、サービス側の一覧からは返されません。<code>gpt-oss-120b</code> と <code>qwen-3.8-27b</code> は Low、Medium、High に対応しているため、<kbd>Alt+C</kbd> で追加してください。</dd></div>
+<div><dt>cloudflare</dt><dd>Workers AI を使用します。アドレスにはアカウント ID を含め、キーには Tunnel トークンではなく Workers AI アクセス権を持つ API トークンを指定します。モデル一覧はお使いのアカウントのモデルリストから読み取られます。</dd></div>
+<div><dt>compatible</dt><dd>任意の OpenAI 互換エンドポイントです。モデルの仕様は自動判別されないため、エンドポイントのドキュメントに従って <kbd>Alt+C</kbd> でコンテキスト長、最大出力、推論設定を入力してください。</dd></div>
+<div><dt>deepinfra</dt><dd>モデルリストから単価と推論対応の有無が取得されます。推論レベルは Low、Medium、High で、レベルを指定しない場合はモデル側の既定値が適用されます。</dd></div>
+<div><dt>fireworks</dt><dd>推論レベルは Low〜Max です。一部のレベルにのみ対応するモデルは <kbd>Alt+C</kbd> で調整してください。</dd></div>
+<div><dt>huggingface</dt><dd>Inference Providers を呼び出す権限のあるトークンを使って Inference Providers ルーターに接続します。どのプロバイダがモデルを提供し、どの機能に対応するかはその組み合わせに依存します。</dd></div>
+<div><dt>inclusionai</dt><dd>Ant Group の Ling API 経由で InclusionAI の Ling モデルを利用します。3.0 および 3.1 モデルは段階なしのオン／オフ切り替えに対応しています。自前でホストしている Ling サーバーは <code>compatible</code> で追加してください。</dd></div>
+<div><dt>inference</dt><dd>モデルリストに各モデルの推論レベルが記載されており、Rune はその選択肢をそのまま提示します。</dd></div>
+<div><dt>meta</dt><dd>Meta AI チャットボットのログインではなく、Meta Model API を使用します。推論レベルは Minimal〜Extra high です。Muse Spark は常時推論を行い、Off および停止文字列（Stop sequences）を拒否するため、Generation 設定の Stop は空欄にしてください。</dd></div>
+<div><dt>mimo</dt><dd>従量課金キーと Token Plan キーでは接続先アドレスが異なりますが、入力されたキーから Rune が自動的にアドレスを選択します。</dd></div>
+<div><dt>minimax</dt><dd>Rune は回答本文とは分離された形式で思考過程を要求します。推論レベル（Low〜Max）に対応しているのは <code>MiniMax-M3.1-Flash</code> のみのため、<kbd>Alt+C</kbd> で追加してください。MiniMax のモデルには Off を設定しないでください。</dd></div>
+<div><dt>moonshot</dt><dd>Kimi です。<code>kimi-k3</code> は Low、High、Max に対応しているため <kbd>Alt+C</kbd> で追加してください。<code>kimi-k2</code> 系モデルにはレベル指定はありません。Kimi のモデルには Off を設定しないでください。</dd></div>
+<div><dt>novita</dt><dd>オン／オフ両方に対応するモデルでは、段階なしで思考のオン／オフを切り替えられます。単価はモデルリストから取得されます。</dd></div>
+<div><dt>nvidia</dt><dd>ホスト版の NIM API です。思考制御はモデルごとに異なりサービス側の一覧からは返されないため、各モデルのカード情報を元にモデル単位で設定してください。セルフホスト版の NIM はその独自のアドレスを使用します。</dd></div>
+<div><dt>openrouter</dt><dd>1 つのアカウントで単価や上限の異なる多数のモデルを利用できます。正確なモデルを選択し、現在の単価を確認してください。</dd></div>
+<div><dt>siliconflow</dt><dd>グローバル版のアドレスを使用します（.cn アカウントは独自のアドレスとキーを使用します）。SiliconFlow が対応を明記しているモデルで思考のオン／オフが切り替えられます。<code>deepseek-ai/DeepSeek-V3.1</code> は思考がオフのときのみツールを呼び出せます。</dd></div>
+<div><dt>stepfun</dt><dd>推論レベルは Low、Medium、High です。<code>step-3.5-flash-2603</code> は Low と High のみを受け付けるため、<kbd>Alt+C</kbd> で Medium を外してください。</dd></div>
+<div><dt>tencent</dt><dd>Hunyuan は TokenHub へ移行中です。アドレス欄の横に案内されるお使いのリージョンの TokenHub アドレスと、同じリージョンのキーを入力してください。思考はオン／オフおよび Low、Medium、High のレベルに対応しています。TokenHub が提供する他社製モデルの中には Off を拒否するものがあります。</dd></div>
+<div><dt>together</dt><dd>モデルリストには単価が含まれますが推論レベルは含まれないため、ドキュメントに記載されたレベルを <kbd>Alt+C</kbd> で追加してください。</dd></div>
+<div><dt>tokenrouter</dt><dd>tokenrouter.com の TokenRouter です。別ドメインにある類似名称のサービスは別会社であり、接続先アドレスも異なります。</dd></div>
+<div><dt>zai</dt><dd>Z.ai 標準 API です（Coding Plan はキー、アドレス、利用可能ツールが異なります）。推論レベルは Minimal〜Max で、未選択時はサービス側の既定値（Max）が適用されます。<code>glm-5.3</code> は常時思考し、Low、High、Max のみを受け付けます。停止文字列（Stop）は 1 つだけ指定可能です。</dd></div>
+</dl>
+
+<h2 id="on-this-computer">この PC 上で動作するモデル</h2>
+<p><strong>Ollama</strong> はこの PC のポート 11434 からキーなしでローカルモデルを提供します（Ollama のクラウド Web 検索サービスとは別物です）。ローカルモデルを使えばプロンプトはマシン外に出ませんが、Web ツール、補助ジョブ、またはシェルコマンドが外部サービスと通信する可能性はあります。</p>
+<p><strong>9router</strong> はお使いの PC 上（デフォルトはポート 20128）で動作するルーターアプリで、9router 側に登録した上流アカウントへリクエストを転送します。1 つの接続で 9router が提供するすべてのモデルを利用できます。Claude Code のモデル（<code>cc/…</code>）については、Rune が自動的に 9router の Anthropic 形式エンドポイントを使用するため、特別な設定なしでキャッシュ数や思考トークン数が取得できます。なお、Off はあくまで要求であり、思考を無効化できないとルートが報告した場合は代わりに Low を要求します。</p>
+<p>プリセットのローカルアドレスは初期値であり、サービスがすでに PC 上で起動していることを意味しません。先にサービスを起動してから接続してください（応答があったかどうかは Rune のテストリクエストでわかります）。</p>
+
+<h2 id="keys">キーとアカウントの管理</h2>
+<p>1 つの接続に複数のキーを登録できます。<code>rune -provider keys &lt;name&gt;</code> でマスクされた一覧を確認でき、Connections 画面でもキーの値を表示せずに管理できます。いずれかのキーが残高不足を報告した場合、Rune はそのキーを 15 分間休止（Resting）させ、同じ接続に別のキーがあればそちらを使用します（詳しくは<a href="{{url "docs/runtime"}}">ランタイムと再試行</a>をご覧ください）。</p>
+<p>接続を削除すると設定は消えますが、暗号化ストア内のキーは再利用のために残る場合があります。キー自体を消したい場合は明示的にキーを削除してください。なお、キーが平文の HTTP で別のマシンへ送信されることは一切ありません。</p>
+
+<h2 id="choose-a-model">モデルを選択する</h2>
+<p>Settings → Models には接続済みプロバイダが返すモデル一覧が表示され、カタログの更新も行えます。<kbd>Enter</kbd> で選択するか、会話欄で <code>/model provider:id</code> と入力してください。モデル上で <kbd>Alt+C</kbd> を押すと、コンテキストサイズ、最大出力、推論選択肢、単価など、Rune が保持するモデル情報を編集できます。入力した単価はサイドパネルの Spend 表示に使われます（プロバイダからの実際の請求額ではありません）。</p>
+<p>Models → New-session fallback は、新しく開始するセッションの初期プロバイダを選択します。すでに開いている会話のプロバイダは切り替わらないため、開いている会話では <code>/provider</code> または <code>/model</code> を使用してください。</p>
+{{end}}

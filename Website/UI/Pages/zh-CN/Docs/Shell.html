@@ -1,0 +1,33 @@
+{{define "article"}}
+<h2 id="run-a-command-yourself">亲自运行终端命令</h2>
+<p>在底部输入框的第一个字符位置输入 <code>!</code>，后跟要执行的命令并按 <kbd>Enter</kbd>，Rune 就会直接为你运行这段脚本（而非交由 AI 执行）。在你按下 <kbd>Enter</kbd> 前，输入框边框会显示 <strong>Shell · full access once</strong>，明确提示你当前输入的是手动命令而非普通聊天消息。</p>
+<pre class="block"><code>! git status --short
+npm test</code></pre>
+<p>上方示例是一段包含两行的脚本：两行命令都会执行。只有第一行开头需要写 <code>!</code>；如果在第二行再写一个 <code>!</code>，它会被 shell 自身当成语法解析（在 bash 和 sh 中，<code>!</code> 会将下一条命令的退出状态取反，把失败变成成功）。你可以用它来快速检查状态、亲自观察构建过程，或执行刚才未允许 AI 执行的操作。命令及其输出结果随后会加入对话记录中，命令结束后 AI 会接着回应。</p>
+
+<h2 id="what-counts">什么输入会被识别为手动命令</h2>
+<ul>
+<li>只有位于整个输入框最开头的 <code>!</code> 才会触发手动命令模式。像 <code>hello ! echo test</code>、空格后面的 <code>!</code>，或者普通消息后续行里的 <code>!</code>，都会被当成普通聊天文本。</li>
+<li>一旦输入以 <code>!</code> 开头，整个输入框的所有行都属于同一段脚本。后续行中出现的 <code>!</code> 属于 shell 语法，而非第二条独立的 Rune 命令。</li>
+<li>粘贴文本绝不会自动触发执行。只有按下 <kbd>Enter</kbd> 才会运行当前完整的脚本（包含所有粘贴进来的行）。</li>
+<li>单独输入一个 <code>!</code> 不会执行任何操作。删掉开头的 <code>!</code> 即可将输入框恢复为普通消息模式。</li>
+</ul>
+
+<h2 id="access">手动命令拥有什么权限</h2>
+<p>按下 <kbd>Enter</kbd> 即代表你本人授权。该脚本会以你当前操作系统账户的完整权限运行一次：不受工作区路径边界和命令沙盒限制，不经过分类器或清洗器审查，也不会再弹出额外的权限确认框。</p>
+<p>它不会自动提权为 Administrator 或 root，不会改变当前会话的权限模式，也不会代表你批准 AI 后续提出的任何操作。按下 <kbd>Enter</kbd> 前请务必通读整段脚本，尤其是当你粘贴了外部命令时。</p>
+
+<h2 id="while-the-ai-works">在 AI 工作期间发送命令</h2>
+<p>如果你在 AI 正在执行某轮任务时发送手动命令，它会等待当前轮次结束后，按你发送的先后顺序运行。运行过程中会实时显示输出。当命令执行完毕，或因达到前台等待时长上限、或因等待键盘输入而转入后台时，Rune 会将该命令及其输出一并写入对话记录，随后由 AI 作出回应。注意：AI 的回应是一次常规模型请求，可能会产生计费。</p>
+<p>如果终端窗口断线重连，Rune 会确保同一次提交不会重复执行两遍。若发生程序崩溃，Rune 绝不会在重启后自动重放可能已经执行过的手动命令。</p>
+
+<h2 id="when-the-ai-was-refused">当 AI 的命令被拒绝时</h2>
+<p>当 AI 提议的命令被拒绝时，拒绝提示中可能会提及这一手动命令选项。Rune 绝不会替你提交 <code>!</code> 命令，也绝不会自行重试被拒绝的操作。其他工具也没有任何此类绕过机制。</p>
+
+<h2 id="which-shell">使用哪个 Shell 运行</h2>
+<p>执行命令的 shell 由 <code>terminal.shell</code> 设置项决定。在出厂默认值 <code>auto</code> 下，Rune 在 Linux 和 macOS 上优先使用 bash（若未安装则使用 <code>/bin/sh</code>）；在 Windows 上依次优先使用 PowerShell 7、Windows PowerShell 和命令提示符（Command Prompt）。不同 shell 按各自的语法解析命令。</p>
+<p>命令框会标明实际运行该命令的 shell 提示符：bash 与 zsh 显示为 <code>$</code>，PowerShell 显示为 <code>PS&gt;</code>，命令提示符显示为 <code>&gt;</code>。折叠状态的命令框仅展示脚本首行；点击命令框即可展开包含原始换行的完整脚本。</p>
+
+<h2 id="privacy">隐私注意事项</h2>
+<p>手动命令本身及其打印的所有输出，都会随下一次请求一并发送给 AI 模型。请勿在命令中打印你本不打算粘贴到聊天框里的机密信息、私钥或私密文件。Rune 会对已知的 API 密钥进行脱敏，但无法保证拦截任意未知格式的私密字符串。</p>
+{{end}}

@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Busca e leitura são separadas</h2>
+<p>A ferramenta web_search encontra páginas a partir de uma consulta. Já a ferramenta web_fetch lê uma página HTTP(S) pública como texto. Uma URL informada como consulta de busca é pesquisada, não aberta diretamente. O leitor integrado não é um navegador interativo e não garante acesso a conteúdos protegidos por login ou aplicativos que dependem exclusivamente de scripts no navegador.</p>
+<p>A busca exige um serviço configurado. A leitura de páginas usa por padrão o leitor integrado do Rune. As duas ferramentas têm seleção de provedor, tempos limite e orçamentos de saída independentes; ativar um serviço em uma delas não o seleciona silenciosamente para a outra.</p>
+<h2 id="add-an-account">Adicione o acesso primeiro</h2>
+<p>Em Settings → Connections, adicione a conta desejada de Search &amp; Fetch com seu endereço e credenciais. Apenas salvar o acesso não comprova que o serviço esteja funcionando. O endpoint de modelos e o endpoint web de um mesmo fornecedor podem ser serviços distintos, com permissões e cobranças separadas.</p>
+<h2 id="add-and-select">Adicionar e selecionar um provedor</h2>
+<ol><li>Abra Settings → Tools → Web search ou Web fetch → Provider.</li><li>Escolha Add provider e selecione a conta conectada.</li><li>Para um gateway, digite a rota exata desejada no campo em branco. Não tente deduzir uma rota a partir de um exemplo ou nome de modelo.</li><li>O Rune testa uma requisição real antes de manter o provedor. Isso pode enviar uma consulta ou endereço de página e gerar custos.</li><li>Volte à lista e selecione o provedor desejado. A seleção testa e salva essa escolha exata; apenas adicionar um provedor não o fixa automaticamente.</li></ol>
+<p>Se a adição ou seleção falhar, a escolha anterior permanece ativa. Um teste bem-sucedido comprova apenas a requisição testada, não o acesso futuro irrestrito a qualquer página ou serviço.</p>
+<h2 id="services">Serviços que o Rune pode usar</h2>
+<p>Cada serviço exige que você tenha sua própria conta nele. O Rune utiliza apenas a função de busca ou leitura de páginas indicada aqui, não todos os produtos comercializados pelo fornecedor. Salvo indicação em contrário na tabela, cada serviço possui um endereço fixo e exige uma chave.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Serviço</th><th>Busca</th><th>Leitura</th><th>Observações</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Sim</td><td>Não</td><td>Pesquisa no Google por meio de uma zona SERP da sua conta.</td></tr>
+<tr><td>Exa</td><td>Sim</td><td>Sim</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Sim</td><td>Sim</td><td></td></tr>
+<tr><td>Jina AI</td><td>Sim</td><td>Sim</td><td>A busca e a leitura usam dois endereços distintos; a chave começa com <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>9router</td><td>Sim</td><td>Sim</td><td>O aplicativo 9router neste computador, na porta 20128 por padrão. A chave é opcional, e cada serviço de busca ou leitura que ele oferece é uma rota nomeada por você.</td></tr>
+<tr><td>Ollama Web Search</td><td>Sim</td><td>Sim</td><td>O serviço em nuvem do Ollama com uma chave de ollama.com, não uma instância local do Ollama.</td></tr>
+<tr><td>Perplexity Search</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>SearXNG</td><td>Sim</td><td>Não</td><td>Seu próprio servidor: informe o endereço; não usa chave. Ele precisa listar <code>json</code> em <code>search: formats:</code> nas suas configurações.</td></tr>
+<tr><td>SerpApi</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Serper</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Serpex</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Serplify</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>serpstack</td><td>Sim</td><td>Não</td><td></td></tr>
+<tr><td>Tavily</td><td>Sim</td><td>Sim</td><td></td></tr>
+<tr><td>TinyFish</td><td>Sim</td><td>Sim</td><td>A busca e a leitura usam dois endereços distintos.</td></tr>
+<tr><td>You.com</td><td>Sim</td><td>Não</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Sem nenhum desses serviços configurado, a busca web fica indisponível e a leitura de páginas usa o leitor integrado do Rune, que não exige conta.</p>
+<h2 id="default-and-pin">Padrões e escolhas explícitas</h2>
+<dl class="ref">
+<div><dt>Padrão de busca</dt><dd>Quando não há provedor fixado, usa o primeiro provedor de busca ativado na ordem em que foi adicionado. Por isso, adicionar o primeiro provedor já o torna o padrão em uso.</dd></div>
+<div><dt>Padrão de leitura</dt><dd>Usa o leitor integrado. Adicionar um leitor externo não o seleciona automaticamente.</dd></div>
+<div><dt>Escolha explícita</dt><dd>Fixa uma conta ou um par conta:rota. Se estiver ausente ou indisponível, a ferramenta nunca envia silenciosamente a requisição para um provedor diferente.</dd></div>
+</dl>
+<p>Use a opção Use default ou redefina <code>web_search.provider</code>/<code>web_fetch.provider</code> para remover a fixação correspondente. Selecione outra opção antes de excluir um provedor que esteja em uso. A exclusão remove aquele provedor da ferramenta, mas não apaga a conta nem as chaves em Connections. Um serviço de gateway pode guardar no máximo 32 rotas salvas.</p>
+<h2 id="limits-and-privacy">Limites e privacidade</h2>
+<p>Os padrões de fábrica são oito resultados de busca, 60 segundos por requisição de ferramenta e 100.000 caracteres retornados para cada ferramenta. Um parâmetro por chamada pode reduzir o número máximo de resultados da busca. Aumentar o limite de caracteres de saída não contorna restrições de acesso.</p>
+<p>Um serviço de busca de terceiros recebe a consulta pesquisada; um leitor externo recebe o endereço da página e pode cobrar pelo processamento. O leitor integrado contata diretamente o site solicitado. Destinos de rede privados ou internos são recusados. O tratamento opcional de cookies limita-se a uma única leitura redirecionada e não cria uma sessão de login persistente.</p>
+{{end}}

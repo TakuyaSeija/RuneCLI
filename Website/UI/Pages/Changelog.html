@@ -20,6 +20,7 @@
           {{- end}}
         </ul>
         {{- end}}
+        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
         <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
       </div>
     </section>

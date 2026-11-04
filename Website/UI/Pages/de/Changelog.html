@@ -1,0 +1,47 @@
+{{define "content"}}
+<div class="read-layout">
+  <article class="article">
+    <header class="article-head">
+      <h1>Änderungsprotokoll</h1>
+      <p class="article-lead">Alle veröffentlichten Builds von RuneAgent. Jeder Build ist signiert; das Installationsskript installiert die neueste Version oder über die Versionsnummer jede ältere Ausgabe.</p>
+    </header>
+    {{- range $i, $r := .Catalog.Releases}}
+    <section class="release" id="v{{$r.Version}}">
+      <div class="release-meta">
+        {{- if eq $i 0}}<span class="tag">Aktuell</span>{{end}}
+        <span class="date">{{$r.Date}}</span>
+      </div>
+      <div class="release-body">
+        <h2>Version {{$r.Version}}</h2>
+        {{- if $r.Notes}}
+        <ul class="release-notes">
+          {{- range $r.Notes}}
+          <li>{{.}}</li>
+          {{- end}}
+        </ul>
+        {{- end}}
+        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
+        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
+      </div>
+    </section>
+    {{- else}}
+    <div class="empty" id="empty">Das erste Release erscheint hier mit Datum, Hinweisen und den veröffentlichten Dateien.</div>
+    {{- end}}
+    {{- with .Latest}}
+    <p class="small after">Wie du einen Download manuell prüfst, steht auf der <a class="link" href="{{url "install"}}">Installationsseite</a>.</p>
+    {{- end}}
+  </article>
+  <aside class="read-index">
+    {{- if .Catalog.Releases}}
+    <nav class="index" aria-label="Auf dieser Seite">
+      <p class="index-title">Releases</p>
+      <ol>
+        {{- range $i, $r := .Catalog.Releases}}
+        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
+        {{- end}}
+      </ol>
+    </nav>
+    {{- end}}
+  </aside>
+</div>
+{{end}}

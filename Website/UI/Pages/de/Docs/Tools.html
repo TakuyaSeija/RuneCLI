@@ -1,0 +1,30 @@
+{{define "article"}}
+<h2 id="different-limits">Drei unterschiedliche Arten von Limits</h2>
+<p>Eine optische Einklappung (Display Fold) steuert nur, wie viele Zeilen du auf den ersten Blick im Protokoll siehst. Ein Rückgabelimit (Output Cap) begrenzt, wie viel Text die KI erhält. Ein Erfassungs- oder Arbeitslimit kann dagegen einen laufenden Befehl stoppen oder eine Suche beenden. Das Erhöhen des einen Werts vergrößert nicht automatisch die anderen, und keines dieser Limits erteilt Datei- oder Netzwerkzugriff.</p>
+<p>Öffne Settings → Tools, wähle die gewünschte Gruppe, passe den Wert an und bestätige mit Apply. Use default entfernt deine globale Überschreibung. Die unten genannten Standardwerte ab Werk gelten für Rune {{.DocVersion}}, nicht zwingend für deine gespeicherten Einstellungen; prüfe einzelne Schlüssel mit <code>rune -config explain &lt;key&gt;</code>.</p>
+<h2 id="file-tools">Dateiwerkzeuge</h2>
+<dl class="ref">
+<div><dt>inspect_file</dt><dd>Liest eine einzelne Datei, bei Textdateien optional begrenzt auf einen inklusiven Zeilenbereich. Werkslimit: maximal 16 MiB Dateigröße und 30.000 zurückgegebene Zeichen. Unterstützte Nicht-Text-Dateien können an ein entsprechendes Modell angehängt werden.</dd></div>
+<div><dt>find_files</dt><dd>Glob-Suche nach Dateipfaden. Werkslimit: maximal 200 zurückgegebene Pfade und 20.000 Zeichen. Ein niedrigeres Limit pro Einzelaufruf kann dieses Maximum verringern, aber nicht erhöhen.</dd></div>
+<div><dt>search_text</dt><dd>Volltextsuche in Dateien. Werkslimit: maximal 100 passende Zeilen, 2.000 Zeichen pro Zeile und insgesamt 30.000 Zeichen. Teilt sich das Limit für die maximale Einzeldateigröße mit inspect_file.</dd></div>
+<div><dt>create_file</dt><dd>Erstellt eine Datei und überschreibt dabei gegebenenfalls eine bereits vorhandene Datei. Die Aktion muss weiterhin alle Berechtigungs- und Dateischutzprüfungen durchlaufen.</dd></div>
+<div><dt>patch_file</dt><dd>Ersetzt einen exakt angegebenen Textabschnitt. Der alte Textabschnitt muss genau einmal in der Datei vorkommen; ein mehrdeutiger Treffer führt zum Abbruch statt zum blinden Ersetzen aller Vorkommen.</dd></div>
+</dl>
+<p>Pfad- und Textsuche beziehen versteckte und ignorierte Dateien mit ein; <code>.git</code> und <code>.rune</code> werden nur durchsucht, wenn ein Muster einen Ordner darin nennt. Die gemeinsamen Scan-Limits liegen bei 200.000 Einträgen, einer Tiefe von 32 und 200.000 Regex-Auswertungsschritten pro Zeile. Eine Suche, die an einem Limit stoppt, sagt das und kann weitere Treffer haben. Eine Suche beginnt in dem Ordner, den ihr Muster nennt – nenne also einen Ordner, bevor du ein Limit erhöhst.</p>
+<h2 id="terminal-and-process">Terminal- und Prozesswerkzeuge</h2>
+<p><code>terminal_use</code> führt einen Befehl in einer frischen Shell aus. Die Standardwerte ab Werk betragen 120 Sekunden Vordergrund-Wartezeit, 30.000 zurückgegebene Zeichen und 100 MiB pro Hintergrund-Log. Nach Ablauf der Wartezeit läuft der Befehl im Hintergrund weiter; das Überschreiten des Ausgabe- oder Log-Limits stoppt ihn hingegen. <code>process_control</code> sendet eine Tastatureingabe an einen wartenden Prozess oder beendet ihn samt seinem gesamten Prozessbaum; es liest niemals Ausgaben und wartet nicht. Die Benachrichtigung eines beendeten oder wartenden Prozesses enthält dessen Status, PID, Laufzeit, Log-Pfad und die noch nicht übermittelte Ausgabe (standardmäßig bis zu 30.000 Zeichen, geteilt von Benachrichtigungen, die gemeinsam eintreffen).</p>
+<p>Lies <a href="{{url "docs/terminal"}}">Terminal &amp; Hintergrundprozesse</a> für Details zur Startabsicht, zur plattformabhängigen Eingabeerkennung und zur Lebensdauer von Hintergrundprozessen.</p>
+<h2 id="web-and-extensions">Web- und Erweiterungswerkzeuge</h2>
+<dl class="ref">
+<div><dt>web_search</dt><dd>Websuche anhand einer Suchanfrage und einer optional kleineren Trefferanzahl. Werkslimit: maximal acht Ergebnisse, 60 Sekunden Anfrage-Timeout und 100.000 Ausgabezeichen.</dd></div>
+<div><dt>web_fetch</dt><dd>Liest eine einzelne öffentliche Webseite aus. Werkslimit: 60 Sekunden Timeout und 100.000 zurückgegebene Zeichen. Besitzt eine eigene, von der Suche getrennte Anbieterauswahl.</dd></div>
+<div><dt>discover_capabilities</dt><dd>Sucht nach Skills, MCP-Werkzeugen und Ressourcen, die nicht bereits im Startkatalog aufgeführt sind. Werkslimit: 30.000 zurückgegebene Zeichen.</dd></div>
+<div><dt>call_mcp_tool</dt><dd>Ruft ein gefundenes externes Werkzeug mit den exakt vom Server deklarierten Eingabeparametern auf; Ausführung und Risiken liegen beim jeweiligen Server.</dd></div>
+<div><dt>read_mcp_resource</dt><dd>Liest eine gefundene MCP-Ressource. Werkslimit: 50.000 zurückgegebene Zeichen.</dd></div>
+</dl>
+<h2 id="orchestration">Pläne, Rückfragen und Orchestrierung</h2>
+<p><code>track_tasks</code> aktualisiert die Aufgabenliste (standardmäßig bis zu 20 Aufgaben mit je 120 Zeichen). <code>ask_user_questions</code> bittet dich in einem strukturierten Formular um Entscheidungen. Für Rückfragen gilt standardmäßig kein Zeitlimit (unlimited); Berechtigungsabfragen laufen nach 10 Minuten ab. Unlimited bedeutet lediglich, dass die Frage nicht von selbst verfällt – niemals eine automatische Zustimmung.</p>
+<p><code>tools.max_actions_per_response</code> erlaubt standardmäßig bis zu 20 vorgeschlagene Tool-Aufrufe in einer einzelnen Modellantwort. Dies ist weder ein Gesamtbudget für die Sitzung noch eine Anzahl paralleler Worker oder eine Zusage für parallele Ausführung. Jeder einzelne Aufruf durchläuft weiterhin seine eigene Validierung und Berechtigungsprüfung.</p>
+<h2 id="change-responsibly">Limits umsichtig anpassen</h2>
+<p>Nicht jedes Werkzeug besitzt ein eigenes Zahlenfeld im Menü. Höhere Limits können mehr Dateiinhalte offenlegen und mehr Zeit, Speicherplatz, Arbeitsspeicher oder Modellkontext verbrauchen. Niedrigere Limits können wichtige Informationen abschneiden oder laufende Aufgaben vorzeitig abbrechen. Achte auf Hinweise zu gekürzten Ausgaben, statt ein abgeschnittenes Ergebnis als vollständig anzusehen.</p>
+{{end}}

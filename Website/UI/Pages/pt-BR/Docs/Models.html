@@ -1,0 +1,21 @@
+{{define "article"}}
+<h2 id="browse-your-accounts">Navegue pelas suas contas conectadas</h2>
+<p>A seção Models lista os modelos disponíveis nos provedores configurados e em seus catálogos, além dos IDs exatos que você mesmo adicionar. A busca filtra essa lista; ela não pesquisa em todo o catálogo de todos os fornecedores existentes. A disponibilidade depende da sua conta, do endpoint, das permissões e da atualização do catálogo.</p>
+<p>Escolha um provedor à esquerda ou All providers. Apenas navegar pela lista não altera a conversa. Selecione um modelo e pressione Enter para aplicar aquele <strong>par provedor/modelo</strong>. Ctrl+F retorna para a busca. O par ativo é exibido separadamente do item destacado na lista.</p>
+<h2 id="catalog-and-custom-id">Catálogo e IDs personalizados</h2>
+<p>A opção Refresh catalog faz uma requisição de rede para buscar os IDs disponíveis e as informações publicadas. Ela não troca o modelo ativo. A opção Enter model ID permite adicionar um identificador exato; adicionar um ID por si só não prova que a conta tem permissão para executá-lo.</p>
+<p>Limites de contexto, limites de saída e preços desconhecidos permanecem marcados como desconhecidos. Não tente adivinhar capacidades a partir de uma palavra no nome do modelo nem aumente um valor de exibição local achando que isso ampliará o limite do provedor. Pressionar T sobre um resultado envia um teste real ao modelo e pode gerar custos.</p>
+<h2 id="configure-capabilities">Configure capacidades com Alt+C</h2>
+<p>Alt+C abre as configurações persistentes do modelo selecionado. As informações de capacidade descrevem o que um modelo aceita; a seção Generation descreve o que esta sessão solicita. A capacidade máxima de saída não equivale ao tamanho de resposta solicitado.</p>
+<dl class="ref">
+<div><dt>Context / output</dt><dd>Registra os tetos conhecidos do modelo. Uma substituição local não é capaz de expandir os limites reais do serviço externo.</dd></div>
+<div><dt>Reasoning</dt><dd>Configura o comportamento inicial e as opções de raciocínio oferecidas. O selo Thinking indica suporte ao recurso, não que ele esteja ativado na sessão atual.</dd></div>
+<div><dt>Media / controls</dt><dd>Usa as capacidades efetivamente suportadas pelo endpoint. Controles incompatíveis podem ficar ausentes ou indisponíveis enquanto o raciocínio estiver ativo.</dd></div>
+<div><dt>Pricing</dt><dd>Informa preços conhecidos de entrada, saída e cache para a contabilização local. Um preço desconhecido não equivale a zero, e informar um preço de cache não prova que o endpoint ofereça cache de prompt.</dd></div>
+</dl>
+<h2 id="fallback-and-removal">Provedor padrão e remoção</h2>
+<p>A opção New-session fallback escolhe um provedor inicial para sessões futuras sem substituir todas as sessões já existentes. Pressionar Delete sobre um modelo oculta ou remove aquele item e apaga suas configurações personalizadas, sem excluir o modelo no provedor. Adicioná-lo novamente pode carregar metadados novos do catálogo, não necessariamente as opções que você havia removido.</p>
+<h2 id="pricing-limits">Entenda os limites da contabilização</h2>
+<p>O cálculo de gastos (Spend) considera as requisições cujo uso e preços são conhecidos. Quando uma requisição sem preço obtém posteriormente o preço do modelo, ela passa a ser calculada; requisições já precificadas mantêm o custo registrado. A fatura do provedor pode divergir devido a arredondamentos, uso de cache, descontos ou dados de uso reportados de forma incompleta.</p>
+<p>O aviso de gastos não é um bloqueio automático. Confira os preços no seu provedor e utilize os controles de conta dele quando precisar de limites de orçamento rígidos. Leia <a href="{{url "docs/generation"}}">Geração e raciocínio</a> para ajustar os controles da sessão atual em vez de alterar as capacidades do modelo apenas para calibrar uma resposta.</p>
+{{end}}

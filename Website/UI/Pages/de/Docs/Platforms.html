@@ -1,0 +1,42 @@
+{{define "article"}}
+<h2 id="status">Unterstützung im Überblick</h2>
+<p>Rune ist ein einziges Programm mit denselben Modi, Werkzeugen, Einstellungen und Daten auf jedem System. Die Unterschiede ergeben sich daraus, was das jeweilige Betriebssystem einem Programm erlaubt: wie eine laufende Programmdatei aktualisiert wird, wie Befehle isoliert werden und ob das System erkennt, wenn ein Befehl auf eine Tastatureingabe wartet. Linux ist die Hauptplattform. macOS und Windows befinden sich in der Beta-Phase: auf echten Rechnern gebaut und getestet, aber bisher mit weniger Alltagseinsatz im Rücken.</p>
+<div class="table-wrap"><table class="data"><thead><tr><th>Bereich</th><th>Linux</th><th>macOS</th><th>Windows</th></tr></thead><tbody>
+<tr><td>Status</td><td>Hauptplattform</td><td>Beta</td><td>Beta</td></tr>
+<tr><td>Versionen</td><td>glibc 2.17 oder neuer bzw. jedes System mit dem statischen musl-Build</td><td>macOS 11 oder neuer</td><td>Windows 10 Version 1809 oder neuer, Windows 11</td></tr>
+<tr><td>Prozessoren</td><td>x86_64, arm64</td><td>Apple Silicon, Intel</td><td>x64, ARM64</td></tr>
+<tr><td>Installationsskript</td><td><code>install.sh</code></td><td><code>install.sh</code></td><td><code>install.ps1</code> in PowerShell</td></tr>
+<tr><td>Offene Fenster nach einem Update</td><td>Wechseln im Leerlauf auf den neuen Build</td><td>Wechseln im Leerlauf auf den neuen Build</td><td>Behalten ihre Version; das nächste geöffnete Rune nutzt die neue Version</td></tr>
+<tr><td>Befehls-Sandbox</td><td>Kernel-eigene Sandbox, sofern vom Kernel bereitgestellt</td><td>macOS-eigene Sandbox</td><td>Separates lokales Windows-Konto, einmalig mit Administratorbestätigung eingerichtet</td></tr>
+<tr><td>Befehl wartet auf Tastatureingabe</td><td>Jedes Warten wird erkannt</td><td>Nur verdeckte Eingaben, etwa eine Passwortabfrage</td><td>Wird nicht automatisch erkannt</td></tr>
+<tr><td>Shell für Befehle</td><td>bash, sonst <code>/bin/sh</code></td><td>bash, sonst <code>/bin/sh</code></td><td>PowerShell 7, sonst Windows PowerShell, sonst Eingabeaufforderung</td></tr>
+<tr><td>Kopieren aus Rune</td><td>Über das Terminal</td><td>System-Zwischenablage und über das Terminal</td><td>System-Zwischenablage und über das Terminal</td></tr>
+<tr><td>Link öffnen</td><td>Dein Browser über <code>xdg-open</code></td><td>Dein Browser</td><td>Dein Browser</td></tr>
+</tbody></table></div>
+<p>Für welche Systeme im aktuellen Release ein signierter Build vorliegt, steht direkt unter jedem Installationsbefehl auf der <a href="{{url "install"}}">Startseite</a>.</p>
+
+<h2 id="linux">Linux</h2>
+<p>Befehle werden durch die Kernel-eigene Sandbox isoliert, sofern der Kernel diese bereitstellt – was bei den meisten aktuellen Distributions-Kernels der Fall ist. Fehlt diese Unterstützung, etwa auf einem älteren Kernel, weist Rune darauf hin: Im Modus Auto fragt dann jeder Befehl vorab um Erlaubnis, während Full ohne Rückfrage ausführt. <code>/help</code> zeigt unter <em>This machine</em> an, ob die Sandbox aktiv ist und welche Ausnahmen gelten.</p>
+<p>Das Kopieren von Text läuft über dein Terminal, das Programmen den Schreibzugriff auf die Zwischenablage erlauben muss. Über SSH oder innerhalb von tmux bzw. screen ist diese Berechtigung mitunter deaktiviert; schalte sie im Terminal bzw. Multiplexer frei oder halte beim Ziehen <kbd>Shift</kbd> gedrückt, um die native Auswahl des Terminals zu nutzen. Zum Öffnen von Links im Browser wird <code>xdg-open</code> benötigt, das auf Desktop-Systemen standardmäßig vorhanden ist.</p>
+<p>Auf Systemen, die ihre Programme in einem schreibgeschützten Paketspeicher ablegen – wie NixOS oder Guix –, dürfen Befehle lesen und ausführen, was in diesem Speicher liegt.</p>
+
+<h2 id="macos">macOS</h2>
+<p>Befehle laufen in der macOS-eigenen Sandbox und sind auf dieselben Verzeichnisse beschränkt wie unter Linux. Beim Kopieren von Text wird direkt die System-Zwischenablage beschrieben; das Kopieren funktioniert daher auch im Standard-Terminal von macOS, das Zwischenablage-Anfragen über Terminal-Steuersequenzen ignoriert.</p>
+<p>macOS meldet Rune nur verdeckte Eingabeaufforderungen wie etwa Passwortabfragen. Ein Hintergrundbefehl, der still auf eine normale Texteingabe wartet, sieht daher so aus, als würde er noch arbeiten; lies vor einer Entscheidung sein Protokoll und gib niemals auf Verdacht ein Passwort oder eine Bestätigung ein, nur weil ein Befehl keine Ausgabe mehr liefert.</p>
+<p>Befehle werden in bash ausgeführt (das unter macOS vorinstalliert ist) und nicht zwingend in der interaktiven Login-Shell deines Terminals (unter macOS standardmäßig zsh). Über einen absoluten Pfad in <code>terminal.shell</code> kannst du eine andere installierte Shell festlegen.</p>
+<p>Installiere Rune mit dem Befehl auf der Startseite. Eine im Browser heruntergeladene Kopie wird von macOS als Internet-Download markiert und von Gatekeeper blockiert, bis die Markierung entfernt wurde; <a href="{{url "docs/install"}}#install">Installieren &amp; aktualisieren</a> zeigt, wie das geht.</p>
+
+<h2 id="windows">Windows</h2>
+<p>Rune isoliert Befehle über ein eigenes separates lokales Benutzerkonto. Beim ersten Start bittet Rune einmalig um eine Administratorbestätigung, um dieses Konto einzurichten. Lehnst du ab, fragt Rune nicht bei jedem Start erneut; mit <code>rune -sandbox setup</code> kannst du die Einrichtung jederzeit nachholen und mit <code>rune -sandbox reset</code> das Konto samt allen auf deinen Ordnern eingerichteten Zugriffsrechten wieder entfernen. <code>rune -sandbox</code> listet diese Zugriffsrechte auf und zeigt an, welche Isolierungsmethode aktiv ist.</p>
+<p>Ohne dieses separate Konto isoliert Rune Befehle über ein eingeschränktes Token deines eigenen Benutzerkontos, wobei folgende Grenzen gelten:</p>
+<ul>
+<li>Ein Befehl kann weiterhin alles lesen, was Windows jedem angemeldeten Benutzer zum Lesen freigibt – etwa Ordner direkt im Wurzelverzeichnis eines Laufwerks, andere Laufwerke und ProgramData – und kann in ProgramData auch Dateien anlegen. Dein eigener Benutzerprofilordner bleibt jedoch außerhalb seiner Reichweite.</li>
+<li>Ein Befehl kann eine Named Pipe, die ein anderes Programm mit den Windows-Standardrechten erstellt hat, lesend öffnen. Schreibzugriffe auf eine solche Pipe werden verweigert.</li>
+<li>Git Bash und andere MSYS2- oder Cygwin-Programme fragen vor jedem Befehl um Erlaubnis und führen diesen Aufruf anschließend mit vollem Zugriff aus. Die Windows-eigene HTTPS-Implementierung (genutzt von <code>curl.exe</code> und <code>Invoke-WebRequest</code>) schlägt innerhalb dieses eingeschränkten Tokens fehl; das eigene HTTPS von Git funktioniert hingegen weiterhin.</li>
+</ul>
+<p>Ist das separate Sandbox-Konto eingerichtet, funktionieren sowohl Git Bash als auch das Windows-eigene HTTPS innerhalb isolierter Befehle. Rune gewährt diesem Konto keinen Zugriff auf die Systemordner von Windows, auf das Wurzelverzeichnis eines Laufwerks oder auf den übergeordneten Ordner aller Benutzerprofile; öffnest du ein Projekt direkt an einem dieser Orte, fragt jeder Befehl in den Modi Ask und Auto vorab nach.</p>
+<p>Windows meldet Rune nicht, wenn ein Befehl auf eine Tastatureingabe wartet. Ein stiller Hintergrundbefehl wartet möglicherweise auf eine Eingabe oder arbeitet noch: Prüfe sein Protokoll, bevor du eine Eingabe sendest. Da eine laufende Programmdatei unter Windows nicht im Betrieb ersetzt werden kann, greift ein Update erst beim nächsten geöffneten Rune-Fenster, nicht in bereits offenen Fenstern.</p>
+
+<h2 id="terminals">Terminals</h2>
+<p>Tastenkombinationen und Mausgesten erreichen Rune nur, wenn das Terminal sie weitergibt. Konsole zoomt bei <kbd>Ctrl</kbd>+Mausrad, sofern das Profil nicht angepasst wurde, und manche Terminals wandeln <kbd>Alt</kbd>+Mausrad in horizontales Scrollen um; das einfache Mausrad und die Pfeiltasten funktionieren immer. Weiches Scrollen mit dem Mausrad wird nur in Terminals genutzt, die komplette Frames am Stück schnell genug neu zeichnen; andernfalls springt die Ansicht pro Raststufe direkt. Farben, Transparenz und Schriftarten werden vom Terminal gesteuert. Mit <code>/help</code> siehst du jederzeit, welche Eingaben dein installierter Build unterstützt.</p>
+{{end}}

@@ -1,0 +1,47 @@
+{{define "article"}}
+<h2 id="two-tools">Buscar y leer páginas son herramientas separadas</h2>
+<p><code>web_search</code> busca páginas a partir de una consulta. <code>web_fetch</code> lee como texto una página pública HTTP(S). Si pasas una URL como consulta de búsqueda, se realizará una búsqueda sobre ella en lugar de abrir directamente la página. El lector integrado no es un navegador interactivo y no puede acceder a contenido tras un inicio de sesión ni a aplicaciones que dependan exclusivamente de la ejecución de scripts.</p>
+<p>La búsqueda requiere configurar un servicio. La lectura de páginas utiliza por defecto el lector integrado de Rune. Ambas herramientas tienen proveedores fijados, tiempos de espera y límites de salida independientes; activar un servicio para una de ellas no lo selecciona automáticamente para la otra.</p>
+<h2 id="add-an-account">Añade primero la cuenta de acceso</h2>
+<p>En Settings → Connections, añade la cuenta de Search &amp; Fetch que quieras usar junto con su dirección y sus credenciales. Guardar el acceso por sí solo no demuestra que el servicio funcione. El punto de conexión de modelos y el punto de conexión web de un mismo proveedor pueden ser servicios distintos con permisos y planes diferentes.</p>
+<h2 id="add-and-select">Añadir y seleccionar un proveedor</h2>
+<ol><li>Abre Settings → Tools → Web search o Web fetch → Provider.</li><li>Elige Add provider y selecciona la cuenta conectada.</li><li>Si se trata de una pasarela, escribe la ruta exacta deseada en el campo vacío. No deduzcas el nombre de una ruta a partir de un ejemplo o del nombre de un modelo.</li><li>Rune realiza una solicitud de prueba real antes de guardar el proveedor. Esto puede enviar una consulta o dirección de página y generar costes.</li><li>Vuelve a la lista y selecciona el proveedor deseado. Al seleccionarlo se prueba y se guarda esa elección exacta; el simple hecho de añadirlo no lo fija explícitamente.</li></ol>
+<p>Si falla la adición o la selección, se mantiene la opción que estuviera activa anteriormente. Superar la prueba demuestra que esa solicitud concreta funcionó, pero no garantiza el acceso futuro sin restricciones a cualquier página o servicio.</p>
+<h2 id="services">Servicios que puede utilizar Rune</h2>
+<p>Cada servicio requiere tu propia cuenta en ese proveedor. Rune utiliza únicamente la función de búsqueda o de lectura de páginas indicada aquí, no todos los productos que comercialice el proveedor. Salvo que la fila indique otra cosa, el servicio tiene una dirección fija y requiere una clave.</p>
+<div class="table-wrap"><table class="data">
+<thead><tr><th>Servicio</th><th>Búsqueda</th><th>Lectura</th><th>Notas</th></tr></thead>
+<tbody>
+<tr><td>Brave Search</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Bright Data SERP</td><td>Sí</td><td>No</td><td>Busca en Google a través de una zona SERP de tu cuenta.</td></tr>
+<tr><td>Exa</td><td>Sí</td><td>Sí</td><td></td></tr>
+<tr><td>Firecrawl</td><td>Sí</td><td>Sí</td><td></td></tr>
+<tr><td>Jina AI</td><td>Sí</td><td>Sí</td><td>La búsqueda y la lectura usan dos direcciones distintas; la clave empieza por <code>jina_</code>.</td></tr>
+<tr><td>Linkup</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>9router</td><td>Sí</td><td>Sí</td><td>La aplicación 9router en este ordenador, en el puerto 20128 por defecto. Su clave es opcional, y cada servicio de búsqueda o lectura que ofrece se indica como una ruta con nombre.</td></tr>
+<tr><td>Ollama Web Search</td><td>Sí</td><td>Sí</td><td>El servicio en la nube de Ollama con una clave de ollama.com, no un servidor Ollama local.</td></tr>
+<tr><td>Perplexity Search</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Scrapingdog</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>SearXNG</td><td>Sí</td><td>No</td><td>Tu propio servidor: introduce su dirección, sin clave. Debe incluir <code>json</code> bajo <code>search: formats:</code> en su configuración.</td></tr>
+<tr><td>SerpApi</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Serper</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Serpex</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Serplify</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>serpstack</td><td>Sí</td><td>No</td><td></td></tr>
+<tr><td>Tavily</td><td>Sí</td><td>Sí</td><td></td></tr>
+<tr><td>TinyFish</td><td>Sí</td><td>Sí</td><td>La búsqueda y la lectura usan dos direcciones distintas.</td></tr>
+<tr><td>You.com</td><td>Sí</td><td>No</td><td></td></tr>
+</tbody>
+</table></div>
+<p>Sin ninguno de estos servicios, la búsqueda web no estará disponible y la lectura de páginas utilizará el lector integrado de Rune, que no necesita ninguna cuenta.</p>
+<h2 id="default-and-pin">Selección predeterminada y fijación explícita</h2>
+<dl class="ref">
+<div><dt>Predeterminado en búsqueda</dt><dd>Cuando no se define ninguno explícitamente, se utiliza el primer proveedor de búsqueda habilitado según el orden en que se añadieron. Por tanto, añadir el primer proveedor puede convertirlo en el proveedor activo por defecto.</dd></div>
+<div><dt>Predeterminado en lectura</dt><dd>Utiliza el lector integrado. Añadir un lector externo no lo selecciona automáticamente.</dd></div>
+<div><dt>Elección explícita</dt><dd>Fija una cuenta o un par cuenta:ruta concreto. Si deja de existir o no está disponible, la herramienta no envía la solicitud en silencio a otro proveedor distinto.</dd></div>
+</dl>
+<p>Usa Use default o restablece <code>web_search.provider</code>/<code>web_fetch.provider</code> para quitar la fijación correspondiente. Selecciona otra opción antes de eliminar un proveedor que esté en uso. Eliminarlo quita ese proveedor de la herramienta, pero no borra la cuenta ni sus claves en Connections. Un servicio de pasarela puede guardar hasta 32 rutas.</p>
+<h2 id="limits-and-privacy">Límites y privacidad</h2>
+<p>Los valores de fábrica son ocho resultados de búsqueda, 60 segundos por solicitud de herramienta y 100.000 caracteres devueltos en cada herramienta. En una llamada concreta puede solicitarse un número menor de resultados. Aumentar el límite de salida no evita las restricciones de acceso de los sitios web.</p>
+<p>Un servicio de búsqueda de terceros recibe la consulta; un lector externo recibe la dirección de la página y puede cobrar por procesarla. El lector integrado contacta directamente con el sitio solicitado y rechaza direcciones privadas o internas. El manejo opcional de cookies se limita a seguir las redirecciones de una única lectura y no mantiene ninguna sesión iniciada de forma persistente.</p>
+{{end}}
