@@ -913,8 +913,16 @@ impl Scope {
 
     pub fn of(jail: &crate::jail::Jail, pattern: &str) -> Result<Scope> {
         use crate::scan::glob::{is_literal, split_walk_root, Glob};
-        let pattern = pattern.trim();
-        let (root, rest) = split_walk_root(pattern);
+        let pattern = spelt_for_walk(pattern.trim(), crate::platform::OS);
+        let (root, rest) = split_walk_root(&pattern);
+        // A drive alone is that drive's root, never the folder it is in now.
+        let drive;
+        let root = if root.len() == 2 && root.ends_with(':') {
+            drive = format!("{root}/");
+            drive.as_str()
+        } else {
+            root
+        };
         if root.is_empty() {
             let glob = if rest.contains('/') {
                 Glob::new(rest)
@@ -938,6 +946,19 @@ impl Scope {
             glob: Some(Glob::new(rest)),
             file,
         })
+    }
+}
+
+/// A path pattern spelt the way the walk names paths, with `/`. Windows
+/// separates folders with `\` as well, and so does a model that copied a path
+/// from it (`D:\work\src\main.rs`): there a `\` is a separator, never a glob
+/// escape — a metacharacter is matched as a class (`[*]`) instead. CI run
+/// 41771425869: such an include found nothing on Windows.
+fn spelt_for_walk(pattern: &str, os: crate::platform::Os) -> String {
+    if os == crate::platform::Os::Windows {
+        pattern.replace('\\', "/")
+    } else {
+        pattern.to_string()
     }
 }
 
@@ -2091,6 +2112,8 @@ mod tests {
         for one in [
             "src/main.rs".to_string(),
             root.join("src/main.rs").display().to_string(),
+            // Every separator the platform's own (`\` on Windows).
+            root.join("src").join("main.rs").display().to_string(),
         ] {
             let scope = Scope::of(&jail, &one).unwrap();
             assert_eq!(
@@ -2109,6 +2132,27 @@ mod tests {
         assert_eq!(skills.dir, root.join(".rune/skills"));
         assert!(skills.glob.as_ref().unwrap().matches("one/SKILL.md"));
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// Windows writes a path with `\`: it is a separator there, so a path
+    /// copied from it searches the folder and file it names; elsewhere `\`
+    /// stays the glob's escape. A drive alone is its root.
+    #[test]
+    fn a_windows_path_is_spelt_with_slashes_for_the_walk() {
+        use crate::platform::Os;
+        assert_eq!(
+            spelt_for_walk(r"D:\work\src\main.rs", Os::Windows),
+            "D:/work/src/main.rs"
+        );
+        assert_eq!(spelt_for_walk(r"src\*.rs", Os::Windows), "src/*.rs");
+        assert_eq!(spelt_for_walk(r"a\*b", Os::Linux), r"a\*b");
+        assert_eq!(spelt_for_walk(r"a\*b", Os::MacOs), r"a\*b");
+        let (root, rest) = crate::scan::glob::split_walk_root("C:/*.rs");
+        assert_eq!(
+            (root, rest),
+            ("C:", "*.rs"),
+            "made the drive's root by Scope"
+        );
     }
 
     /// A link is never followed by a walk, so a pattern naming one is not taken

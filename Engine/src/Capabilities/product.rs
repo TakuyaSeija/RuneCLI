@@ -140,14 +140,40 @@ fn parent(home: &Path) -> Result<PathBuf> {
     }
     std::fs::create_dir_all(home)?;
     let parent = crate::platform::canonical(home)?.join(DIRECTORY);
-    if !plain_directory(&parent) {
-        discard(&parent)?;
+    // Made first, and only what is not a folder is ever taken away. It used to
+    // be looked at, then discarded: two first starts both saw nothing there,
+    // one made the folder, and the other removed it — its lock and the package
+    // it was writing with it — as "something else that took its name".
+    for _ in 0..3 {
         match std::fs::create_dir(&parent) {
-            Err(e) if e.kind() != std::io::ErrorKind::AlreadyExists => return Err(e.into()),
-            _ => {}
+            Ok(()) => return Ok(parent),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e.into()),
         }
+        if plain_directory(&parent) {
+            return Ok(parent);
+        }
+        discard_unless_folder(&parent)?;
     }
-    Ok(parent)
+    if plain_directory(&parent) {
+        return Ok(parent);
+    }
+    Err(Error::invalid(format!(
+        "Official help needs a folder at {}, and something else keeps taking its name",
+        parent.display()
+    )))
+}
+
+/// What took a folder's name — a file or a link, a link never followed — goes;
+/// a folder found there instead is another start's, made a moment ago, and
+/// stays.
+fn discard_unless_folder(path: &Path) -> std::io::Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_dir() => Ok(()),
+        Ok(_) => discard(path),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 fn lock(parent: &Path) -> Result<crate::lock::Lock> {

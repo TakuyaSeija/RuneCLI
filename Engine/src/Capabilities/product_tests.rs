@@ -105,23 +105,78 @@ fn product_help_is_offline_isolated_idempotent_and_leaves_choices_alone() {
     assert_ne!(ensure(&other).unwrap(), path);
 }
 
+/// First starts that meet on a fresh home publish one whole package. The bug
+/// of 2026-11-04 (CI run 41771425869): both saw no folder, one made it, and the
+/// other removed it — the first one's lock and half-written package with it —
+/// so that start failed with "No such file or directory". Many rounds, since
+/// the race is a matter of timing.
 #[test]
 fn product_help_concurrent_first_starts_publish_one_complete_package() {
-    let f = Fixture::new();
-    let workers: Vec<_> = (0..6)
-        .map(|_| {
-            let home = f.home();
-            std::thread::spawn(move || ensure(&home).unwrap())
-        })
-        .collect();
-    for worker in workers {
-        assert_eq!(worker.join().unwrap(), root(&f.home()));
+    for _ in 0..25 {
+        let f = Fixture::new();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(8));
+        let workers: Vec<_> = (0..8)
+            .map(|_| {
+                let home = f.home();
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    parent(&home).unwrap()
+                })
+            })
+            .collect();
+        for worker in workers {
+            assert_eq!(worker.join().unwrap(), f.home().join(DIRECTORY));
+        }
+        let workers: Vec<_> = (0..6)
+            .map(|_| {
+                let home = f.home();
+                std::thread::spawn(move || ensure(&home).unwrap())
+            })
+            .collect();
+        for worker in workers {
+            assert_eq!(worker.join().unwrap(), root(&f.home()));
+        }
+        assert!(intact(&root(&f.home())));
+        assert_eq!(
+            visible(&f.home().join(DIRECTORY)),
+            vec![revision().to_string()]
+        );
     }
-    assert!(intact(&root(&f.home())));
+}
+
+/// A file or a link that took the folder's name is replaced by the folder; a
+/// link's target is never touched.
+#[test]
+fn product_help_replaces_a_file_that_took_its_folders_name() {
+    let f = Fixture::new();
+    let home = f.home();
+    std::fs::create_dir_all(&home).unwrap();
+    std::fs::write(home.join(DIRECTORY), "not a folder").unwrap();
+    assert!(plain_directory(&parent(&home).unwrap()));
+}
+
+/// The race above, made certain: a start that looked a moment ago and saw no
+/// folder must not take away the folder another start has made since — with
+/// its lock and the package it is writing inside it. Only what is not a
+/// folder is ever removed in its place.
+#[test]
+fn product_help_never_removes_a_folder_another_start_made() {
+    let f = Fixture::new();
+    let folder = f.home().join(DIRECTORY);
+    std::fs::create_dir_all(folder.join("in-progress")).unwrap();
+    std::fs::write(folder.join("in-progress/part"), "another start's").unwrap();
+    discard_unless_folder(&folder).unwrap();
     assert_eq!(
-        visible(&f.home().join(DIRECTORY)),
-        vec![revision().to_string()]
+        std::fs::read_to_string(folder.join("in-progress/part")).unwrap(),
+        "another start's"
     );
+    // A file in its place goes; nothing there is not an error.
+    let squatter = f.home().join("squatter");
+    std::fs::write(&squatter, "x").unwrap();
+    discard_unless_folder(&squatter).unwrap();
+    assert!(!squatter.exists());
+    discard_unless_folder(&squatter).unwrap();
 }
 
 /// Owner, 2026-10-16: one changed byte, an editor's swap file or a file
