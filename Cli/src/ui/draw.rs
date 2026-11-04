@@ -10774,6 +10774,64 @@ mod tests {
         assert!(lines[0].ends_with("· 750 tokens"), "{lines:?}");
     }
 
+    /// Session 704: When streaming chunks arrive with interleaved thinking and
+    /// text deltas within the same round (e.g. thinking "...look", text "S",
+    /// thinking ".", text "aya cari transkrip"), thinking deltas must coalesce
+    /// into this round's single thinking block, and text deltas must coalesce
+    /// into the response block without fragmenting into alternating Thought/Response.
+    #[test]
+    fn interleaved_stream_thinking_and_text_coalesce_within_the_same_round() {
+        let mut app = test_app();
+        app.push_block(Block::user("tanya"));
+        app.on_event(runeengine::Event::Thinking {
+            session: 1,
+            delta: "The user wants me to continue. Let me look".into(),
+        });
+        app.on_event(runeengine::Event::Text {
+            session: 1,
+            delta: "S".into(),
+        });
+        app.on_event(runeengine::Event::Thinking {
+            session: 1,
+            delta: ".".into(),
+        });
+        app.on_event(runeengine::Event::Text {
+            session: 1,
+            delta: "aya cari transkrip".into(),
+        });
+
+        assert_eq!(app.blocks.len(), 3);
+        match &app.blocks[1] {
+            Block::Thinking { text, .. } => {
+                assert_eq!(text, "The user wants me to continue. Let me look.");
+            }
+            _ => panic!("expected Block::Thinking at index 1"),
+        }
+        match &app.blocks[2] {
+            Block::Text { text, .. } => {
+                assert_eq!(text, "Saya cari transkrip");
+            }
+            _ => panic!("expected Block::Text at index 2"),
+        }
+
+        let rendered = transcript(&mut app, 80);
+        let plain_lines: Vec<_> = rendered
+            .lines
+            .iter()
+            .map(|l| ansi::plain(l))
+            .filter(|l| l.contains("Thought") || l.contains("Thinking") || l.contains("Response"))
+            .collect();
+
+        let thought_count = plain_lines
+            .iter()
+            .filter(|l| l.contains("Thought") || l.contains("Thinking"))
+            .count();
+        assert_eq!(
+            thought_count, 1,
+            "thinking must not be split into multiple bullets: {plain_lines:?}"
+        );
+    }
+
     #[test]
     fn sidebar_rows_fit_within_panel_width() {
         let mut app = App::for_test_with(json!({ "context": 1_000 }));

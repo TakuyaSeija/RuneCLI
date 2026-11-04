@@ -961,9 +961,15 @@ mod tests {
                 let mut finished = Finished::of(Err(error));
                 finished.terminal_recovery(name);
                 finished.terminal_recovery(name);
-                assert!(finished.content.matches("submit !").count() <= 1);
+                assert!(
+                    finished
+                        .content
+                        .matches("! followed by the command")
+                        .count()
+                        <= 1
+                );
                 assert_eq!(
-                    finished.content.contains("submit !"),
+                    finished.content.contains("! followed by the command"),
                     name == "terminal_use" && refusal,
                     "{name}: {}",
                     finished.content

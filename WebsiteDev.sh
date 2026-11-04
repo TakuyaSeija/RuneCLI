@@ -20,7 +20,9 @@ BIN="$RUN/atoryn-studio-web-dev"
 HOST="${ATORYN_DEV_HOST:-192.168.18.10}"
 PORT=3401
 HEALTH_PORT=$((PORT + 2))
-DOWNLOADS="${STUDIO_DEV_DOWNLOADS:-$RUN/Downloads}"
+# Release packages: DEV keeps its own folder, never the live one, so a test
+# build can never appear as a real release on the site.
+DOWNLOADS="${STUDIO_DEV_DOWNLOADS:-/home/noire/.data/Atoryn/StudioDev/Releases}"
 
 die() { echo "Studio   $*" >&2; exit 1; }
 

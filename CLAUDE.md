@@ -1,5 +1,7 @@
 # Rune — development instructions
 
+> Deploying the site (`/Studio/`) or the `rune` CLI release: read `docs/deploy.md` first, then run `DeployStudio.sh` at the project root (every sub-command takes `--dry-run`).
+
 Rust workspace for **Rune**, a local coding agent for Linux, macOS (11+) and Windows (10 1809+/11), x64 and arm64. Two crates: `Engine/` (`runeengine` — agent loop, tools, permissions, jail, sandbox, checkpoint, store) and `Cli/` (`runecli` — the `rune` binary: interactive UI, `-p` one-shot, `-host` JSON stdio). The GUI (RuneStudio/Flutter) has no code yet.
 
 ## Commands

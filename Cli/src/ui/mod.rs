@@ -3443,10 +3443,11 @@ impl App {
                 }
                 if let Some(queued) = &self.queued_prompt {
                     let limit = queued.first_user_block.min(self.blocks.len());
-                    if limit > 0
-                        && matches!(self.blocks[limit - 1], Block::Thinking { round: r, .. } if r == round)
+                    if let Some(at) = self.blocks[..limit]
+                        .iter()
+                        .position(|b| matches!(b, Block::Thinking { round: r, .. } if *r == round))
                     {
-                        if let Block::Thinking { text, .. } = &mut self.blocks[limit - 1] {
+                        if let Block::Thinking { text, .. } = &mut self.blocks[at] {
                             text.push_str(&delta);
                             self.transcript_dirty = true;
                             return;
@@ -3463,23 +3464,23 @@ impl App {
                 }
                 // A delta is new text, always: appended verbatim, never compared
                 // with what is shown — one that happens to equal the tail ("\n",
-                // ".", a repeated word) is real. Another request's thinking
-                // is another thinking.
-                match self.blocks.last_mut() {
-                    Some(Block::Thinking { text, round: r, .. }) if *r == round => {
+                // ".", a repeated word) is real. All thinking within one round
+                // coalesces into this round's thinking block, even if a micro text
+                // delta arrived interleaved before reasoning fully settled.
+                if let Some(at) = self.round_thinking() {
+                    if let Block::Thinking { text, .. } = &mut self.blocks[at] {
                         text.push_str(&delta);
                         self.transcript_dirty = true;
-                    }
-                    _ => {
-                        self.push_block(Block::Thinking {
-                            text: delta,
-                            open: false,
-                            tokens: None,
-                            chase: None,
-                            round,
-                        });
+                        return;
                     }
                 }
+                self.push_block(Block::Thinking {
+                    text: delta,
+                    open: false,
+                    tokens: None,
+                    chase: None,
+                    round,
+                });
             }
             Event::ToolArgs {
                 id,

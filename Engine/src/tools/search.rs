@@ -49,7 +49,7 @@ impl Tool for SearchText {
                     },
                     "include": {
                         "type": "string",
-                        "description": "Search only files whose name or path matches this glob, e.g. *.rs or Engine/src/main.rs."
+                        "description": "Search only files whose name or path matches this glob, e.g. *.py or src/server/main.go."
                     },
                     "limit": {
                         "type": "integer",

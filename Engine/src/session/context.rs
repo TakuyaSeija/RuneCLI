@@ -624,9 +624,9 @@ pub fn loop_warning(
 ) -> Result<()> {
     let guidance = if firm {
         if is_bg_poll {
-            " A task's next state and its output arrive by their own <system_notification>; asking again tells you nothing new. Proceed with independent work, or end your turn and answer when it wakes you."
+            " Its next state and output come in its own <system_notification>, so asking again brings nothing new. Independent work can go on meanwhile; with none left, ending the turn lets the notification start the next one."
         } else {
-            " Repeating this call will not change the outcome; switch to an alternative approach, inspect prerequisites, or ask the person."
+            " Repeating it is unlikely to change the outcome; a different approach, a check of what it depends on, or a question to the person can move the work forward."
         }
     } else {
         ""
@@ -1047,7 +1047,8 @@ mod tests {
         assert!(blocks[1].starts_with("<system_notice>"));
         assert!(blocks[1].contains("of 30"));
         assert!(!blocks[1].contains("inspect_file"));
-        assert!(super::super::prompt::SYSTEM.contains("read their remainder"));
+        assert!(super::super::prompt::SYSTEM
+            .contains("Cut project instructions continue in their file"));
         for l in blocks[0].lines().filter(|l| l.starts_with("line ")) {
             assert!(
                 text.contains(&format!("{l}\n")),

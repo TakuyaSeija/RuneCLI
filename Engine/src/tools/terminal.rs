@@ -105,7 +105,7 @@ impl Tool for TerminalUse {
                 )
             } else {
                 format!(
-                    "`{key}` is not an argument of terminal_use, which runs a shell command: each call starts in the workspace root, so put `cd <dir> && ...` in `command`."
+                    "`{key}` is not an argument of terminal_use, which runs a shell command: each call starts in the workspace root, so `command` itself changes to that directory first, in the shell's own syntax."
                 )
             }));
         }
@@ -133,7 +133,7 @@ impl Tool for TerminalUse {
                 json!({
                     "command": {
                         "type": "string",
-                        "description": "The shell script, preserving its original newlines and indentation. A leading ! here is shell syntax, not Rune's frontend-only manual authorization; do not add it to request that mode."
+                        "description": "The shell script, preserving its original newlines and indentation. A leading ! here is plain shell syntax: the manual shell is started only by the person in Rune's composer, so ! does not request it."
                     },
                     "run_in_background": {
                         "type": "boolean",
@@ -968,7 +968,14 @@ mod tests {
             let wrong =
                 json!({"action":"run","command":"sed -n 1,9p WebsiteDev.sh", key: "WebsiteDev.sh"});
             let said = tool.validate(&wrong).unwrap_err().to_string();
-            assert!(said.contains("`cd <dir> && ...`"), "{key}: {said}");
+            assert!(
+                said.contains("changes to that directory first, in the shell's own syntax"),
+                "{key}: {said}"
+            );
+            assert!(
+                !said.contains("&&"),
+                "Windows PowerShell 5.1 has no &&: {said}"
+            );
             assert!(said.contains("workspace root"), "{key}: {said}");
         }
 
@@ -1123,8 +1130,8 @@ mod tests {
             .as_str()
             .unwrap();
         assert!(command.contains("original newlines and indentation"));
-        assert!(command.contains("frontend-only manual authorization"));
-        assert!(command.contains("do not add it to request that mode"));
+        assert!(command.contains("the manual shell is started only by the person"));
+        assert!(command.contains("so ! does not request it"));
         let args = json!({"action":"run","command":"echo first\necho second"});
         assert!(tool.validate(&args).is_ok());
         for key in ["manual_shell", "bypass", "full_access"] {

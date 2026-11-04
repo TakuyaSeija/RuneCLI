@@ -63,7 +63,7 @@ impl Tool for WebFetch {
                     "url": {
                         "type": "string",
                         "minLength": 1,
-                        "description": "The http:// or https:// page to read. Private and internal addresses are refused."
+                        "description": "The http:// or https:// page to read."
                     }
                 }),
                 &["url"],

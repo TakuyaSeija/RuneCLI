@@ -28,7 +28,7 @@ impl Tool for TrackTasks {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "track_tasks".into(),
-            description: "Keep a plan for work with several steps, not one-step work. The person watches it beside the conversation, so it is what tells them where the work stands: put the step you are on in doing before you start it, and mark it done the moment it is. Exactly one task is doing; mark each completed task done promptly. Limits: plan limit in <status>."
+            description: "Keep a plan for work with several steps; one-step work needs none. The person watches it beside the conversation, so it tells them where the work stands: move a step to doing just before you start it and to done as soon as it is finished, keeping one step doing at a time. Limits: plan limit in <status>."
                 .into(),
             parameters: json!({
                 "type": "object",

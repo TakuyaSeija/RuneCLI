@@ -431,7 +431,7 @@ fn help(app: &App, width: usize) -> Sink {
         "explicit user actions, not AI approval",
         width,
     ));
-    out.extend(paragraph("! <command> at the very start runs your complete script with full access once. Enter authorizes all lines; review pasted scripts. No automatic Administrator elevation or change to the session mode. The AI sees the result after completion or background handoff.", TEXT, 2, width));
+    out.extend(paragraph("! <command> at the very start runs your complete script with full access once. Enter authorizes all lines; review pasted scripts. No automatic elevation to Administrator or root, and no change to the session mode. The AI sees the result after completion or background handoff.", TEXT, 2, width));
     out.extend(paragraph("Click a reference label to review its complete destination. Open in browser / Enter opens HTTP(S); Copy / C copies it. File paths are copy-only: no file is opened or executed. Esc closes the reference panel.", TEXT, 2, width));
     out.push(String::new());
     out.append(&title(

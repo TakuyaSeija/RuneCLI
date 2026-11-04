@@ -228,6 +228,76 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
     }
 
     let mut out = Vec::new();
+
+    // One delta carries one thought. OpenRouter and several gateways send the
+    // plain `reasoning` / `reasoning_content` string *and* a `reasoning_details`
+    // array holding the very same text, so emitting a Thinking chunk from each
+    // of the two doubled every reasoning token: twice on screen, twice in the
+    // stored assistant message, and twice in every request that follows. The
+    // plain field is the streamed one and the one displayed; the details array
+    // is still accumulated below, because that is what the next turn replays.
+    //
+    // Reasoning strictly precedes visible answer text in model semantics. When a
+    // gateway or provider batches the transition boundary into a single frame
+    // carrying both the final thought token and the first answer token, evaluating
+    // reasoning before content guarantees thoughts are emitted before answer text.
+    let thought = str_field(delta, "reasoning_content").or_else(|| str_field(delta, "reasoning"));
+    if let Some(thought) = thought {
+        out.push(Chunk::Thinking(thought.to_string()));
+        let field = if str_field(delta, "reasoning_content").is_some() {
+            "reasoning_content"
+        } else {
+            "reasoning"
+        };
+        let mut text = state
+            .continuation
+            .get(field)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        text.push_str(thought);
+        state.continuation.insert(field.into(), json!(text));
+    }
+    if let Some(details) = delta.get("reasoning_details").and_then(Value::as_array) {
+        let entries = state
+            .continuation
+            .entry("reasoning_details")
+            .or_insert_with(|| json!([]))
+            .as_array_mut()
+            .unwrap();
+        for detail in details {
+            if thought.is_none() {
+                if let Some(text) =
+                    str_field(detail, "text").or_else(|| str_field(detail, "summary"))
+                {
+                    out.push(Chunk::Thinking(text.into()));
+                }
+            }
+            let index = detail.get("index").cloned().unwrap_or(json!(0));
+            let kind = detail.get("type").cloned().unwrap_or(Value::Null);
+            if let Some(old) = entries.iter_mut().find(|e| {
+                e.get("index").cloned().unwrap_or(json!(0)) == index && e.get("type") == Some(&kind)
+            }) {
+                let fields = detail
+                    .as_object()
+                    .ok_or_else(|| Error::Provider("invalid reasoning detail".into()))?;
+                for (key, value) in fields {
+                    if ["text", "summary", "data"].contains(&key.as_str()) {
+                        if let (Some(previous), Some(fragment)) =
+                            (old.get(key).and_then(Value::as_str), value.as_str())
+                        {
+                            old[key] = json!(format!("{previous}{fragment}"));
+                            continue;
+                        }
+                    }
+                    old[key] = value.clone();
+                }
+            } else {
+                entries.push(detail.clone());
+            }
+        }
+    }
+
     if let Some(text) = str_field(delta, "content") {
         out.extend(state.absorb_text(text));
     }
@@ -270,72 +340,9 @@ pub(crate) fn absorb(value: &Value, state: &mut State) -> Result<Vec<Chunk>> {
             }
         }
     }
-    // One delta carries one thought. OpenRouter and several gateways send the
-    // plain `reasoning` / `reasoning_content` string *and* a `reasoning_details`
-    // array holding the very same text, so emitting a Thinking chunk from each
-    // of the two doubled every reasoning token: twice on screen, twice in the
-    // stored assistant message, and twice in every request that follows. The
-    // plain field is the streamed one and the one displayed; the details array
-    // is still accumulated below, because that is what the next turn replays.
-    let thought = str_field(delta, "reasoning_content").or_else(|| str_field(delta, "reasoning"));
-    if let Some(thought) = thought {
-        out.push(Chunk::Thinking(thought.to_string()));
-        let field = if str_field(delta, "reasoning_content").is_some() {
-            "reasoning_content"
-        } else {
-            "reasoning"
-        };
-        let mut text = state
-            .continuation
-            .get(field)
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        text.push_str(thought);
-        state.continuation.insert(field.into(), json!(text));
-    }
     if let Some(refusal) = str_field(delta, "refusal") {
         out.push(Chunk::Text(refusal.into()));
         state.completion = Some(super::Completion::from_native("refusal"));
-    }
-    if let Some(details) = delta.get("reasoning_details").and_then(Value::as_array) {
-        let entries = state
-            .continuation
-            .entry("reasoning_details")
-            .or_insert_with(|| json!([]))
-            .as_array_mut()
-            .unwrap();
-        for detail in details {
-            if thought.is_none() {
-                if let Some(text) =
-                    str_field(detail, "text").or_else(|| str_field(detail, "summary"))
-                {
-                    out.push(Chunk::Thinking(text.into()));
-                }
-            }
-            let index = detail.get("index").cloned().unwrap_or(json!(0));
-            let kind = detail.get("type").cloned().unwrap_or(Value::Null);
-            if let Some(old) = entries.iter_mut().find(|e| {
-                e.get("index").cloned().unwrap_or(json!(0)) == index && e.get("type") == Some(&kind)
-            }) {
-                let fields = detail
-                    .as_object()
-                    .ok_or_else(|| Error::Provider("invalid reasoning detail".into()))?;
-                for (key, value) in fields {
-                    if ["text", "summary", "data"].contains(&key.as_str()) {
-                        if let (Some(previous), Some(fragment)) =
-                            (old.get(key).and_then(Value::as_str), value.as_str())
-                        {
-                            old[key] = json!(format!("{previous}{fragment}"));
-                            continue;
-                        }
-                    }
-                    old[key] = value.clone();
-                }
-            } else {
-                entries.push(detail.clone());
-            }
-        }
     }
     if let Some(list) = delta.get("tool_calls").and_then(|v| v.as_array()) {
         for piece in list {
@@ -1010,6 +1017,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(chunks, vec![Chunk::Thinking("only this".into())]);
+    }
+
+    /// When a gateway or provider (such as Token Harbor / DeepSeek) batches the
+    /// transition boundary from thinking to answer text into a single delta,
+    /// the reasoning token must strictly precede the answer token.
+    #[test]
+    fn reasoning_and_content_in_the_same_delta_emits_thinking_before_text() {
+        let mut state = State::default();
+        let chunks = absorb(
+            &json!({"choices":[{"delta":{
+                "reasoning_content":".",
+                "content":"S"
+            }}]}),
+            &mut state,
+        )
+        .unwrap();
+        assert_eq!(
+            chunks,
+            vec![Chunk::Thinking(".".into()), Chunk::Text("S".into())],
+            "reasoning must be emitted before visible answer text"
+        );
+
+        let next = absorb(
+            &json!({"choices":[{"delta":{
+                "content":"aya"
+            }}]}),
+            &mut state,
+        )
+        .unwrap();
+        assert_eq!(next, vec![Chunk::Text("aya".into())]);
     }
 
     #[test]

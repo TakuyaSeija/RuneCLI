@@ -23,7 +23,7 @@ impl Tool for CreateFile {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: "create_file".into(),
-            description: "Create a file with the given content. WARNING: Overwrites the file if it already exists."
+            description: "Create a file with the given content. A file that already exists is overwritten: its old content is replaced whole."
                 .into(),
             parameters: flat_schema(
                 json!({
@@ -122,7 +122,7 @@ mod tests {
         let decl = tool.declaration();
         assert!(decl
             .description
-            .contains("WARNING: Overwrites the file if it already exists"));
+            .contains("A file that already exists is overwritten"));
         let path_prop = &decl.parameters["properties"]["path"];
         assert_eq!(path_prop["type"], "string");
         assert_eq!(path_prop["description"], "The file to create or overwrite.");

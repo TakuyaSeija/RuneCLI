@@ -29,7 +29,7 @@ impl Tool for DiscoverCapabilities {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Find capabilities not declared in this request: skills beyond <available_skills>, connected MCP tools with their input schemas, and MCP resources. An empty `servers` list in the answer means no MCP server is connected, so no MCP tool exists in this session.".into(),
+            description: "Find capabilities not declared in this request: skills beyond <available_skills>, MCP tools with their input schemas, and MCP resources. The answer's `servers` list gives each configured MCP server with its state.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,

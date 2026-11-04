@@ -809,7 +809,7 @@ fn terminal_use_runs_in_the_workspace_root_and_refuses_a_path_argument() {
             20,
             json!({"action":"check pwd with path","command":"pwd","path":"subdir"}),
             false,
-            "cd <dir> && ...",
+            "changes to that directory first, in the shell's own syntax",
         ),
     ] {
         p.engine.handle(Command::ToolInvoke {

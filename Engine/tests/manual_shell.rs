@@ -343,7 +343,11 @@ fn a_frontend_terminal_alias_refused_by_the_user_receives_the_manual_option_once
                 assert!(!ok);
                 assert_eq!(detail.unwrap()["code"], "denied");
                 assert!(content.contains("The user refused this call"));
-                assert_eq!(content.matches("submit !").count(), 1, "{content}");
+                assert_eq!(
+                    content.matches("! followed by the command").count(),
+                    1,
+                    "{content}"
+                );
                 assert!(!content.contains("should-not-run"));
                 break;
             }
@@ -408,10 +412,14 @@ fn manual_full_access_never_authorizes_the_models_next_terminal_call() {
         })
         .unwrap();
     assert!(!failed.0);
-    assert!(failed.1.contains("submit !"), "{}", failed.1);
+    assert!(
+        failed.1.contains("! followed by the command"),
+        "{}",
+        failed.1
+    );
     let seen = h.probe.seen.lock().unwrap();
     let last = seen.last().unwrap();
-    assert!(last.system.contains("do not repeat or bypass that refusal"));
+    assert!(last.system.contains("so do not repeat or bypass it"));
     assert!(!last
         .messages
         .iter()
@@ -468,7 +476,7 @@ fn classifier_terminal_denial_is_explained_to_ai_with_manual_option_and_no_execu
         .unwrap();
     assert!(!denied.0);
     assert_eq!(denied.2.as_ref().unwrap()["code"], "classifier_denied");
-    assert_eq!(denied.1.matches("submit !").count(), 1);
+    assert_eq!(denied.1.matches("! followed by the command").count(), 1);
     assert!(!events
         .iter()
         .any(|event| matches!(event, Event::ToolOutput { .. })));
@@ -487,7 +495,7 @@ fn classifier_terminal_denial_is_explained_to_ai_with_manual_option_and_no_execu
         .unwrap()
         .messages
         .iter()
-        .any(|message| message.content.contains("submit !")));
+        .any(|message| message.content.contains("! followed by the command")));
 }
 
 #[test]

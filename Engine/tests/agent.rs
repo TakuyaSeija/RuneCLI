@@ -4773,7 +4773,7 @@ fn the_sixth_identical_failure_demands_an_alternative_approach() {
     assert!(loop_notices[1].content.contains("has been called 6 times"));
     assert!(loop_notices[1]
         .content
-        .contains("Repeating this call will not change the outcome"));
+        .contains("Repeating it is unlikely to change the outcome"));
 }
 
 /// A turn that ends on an error is in the session's log as an `error` line of
@@ -4876,7 +4876,7 @@ fn a_third_and_sixth_identical_call_emits_system_notice_and_leaves_results_pure(
     assert!(loop_notices[1].content.contains("has been called 6 times"));
     assert!(loop_notices[1]
         .content
-        .contains("Repeating this call will not change the outcome"));
+        .contains("Repeating it is unlikely to change the outcome"));
 }
 
 /// A background call repeated on Cadence B emits background-specific guidance
@@ -4930,7 +4930,7 @@ fn a_sixth_repeated_process_control_instructs_to_await_the_wake() {
         .contains("process_control has been called 6 times"));
     assert!(loop_notices[1]
         .content
-        .contains("asking again tells you nothing new"));
+        .contains("asking again brings nothing new"));
     assert!(
         loop_notices[1].content.contains("&lt;system_notification>"),
         "neutralized tag in content: {}",
@@ -5943,7 +5943,9 @@ fn a_small_budget_truncates_honestly_on_the_wire() {
         !opening.contains("inspect_file"),
         "runtime repeated recovery: {opening}"
     );
-    assert!(sent.system.contains("read their remainder"));
+    assert!(sent
+        .system
+        .contains("Cut project instructions continue in their file"));
     // No half lines: every kept "rule NN" line is one of the originals, whole.
     for l in opening.lines().filter(|l| l.starts_with("rule ")) {
         assert!(text.contains(l), "a line was cut in half: {l}");
@@ -12055,7 +12057,11 @@ fn each_kind_of_failure_reaches_the_model_in_its_own_words() {
         !refused.contains("Do not send the same call again"),
         "{refused}"
     );
-    assert_eq!(refused.matches("submit !").count(), 1, "{refused}");
+    assert_eq!(
+        refused.matches("! followed by the command").count(),
+        1,
+        "{refused}"
+    );
     assert!(refused.ends_with("</tool_notice>"));
     assert_eq!(
         audit_status(&mut h, 2, "terminal_use").as_deref(),

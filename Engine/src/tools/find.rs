@@ -32,13 +32,13 @@ impl Tool for FindFiles {
         ToolDecl {
             name: "find_files".into(),
             description:
-                "Find files by path pattern. *.rs matches at any depth; src/**/*.rs only under src."
+                "Find files by path pattern. *.py matches at any depth; src/**/*.py only under src."
                     .into(),
             parameters: flat_schema(
                 json!({
                     "pattern": {
                         "type": "string",
-                        "description": "Glob pattern from the workspace root, e.g. *.rs, src/**/mod.rs, Cargo.toml."
+                        "description": "Glob pattern from the workspace root, e.g. *.ts, docs/**/*.md, package.json."
                     },
                     "limit": {
                         "type": "integer",

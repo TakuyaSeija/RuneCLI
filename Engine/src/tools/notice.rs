@@ -288,7 +288,7 @@ pub fn failure(kind: &str, why: &str) -> String {
 /// A refusal is still a refusal. This offers only the person's separate
 /// frontend operation, never an agent flag or automatic execution path.
 pub(crate) fn with_manual_shell_option(content: &str) -> String {
-    const GUIDANCE: &str = " The person's separate manual-execution option is to submit ! followed by the command at the start of Rune's composer (full access once, no automatic Administrator elevation).";
+    const GUIDANCE: &str = " The person can still run it through the manual shell: ! followed by the command at the start of Rune's composer runs it once with full access, without automatic elevation.";
     if content.contains(GUIDANCE) {
         return content.into();
     }
@@ -334,7 +334,7 @@ mod tests {
         }
         let denied = failure(status::DENIED, "policy refusal");
         let manual = with_manual_shell_option(&denied);
-        assert_eq!(manual.matches("submit !").count(), 1);
+        assert_eq!(manual.matches("! followed by the command").count(), 1);
         assert_eq!(with_manual_shell_option(&manual), manual);
         assert!(!manual.contains("Do not retry or bypass"));
     }

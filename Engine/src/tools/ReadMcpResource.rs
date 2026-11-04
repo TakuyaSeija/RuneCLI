@@ -10,7 +10,7 @@ impl Tool for ReadMcpResource {
     fn declaration(&self) -> ToolDecl {
         ToolDecl {
             name: self.name().into(),
-            description: "Read a resource of a connected MCP server. Only for a server <status> lists as connected; a file on this machine is read with inspect_file.".into(),
+            description: "Read a resource of an MCP server listed in <status>. A file on this machine is read with inspect_file.".into(),
             parameters: json!({
                 "type": "object",
                 "additionalProperties": false,
