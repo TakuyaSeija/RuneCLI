@@ -45,7 +45,9 @@ var (
 	versionRe = regexp.MustCompile(`^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$`)
 	// An archive's name says its system and processor, and on Linux its C
 	// library; macOS and Windows archives have none (Libc stays empty).
-	artifactRe = regexp.MustCompile(`^rune-([0-9.]+)-(?:(linux)-(x86_64|aarch64)-(gnu|musl)\.tar\.gz|(macos)-(x86_64|aarch64)\.tar\.gz|(windows)-(x86_64|aarch64)\.zip)$`)
+	// A plain archive for one system, or the offline package of that system
+	// (-package.zip): the same binary with an installer that needs no network.
+	artifactRe = regexp.MustCompile(`^rune-([0-9.]+)-(?:(linux)-(x86_64|aarch64)-(gnu|musl)(?:\.tar\.gz|-package\.zip)|(macos)-(x86_64|aarch64)(?:\.tar\.gz|-package\.zip)|(windows)-(x86_64|aarch64)(?:\.zip|-package\.zip))$`)
 	sumLineRe  = regexp.MustCompile(`^([0-9a-f]{64})  ([A-Za-z0-9._-]{1,128})$`)
 )
 
@@ -307,6 +309,11 @@ func (s *catalogStore) loadRelease(version string, pub *ecdsa.PublicKey) (*Relea
 		system, arch, libc := m[2]+m[5]+m[7], m[3]+m[6]+m[8], m[4]
 		if a.OS != system || a.Arch != arch || a.Libc != libc {
 			return nil, fmt.Errorf("%s: platform fields disagree with its name", a.Name)
+		}
+		// The name and the manifest must agree on whether this is a package,
+		// so a release can never look offline-installable when it is not.
+		if isPackage := strings.Contains(a.Name, "-package.zip"); a.Package != isPackage {
+			return nil, fmt.Errorf("%s: the package flag disagrees with its name", a.Name)
 		}
 		if signed[a.Name] == "" || a.SHA256 != signed[a.Name] || a.Size != sizes[a.Name] {
 			return nil, fmt.Errorf("%s: size/hash not the signed ones", a.Name)
