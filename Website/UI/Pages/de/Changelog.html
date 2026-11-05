@@ -1,11 +1,28 @@
 {{define "content"}}
-<div class="read-layout">
+<div class="read-layout history-layout">
+  <aside class="read-index">
+    {{- if .Releases}}
+    <nav class="index history" aria-label="Auf dieser Seite">
+      <p class="index-title">Releases</p>
+      {{- range $i, $g := .History}}
+      <details class="history-group"{{if eq $i 0}} open{{end}}>
+        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+        <ol>
+          {{- range $g.Releases}}
+          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
+          {{- end}}
+        </ol>
+      </details>
+      {{- end}}
+    </nav>
+    {{- end}}
+  </aside>
   <article class="article">
     <header class="article-head">
       <h1>Änderungsprotokoll</h1>
       <p class="article-lead">Alle veröffentlichten Builds von RuneAgent. Jeder Build ist signiert; das Installationsskript installiert die neueste Version oder über die Versionsnummer jede ältere Ausgabe.</p>
     </header>
-    {{- range $i, $r := .Catalog.Releases}}
+    {{- range $i, $r := .Releases}}
     <section class="release" id="v{{$r.Version}}">
       <div class="release-meta">
         {{- if eq $i 0}}<span class="tag">Aktuell</span>{{end}}
@@ -19,6 +36,8 @@
           <li>{{.}}</li>
           {{- end}}
         </ul>
+        {{- else}}
+        <p class="release-none">Was diese Version geändert hat, wurde nicht aufgezeichnet. Sie bleibt veröffentlicht, damit eine ältere Ausgabe über ihre Versionsnummer installierbar ist.</p>
         {{- end}}
         <p class="release-command"><code>{{installFor $r.Version}}</code></p>
         <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
@@ -31,17 +50,5 @@
     <p class="small after">Wie du einen Download manuell prüfst, steht auf der <a class="link" href="{{url "install"}}">Installationsseite</a>.</p>
     {{- end}}
   </article>
-  <aside class="read-index">
-    {{- if .Catalog.Releases}}
-    <nav class="index" aria-label="Auf dieser Seite">
-      <p class="index-title">Releases</p>
-      <ol>
-        {{- range $i, $r := .Catalog.Releases}}
-        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
-        {{- end}}
-      </ol>
-    </nav>
-    {{- end}}
-  </aside>
 </div>
 {{end}}

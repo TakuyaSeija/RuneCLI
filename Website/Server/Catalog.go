@@ -100,6 +100,39 @@ func (c *Catalog) Find(version string) *Release {
 	return c.byVersion[version]
 }
 
+// historyGroup is one minor version ("0.11") with the patch versions published
+// under it, newest first: the changelog's sidebar shows one such group per X.Y
+// and every version inside it, however many that is (owner, 2026-11-05).
+type historyGroup struct {
+	Minor    string
+	Releases []*Release
+}
+
+// History groups the releases by minor version, newest group first. A group can
+// hold one version or ten; the sidebar says how many.
+func (c *Catalog) History() []*historyGroup {
+	if c == nil {
+		return nil
+	}
+	var out []*historyGroup
+	at := map[string]*historyGroup{}
+	for _, r := range c.Releases { // the catalog is already newest first
+		parts := strings.SplitN(r.Version, ".", 3)
+		if len(parts) < 2 {
+			continue
+		}
+		minor := parts[0] + "." + parts[1]
+		g := at[minor]
+		if g == nil {
+			g = &historyGroup{Minor: minor}
+			at[minor] = g
+			out = append(out, g)
+		}
+		g.Releases = append(g.Releases, r)
+	}
+	return out
+}
+
 // Serves reports whether name is a file of this release a request may download.
 func (r *Release) Serves(name string) bool {
 	if name == sumsFile || name == sigFile {

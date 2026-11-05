@@ -78,6 +78,10 @@ type installText struct {
 
 type localeText struct {
 	Pages       map[string]titled   `json:"pages"`
+	// Notes is the changelog's own words, one entry per version and one line per
+	// recorded change. English owns the keys; a translation holds exactly the
+	// same versions with the same number of lines (owner, 2026-11-05).
+	Notes       map[string][]string `json:"notes"`
 	Groups      map[string]string   `json:"groups"`
 	DocsTitle   string              `json:"docs_title"`
 	Docs        map[string]labelled `json:"docs"`
@@ -88,7 +92,34 @@ type localeText struct {
 // localeTextPages are the non-documentation pages a translation titles.
 var localeTextPages = []string{"", "changelog", "license", "notfound"}
 
+// englishNotes is the changelog's source of words: version -> recorded changes.
+var englishNotes = map[string][]string{}
+
+func loadChangelogNotes() error {
+	raw, err := fs.ReadFile(ui.Files, "Pages/ChangelogNotes.json")
+	if err != nil {
+		return fmt.Errorf("changelog notes: %w", err)
+	}
+	if err := json.Unmarshal(raw, &englishNotes); err != nil {
+		return fmt.Errorf("changelog notes: %w", err)
+	}
+	for version, lines := range englishNotes {
+		if len(lines) == 0 {
+			return fmt.Errorf("changelog notes: %s has no lines", version)
+		}
+		for i, line := range lines {
+			if strings.TrimSpace(line) == "" || len(line) > 300 {
+				return fmt.Errorf("changelog notes: %s line %d is empty or too long", version, i)
+			}
+		}
+	}
+	return nil
+}
+
 func loadLocaleTexts() error {
+	if err := loadChangelogNotes(); err != nil {
+		return err
+	}
 	for _, l := range locales[1:] {
 		raw, err := fs.ReadFile(ui.Files, l.pageFile("metadata.json"))
 		if err != nil {
@@ -136,6 +167,19 @@ func (t *localeText) check() error {
 	}
 	if err := sameKeys("chapters", keysOf(t.Chapters), want); err != nil {
 		return err
+	}
+	if err := sameKeys("notes", keysOf(t.Notes), keysOf(englishNotes)); err != nil {
+		return err
+	}
+	for version, lines := range t.Notes {
+		if len(lines) != len(englishNotes[version]) {
+			return fmt.Errorf("note %s: %d lines, English has %d", version, len(lines), len(englishNotes[version]))
+		}
+		for i, line := range lines {
+			if strings.TrimSpace(line) == "" || len(line) > 300 {
+				return fmt.Errorf("note %s line %d is empty or too long", version, i)
+			}
+		}
 	}
 	for k, v := range t.Groups {
 		if strings.TrimSpace(v) == "" {

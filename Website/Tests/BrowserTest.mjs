@@ -134,7 +134,7 @@ try {
       const a=lum(fg),b=lum(ground),ratio=(Math.max(a,b)+.05)/(Math.min(a,b)+.05),large=parseFloat(s.fontSize)>=24||(parseFloat(s.fontSize)>=18.66&&parseFloat(s.fontWeight)>=700);
       if(ratio<(large?3:4.5))contrast.push({text:e.textContent.trim().slice(0,65),ratio:+ratio.toFixed(2)});
     }
-    return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,overflow,clipped,contrast,inline:document.querySelectorAll('[style]').length,h1:document.querySelectorAll('main h1').length,images:[...document.querySelectorAll('main img,main video')].filter(e=>e.tagName!=='IMG'||!['/Images/RuneStone-'].some(name=>(e.currentSrc||e.src).includes(name))).length,font:document.fonts.check('16px Inter'),mono:document.fonts.check('12px "JetBrains Mono"')};
+    return{width:innerWidth,documentWidth:document.documentElement.scrollWidth,overflow,clipped,contrast,inline:document.querySelectorAll('[style]').length,h1:document.querySelectorAll('main h1').length,images:[...document.querySelectorAll('main img,main video')].filter(e=>e.tagName!=='IMG'||!['/Images/RuneStone-','/Images/Logo.png'].some(name=>(e.currentSrc||e.src).includes(name))).length,font:document.fonts.check('16px Inter'),mono:document.fonts.check('12px "JetBrains Mono"')};
   })()`;
   await viewport(1440); await navigate('/Studio/docs');
   const routes = await evaluate(`[...new Set([...document.querySelectorAll('.docs-sidebar a')].map(a=>new URL(a.href).pathname))]`);
@@ -149,7 +149,7 @@ try {
       assert.deepEqual(result.clipped, [], `${label}: clipping ${JSON.stringify(result.clipped)}`);
       assert.deepEqual(result.contrast, [], `${label}: contrast ${JSON.stringify(result.contrast)}`);
       assert.equal(result.inline, 0, `${label}: inline style`); assert.equal(result.h1, 1, `${label}: h1`);
-      assert.equal(result.images, 0, `${label}: screenshot/video substituted for UI (only the runestone is an image)`);
+      assert.equal(result.images, 0, `${label}: screenshot/video substituted for UI (only the runestone and the drawer's brand mark are images)`);
       assert(result.font && result.mono, `${label}: local fonts`);
       report.layouts.push({ route, ...result });
       if ([390, 1440].includes(width) && ['/Studio/', '/Studio/docs', '/Studio/docs/settings', '/Studio/docs/security', '/Studio/install'].includes(route)) await screenshot(`${route.replaceAll('/', '-')}-${width}.png`);
@@ -158,13 +158,21 @@ try {
   report.checks.push(`${report.layouts.length} layouts: all articles and supporting pages, five widths, no overflow/clipping/low contrast/inline styles`);
 
   await viewport(1440); await navigate('/Studio/docs/settings');
+  // A chapter the reader opened stays open while they move between articles
+  // (owner, 2026-11-03), so this first check starts from an empty memory: the
+  // article a reader reaches for the first time opens its own section alone.
+  await evaluate(`sessionStorage.removeItem('rune.docs.opened')`);
+  await navigate('/Studio/docs/settings');
   assert.equal(await evaluate(`document.querySelectorAll('.docs-group[open]').length`), 1);
   assert.equal(await evaluate(`document.querySelector('.docs-group[open]>summary').textContent`), 'Configure');
   assert.equal(await evaluate(`document.querySelector('.docs-sidebar a[aria-current=page]').textContent`), 'Settings overview');
   await click('.docs-group summary');
   assert.equal(await evaluate(`document.querySelector('.docs-group').open`), true);
-  // Chapters open on their own: opening one never closes another (owner, 2026-10-29).
+  // Chapters open on their own: opening one never closes another, and moving to
+  // another article keeps what the reader opened (owner, 2026-10-29/2026-11-03).
   assert.equal(await evaluate(`document.querySelectorAll('.docs-group[open]').length`), 2);
+  await navigate('/Studio/docs/models');
+  assert.equal(await evaluate(`document.querySelectorAll('.docs-group[open]').length`), 2, 'a chapter the reader opened closed when they moved on');
   // A short closing section is still reached: at the end of the page the last entry is current.
   await navigate('/Studio/license');
   await evaluate(`window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'})`); await frame(); await frame();
@@ -177,9 +185,36 @@ try {
   await navigate('/Studio/security');
   assert.equal(await evaluate('location.pathname'), '/Studio/docs/security');
   await viewport(390); await navigate('/Studio/docs/models');
-  assert.equal(await evaluate(`document.querySelector('.docs-menu').open`), false);
-  await click('.docs-menu>summary'); assert.equal(await evaluate(`document.querySelector('.docs-menu').open`), true);
+  // On a phone the manual's index is a drawer, and its chapters are already
+  // open inside it (owner, 2026-11-03), so what a tap opens is the drawer.
+  assert.equal(await evaluate(`document.querySelector('.docs-menu').open`), true);
+  assert.equal(await evaluate(`document.querySelector('#docs-nav').classList.contains('is-open')`), false);
+  await click('.menu-toggle');
+  assert.equal(await evaluate(`document.querySelector('#docs-nav').classList.contains('is-open')`), true);
   report.checks.push('Active sidebar group, native open/close, mobile disclosure, TOC scrollspy, heading offset, Security redirect');
+
+  // The language menu and the language choice never move the page: choosing a
+  // language keeps the reader exactly where they were (owner, 2026-11-05).
+  // Before this rule the browser's scrollIntoView moved the page by 19px when
+  // the menu opened, and a language link glided to the top of the article.
+  await viewport(1440); await navigate('/Studio/docs/settings');
+  await evaluate(`window.scrollTo({top:800,behavior:'instant'})`); await frame();
+  await evaluate(`document.querySelector('.lang-switch>summary').click()`); await frame();
+  assert.equal(await evaluate(`document.querySelector('.lang-switch').open`), true, 'the language menu did not open');
+  assert.equal(await evaluate('Math.round(window.scrollY)'), 800, 'opening the language menu moved the page');
+  await evaluate(`document.querySelector('.lang-switch').open=false`); await frame();
+  const languageLoaded = new Promise((resolve, reject) => {
+    const handler = m => { if (m.sessionId === sessionId) { clearTimeout(timer); events.get('Page.loadEventFired').delete(handler); resolve(); } };
+    const timer = setTimeout(() => { events.get('Page.loadEventFired').delete(handler); reject(new Error('the language page never loaded')); }, 20000);
+    events.get('Page.loadEventFired').add(handler);
+  });
+  await evaluate(`[...document.querySelectorAll('.lang-item')].find(a=>a.getAttribute('aria-current')!=='true').click()`);
+  await languageLoaded;
+  await evaluate(`Promise.all([document.fonts.ready]).then(()=>true)`); await frame();
+  assert.equal(await evaluate('document.documentElement.lang'), 'id', 'the language did not change');
+  await evaluate('new Promise(r=>setTimeout(r,600))');
+  assert.equal(await evaluate('Math.round(window.scrollY)'), 800, 'choosing a language moved the page');
+  report.checks.push('Language menu and language choice keep the reading position exactly');
 
   await navigate('/Studio/install');
   assert.equal(await evaluate(`document.querySelectorAll('[data-copy="install-cmd"]').length`), 1);
@@ -190,7 +225,12 @@ try {
   assert(['done', 'select'].includes(await evaluate(`document.querySelector('[data-copy="install-cmd"]').dataset.state`)));
   await click('.install-more details>summary'); assert.equal(await evaluate(`document.querySelector('.install-more details').open`), true);
   const unpublished = `[...document.querySelectorAll('.install-note')].filter(n=>n.textContent.includes('currently exits without installing anything')).length`;
-  if (fixtures.size) {
+  // A catalog either has published builds or it has none; both states are
+  // truthful, so the checks follow what the page actually serves (the fixture
+  // branch keeps the published case available whatever the local folder holds).
+  const listed = await evaluate(`document.querySelectorAll('.download-row').length`);
+  if (fixtures.size || listed > 0) {
+    assert(listed > 0, 'a published catalog must list its builds');
     assert.equal(await evaluate(unpublished), 0);
     await click('.download-row details>summary');
     assert.equal(await evaluate(`document.querySelector('.download-row details').open`), true);
@@ -203,15 +243,19 @@ try {
   const link = '.hero-links .link';
   await evaluate(`document.querySelector('${link}').scrollIntoView({block:'center',behavior:'instant'})`); await frame();
   const point = await evaluate(`(()=>{const r=document.querySelector('${link}').getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  // A link brightens its ink and draws no underline (owner, 2026-11-03): the
+  // centre-out underline of the older design is gone, so the check holds the
+  // rule that is in force rather than the one it replaced.
+  const restingInk = await evaluate(`getComputedStyle(document.querySelector('${link}')).color`);
   await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
   await evaluate('new Promise(r=>setTimeout(r,400))');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${link}')).backgroundPositionX`), '50%');
-  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${link}')).backgroundSize`), '100% 1px');
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('${link}')).color`), restingInk, 'a link must brighten its ink on hover');
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('${link}')).textDecorationLine`), 'none', 'a link draws no underline');
   assert.equal(await evaluate('document.documentElement.dataset.theme'), 'amber');
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.logo-amber')).display`), 'block');
   const result = await evaluate(audit);
   assert.deepEqual(result.contrast, [], `amber terminal contrast`);
-  report.checks.push('Underline is centre-origin on hover; authentic amber logo, macOS traffic-light header, and contrast preserved');
+  report.checks.push('A link brightens its ink on hover and draws no underline; authentic amber logo, macOS traffic-light header, and contrast preserved');
 
   // The home replay is a six-chapter excerpt paced for reading (~80 s, owner
   // 2026-10-28). This general suite checks real-clock interaction; the

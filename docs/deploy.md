@@ -13,6 +13,35 @@ its own.
     DeployStudio.sh release|switch|rollback|stop-standby    the site alone
     DeployStudio.sh help
 
+`Ops/Release/PublishSet.sh` publishes the released versions in one run: it
+creates the signing key once if it is missing, builds the Linux releases still
+missing, publishes the current version, then publishes each archived version with
+`--binary --version`. Every version is one signing passphrase prompt, because the
+signer refuses a passphrase from a pipe. `--dry-run` shows the plan.
+
+The archived versions are not a list in the script: it asks every binary kept in
+`~/.local/share/RuneBackups` what version it is and publishes each one it finds
+(0.7.8 through the current release, 41 versions when this was written), so a
+version found later needs no edit. The changelog's words live with the site, not with the artifact:
+`Website/UI/Pages/ChangelogNotes.json` holds them in English (which owns the
+versions) and `UI/Pages/<code>/ChangelogNotes.json` holds each translation, and
+the site refuses to start unless a translation holds exactly the same versions
+with the same number of lines. A version with no entry has no recorded change and
+the page says so in that language. Because the words are the site's, a version
+published long ago can still gain its notes — a published version is never
+replaced.
+
+`Ops/Release/SyncDevReleases.sh` gives the **DEV** site the real published
+releases in DEV's own folder (`~/.data/Atoryn/StudioDev/Releases`), copying any
+version PROD has and DEV does not. DEV and PROD stay two instances with two
+folders — the dev site is never pointed at PROD's directory — so a test build
+published into the DEV folder can still never appear as a real release.
+
+`StudioWeb.sh release` freezes the **whole** HEAD, not only `Website/`: the site's
+tests read the application's sources (Engine/, Cli/, Cargo.toml) to prove the
+manual still matches them, so a release also needs `Cargo.toml` committed with
+the version the manual documents.
+
 ## Two artifacts, two homes
 
 - **The site** (`/Studio/`): `Ops/Web/StudioWeb.sh` freezes the *committed*

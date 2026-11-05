@@ -6,7 +6,7 @@
 (() => {
   "use strict";
   try {
-    const from = Number(sessionStorage.getItem("rune.from")) || 0;
+    const from = Number(sessionStorage.getItem("rune.from")) || Number(sessionStorage.getItem("rune.lang.from")) || 0;
     if (from > 0 && !location.hash) {
       document.documentElement.style.visibility = "hidden";
       setTimeout(() => { document.documentElement.style.visibility = ""; }, 2500);

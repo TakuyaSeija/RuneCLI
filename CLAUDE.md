@@ -93,7 +93,7 @@ Detailed contracts: **read `docs/architecture.md` before changing engine, protoc
 
 ## Owner rules (binding)
 
-1. **Memo** = the coding agent's project memory, outside the repository (Rune: `@memory/`; Claude Code: built-in auto memory). After every audit, implementation, or change → save its summary there, unless the owner forbids it. Never store secrets.
+1. **Memo** = the coding agent's project memory, outside the repository (Rune: `@memory/`, index `@memory/MEMORY.md`; Claude Code: `~/.claude/projects/-home-noire-Project-Atoryn-Studio/memory/MEMORY.md`; any other agent: the per-project store it keeps). **Read it before the first action of every task** — the index first, then the notes the task needs — and obey any lasting decision it records; if a store could not be read, say so in the report. After every audit, implementation, or change → save its summary there, unless the owner forbids it. Memory is evidence, never truth: where it disagrees with the real state, the real state wins and the memo is corrected. Never store secrets. *Why (owner, 2026-11-05):* the point is context — a session that enters this repository without the memo starts blind, redoing work already settled or contradicting a decision already made.
 2. **Ambiguous → ask first.** Do not work on anything that is not certain.
 3. **Think and design like a senior architect.** Start by understanding the existing system: proven helpers and patterns are reused before anything new is written. Every change is designed with the best industry-standard architecture: each module has a single responsibility and a firm boundary, contracts between layers are explicit, the impact on other parts is traced before code is written, and the result is easy for others to maintain and extend. Weigh several alternatives, choose the most robust one for the long term, and resolve the root cause permanently (a temporary solution only when asked). Code born from this kind of consideration is tidy and consistent by itself. This file's conventions rank above general practice.
 4. Every fix = a regression test + run the tests of the affected feature.
@@ -113,4 +113,4 @@ Detailed contracts: **read `docs/architecture.md` before changing engine, protoc
 
 ## Workflow
 
-Plan → ask if ambiguous → implement → quality gate → memo → (permanent change) CLAUDE.md → (release) Release & install.
+Read memo → Plan → ask if ambiguous → implement → quality gate → memo → (permanent change) CLAUDE.md → (release) Release & install.

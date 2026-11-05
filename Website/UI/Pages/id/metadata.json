@@ -177,5 +177,103 @@
     "release": "Rilis {version}, terbit {date}, untuk {system} ({builds}).",
     "beta": "Dukungan {system} masih beta.",
     "and": "dan"
+  },
+  "notes": {
+    "0.7.8": [
+      "Linux terpasang di semua distribusi, Rune berjalan lewat loader, warna tmux benar, dan web_fetch bisa membawa cookie."
+    ],
+    "0.8.0": [
+      "Dua puluh preset model, dengan pola preset lama yang lebih tenang."
+    ],
+    "0.8.1": [
+      "Kursor pemilih sesi memakai nomor mulai 1, jadi tidak lagi mendarat di baris yang salah."
+    ],
+    "0.8.9": [
+      "Pengiriman pesan, compaction, dan urutan sesi diperbaiki."
+    ],
+    "0.9.0": [
+      "Pesan yang dikirim diakui, dan sesi bisa dilanjutkan setelah restart."
+    ],
+    "0.9.1": [
+      "Pekerjaan direncanakan dari konteks yang ada, dan thinking bisa dimatikan atau disetel rendah lewat gateway model."
+    ],
+    "0.9.2": [
+      "Menyalin dan menyeleksi dengan mouse bekerja seperti di tempat lain, termasuk Clear."
+    ],
+    "0.9.3": [
+      "Perintah yang Anda jalankan sendiri dengan ! berperilaku seperti bagian sesi lainnya, dan tautannya bisa dibuka."
+    ],
+    "0.9.4": [
+      "Skrip shell multi-baris ditampilkan apa adanya, dan perintah ! tetap membawa konteksnya."
+    ],
+    "0.9.5": [
+      "Output proses yang berjalan atau menunggu ditulis ke lognya sendiri."
+    ],
+    "0.9.6": [
+      "Composer menampilkan satu baris, dan prompt mengalir saat Anda mengetik."
+    ],
+    "0.9.7": [
+      "Composer menampilkan newline secara eksplisit, bukan baris mentah dari sumbernya."
+    ],
+    "0.9.8": [
+      "Hitungan konteks tetap jujur: ukuran yang tidak diketahui tidak pernah ditebak."
+    ],
+    "0.9.9": [
+      "Satu pemilik untuk tiap blok instruksi, dan footer tetap menyimpan Esc, retry, serta konfirmasi."
+    ],
+    "0.10.0": [
+      "Pemberitahuan update tetap terlihat di tampilan sesi."
+    ],
+    "0.10.1": [
+      "Memasang bantuan resmi tidak lagi menutupi atau menimpa skill Anda sendiri."
+    ],
+    "0.10.3": [
+      "Output terminal tidak lagi menghitung baris input yang dipantulkannya, dan aksi tool tetap membawa deskripsinya."
+    ],
+    "0.10.4": [
+      "Log menampilkan teks galat aslinya, dan panggilan identik tiga atau enam kali ditandai."
+    ],
+    "0.10.5": [
+      "Peringatan pengulangan kini menyebut apa yang sebaiknya dilakukan."
+    ],
+    "0.10.6": [
+      "Hasil tool tetap murni, dan panggilan yang terulang dalam satu giliran disebut di percakapan."
+    ],
+    "0.10.7": [
+      "Jawaban panjang tidak lagi terpotong lewat gateway model."
+    ],
+    "0.10.9": [
+      "Memory proyek menyebut tujuannya, argumen tool menerima alias, dan path yang salah mendapat saran terdekat."
+    ],
+    "0.10.10": [
+      "Petunjuk yang lebih jelas soal menunggu pekerjaan latar, path berkas, dan patch yang kedaluwarsa."
+    ],
+    "0.11.0": [
+      "Header respons kosong tidak lagi muncul saat teks yang dialirkan hanya berisi spasi."
+    ],
+    "0.11.1": [
+      "Balasan yang mengulang satu unit yang sama dihentikan saat mengalir, dan Anda memilih menyimpan atau membuangnya."
+    ],
+    "0.11.2": [
+      "Jawaban selaan tidak lagi menyisakan jarak sebelum langkah berikutnya."
+    ],
+    "0.11.3": [
+      "Satu tool mengetik ke atau menghentikan tugas latar menggantikan dua tool lama, dan tugas yang selesai melaporkan dirinya beserta outputnya."
+    ],
+    "0.11.4": [
+      "Perbaikan dari audit tugas latar dan notifikasinya."
+    ],
+    "0.11.5": [
+      "Layar bantuan saat start pertama tidak lagi berlomba dengan start yang lambat, dan path Windows yang berakhir dengan spasi atau titik ditangani."
+    ],
+    "0.11.6": [
+      "Istilah elevation pada layar !."
+    ],
+    "0.11.7": [
+      "Reasoning mengalir sebelum jawaban, jadi balasan tidak terbelah di tengah, dan blok pemikiran disatukan per giliran."
+    ],
+    "0.11.8": [
+      "Mengganti mode izin saat balasan mengalir tidak lagi membuat footer berubah tata letak, dan notifikasi status yang sedang Anda baca tidak ikut terhapus."
+    ]
   }
 }

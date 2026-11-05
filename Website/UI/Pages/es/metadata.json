@@ -177,5 +177,103 @@
     "release": "Versión {version}, publicada el {date}, para {system} ({builds}).",
     "beta": "La compatibilidad con {system} está en beta.",
     "and": "y"
+  },
+  "notes": {
+    "0.7.8": [
+      "Linux se instala en todas las distribuciones, Rune se ejecuta mediante un cargador, los colores de tmux son correctos y web_fetch puede llevar cookies."
+    ],
+    "0.8.0": [
+      "Veinte preajustes de modelos, con el patrón de preajustes antiguo y más sobrio."
+    ],
+    "0.8.1": [
+      "El cursor del selector de sesiones cuenta desde 1, así que ya no cae en la fila equivocada."
+    ],
+    "0.8.9": [
+      "Se corrigen el envío, la compactación y el orden de las sesiones."
+    ],
+    "0.9.0": [
+      "Un mensaje enviado se confirma y una sesión se reanuda tras reiniciar."
+    ],
+    "0.9.1": [
+      "El trabajo se planifica desde el contexto disponible y el razonamiento puede apagarse o reducirse mediante la pasarela de modelos."
+    ],
+    "0.9.2": [
+      "Copiar y seleccionar con el ratón funciona como en otros sitios, incluido Clear."
+    ],
+    "0.9.3": [
+      "Un comando que ejecutas tú mismo con ! se comporta como el resto de la sesión y sus enlaces se pueden abrir."
+    ],
+    "0.9.4": [
+      "Un script de shell de varias líneas se muestra tal cual y un comando ! conserva su contexto."
+    ],
+    "0.9.5": [
+      "La salida de un proceso en ejecución o en espera se escribe en su propio registro."
+    ],
+    "0.9.6": [
+      "El compositor muestra una sola línea y el prompt fluye mientras escribes."
+    ],
+    "0.9.7": [
+      "El compositor muestra un salto de línea explícito en vez de los saltos crudos del origen."
+    ],
+    "0.9.8": [
+      "El recuento de contexto sigue siendo honesto: un tamaño desconocido nunca se adivina."
+    ],
+    "0.9.9": [
+      "Un solo dueño por bloque de instrucciones, y el pie conserva Esc, reintento y la confirmación."
+    ],
+    "0.10.0": [
+      "El aviso de actualización permanece visible en la vista de sesión."
+    ],
+    "0.10.1": [
+      "Instalar la ayuda oficial ya no oculta ni sobrescribe tus propias habilidades."
+    ],
+    "0.10.3": [
+      "La salida del terminal ya no cuenta las líneas de entrada que repite, y las acciones de herramienta conservan su descripción."
+    ],
+    "0.10.4": [
+      "Los registros muestran el texto de error original y las llamadas idénticas tres o seis veces se señalan."
+    ],
+    "0.10.5": [
+      "Un aviso de repetición ahora dice qué hacer al respecto."
+    ],
+    "0.10.6": [
+      "Los resultados de herramienta se mantienen puros y una llamada repetida en un turno se nombra en la conversación."
+    ],
+    "0.10.7": [
+      "Las respuestas largas ya no se cortan a través de la pasarela de modelos."
+    ],
+    "0.10.9": [
+      "La memoria de proyecto dice para qué sirve, los argumentos de herramienta aceptan alias y una ruta equivocada recibe una sugerencia más cercana."
+    ],
+    "0.10.10": [
+      "Instrucciones más claras sobre esperar trabajo en segundo plano, rutas de archivos y parches desactualizados."
+    ],
+    "0.11.0": [
+      "Ya no aparece un encabezado de respuesta vacío cuando el texto transmitido solo contiene espacios."
+    ],
+    "0.11.1": [
+      "Una respuesta que repite una misma unidad se detiene mientras se transmite, y tú conservas o descartas el texto."
+    ],
+    "0.11.2": [
+      "Una respuesta intermedia ya no deja un hueco antes del paso siguiente."
+    ],
+    "0.11.3": [
+      "Una sola herramienta escribe en una tarea en segundo plano o la detiene en lugar de dos anteriores, y una tarea terminada se anuncia con su propia salida."
+    ],
+    "0.11.4": [
+      "Correcciones halladas al auditar las tareas en segundo plano y sus notificaciones."
+    ],
+    "0.11.5": [
+      "La pantalla de ayuda del primer arranque ya no compite con un arranque lento, y se manejan las rutas de Windows que acaban en espacio o punto."
+    ],
+    "0.11.6": [
+      "La redacción sobre elevación en la pantalla !."
+    ],
+    "0.11.7": [
+      "El razonamiento fluye antes de la respuesta, así que una respuesta ya no se parte en dos, y los bloques de pensamiento se unen por turno."
+    ],
+    "0.11.8": [
+      "Cambiar el modo de permisos mientras se transmite una respuesta ya no reordena el pie, y un aviso de estado que estás leyendo ya no se borra."
+    ]
   }
 }

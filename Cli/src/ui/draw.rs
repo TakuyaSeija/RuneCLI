@@ -4794,15 +4794,15 @@ fn state_line(app: &App, cols: usize) -> String {
     let mode_pill = format!("{mode_ink}[{mode_name}]{RESET}");
     let countdown = super::undo::countdown(app);
     let confirmation = app.confirmation_status(std::time::Instant::now());
-    let right = match confirmation.or(countdown.as_deref()).or(app.footer_text()) {
+    let (right, is_notice) = match confirmation.or(countdown.as_deref()).or(app.footer_text()) {
         Some(text) if confirmation.is_none() && countdown.is_some() => {
-            format!("{WARN}{text}{RESET}")
+            (format!("{WARN}{text}{RESET}"), true)
         }
         Some(status) if status.starts_with("Switching mode") => {
-            format!("{mode_pill} {MUTED}{mode_desc}{RESET}")
+            (format!("{mode_pill} {MUTED}{mode_desc}{RESET}"), false)
         }
-        Some(status) => format!("{TEXT}{status}{}", ansi::RESET),
-        None => format!("{mode_pill} {MUTED}{mode_desc}{RESET}"),
+        Some(status) => (format!("{TEXT}{status}{}", ansi::RESET), true),
+        None => (format!("{mode_pill} {MUTED}{mode_desc}{RESET}"), false),
     };
     let left = if app.working() {
         let label = if app.compacting.is_some() {
@@ -4832,21 +4832,20 @@ fn state_line(app: &App, cols: usize) -> String {
     let room = ansi::width(&version) + 1;
     if let Some(w) = cols.checked_sub(room) {
         if w >= 20 {
-            let body =
-                if confirmation.is_some() || countdown.is_some() || app.footer_text().is_some() {
-                    let left_room = w.saturating_sub(ansi::width(&right) + 5);
-                    if left_room >= 4 {
-                        format!(
-                            " {} {RULE}│{} {right}",
-                            ansi::truncate(&left, left_room),
-                            ansi::RESET
-                        )
-                    } else {
-                        format!(" {right}")
-                    }
+            let body = if is_notice {
+                let left_room = w.saturating_sub(ansi::width(&right) + 5);
+                if left_room >= 4 {
+                    format!(
+                        " {} {RULE}│{} {right}",
+                        ansi::truncate(&left, left_room),
+                        ansi::RESET
+                    )
                 } else {
-                    body
-                };
+                    format!(" {right}")
+                }
+            } else {
+                body
+            };
             let truncated = ansi::truncate(&body, w);
             return format!("{}{version} ", ansi::pad(&truncated, w));
         }
@@ -11275,6 +11274,72 @@ mod tests {
         let line = ansi::plain(&state_line(&app, 220));
         assert!(line.contains("retrying in 7s"), "{line}");
         assert!(!line.contains("press esc again to stop"));
+    }
+
+    /// Mode switch during active streaming/work must not cause layout reflow,
+    /// column jumping, or truncation of the working spinner and project metadata.
+    #[test]
+    fn mode_switch_during_streaming_retains_left_layout_without_reflow_or_jumping() {
+        let mut app = test_app();
+        app.busy = true;
+        app.label = "working".into();
+        app.turn_started = Some(std::time::Instant::now());
+        app.project = "/home/noire/Project/Atoryn/Studio".into();
+        app.settings["classifier_status"] =
+            serde_json::json!({"active": false, "reason": serde_json::Value::Null});
+
+        for width in [80, 100, 120, 140] {
+            app.mode = "ask".into();
+            app.clear_status();
+            let before = ansi::plain(&state_line(&app, width));
+            let before_sep = before.find('│').expect("divider must exist");
+            let before_left = &before[..before_sep];
+
+            // 1. Simulates keypress / slash command setting optimistic mode and interim status note.
+            app.mode = "auto".into();
+            app.note("Switching mode to auto…");
+            let during = ansi::plain(&state_line(&app, width));
+            let during_sep = during.find('│').expect("divider must exist");
+            let during_left = &during[..during_sep];
+
+            assert_eq!(
+                during_sep, before_sep,
+                "width {width}: divider column jumped during mode switch ({before_sep} vs {during_sep})"
+            );
+            assert_eq!(
+                during_left, before_left,
+                "width {width}: left side was truncated or reflowed during mode switch"
+            );
+            assert!(
+                during.contains("[Auto]"),
+                "width {width}: new mode pill must be visible"
+            );
+
+            // 2. Simulates engine Ack arriving and clearing the interim status note.
+            if app
+                .status
+                .as_ref()
+                .is_some_and(|s| s.starts_with("Switching mode"))
+            {
+                app.clear_status();
+            }
+            let after = ansi::plain(&state_line(&app, width));
+            let after_sep = after.find('│').expect("divider must exist");
+            let after_left = &after[..after_sep];
+
+            assert_eq!(
+                after_sep, before_sep,
+                "width {width}: divider column jumped after mode ack ({before_sep} vs {after_sep})"
+            );
+            assert_eq!(
+                after_left, before_left,
+                "width {width}: left side changed after mode ack"
+            );
+            assert_eq!(
+                during, after,
+                "width {width}: row during mode switch must equal row after ack (zero reflow)"
+            );
+        }
     }
 
     /// Owner, 2026-10-10: the version a window shows is the build it runs.

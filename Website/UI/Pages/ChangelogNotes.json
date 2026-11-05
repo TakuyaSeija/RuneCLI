@@ -1,0 +1,98 @@
+{
+  "0.7.8": [
+    "Linux installs on every distribution, Rune runs through a loader, tmux colours are right, and web_fetch can carry cookies."
+  ],
+  "0.8.0": [
+    "Twenty model presets, on the older, quieter preset pattern."
+  ],
+  "0.8.1": [
+    "The session picker's caret is 1-based, so it no longer lands on the wrong row."
+  ],
+  "0.8.9": [
+    "Submitting, compaction and the order of sessions are fixed."
+  ],
+  "0.9.0": [
+    "A submitted message is acknowledged, and a session resumes after a restart."
+  ],
+  "0.9.1": [
+    "Work is planned from the context at hand, and thinking can be switched off or set low through a model gateway."
+  ],
+  "0.9.2": [
+    "Copying and selecting with the mouse works as it does elsewhere, including Clear."
+  ],
+  "0.9.3": [
+    "A command you run yourself with ! behaves like the rest of the session, and its links can be opened."
+  ],
+  "0.9.4": [
+    "A multi-line shell script is previewed honestly, and a ! command keeps its context."
+  ],
+  "0.9.5": [
+    "The output of a running or waiting process is written to its own log."
+  ],
+  "0.9.6": [
+    "The composer previews one line, and the prompt streams as you type."
+  ],
+  "0.9.7": [
+    "The composer previews an explicit newline instead of raw line breaks in the source."
+  ],
+  "0.9.8": [
+    "Context counts stay honest: an unknown size is never guessed."
+  ],
+  "0.9.9": [
+    "One owner per instruction block, and the footer keeps Esc, retry and the confirmation."
+  ],
+  "0.10.0": [
+    "A live update notice stays visible in the session view."
+  ],
+  "0.10.1": [
+    "Installing the official help can no longer shadow or overwrite your own skills."
+  ],
+  "0.10.3": [
+    "Terminal output no longer counts the input lines it echoes, and tool actions keep their descriptions."
+  ],
+  "0.10.4": [
+    "Logs show the original error text, and identical calls made three or six times are flagged."
+  ],
+  "0.10.5": [
+    "A repetition warning now says what to do about it."
+  ],
+  "0.10.6": [
+    "Tool results stay pure, and a call repeated in one turn is named in the conversation."
+  ],
+  "0.10.7": [
+    "Long answers are no longer cut short through a model gateway."
+  ],
+  "0.10.9": [
+    "Project memory says what it is for, tool arguments accept aliases, and a wrong path gets a closer suggestion."
+  ],
+  "0.10.10": [
+    "Clearer instructions about waiting for background work, file paths and patch staleness."
+  ],
+  "0.11.0": [
+    "An empty response header no longer appears when streamed text holds only whitespace."
+  ],
+  "0.11.1": [
+    "A reply that repeats one exact unit is stopped while it streams, and you keep or discard the text."
+  ],
+  "0.11.2": [
+    "An intermediate answer no longer leaves a gap before the next step."
+  ],
+  "0.11.3": [
+    "One tool types into or stops a background task in place of two older tools, and a finished task reports itself with its own output."
+  ],
+  "0.11.4": [
+    "Fixes found while auditing background tasks and their notifications."
+  ],
+  "0.11.5": [
+    "The first-start help screen no longer races a slow start, and Windows paths ending in a space or a dot are handled."
+  ],
+  "0.11.6": [
+    "The elevation wording on the ! screen."
+  ],
+  "0.11.7": [
+    "Reasoning streams before the answer, so a reply is no longer split in the middle, and thought blocks are joined per round."
+  ],
+  "0.11.8": [
+    "Changing the permission mode while a reply streams no longer makes the footer reflow, and a status notice you are reading is no longer cleared by it."
+  ]
+}

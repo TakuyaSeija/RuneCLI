@@ -1,11 +1,28 @@
 {{define "content"}}
-<div class="read-layout">
+<div class="read-layout history-layout">
+  <aside class="read-index">
+    {{- if .Releases}}
+    <nav class="index history" aria-label="Releases">
+      <p class="index-title">Releases</p>
+      {{- range $i, $g := .History}}
+      <details class="history-group"{{if eq $i 0}} open{{end}}>
+        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+        <ol>
+          {{- range $g.Releases}}
+          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
+          {{- end}}
+        </ol>
+      </details>
+      {{- end}}
+    </nav>
+    {{- end}}
+  </aside>
   <article class="article">
     <header class="article-head">
       <h1>Changelog</h1>
       <p class="article-lead">Every published build of RuneAgent. Each one is signed; the installer gives you the newest, and any older version installs by number.</p>
     </header>
-    {{- range $i, $r := .Catalog.Releases}}
+    {{- range $i, $r := .Releases}}
     <section class="release" id="v{{$r.Version}}">
       <div class="release-meta">
         {{- if eq $i 0}}<span class="tag">Latest</span>{{end}}
@@ -19,6 +36,8 @@
           <li>{{.}}</li>
           {{- end}}
         </ul>
+        {{- else}}
+        <p class="release-none">What this version changed was not recorded. It is published so an older build stays installable by number.</p>
         {{- end}}
         <p class="release-command"><code>{{installFor $r.Version}}</code></p>
         <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
@@ -31,17 +50,5 @@
     <p class="small after">Verify a download by hand on the <a class="link" href="{{url "install"}}">install page</a>.</p>
     {{- end}}
   </article>
-  <aside class="read-index">
-    {{- if .Catalog.Releases}}
-    <nav class="index" aria-label="On this page">
-      <p class="index-title">Releases</p>
-      <ol>
-        {{- range $i, $r := .Catalog.Releases}}
-        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
-        {{- end}}
-      </ol>
-    </nav>
-    {{- end}}
-  </aside>
 </div>
 {{end}}

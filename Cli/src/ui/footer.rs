@@ -120,6 +120,21 @@ impl super::App {
         self.footer.pending = None;
     }
 
+    pub(super) fn clear_matching_status(&mut self, prefix: &str) {
+        if self.status.as_ref().is_some_and(|s| s.starts_with(prefix)) {
+            self.status = None;
+            self.status_at = None;
+        }
+        if self
+            .footer
+            .pending
+            .as_ref()
+            .is_some_and(|s| s.starts_with(prefix))
+        {
+            self.footer.pending = None;
+        }
+    }
+
     fn show_status(&mut self, text: String, now: Instant) {
         self.status = Some(text);
         self.status_at = Some(now);
@@ -426,5 +441,27 @@ mod tests {
         let view = view(&app);
         app.apply_view(&view);
         assert_eq!(app.footer_text(), None);
+    }
+
+    #[test]
+    fn clear_matching_status_selectively_clears_matching_notices() {
+        let mut app = crate::ui::App::for_test();
+        app.note("Switching mode to auto…");
+        assert_eq!(app.footer_text(), Some("Switching mode to auto…"));
+        app.clear_matching_status("Switching mode");
+        assert_eq!(app.footer_text(), None);
+
+        // Does not clear an unrelated status
+        app.note("Theme: Violet");
+        app.clear_matching_status("Switching mode");
+        assert_eq!(app.footer_text(), Some("Theme: Violet"));
+
+        // Clears a matching pending notice without dropping the visible notice
+        app.note("Switching mode to full…");
+        assert_eq!(app.footer_text(), Some("Theme: Violet"));
+        assert!(app.footer.pending.is_some());
+        app.clear_matching_status("Switching mode");
+        assert_eq!(app.footer_text(), Some("Theme: Violet"));
+        assert!(app.footer.pending.is_none());
     }
 }

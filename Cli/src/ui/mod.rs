@@ -3897,6 +3897,7 @@ impl App {
             }
             if let Awaiting::Mode { previous, .. } = &what {
                 self.mode = previous.clone();
+                self.clear_matching_status("Switching mode");
             }
             // The capabilities panel is open and waiting for this answer: a
             // failure (a server that would not connect) is said there, where
@@ -4052,7 +4053,7 @@ impl App {
                         self.settings["classifier_status"] = cs.clone();
                     }
                 }
-                self.clear_status();
+                self.clear_matching_status("Switching mode");
             }
             Awaiting::Restored { file, side } => undo::restored(self, side, &file, &data),
             Awaiting::UndoFiles { side } => undo::listed(self, side, &data),
@@ -4752,6 +4753,28 @@ mod animation_tests {
         );
         app.on_ack(1, false, Some("refused".into()), None);
         assert_eq!(app.mode, "ask");
+    }
+
+    #[test]
+    fn mode_switch_ack_does_not_wipe_unrelated_active_status_notice() {
+        let mut app = App::for_test();
+        app.note("Theme: Violet");
+        assert_eq!(app.footer_text(), Some("Theme: Violet"));
+
+        app.awaiting.insert(
+            1,
+            Awaiting::Mode {
+                previous: "ask".into(),
+                next: "auto".into(),
+            },
+        );
+        app.on_ack(1, true, None, Some(serde_json::json!({ "mode": "auto" })));
+        assert_eq!(app.mode, "auto");
+        assert_eq!(
+            app.footer_text(),
+            Some("Theme: Violet"),
+            "mode switch ack must preserve active notice"
+        );
     }
 
     /// Audit U3: an optimistic knob the engine refused is put back.

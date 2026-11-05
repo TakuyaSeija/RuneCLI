@@ -39,12 +39,24 @@
   // reader was; the next page starts there and glides to its top, so no article
   // ever jumps to the top at once (owner, 2026-11-03).
   const FROM = "rune.from";
+  const LANG = "rune.lang.from";
   const SIDEBAR_SCROLL = "rune.sidebar.scroll";
   const sidebar = document.querySelector(".docs-sidebar");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  // Choosing a language is not leaving the article: the reader stays exactly
+  // where they were, as on atoryn.com (owner, 2026-11-05). Every other link
+  // starts a new page where the reader was and glides to its top.
+  for (const link of document.querySelectorAll("a[hreflang]")) {
+    if (!(link instanceof HTMLAnchorElement)) continue;
+    link.addEventListener("click", (event) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      remember(LANG, Math.round(window.scrollY));
+    });
+  }
   for (const link of document.querySelectorAll("a[href]")) {
     const href = link.getAttribute("href") || "";
     if (!href || href.startsWith("#") || link.target === "_blank" || link.hasAttribute("download")) continue;
+    if (link.hasAttribute("hreflang")) continue;
     let target;
     try { target = new URL(link.href, location.href); } catch { continue; }
     if (target.origin !== location.origin || target.hash || target.pathname === location.pathname) continue;
@@ -59,6 +71,14 @@
       const sbScroll = Number(sessionStorage.getItem(SIDEBAR_SCROLL)) || 0;
       if (sbScroll > 0) sidebar.scrollTop = sbScroll;
     } catch { /* storage refused */ }
+  }
+  // A reader who chose another language returns to the same spot, at once, and
+  // the page never glides: the words changed, the place did not.
+  let langFrom = 0;
+  try { langFrom = Number(sessionStorage.getItem(LANG)) || 0; sessionStorage.removeItem(LANG); } catch { /* storage refused */ }
+  if (langFrom > 0 && !location.hash) {
+    const start = Math.min(langFrom, document.documentElement.scrollHeight - innerHeight);
+    if (start > 0) window.scrollTo({ top: start, behavior: "instant" });
   }
   let from = 0;
   try { from = Number(sessionStorage.getItem(FROM)) || 0; sessionStorage.removeItem(FROM); } catch { /* storage refused */ }
@@ -230,10 +250,16 @@
   if (langSwitch) {
     const langTrigger = langSwitch.querySelector(".lang-trigger");
     const activeItem = langSwitch.querySelector('.lang-item[aria-current="true"]');
+    // Scrolling the active language into view must move the menu alone. Asking
+    // the browser for it moves the page too, by a few pixels, the moment the
+    // menu opens (measured: 800px to 781px), so the menu is scrolled itself.
+    const langMenu = langSwitch.querySelector(".lang-menu");
     langSwitch.addEventListener("toggle", () => {
-      if (langSwitch.open && activeItem && activeItem.scrollIntoView) {
-        activeItem.scrollIntoView({ block: "nearest" });
-      }
+      if (!langSwitch.open || !langMenu || !activeItem) return;
+      const top = activeItem.offsetTop;
+      const bottom = top + activeItem.offsetHeight;
+      if (bottom > langMenu.scrollTop + langMenu.clientHeight) langMenu.scrollTop = bottom - langMenu.clientHeight;
+      else if (top < langMenu.scrollTop) langMenu.scrollTop = top;
     });
     document.addEventListener("click", (event) => {
       if (langSwitch.open && !langSwitch.contains(event.target)) {

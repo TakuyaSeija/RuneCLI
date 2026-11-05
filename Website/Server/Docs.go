@@ -9,7 +9,7 @@ import (
 
 // Documentation is ordinary server-rendered pages. Navigation, pagination and
 // the sitemap share this catalogue; JavaScript never decides what can be read.
-const documentedVersion = "0.11.7"
+const documentedVersion = "0.11.8"
 
 type docGroup struct {
 	Title string

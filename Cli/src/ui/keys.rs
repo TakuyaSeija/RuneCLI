@@ -1109,7 +1109,7 @@ impl App {
                 .dirty_since
                 .get_or_insert_with(Instant::now);
             self.sync_composer(d, true);
-            self.clear_status();
+            self.clear_matching_status("Switching mode");
             return;
         }
         let Some(session) = self.session else {

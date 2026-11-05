@@ -1,6 +1,6 @@
 # Website documentation contract
 
-Public reference version: Rune 0.9.9 (`documentedVersion` in `Server/Docs.go`). It states the build the manual was checked against, not a second application version; `DocsFacts_test.go` fails when the workspace version moves on, so each release's user-visible changes are reviewed in the manual before the number changes.
+Public reference version: Rune 0.11.8 (`documentedVersion` in `Server/Docs.go`). It states the build the manual was checked against, not a second application version; `DocsFacts_test.go` fails when the workspace version moves on, so each release's user-visible changes are reviewed in the manual before the number changes.
 
 ## Sources of truth
 
@@ -23,10 +23,14 @@ No real account is needed for the website tests. Do not run provider/doctor test
 - `Server/Demo_test.go`: all 145 requests and 207 calls, all prose including text-only requests, original failures, final accounting, 64 file snapshots, native disclosure and escaped markup.
 - `Tests/TerminalTest.mjs`: actual Chrome clicks across the full Thinking hit area, default cursor, no pointer focus box, content-only drag-copy with cleared highlight, scrolling/disclosure without auto-pause, smart pinned PLAN/FILES heading, borderless last-row Jump, all approval cards and final totals. Its external CDP rAF fixture (`ReplayClock.mjs`) drives the excerpt's own schedule (six chapters, about 80 seconds) without a production speed override.
 - `Tests/OverviewTest.mjs`: the centred hero (title lines widening, lead wider than the title, no image), the single curl command, a uniformly scaled 960×600 canvas above 920px, the terminal at its own size on tablets, the still final report instead of the replay on phones, seven responsive widths.
-- `Tests/BrowserTest.mjs`: all articles, merged install redirects and supporting pages at five widths, contrast/overflow, link behavior, real-clock Pause/no-auto-pause, no-JS and reduced motion.
+- `Tests/BrowserTest.mjs`: all articles, merged install redirects and supporting pages at five widths, contrast/overflow, link behavior, the language menu and a language choice keeping the reading position exactly, real-clock Pause/no-auto-pause, no-JS and reduced motion.
 - `Tests/TerminalPolishTest.mjs`: SVG visibility, exact neutral effort color across Amber/Violet/Cyan, redacted ports, failure bullets and native no-JS disclosure.
 
 The public illustration retains Ask-mode simulated approvals by owner choice. Its source session ran in Full mode; a compact label and tooltip say so. Context capacity is 1,000,000 from the exact model's saved metadata, not an historical maximum claim. Redactions are labelled and no model request is made by a replay. The excerpt shows six chapters of the 35-minute session, paced for reading (prose streams whole words, then holds for most of its reading time), and says that its streaming, pacing and approvals are simulated. Phones show the session's own final report instead, unchanged and still.
+
+## Changelog
+
+`Pages/Changelog.html` lists every published build, newest first, and its sidebar groups the releases by minor version (`0.11`, `0.10`, ...) with each group's versions inside it — one or ten of them, however many were published under that minor. A version whose changes were recorded shows them; a version published only so an older build stays installable says that what it changed was not recorded, in every language, rather than inventing a line.
 
 ## Article coverage
 

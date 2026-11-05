@@ -229,6 +229,54 @@ func (s *site) urlIn(l *locale, route string) string {
 }
 
 // pageData is what every page template sees.
+// releaseView is one published build with the changelog's words for a language:
+// the release itself (date, files, version) plus the recorded changes, which the
+// site owns so a version already published can still gain its notes.
+type releaseView struct {
+	*Release
+	Notes []string
+}
+
+type historyGroupView struct {
+	Minor    string
+	Releases []*releaseView
+}
+
+// notesFor is the page's language's words for a version, or English's: a reader
+// never sees a version's changes in a language the site does not hold, because
+// the catalogue is checked at startup for exactly the same versions and lines.
+func (s *site) notesFor(l *locale, version string) []string {
+	if l != nil && l.text != nil {
+		if lines, ok := l.text.Notes[version]; ok {
+			return lines
+		}
+	}
+	return englishNotes[version]
+}
+
+func (s *site) releaseViews(cat *Catalog, l *locale) []*releaseView {
+	if cat == nil {
+		return nil
+	}
+	out := make([]*releaseView, 0, len(cat.Releases))
+	for _, r := range cat.Releases {
+		out = append(out, &releaseView{Release: r, Notes: s.notesFor(l, r.Version)})
+	}
+	return out
+}
+
+func (s *site) historyViews(cat *Catalog, l *locale) []*historyGroupView {
+	var out []*historyGroupView
+	for _, group := range cat.History() {
+		view := &historyGroupView{Minor: group.Minor}
+		for _, r := range group.Releases {
+			view.Releases = append(view.Releases, &releaseView{Release: r, Notes: s.notesFor(l, r.Version)})
+		}
+		out = append(out, view)
+	}
+	return out
+}
+
 type pageData struct {
 	Page       *page
 	Env        string
@@ -242,6 +290,11 @@ type pageData struct {
 	Parent         string
 	Catalog        *Catalog
 	Latest         *Release
+	// Releases are the published builds with the changelog's words for this
+	// page's language, and History is the same list grouped by minor version for
+	// the sidebar.
+	Releases       []*releaseView
+	History        []*historyGroupView
 	SiteVersion    string
 	DocGroups      []docGroup
 	DocVersion     string
@@ -265,6 +318,7 @@ func (s *site) data(p *page, cat *Catalog) pageData {
 		InstallCmdWindows: "irm " + s.cfg.Origin + s.cfg.BasePath + "/install.ps1 | iex",
 		Parent:            s.cfg.parent(),
 		Catalog:           cat, Latest: cat.Latest(), SiteVersion: s.build,
+		Releases: s.releaseViews(cat, l), History: s.historyViews(cat, l),
 		DocGroups: s.groups[l.Code], DocVersion: documentedVersion,
 		Demo:   s.demos[l.Code],
 		Locale: l,

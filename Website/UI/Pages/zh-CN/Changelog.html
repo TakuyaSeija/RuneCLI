@@ -1,11 +1,28 @@
 {{define "content"}}
-<div class="read-layout">
+<div class="read-layout history-layout">
+  <aside class="read-index">
+    {{- if .Releases}}
+    <nav class="index history" aria-label="本页目录">
+      <p class="index-title">版本列表</p>
+      {{- range $i, $g := .History}}
+      <details class="history-group"{{if eq $i 0}} open{{end}}>
+        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+        <ol>
+          {{- range $g.Releases}}
+          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
+          {{- end}}
+        </ol>
+      </details>
+      {{- end}}
+    </nav>
+    {{- end}}
+  </aside>
   <article class="article">
     <header class="article-head">
       <h1>更新日志</h1>
       <p class="article-lead">RuneAgent 的所有已发布构建版本。每个版本均附带签名；安装脚本默认安装最新版，也可指定版本号安装历史版本。</p>
     </header>
-    {{- range $i, $r := .Catalog.Releases}}
+    {{- range $i, $r := .Releases}}
     <section class="release" id="v{{$r.Version}}">
       <div class="release-meta">
         {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
@@ -19,6 +36,8 @@
           <li>{{.}}</li>
           {{- end}}
         </ul>
+        {{- else}}
+        <p class="release-none">该版本的具体改动没有记录。它被发布以便旧版本仍可按版本号安装。</p>
         {{- end}}
         <p class="release-command"><code>{{installFor $r.Version}}</code></p>
         <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
@@ -31,17 +50,5 @@
     <p class="small after">可在<a class="link" href="{{url "install"}}">安装页面</a>查看手动校验下载文件的方法。</p>
     {{- end}}
   </article>
-  <aside class="read-index">
-    {{- if .Catalog.Releases}}
-    <nav class="index" aria-label="本页目录">
-      <p class="index-title">版本列表</p>
-      <ol>
-        {{- range $i, $r := .Catalog.Releases}}
-        <li><a href="#v{{$r.Version}}">{{$r.Version}}</a></li>
-        {{- end}}
-      </ol>
-    </nav>
-    {{- end}}
-  </aside>
 </div>
 {{end}}
