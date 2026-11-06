@@ -21,8 +21,9 @@ Install
 
 The installer puts `rune` in ~/.local/bin (%USERPROFILE%\.local\bin on Windows),
 needs no administrator rights, changes nothing outside your home folder, and
-leaves your PATH alone. It prints where it installed and what to add to PATH when
-that folder is not on it yet. To choose another folder:
+leaves your PATH alone. It prints where it installed; when that folder is not on your PATH it links rune
+into a folder that is, or prints the one line that adds it. It never edits your
+shell profile or PATH. To choose another folder:
 
   Linux and macOS     RUNE_INSTALL_DIR=/absolute/folder sh ./install.sh
   Windows             $env:RUNE_INSTALL_DIR = 'C:\absolute\folder'  (set it first)

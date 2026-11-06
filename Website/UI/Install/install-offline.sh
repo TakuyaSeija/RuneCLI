@@ -92,10 +92,49 @@ main() {
 	done
 
 	say "Installed $install_dir/rune ($version). License and notices: $docs"
-	say "Keep this package's folder if you want to install it again later."
 	case ":$PATH:" in
-	*":$install_dir:"*) say "Start it in a project folder with: rune" ;;
-	*) say "Add $install_dir to your PATH, then start it in a project folder with: rune" ;;
+	*":$install_dir:"*)
+		say "Start it with: rune"
+		;;
+	*)
+		# Same rule as the online installer: never edit a shell profile or
+		# PATH (docs/website.md). When the install folder is not on PATH,
+		# link the binary into the first writable folder that already is,
+		# so this session can run it at once.
+		link_dir=""
+		rest=$PATH
+		while [ -n "$rest" ]; do
+			case "$rest" in
+			*:*)
+				candidate=${rest%%:*}
+				rest=${rest#*:}
+				;;
+			*)
+				candidate=$rest
+				rest=
+				;;
+			esac
+			while [ "${candidate%/}" != "$candidate" ]; do candidate=${candidate%/}; done
+			[ -n "$candidate" ] || continue
+			case "$candidate" in /*) ;; *) continue;; esac
+			if [ -d "$candidate" ] && [ -w "$candidate" ] && [ "$candidate" != "$install_dir" ]; then
+				if [ ! -e "$candidate/rune" ] || [ -L "$candidate/rune" ]; then
+					if ln -sf "$install_dir/rune" "$candidate/rune" 2>/dev/null; then
+						link_dir=$candidate
+						break
+					fi
+				fi
+			fi
+		done
+		if [ -n "$link_dir" ]; then
+			say "Also linked as $link_dir/rune, so this session can run: rune --version"
+		else
+			say "$install_dir is not on your PATH, so rune cannot start yet. Run it by its full path:"
+			say "  $install_dir/rune --version"
+			say "or add the folder for this session only:"
+			say "  export PATH=\"$install_dir:\$PATH\""
+		fi
+		;;
 	esac
 }
 

@@ -6,8 +6,10 @@
 # Installs the newest signed release of `rune` for this machine into
 # ~/.local/bin (no root, no system change). Every download is verified
 # against the release signing key below BEFORE anything is installed; any
-# mismatch stops the installer with nothing changed. Windows has its own
-# installer: {{.Origin}}{{.Base}}/install.ps1
+# mismatch stops the installer with nothing changed. It never edits a
+# shell profile or PATH: when ~/.local/bin is not on PATH it links the
+# binary into a writable folder that already is, so this session can run
+# it at once. Windows has its own installer: {{.Origin}}{{.Base}}/install.ps1
 #
 # Options (environment): RUNE_VERSION=X.Y.Z  RUNE_INSTALL_DIR=/abs/dir
 #                        RUNE_LIBC=gnu|musl (Linux only)
@@ -167,42 +169,49 @@ main() {
 	say "Installed $dir/rune ($version). License and notices: $docs"
 	case ":$PATH:" in
 	*":$dir:"*)
-		say "Start it in a project folder with: rune"
+		say "Start it with: rune"
 		;;
 	*)
-		configured=0
-		case "$dir" in
-		/tmp/* | */scratch/* | */tmp.* | */target/*) ;;
-		"$HOME"/*)
-			for rc in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
-				if [ -f "$rc" ] && [ -w "$rc" ]; then
-					if ! grep -q "\$HOME/\.local/bin" "$rc" 2>/dev/null && ! grep -q "$dir" "$rc" 2>/dev/null; then
-						printf '\n# Added by RuneAgent installer\nexport PATH="%s:$PATH"\n' "$dir" >>"$rc"
-						say "  configured PATH in $rc"
-						configured=1
-					fi
-				fi
-			done
-			fish_cfg="$HOME/.config/fish/config.fish"
-			if [ -d "$HOME/.config/fish" ] || command -v fish >/dev/null 2>&1; then
-				mkdir -p "$HOME/.config/fish" 2>/dev/null || true
-				if [ -f "$fish_cfg" ] || [ -d "$HOME/.config/fish" ]; then
-					if [ ! -f "$fish_cfg" ] || ! grep -q "$dir" "$fish_cfg" 2>/dev/null; then
-						printf '\n# Added by RuneAgent installer\nfish_add_path %s\n' "$dir" >>"$fish_cfg" 2>/dev/null && {
-							say "  configured PATH in $fish_cfg"
-							configured=1
-						} || true
+		# A piped script runs in a child process, so it cannot change the
+		# PATH of the shell that launched it, and it must never edit a
+		# shell profile (docs/website.md): the only way this session can
+		# run `rune` at once is through a folder already on PATH — the way
+		# a global package bin works. When the install folder is not on
+		# PATH, link the binary into the first writable folder that is, so
+		# no source, no export and no new terminal is needed. An existing
+		# regular file is never overwritten; a previous link is refreshed.
+		link_dir=""
+		rest=$PATH
+		while [ -n "$rest" ]; do
+			case "$rest" in
+			*:*)
+				candidate=${rest%%:*}
+				rest=${rest#*:}
+				;;
+			*)
+				candidate=$rest
+				rest=
+				;;
+			esac
+			while [ "${candidate%/}" != "$candidate" ]; do candidate=${candidate%/}; done
+			[ -n "$candidate" ] || continue
+			case "$candidate" in /*) ;; *) continue;; esac
+			if [ -d "$candidate" ] && [ -w "$candidate" ] && [ "$candidate" != "$dir" ]; then
+				if [ ! -e "$candidate/rune" ] || [ -L "$candidate/rune" ]; then
+					if ln -sf "$dir/rune" "$candidate/rune" 2>/dev/null; then
+						link_dir=$candidate
+						break
 					fi
 				fi
 			fi
-			;;
-		esac
-		if [ "$configured" -eq 1 ]; then
-			say "Added $dir to your PATH in your shell configuration."
-			say "To start in this shell session: export PATH=\"$dir:\$PATH\""
-			say "Or open a new terminal and run: rune"
+		done
+		if [ -n "$link_dir" ]; then
+			say "Also linked as $link_dir/rune, so this session can run: rune --version"
 		else
-			say "Add $dir to your PATH, then start it in a project folder with: rune"
+			say "$dir is not on your PATH, so rune cannot start yet. Run it by its full path:"
+			say "  $dir/rune --version"
+			say "or add the folder for this session only:"
+			say "  export PATH=\"$dir:\$PATH\""
 		fi
 		;;
 	esac
