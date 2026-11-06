@@ -5,8 +5,8 @@
 <h2 id="file-tools">Perangkat berkas</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>Membaca satu berkas, dengan dukungan rentang baris inklusif untuk berkas teks. Ukuran berkas maksimum bawaan adalah 16 MiB dan teks yang dikembalikan maksimal 30.000 karakter. Berkas non-teks yang didukung dapat dilampirkan ke model yang memiliki kapabilitas media terkait.</dd></div>
-<div><dt>find_files</dt><dd>Mencari path berkas menggunakan pola glob. Batas maksimum bawaan adalah 200 path yang dikembalikan dan 20.000 karakter. Batas per pemanggilan yang lebih kecil dapat mengurangi (namun tidak dapat menaikkan) batas maksimum tersebut.</dd></div>
-<div><dt>search_text</dt><dd>Mencari isi teks di dalam berkas. Batas maksimum bawaan adalah 100 baris yang cocok, 2.000 karakter per baris, dan total 30.000 karakter. Perangkat ini berbagi batas ukuran berkas tunggal yang sama dengan inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Mencari path berkas menggunakan pola glob. Pola mendukung <code>*</code>, <code>**</code>, <code>?</code>, kelas karakter seperti <code>[a-z]</code>, alternatif <code>|</code>, serta grup kurung kurawal seperti <code>*.{ts,tsx}</code>, termasuk grup bersarang. Batas maksimum bawaan adalah 200 path yang dikembalikan dan 20.000 karakter. Batas per pemanggilan yang lebih kecil dapat mengurangi (namun tidak dapat menaikkan) batas maksimum tersebut.</dd></div>
+<div><dt>search_text</dt><dd>Mencari isi teks di dalam berkas. Filter <code>include</code> menerima sintaks glob path yang sama. Batas maksimum bawaan adalah 100 baris yang cocok, 2.000 karakter per baris, dan total 30.000 karakter. Perangkat ini berbagi batas ukuran berkas tunggal yang sama dengan inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Membuat berkas baru, atau menimpa berkas yang sudah ada. Tindakan ini tetap harus melewati pemeriksaan izin dan perlindungan pemulihan berkas.</dd></div>
 <div><dt>patch_file</dt><dd>Mengganti satu potongan teks secara persis. Teks lama yang dicari harus muncul tepat satu kali di dalam berkas; kecocokan ganda yang ambigu akan ditolak alih-alih mengganti semua kemunculan secara sembarangan.</dd></div>
 </dl>

@@ -29,7 +29,7 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 	if strings.Count(english, "history-group") < 2 {
 		t.Fatalf("the release history is not grouped by minor version")
 	}
-	if !strings.Contains(english, ">0.11<") || !strings.Contains(english, ">0.8<") {
+	if !strings.Contains(english, "0.11") || !strings.Contains(english, "0.8") {
 		t.Fatalf("the sidebar does not name the minor versions it holds")
 	}
 

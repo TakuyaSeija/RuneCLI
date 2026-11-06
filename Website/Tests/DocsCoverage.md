@@ -1,6 +1,6 @@
 # Website documentation contract
 
-Public reference version: Rune 0.11.8 (`documentedVersion` in `Server/Docs.go`). It states the build the manual was checked against, not a second application version; `DocsFacts_test.go` fails when the workspace version moves on, so each release's user-visible changes are reviewed in the manual before the number changes.
+Public reference version: Rune 0.11.9 (`documentedVersion` in `Server/Docs.go`). It states the build the manual was checked against, not a second application version; `DocsFacts_test.go` fails when the workspace version moves on, so each release's user-visible changes are reviewed in the manual before the number changes.
 
 ## Sources of truth
 

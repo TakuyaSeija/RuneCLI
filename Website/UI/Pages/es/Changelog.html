@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="En esta página">
-      <p class="index-title">Versiones</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
-  </aside>
-  <article class="article">
-    <header class="article-head">
-      <h1>Historial de cambios</h1>
-      <p class="article-lead">Todas las compilaciones publicadas de RuneAgent. Cada versión está firmada; el instalador descarga la más reciente y permite instalar versiones anteriores indicando su número.</p>
-    </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">Última</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="Navegación de versiones">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
       </div>
-      <div class="release-body">
-        <h2>Versión {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
-          {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">Lo que cambió esta versión no quedó registrado. Se publica para que una versión anterior siga siendo instalable por su número.</p>
+      <button class="drawer-close" type="button" aria-label="Cerrar navegación"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>Versiones <span class="meta">Historial</span></summary>
+      <nav aria-label="Versiones">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>Versión {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
         {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">La primera versión aparecerá aquí con su fecha, notas y archivos publicados.</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">Verifica cualquier descarga manualmente en la <a class="link" href="{{url "install"}}">página de instalación</a>.</p>
-    {{- end}}
+      </nav>
+      <p class="docs-version">Referencia para Rune {{.DocVersion}}<br>Comprueba tu compilación con <code>rune -version</code>.</p>
+    </details>
+  </aside>
+
+  <article class="article history-article">
+    <header class="article-head">
+      <p class="crumbs">Versiones<span aria-hidden="true">/</span>Historial</p>
+      <h1>Registro de cambios</h1>
+      <p class="article-lead">Cada versión publicada de RuneAgent. Todas están firmadas; el instalador proporciona la más reciente y cualquier versión anterior se instala por número.</p>
+    </header>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">Versiones<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>Versión {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">Más reciente</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Cambios en esta versión</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">Los cambios de esta versión no fueron registrados. Se publica para que las versiones anteriores sigan siendo instalables por número.</p>
+          {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">Descargas publicadas</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">Archivo</th>
+                  <th scope="col">Plataforma</th>
+                  <th scope="col">Tamaño</th>
+                  <th scope="col" class="th-action">Descargar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">Descargar</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">No disponible</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">No se han publicado compilaciones públicas para esta versión.</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Adjacent versions">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Versión anterior</span>
+            <strong>Versión {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Versión siguiente</span>
+            <strong>Versión {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">El primer lanzamiento aparecerá aquí, con su fecha, notas y los archivos exactos publicados.</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="En esta página">
+      <p class="index-title">En esta página</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">Cambios</a></li>
+        <li><a href="#downloads">Descargas</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}

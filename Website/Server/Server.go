@@ -105,6 +105,8 @@ func (s *server) routes() http.Handler {
 		mux.HandleFunc("GET "+at+"/install/{$}", redirectTo(at+"/#install"))
 		mux.HandleFunc("GET "+at+"/security", redirectTo(at+"/docs/security"))
 		mux.HandleFunc("GET "+at+"/security/{$}", redirectTo(at+"/docs/security"))
+		mux.HandleFunc("GET "+at+"/verification", redirectTo(at+"/docs/verification"))
+		mux.HandleFunc("GET "+at+"/verification/{$}", redirectTo(at+"/docs/verification"))
 		mux.HandleFunc("GET "+at, redirectTo(at+"/"))
 	}
 	mux.HandleFunc("GET "+base+"/install.sh", s.install)

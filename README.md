@@ -14,7 +14,7 @@ foldernya bisa bernama `RuneCLI` atau nama lain tanpa mengubah struktur repo.
 | `Cargo.toml`, `Cargo.lock`, `.cargo/config.toml` | Workspace, dependency terkunci, dan konfigurasi build bersama |
 | `AGENTS.md`, `CLAUDE.md`, `docs/architecture.md` | Instruksi inti yang sinkron dan kontrak arsitektur rinci |
 | `rust-toolchain.toml`, `.editorconfig`, `.gitattributes` | Toolchain bersama dan aturan format lintas editor/platform |
-| `.github/workflows/studio-ci.yml` | Quality gate Linux di GitHub Actions |
+| `.github/workflows/studio-ci.yml` | Quality gate Linux, Windows, dan macOS di GitHub Actions |
 | `scripts/` | Pemeriksaan dan tes kebijakan Git |
 | `Website/` | Website publik RuneAgent: BE Go (`Server/`, stdlib saja) dan UI tertanam (`UI/`); tanpa detail host |
 | `docs/git.md` | Kebijakan berkas repositori dan panduan commit/push |
@@ -42,7 +42,7 @@ Konfigurasi `.cargo/config.toml` menempatkan folder sementara pengujian di
 `target/test-tmp/`. Skrip Python PTY dan pengujian terminal desktop memiliki
 kebutuhan tambahan; workflow standar menjalankan tes Cargo, bukan seluruh
 smoke test desktop atau provider live. Baca aturan proyek sebelum menjalankan
-fixture atau binary secara manual.
+fixture atau binary secara manual. GitHub Actions juga membangun dan menguji target rilis lintas platform serta installer pada mesin platformnya sendiri.
 
 ## Git
 

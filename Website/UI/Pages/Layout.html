@@ -1,4 +1,4 @@
-{{define "brand-mark"}}<img class="brand-mark" src="{{asset "Images/Logo.png"}}" width="26" height="26" alt="" decoding="async">{{end}}<!doctype html>
+{{define "brand-mark"}}<img class="brand-mark" src="{{asset "Images/Logo.png"}}" width="26" height="26" alt="" decoding="async">{{end}}{{define "copy-icons"}}<svg class="i-copy" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V7a2.5 2.5 0 0 0-2.5-2.5H7A2.5 2.5 0 0 0 4.5 7v6A2.5 2.5 0 0 0 7 15.5h1.5"/></svg><svg class="i-done" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>{{end}}<!doctype html>
 <html lang="en" data-theme="amber">
 <head>
   <meta charset="utf-8">
@@ -36,7 +36,7 @@
 
   <header class="top">
     <div class="top-row">
-      {{if .Page.Section}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Open the documentation menu"><span></span><span></span><span></span></button>{{end}}
+      {{if or .Page.Section (eq .Page.Route "changelog")}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Open the documentation menu"><span></span><span></span><span></span></button>{{end}}
       <a class="brand" href="{{url ""}}"{{if eq .Page.Route ""}} aria-current="page"{{end}}>
         {{template "brand-mark"}}
         <span class="brand-name-wrap"><span class="brand-name">RuneAgent</span><span class="brand-by">Atoryn Studio</span></span>
@@ -56,7 +56,7 @@
       </nav>
     </div>
   </header>
-  {{if .Page.Section}}<div class="scrim"></div>{{end}}
+  {{if or .Page.Section (eq .Page.Route "changelog")}}<div class="scrim"></div>{{end}}
 
   <main id="main" tabindex="-1">
 {{template "content" .}}

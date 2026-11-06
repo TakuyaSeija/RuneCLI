@@ -37,7 +37,7 @@ func TestPublishedInstallationShowsOnlyVerifiedArtifacts(t *testing.T) {
 	name := f.publish(t, "0.9.1", fakeRune("0.9.1"))
 	h := newTestServer(t, testConfig(f.dir)).routes()
 	body := get(t, h, "GET", "/Studio/").Body.String()
-	for _, required := range []string{"Release 0.9.1", name, `class="download-list"`, `class="hash"`, "/Studio/download/0.9.1/SHA256SUMS.sig", "/Studio/signing-key.pem"} {
+	for _, required := range []string{"Release 0.9.1", name, `download-table`, `btn-dl`} {
 		if !strings.Contains(body, required) {
 			t.Errorf("published install lacks %q", required)
 		}

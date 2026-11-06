@@ -5,8 +5,8 @@
 <h2 id="file-tools">File tools</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>One file, with inclusive line ranges for text. Factory maximum file size 16 MiB and returned text 30,000 characters. A supported non-text file can be attached to a capable model.</dd></div>
-<div><dt>find_files</dt><dd>Glob search for paths. Factory maximum 200 returned paths and 20,000 characters. A smaller per-call limit can reduce, not raise, that maximum.</dd></div>
-<div><dt>search_text</dt><dd>Content search. Factory maximum 100 matching lines, 2,000 characters per line and 30,000 total characters. It shares the individual-file size limit with inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Glob search for paths. Patterns support <code>*</code>, <code>**</code>, <code>?</code>, character classes such as <code>[a-z]</code>, <code>|</code> alternatives and brace groups such as <code>*.{ts,tsx}</code>, including nested groups. Factory maximum 200 returned paths and 20,000 characters. A smaller per-call limit can reduce, not raise, that maximum.</dd></div>
+<div><dt>search_text</dt><dd>Content search. Its <code>include</code> filter accepts the same path glob syntax. Factory maximum 100 matching lines, 2,000 characters per line and 30,000 total characters. It shares the individual-file size limit with inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Create a file, overwriting an existing one if present. The action must still pass permissions and file protection.</dd></div>
 <div><dt>patch_file</dt><dd>Replace one exact piece of text. The old text must occur exactly once; an ambiguous match is not an instruction to replace every occurrence.</dd></div>
 </dl>

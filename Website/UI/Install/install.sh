@@ -35,6 +35,17 @@ fetch() { # url dest
 	esac || fail "download failed: $1"
 }
 
+fetch_archive() { # url dest
+	if [ -t 2 ] || [ -t 1 ]; then
+		case "$ORIGIN" in
+		https://*) curl --proto '=https' --tlsv1.2 -fL --progress-bar --retry 3 --retry-delay 1 -o "$2" "$1" ;;
+		*) curl -fL --progress-bar --retry 3 --retry-delay 1 -o "$2" "$1" ;; # development server only
+		esac
+	else
+		fetch "$1" "$2"
+	fi || fail "download failed: $1"
+}
+
 sha256_of() {
 	if command -v sha256sum >/dev/null 2>&1; then
 		sha256sum "$1" | cut -d' ' -f1
@@ -123,7 +134,8 @@ main() {
 	# 2. The archive must be in that signed list with exactly that hash.
 	expected=$(tr -d '\r' <"$tmp/SHA256SUMS" | awk -v n="$name" '$2 == n { print $1 }')
 	[ -n "$expected" ] || fail "no build for $name_system $name_arch in release $version"
-	fetch "$url/$name" "$tmp/$name"
+	say "  downloading $name..."
+	fetch_archive "$url/$name" "$tmp/$name"
 	actual=$(sha256_of "$tmp/$name")
 	[ "$actual" = "$expected" ] || fail "CHECKSUM MISMATCH for $name — nothing was installed. Do not use this file."
 	say "  checksum verified"
@@ -154,8 +166,45 @@ main() {
 
 	say "Installed $dir/rune ($version). License and notices: $docs"
 	case ":$PATH:" in
-	*":$dir:"*) say "Start it in a project folder with: rune" ;;
-	*) say "Add $dir to your PATH, then start it in a project folder with: rune" ;;
+	*":$dir:"*)
+		say "Start it in a project folder with: rune"
+		;;
+	*)
+		configured=0
+		case "$dir" in
+		/tmp/* | */scratch/* | */tmp.* | */target/*) ;;
+		"$HOME"/*)
+			for rc in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
+				if [ -f "$rc" ] && [ -w "$rc" ]; then
+					if ! grep -q "\$HOME/\.local/bin" "$rc" 2>/dev/null && ! grep -q "$dir" "$rc" 2>/dev/null; then
+						printf '\n# Added by RuneAgent installer\nexport PATH="%s:$PATH"\n' "$dir" >>"$rc"
+						say "  configured PATH in $rc"
+						configured=1
+					fi
+				fi
+			done
+			fish_cfg="$HOME/.config/fish/config.fish"
+			if [ -d "$HOME/.config/fish" ] || command -v fish >/dev/null 2>&1; then
+				mkdir -p "$HOME/.config/fish" 2>/dev/null || true
+				if [ -f "$fish_cfg" ] || [ -d "$HOME/.config/fish" ]; then
+					if [ ! -f "$fish_cfg" ] || ! grep -q "$dir" "$fish_cfg" 2>/dev/null; then
+						printf '\n# Added by RuneAgent installer\nfish_add_path %s\n' "$dir" >>"$fish_cfg" 2>/dev/null && {
+							say "  configured PATH in $fish_cfg"
+							configured=1
+						} || true
+					fi
+				fi
+			fi
+			;;
+		esac
+		if [ "$configured" -eq 1 ]; then
+			say "Added $dir to your PATH in your shell configuration."
+			say "To start in this shell session: export PATH=\"$dir:\$PATH\""
+			say "Or open a new terminal and run: rune"
+		else
+			say "Add $dir to your PATH, then start it in a project folder with: rune"
+		fi
+		;;
 	esac
 }
 

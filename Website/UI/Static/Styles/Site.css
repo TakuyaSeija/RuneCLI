@@ -3,7 +3,7 @@
 @font-face{font-family:'JetBrains Mono';src:url('../Fonts/JetBrainsMono.woff2') format('woff2');font-weight:400 700;font-display:swap}
 /* One accent, taken from the stone's core, kept for what matters: the emphasised word, the primary action, the current place. */
 :root{color-scheme:dark;--bg:#0a0908;--bg-2:#0f0d0b;--raise:#14110e;--raise-2:#1b1713;--soft:#1b1713;--line:#2b2520;--line-2:#3d342c;--ink:#f6f0e6;--body:#c9c0b3;--meta:#9d9387;--ember:#ffb547;--ember-2:#ff8a1f;--ember-ink:#1a0f02;--ok:#86d3a6;--bad:#f19a8f;--wip:#e9c46a;--a1:var(--ember);--a2:var(--ember-2);--sans:Inter,ui-sans-serif,system-ui,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace;--shell:min(100% - 2 * clamp(16px,4vw,64px),1240px);--head-h:60px;--edge:clamp(16px,2.6vw,34px);--ease:cubic-bezier(.2,.7,.2,1);--r-s:8px;--r-m:12px;--r-l:20px}
-*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:84px;scrollbar-color:#4b3f34 transparent;scrollbar-width:thin}body{margin:0;min-width:300px;display:flex;flex-direction:column;min-height:100svh;background:var(--bg);color:var(--body);font:400 16px/1.7 var(--sans);font-synthesis:style;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}main{flex:1 0 auto}h1,h2,h3,h4,p,ul,ol,dl,dd,figure,pre,blockquote{margin:0;padding:0}ul,ol{list-style:none}img,svg{display:block;max-width:100%}a{color:inherit;text-decoration:none}button{font:inherit;color:inherit}/* A tap highlights nothing of the browser's own: a phone behaves like the desktop, where only the drawn states show (owner, 2026-11-03). */a,button,summary,label,input,img,svg{-webkit-tap-highlight-color:transparent}:focus:not(:focus-visible){outline:none}button,summary{touch-action:manipulation}.install-more summary,.docs-menu>summary,.docs-group>summary,.article-contents>summary,.download-row summary{-webkit-user-select:none;user-select:none}table{border-collapse:collapse}::selection{background:var(--ember);color:var(--ember-ink)}/* Keyboard focus is the word's own ink, never a drawn box or an underline (owner, 2026-11-03).
+*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:84px;scrollbar-color:#4b3f34 transparent;scrollbar-width:thin}body{margin:0;min-width:300px;display:flex;flex-direction:column;min-height:100svh;background:var(--bg);color:var(--body);font:400 16px/1.7 var(--sans);font-synthesis:style;-webkit-font-smoothing:antialiased;overflow-wrap:break-word}main{flex:1 0 auto}h1,h2,h3,h4,p,ul,ol,dl,dd,figure,pre,blockquote{margin:0;padding:0}ul,ol{list-style:none}img,svg{display:block;max-width:100%}a{color:inherit;text-decoration:none}button{font:inherit;color:inherit}/* A tap highlights nothing of the browser's own: a phone behaves like the desktop, where only the drawn states show (owner, 2026-11-03). */a,button,summary,label,input,img,svg{-webkit-tap-highlight-color:transparent}:focus:not(:focus-visible){outline:none}button,summary{touch-action:manipulation}summary{-webkit-user-select:none;user-select:none}.install-more summary,.docs-menu>summary,.docs-group>summary,.history-group>summary,.article-contents>summary,.download-row summary{-webkit-user-select:none;user-select:none}table{border-collapse:collapse}::selection{background:var(--ember);color:var(--ember-ink)}/* Keyboard focus is the word's own ink, never a drawn box or an underline (owner, 2026-11-03).
    Every disclosure also drops the browser's own marker; the drawn chevron is the only one. */
 :focus-visible{outline:none}main:focus{outline:none}summary{list-style:none}summary::-webkit-details-marker{display:none}[hidden]{display:none!important}.shell{width:var(--shell);margin-inline:auto}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 /* A thin warm thumb on a clear track, where a browser still draws its own. */
@@ -26,7 +26,7 @@
 /* Display type is Inter at the parent site's scale, so every page of the family reads the same way. */
 h1.display{font:600 clamp(26px,4.1vw,58px)/1.12 var(--sans);letter-spacing:-.034em;color:var(--ink);text-wrap:balance}h2.title{font:600 clamp(30px,3.6vw,48px)/1.1 var(--sans);letter-spacing:-.032em;color:var(--ink);text-wrap:balance}:is(h1.display,h2.title) em{font-style:italic;font-weight:500;color:var(--ember);padding-right:.02em}h3.item{font-size:17px;color:var(--ink)}.lead{max-width:38em;font-size:clamp(17px,1.45vw,19px);line-height:1.7;color:var(--body)}.eyebrow{display:flex;align-items:center;gap:10px;color:var(--meta);font:500 11px/1.6 var(--mono);letter-spacing:.14em;text-transform:uppercase}.meta,.small{color:var(--meta);font-size:13px;line-height:1.7}.after{margin-top:20px}strong{color:var(--ink);font-weight:600}
 /* Prose links and references: brighten on hover, no animated underline (owner, 2026-11-03). */
-.link,.prose a,.install-source a,.download-meta a,.download-row a,.install-more a,.ref a{color:var(--ink);text-decoration:none;transition:color .2s ease}.link:hover,.prose a:hover,.install-source a:hover,.download-meta a:hover,.download-row a:hover,.install-more a:hover,.ref a:hover{color:var(--ember)}.link{display:inline-flex;align-items:center;gap:.55em;min-height:44px;padding-bottom:2px;font-size:15px;font-weight:600}
+.link,.prose a:not(.btn-dl),.install-source a,.download-meta a,.download-row a,.install-more a,.ref a{color:var(--ink);text-decoration:none;transition:color .2s ease}.link:hover,.prose a:not(.btn-dl):hover,.install-source a:hover,.download-meta a:hover,.download-row a:hover,.install-more a:hover,.ref a:hover{color:var(--ember)}.link{display:inline-flex;align-items:center;gap:.55em;min-height:44px;padding-bottom:2px;font-size:15px;font-weight:600}
 /* Navigation reads as words; the one action beside it is a quiet neutral capsule: a faint fill and a thin
    neutral rim, never a warm rim, a glow or a solid accent (owner, 2026-10-29). Buttons share it. */
 .nav-link{display:inline-flex;align-items:center;min-height:44px;padding:0 2px;font:500 14.5px/1 var(--sans);letter-spacing:-.01em;color:var(--body);transition:color .2s ease}.nav-link:hover,.nav-link:focus-visible{color:var(--ink)}
@@ -65,28 +65,35 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
 .prose .ref-keys>div{grid-template-columns:minmax(0,1fr);gap:6px;scroll-margin-top:90px}.prose .ref-keys dd{overflow-wrap:anywhere}.prose .ref-keys dd p+p{margin-top:8px}.ref-facts{display:flex;flex-wrap:wrap;gap:2px 20px;font-size:13.5px;line-height:1.65;color:var(--meta)}.ref-facts b{margin-right:5px;font-weight:600;color:var(--body)}
 .license-text h2{margin-top:40px}.license-text ul{margin-top:12px}.license-text .license-copyright{margin-top:32px;font-size:14px;color:var(--meta)}.license-aside{max-width:72ch;margin-top:40px;padding-top:20px;border-top:1px solid var(--line);font-size:14px;color:var(--meta)}
 :is(.prose pre.block,.notice,.empty,.docs-pagination a,.table-wrap){box-shadow:inset 0 1px 0 rgb(255 214 160 / .07);background-image:radial-gradient(140% 120% at 0% 0%,rgb(255 168 70 / .05),transparent 55%)}
-.release{display:grid;grid-template-columns:160px minmax(0,1fr);gap:40px;padding:32px 0;border-top:1px solid var(--line)}.release:first-of-type{border-top:0;padding-top:0}.release-meta{display:flex;flex-direction:column;gap:8px}.tag{display:inline-flex;align-self:start;padding:2px 10px;border:1px solid var(--line-2);border-radius:99px;font-size:12px;color:var(--ink)}.date{font-size:13px;color:var(--meta)}.release-body h2{font:600 26px/1.2 var(--sans);letter-spacing:-.02em;color:var(--ink)}.release-notes{margin:16px 0;padding-left:20px;list-style:disc;font-size:15px}.release-files{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}.release-command{margin:16px 0 0}.release-command code{font-size:12.5px;color:var(--ink)}
-/* The changelog reads like the manual (owner, 2026-11-05): one version sidebar
-   on the left, grouped by minor version — the patch versions live inside their
-   group, one or ten of them — and the changes on the right. Groups open on
-   their own and never close another, like the manual's chapters. */
-.history-layout{grid-template-columns:208px minmax(0,760px)}
-.history-group{border-top:1px solid var(--line)}
-.history-group:first-of-type{border-top:0}
-.history-group>summary{display:flex;align-items:center;gap:8px;min-height:36px;padding:0 0 0 4px;list-style:none;cursor:pointer;font:600 13px/1 var(--sans);letter-spacing:-.01em;color:var(--body);transition:color .2s ease}
-.history-group>summary::-webkit-details-marker{display:none}
-.history-group>summary::before{content:"";flex:none;width:7px;height:7px;border-right:1.5px solid var(--meta);border-bottom:1.5px solid var(--meta);transform:rotate(-45deg);transition:transform .3s var(--ease),border-color .2s ease}
-.history-group[open]>summary::before{transform:translateY(-2px) rotate(45deg)}
-.history-group>summary:hover,.history-group[open]>summary{color:var(--ink)}
-.history-group>summary:focus-visible{outline:none;color:var(--ember)}
+/* Changelog single-version view and reactive panels (owner, 2026-11-05) */
 .history-count{margin-left:auto;padding-left:8px;font:500 11px/1 var(--sans);color:var(--meta)}
-.history-group ol{margin:2px 0 10px 16px;border-left:1px solid var(--line)}
-.history-group ol a{display:block;margin-left:-1px;padding:5px 0 5px 12px;border-left:1px solid transparent;font-size:13px;color:var(--meta);transition:color .2s ease,border-color .2s ease}
-.history-group ol a:hover{color:var(--ink)}
-.history-group ol a[aria-current=true]{color:var(--ink);border-left-color:var(--ember)}
-.release-none{margin:16px 0;font-size:15px;color:var(--meta)}
-@media(max-width:900px){.history-layout{grid-template-columns:180px minmax(0,1fr)}}
-@media(max-width:820px){.history-layout{grid-template-columns:1fr}}
+.changelog-panel{display:none}
+.changelog-panel.is-active{display:block}
+.version-head{margin:0 0 28px;padding-bottom:20px;border-bottom:1px solid var(--line)}
+.version-head h2{margin:8px 0 10px;font:600 clamp(24px,3vw,36px)/1.2 var(--sans);letter-spacing:-.024em;color:var(--ink)}
+.prose h3{margin:36px 0 12px;font:600 19px/1.35 var(--sans);letter-spacing:-.015em;color:var(--ink)}
+.prose h3:first-child{margin-top:0}
+.release-meta-row{display:flex;align-items:center;gap:12px;margin-top:10px}
+.tag{display:inline-flex;align-self:start;padding:2px 10px;border:1px solid var(--line-2);border-radius:99px;font-size:12px;color:var(--ink)}
+.date{font-size:13px;color:var(--meta)}
+.release-notes{margin:18px 0;padding-left:22px;list-style:disc;font-size:15px;line-height:1.75}
+.release-none{margin:18px 0;font-size:15px;color:var(--meta);line-height:1.75}
+
+/* Download table: Install page uses compact scroll; Changelog displays full list without scrolldown */
+.download-table-wrap{margin:20px 0 28px}
+.installation-details .download-table-wrap{max-height:290px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.installation-details .download-table thead th{position:sticky;top:0;z-index:2;background:var(--raise);box-shadow:0 1px 0 var(--line-2)}
+.changelog-panel .download-table-wrap{max-height:none;overflow-y:visible;overflow-x:auto}
+.download-table{width:100%}
+.download-table th,.download-table td{padding:12px 14px;vertical-align:middle}
+.download-table .td-size{white-space:nowrap;color:var(--meta);font-size:13px}
+.download-table .th-action,.download-table .td-action{text-align:center;white-space:nowrap}
+.btn-dl{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:0 14px;border-radius:var(--r-s);background:rgb(255 255 255 / .05);box-shadow:inset 0 0 0 1px rgb(255 255 255 / .14);font:500 13px/1 var(--sans);color:var(--body)!important;text-decoration:none;transition:background-color .2s ease,box-shadow .2s ease,color .2s ease}
+.btn-dl:hover{background:rgb(255 255 255 / .12);box-shadow:inset 0 0 0 1px rgb(255 255 255 / .28), 0 0 12px rgb(255 255 255 / .06);color:var(--ink)!important}
+.verification-action{margin:14px 0 24px}
+.badge-unavailable{display:inline-flex;align-items:center;justify-content:center;min-height:28px;padding:0 10px;border-radius:var(--r-s);background:rgb(255 255 255 / .03);box-shadow:inset 0 0 0 1px var(--line);color:var(--meta);font:500 12px/1 var(--sans)}
+.tr-unavailable td{color:var(--meta)}
+.tr-unavailable code,.tr-unavailable .meta-name{color:var(--meta)}
 .notfound{position:relative;flex:1 0 auto;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:clamp(32px,4vw,64px) 0;overflow:clip;text-align:center}
 .notfound::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 54% 50% at 50% 50%,rgb(255 166 62 / .16),rgb(255 142 40 / .08) 44%,rgb(255 128 32 / .03) 72%,transparent 100%)}
 .notfound .lead{margin:20px auto 0;max-width:40em;font-size:17px;line-height:1.7}

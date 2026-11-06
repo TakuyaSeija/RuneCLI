@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="Di halaman ini">
-      <p class="index-title">Rilis</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="Navigasi rilis">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
+      </div>
+      <button class="drawer-close" type="button" aria-label="Tutup navigasi"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>Rilis <span class="meta">Riwayat</span></summary>
+      <nav aria-label="Daftar rilis">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>Versi {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
+        {{- end}}
+      </nav>
+      <p class="docs-version">Referensi untuk Rune {{.DocVersion}}<br>Periksa biner Anda dengan <code>rune -version</code>.</p>
+    </details>
   </aside>
-  <article class="article">
+
+  <article class="article history-article">
     <header class="article-head">
+      <p class="crumbs">Rilis<span aria-hidden="true">/</span>Riwayat</p>
       <h1>Catatan perubahan</h1>
       <p class="article-lead">Setiap rilis resmi RuneAgent. Semuanya ditandatangani; skrip pemasang memberikan versi terbaru, dan versi lama dapat dipasang dengan menyebutkan nomornya.</p>
     </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">Terbaru</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
-      </div>
-      <div class="release-body">
-        <h2>Versi {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">Rilis<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>Versi {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">Terbaru</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Perubahan pada rilis ini</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">Perubahan pada versi ini tidak tercatat. Versi ini diterbitkan agar versi lama tetap bisa dipasang dengan menyebutkan nomornya.</p>
           {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">Perubahan pada versi ini tidak tercatat. Versi ini diterbitkan agar versi lama tetap bisa dipasang dengan menyebutkan nomornya.</p>
-        {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">Rilis pertama akan muncul di sini, lengkap dengan tanggal, catatan, dan berkas yang diterbitkan.</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">Verifikasi unduhan secara manual di <a class="link" href="{{url "install"}}">halaman pemasangan</a>.</p>
-    {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">Biner yang diterbitkan</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">Berkas</th>
+                  <th scope="col">Platform</th>
+                  <th scope="col">Ukuran</th>
+                  <th scope="col" class="th-action">Unduh</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">Unduh</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">Tidak tersedia</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">Tidak ada biner publik yang diterbitkan untuk versi ini.</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Versi berdampingan">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Sebelumnya</span>
+            <strong>Versi {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Berikutnya</span>
+            <strong>Versi {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">Rilis pertama akan muncul di sini, lengkap dengan tanggal, catatan, dan berkas yang diterbitkan.</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="Di halaman ini">
+      <p class="index-title">Di halaman ini</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">Perubahan</a></li>
+        <li><a href="#downloads">Biner terbit</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}

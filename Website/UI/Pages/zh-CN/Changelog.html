@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="本页目录">
-      <p class="index-title">版本列表</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
-  </aside>
-  <article class="article">
-    <header class="article-head">
-      <h1>更新日志</h1>
-      <p class="article-lead">RuneAgent 的所有已发布构建版本。每个版本均附带签名；安装脚本默认安装最新版，也可指定版本号安装历史版本。</p>
-    </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="版本发布导航">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
       </div>
-      <div class="release-body">
-        <h2>版本 {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
-          {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">该版本的具体改动没有记录。它被发布以便旧版本仍可按版本号安装。</p>
+      <button class="drawer-close" type="button" aria-label="关闭导航"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>版本发布 <span class="meta">历史</span></summary>
+      <nav aria-label="版本发布">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>版本 {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
         {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">首个正式版本将在此展示，包含发布日期、更新说明及对应的发行文件。</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">可在<a class="link" href="{{url "install"}}">安装页面</a>查看手动校验下载文件的方法。</p>
-    {{- end}}
+      </nav>
+      <p class="docs-version">Rune 参考版本 {{.DocVersion}}<br>使用 <code>rune -version</code> 检查您的构建版本。</p>
+    </details>
+  </aside>
+
+  <article class="article history-article">
+    <header class="article-head">
+      <p class="crumbs">版本发布<span aria-hidden="true">/</span>历史</p>
+      <h1>更新日志</h1>
+      <p class="article-lead">RuneAgent 的每个已发布构建。每个构建均经过签名；安装程序默认提供最新版本，任何较旧版本均可按版本号安装。</p>
+    </header>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">版本发布<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>版本 {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">本次发布的主要变更</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">该版本的具体变更未作记录。发布此版本是为了支持按版本号继续安装旧构建。</p>
+          {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">已发布的构建包</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">文件</th>
+                  <th scope="col">平台</th>
+                  <th scope="col">大小</th>
+                  <th scope="col" class="th-action">下载</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">下载</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">不可用</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">此版本尚无公开构建发布。</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Adjacent versions">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>上一版本</span>
+            <strong>版本 {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>下一版本</span>
+            <strong>版本 {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">首个正式发布将在此展示，包含发布日期、更新说明及具体构建文件。</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="本页内容">
+      <p class="index-title">本页内容</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">更新变更</a></li>
+        <li><a href="#downloads">构建下载</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}

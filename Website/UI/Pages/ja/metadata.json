@@ -180,100 +180,143 @@
   },
   "notes": {
     "0.7.8": [
-      "Linux はすべてのディストリビューションに導入でき、Rune はローダー経由で動き、tmux の色が正しくなり、web_fetch は cookie を運べます。"
+      "Universal Linux distribution support using a self-contained runtime loader across all major distributions.",
+      "Terminal UI fixes for tmux 256-color palettes and automated HTTP cookie handling during web fetch operations."
     ],
     "0.8.0": [
-      "20 個のモデルプリセットを、より落ち着いた従来のプリセット様式で。"
+      "Expanded provider preset catalog featuring twenty calibrated model profiles and custom local endpoints.",
+      "Standardized API dialect normalization for OpenAI, Anthropic, and compatible model gateway endpoints."
     ],
     "0.8.1": [
-      "セッション選択のカーソルは 1 始まりになり、誤った行に止まりません。"
+      "Session picker caret positioning corrected to 1-based indexing, eliminating off-by-one row highlights.",
+      "Resolved keyboard navigation short-circuits when browsing historical prompt and session archives."
     ],
     "0.8.9": [
-      "送信、コンパクション、セッションの順序を修正しました。"
+      "Refined context compaction algorithm to preserve essential architecture facts while clearing expired history.",
+      "Hardened session admission queue and chronological ordering against concurrent terminal window operations."
     ],
     "0.9.0": [
-      "送信したメッセージが確認され、再起動後もセッションを再開できます。"
+      "Session admission flow immediately acknowledges submitted prompts before triggering heavy engine turns.",
+      "Seamless session resumption across daemon and host restarts with immutable event journals and records."
     ],
     "0.9.1": [
-      "目の前の文脈から作業を計画し、thinking は モデルゲートウェイ経由で無効化または低く設定できます。"
+      "Contextual execution planning dynamically determines tool launch intent from task dependencies.",
+      "Integrated reasoning controls allow switching thinking off or setting low effort levels via model gateways."
     ],
     "0.9.2": [
-      "マウスでのコピーと選択が他所と同じように動き、Clear も含みます。"
+      "Terminal mouse selection and copy support aligned with standard terminal behavior, including clear selection.",
+      "Maintained stable caret coordinates and visual boundaries without terminal chrome artifacts."
     ],
     "0.9.3": [
-      "! で自分で実行するコマンドはセッションの他の部分と同じに振る舞い、そのリンクは開けます。"
+      "Manual shell execution via ! runs entire multiline scripts through the permission gate with full access.",
+      "Terminal links and file references in command outputs can be inspected and opened in the default browser."
     ],
     "0.9.4": [
-      "複数行のシェルスクリプトはそのまま表示され、! コマンドは文脈を保ちます。"
+      "Honest multiline shell script previews display complete command syntax before asking for confirmation.",
+      "Manual ! shell commands retain preceding conversation context and active working directory across turns."
     ],
     "0.9.5": [
-      "実行中または入力待ちのプロセスの出力は専用のログに書かれます。"
+      "Running and waiting background processes stream standard output and error to independent, dedicated log files.",
+      "Enhanced terminal wait detection recognizes interactive input prompts across all Linux PTY sessions."
     ],
     "0.9.6": [
-      "入力欄のプレビューは 1 行になり、打つにつれてプロンプトが流れます。"
+      "Real-time prompt streaming displays the first preview line in the composer as you type.",
+      "Improved terminal cursor positioning and soft-wrap rendering on wide and narrow terminal viewports."
     ],
     "0.9.7": [
-      "入力欄は原文の生の改行ではなく、改行を明示して表示します。"
+      "Multiline composer displays explicit newline indicators rather than raw line break jumps in terminal output.",
+      "Improved text editing responsiveness when pasting multi-line shell commands into the input editor."
     ],
     "0.9.8": [
-      "文脈の計数は正直なままで、不明なサイズを推測しません。"
+      "Strict context accounting treats unverified byte counts as unknown rather than guessing model capacity.",
+      "Background task guidance explains why shell polling loops waste tokens and how to wait for notifications."
     ],
     "0.9.9": [
-      "指示の塊ごとに所有者は 1 つだけになり、フッターは Esc、再試行、確認を保ちます。"
+      "Formalized single ownership per system instruction block to eliminate contradictory guidance.",
+      "Terminal footer preserves armed Esc cancellation, retry countdowns, and permission confirmation cards."
     ],
     "0.10.0": [
-      "更新のお知らせはセッション表示でも見えたままです。"
+      "Live update notices remain pinned and visible in the active session view during background compilation.",
+      "Cross-platform test gate validated across Linux, macOS (Apple Silicon & Intel), and Windows."
     ],
     "0.10.1": [
-      "公式ヘルプを導入しても、自分のスキルを覆い隠したり上書きしたりしません。"
+      "Official help skill installation isolated to ensure user skills are never shadowed or overwritten.",
+      "Introduced automatic backup pruning for old upgrade directories to preserve local disk space."
     ],
     "0.10.3": [
-      "端末出力は反響した入力行を数えなくなり、ツールの操作は説明を保ちます。"
+      "Terminal execution output accurately decouples echoed shell input lines from actual program standard output.",
+      "Tool action sentences retain explicit descriptions for transparent user auditing during streaming."
     ],
     "0.10.4": [
-      "ログは元のエラー文を表示し、同一の呼び出しが 3 回または 6 回続くと示されます。"
+      "Conversation error logs (/logs) preserve original provider error text alongside engine turn status.",
+      "Identical tool calls executed consecutively are tracked and flagged before exhausting request budgets."
     ],
     "0.10.5": [
-      "繰り返しの警告が、どうすればよいかを告げるようになりました。"
+      "Contextual loop guard distinguishes waiting for process notifications from repeated command execution failures.",
+      "Enhanced error diagnostics with immediate recovery recommendations tailored to each tool failure category."
     ],
     "0.10.6": [
-      "ツール結果は純粋なままで、同じターン内の繰り返し呼び出しは会話の中で名指しされます。"
+      "Tool results remain 100% pure data; repetition notices now arrive via system notices on Cadence B (3, 6, 9...).",
+      "Loop warnings provide actionable guidance: stop polling for background work, or switch approach when stuck."
     ],
     "0.10.7": [
-      "長い回答が モデルゲートウェイで途中で切られなくなりました。"
+      "Aligned model gateway output ceilings with provider max_tokens rather than low thinking budgets.",
+      "Verified streaming completions up to 10,712 tokens on complex architectural prompts without premature cutoffs."
     ],
     "0.10.9": [
-      "プロジェクトメモリは用途を述べ、ツール引数は別名を受け付け、誤ったパスには近い候補が出ます。"
+      "Project memory prompt explicitly establishes long-term knowledge retention guidelines across sessions.",
+      "Tool definitions accept common argument aliases, clamp action text, and provide nearest path suggestions.",
+      "Web fetch automatically handles session cookies across redirects without manual header declarations."
     ],
     "0.10.10": [
-      "バックグラウンド作業の待ち方、ファイルパス、古くなったパッチについての説明を明確にしました。"
+      "Enhanced system prompt clarity regarding background execution dependencies, avoiding redundant polling loops.",
+      "Strengthened file tool error reporting with fuzzy path suggestions and stale patch rejection guidance."
     ],
     "0.11.0": [
-      "流れるテキストが空白だけのとき、空の応答見出しが出なくなりました。"
+      "Eliminated empty response headers when streamed model responses contain only leading whitespace or blank lines.",
+      "Preserved flow transparency and exact byte fidelity without hardcoded regex or lossy stripping."
     ],
     "0.11.1": [
-      "同じ単位を繰り返す応答は流れている途中で止まり、残すか捨てるかを選べます。"
+      "Added an engine-level repetition guard that detects and halts repeating token loops at 4 KiB (or 16 KiB whitespace).",
+      "Prompted interactive clarification form allowing you to keep valid preceding prose or discard corrupted outputs.",
+      "Preserved normal streaming performance without arbitrary token length limits or false positives on minified data."
     ],
     "0.11.2": [
-      "中間の応答が次の手順の前に隙間を残さなくなりました。"
+      "Eliminated dangling empty lines on intermediate model responses in the terminal UI renderer.",
+      "Unified vertical spine spacing between consecutive tool invocations for consistent visual structure."
     ],
     "0.11.3": [
-      "1 つのツールがバックグラウンド作業への入力と停止を担い、従来の 2 つを置き換えます。終わった作業は自分の出力とともに報告します。"
+      "Consolidated background process management into a unified process_control tool supporting type and stop actions.",
+      "Replaced two legacy tools (terminal_input and kill_task) to streamline tool discovery and eliminate parameter ambiguity.",
+      "Introduced format 28 database upgrade ensuring older session records transition smoothly to unified process control."
     ],
     "0.11.4": [
-      "バックグラウンド作業と通知の監査で見つかった修正。"
+      "Self-contained background task notifications deliver defused process output directly in the event notification payload.",
+      "Eliminated auxiliary wake API polling roundtrips by bundling process metadata, exit code, and recent lines into one packet.",
+      "Strengthened task cleanup routines to ensure process trees terminate reliably without orphaned sub-processes."
     ],
     "0.11.5": [
-      "初回起動のヘルプ画面が遅い起動と競合しなくなり、空白やピリオドで終わる Windows のパスも扱えます。"
+      "Resolved first-start initialization race where official product help skill verification competed with session creation.",
+      "Handled Windows filesystem edge cases for directory and file path patterns ending in trailing dots or whitespace.",
+      "Smoke test suite expanded to verify clean environment startup across all supported POSIX and Windows platforms."
     ],
     "0.11.6": [
-      "! 画面の権限昇格の言い回し。"
+      "Elevation and security privilege wording on the manual shell screen (! commands) explicitly explains execution boundaries.",
+      "Sanitizer and classifier bypass semantics on manual shell execution are clarified across POSIX and Windows ConPTY environments."
     ],
     "0.11.7": [
-      "推論が回答より先に流れるため、応答が途中で分かれなくなり、思考の塊はターンごとにまとまります。"
+      "Reasoning deltas are evaluated strictly before text deltas in streaming responses, eliminating split thoughts.",
+      "Intermediate thought fragments are coalesced per turn round, maintaining a clean visual boundary before final text.",
+      "Multi-hop handover IPC child sessions receive reliable acknowledgement before parent host release."
     ],
     "0.11.8": [
-      "応答が流れている間に権限モードを変えてもフッターが組み替わらず、読んでいる状態通知も消えません。"
+      "Changing permission mode during active streaming no longer triggers false priority recalculations or footer reflows.",
+      "Active status notices being read are preserved during mid-stream mode switching, preventing premature status wipeouts.",
+      "Full priority guarantees for Esc cancellation, linear retries, and confirmation dialogs remain intact across all windows."
+    ],
+    "0.11.9": [
+      "パス glob は *.{ts,tsx} のような波かっこによる選択肢を、ネストしたグループを含めて展開し、| による選択肢にも対応しました。",
+      "find_files と search_text の include フィルターは、これらのグループ化したパスを 1 回の呼び出しで検索できます。"
     ]
   }
 }

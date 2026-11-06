@@ -45,11 +45,11 @@ func TestParentAddress(t *testing.T) {
 		t.Errorf("default parent = %q, want /", oneOrigin.parent())
 	}
 	ownPort := testConfig(f.dir)
-	ownPort.ParentURL = "http://192.168.18.10:3601"
+	ownPort.ParentURL = "http://192.168.18.10:3050"
 	if err := ownPort.validate(); err != nil {
 		t.Fatalf("a dev address was refused: %v", err)
 	}
-	if ownPort.parent() != "http://192.168.18.10:3601" {
+	if ownPort.parent() != "http://192.168.18.10:3050" {
 		t.Errorf("parent = %q", ownPort.parent())
 	}
 	pathOnly := testConfig(f.dir)

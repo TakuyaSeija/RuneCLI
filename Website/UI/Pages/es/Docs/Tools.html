@@ -5,8 +5,8 @@
 <h2 id="file-tools">Herramientas de archivos</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>Inspecciona un archivo, admitiendo rangos de líneas inclusivos para archivos de texto. De fábrica, el tamaño máximo de archivo es de 16 MiB y el texto devuelto de 30.000 caracteres. Los archivos no textuales compatibles pueden adjuntarse si el modelo los admite.</dd></div>
-<div><dt>find_files</dt><dd>Búsqueda de rutas mediante patrones glob. El máximo de fábrica es de 200 rutas devueltas y 20.000 caracteres. Un límite menor por llamada puede reducir ese máximo, pero no superarlo.</dd></div>
-<div><dt>search_text</dt><dd>Búsqueda en el contenido. El máximo de fábrica es de 100 líneas coincidentes, 2.000 caracteres por línea y 30.000 caracteres en total. Comparte el límite de tamaño por archivo individual con inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Búsqueda de rutas mediante patrones glob. Los patrones admiten <code>*</code>, <code>**</code>, <code>?</code>, clases de caracteres como <code>[a-z]</code>, alternativas <code>|</code> y grupos entre llaves como <code>*.{ts,tsx}</code>, incluidos los anidados. El máximo de fábrica es de 200 rutas devueltas y 20.000 caracteres. Un límite menor por llamada puede reducir ese máximo, pero no superarlo.</dd></div>
+<div><dt>search_text</dt><dd>Búsqueda en el contenido. Su filtro <code>include</code> acepta la misma sintaxis de glob para rutas. El máximo de fábrica es de 100 líneas coincidentes, 2.000 caracteres por línea y 30.000 caracteres en total. Comparte el límite de tamaño por archivo individual con inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Crea un archivo, sobrescribiendo el existente si ya lo hubiera. La acción sigue sujeta a los permisos y a la protección de archivos.</dd></div>
 <div><dt>patch_file</dt><dd>Reemplaza un fragmento exacto de texto. El texto original debe aparecer exactamente una vez; una coincidencia ambigua nunca se interpreta como orden de reemplazar todas las apariciones.</dd></div>
 </dl>

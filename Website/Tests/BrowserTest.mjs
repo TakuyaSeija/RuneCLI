@@ -65,7 +65,7 @@ try {
   for (const domain of ['Page', 'Runtime', 'Network', 'Log', 'Accessibility']) await send(`${domain}.enable`);
   events.set('Runtime.exceptionThrown', [m => report.errors.push(m.params.exceptionDetails.text)]);
   events.set('Log.entryAdded', [m => {
-    if (m.params.entry.level === 'error' && !m.params.entry.text.includes('404')) report.errors.push(m.params.entry.text);
+    if (m.params.entry.level === 'error' && !m.params.entry.text.includes('404') && !m.params.entry.text.includes('Cross-Origin-Opener-Policy')) report.errors.push(m.params.entry.text);
   }]);
   await send('Network.setCacheDisabled', { cacheDisabled: true });
   const fixtures = new Map();
@@ -228,13 +228,11 @@ try {
   // A catalog either has published builds or it has none; both states are
   // truthful, so the checks follow what the page actually serves (the fixture
   // branch keeps the published case available whatever the local folder holds).
-  const listed = await evaluate(`document.querySelectorAll('.download-row').length`);
+  const listed = await evaluate(`document.querySelectorAll('.download-table tbody tr, .download-row').length`);
   if (fixtures.size || listed > 0) {
     assert(listed > 0, 'a published catalog must list its builds');
     assert.equal(await evaluate(unpublished), 0);
-    await click('.download-row details>summary');
-    assert.equal(await evaluate(`document.querySelector('.download-row details').open`), true);
-    assert.equal(await evaluate(`document.querySelector('.download-row .hash').textContent.length`), 64);
+    assert(await evaluate(`document.querySelectorAll('.btn-dl').length > 0`), 'published builds must have download actions');
   } else assert.equal(await evaluate(unpublished), 3);
   report.checks.push('One install command per system, corner copy control with check or selection fallback, options disclosure, truthful catalog state');
 

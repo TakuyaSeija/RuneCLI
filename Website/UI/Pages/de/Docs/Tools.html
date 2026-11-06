@@ -5,8 +5,8 @@
 <h2 id="file-tools">Dateiwerkzeuge</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>Liest eine einzelne Datei, bei Textdateien optional begrenzt auf einen inklusiven Zeilenbereich. Werkslimit: maximal 16 MiB Dateigröße und 30.000 zurückgegebene Zeichen. Unterstützte Nicht-Text-Dateien können an ein entsprechendes Modell angehängt werden.</dd></div>
-<div><dt>find_files</dt><dd>Glob-Suche nach Dateipfaden. Werkslimit: maximal 200 zurückgegebene Pfade und 20.000 Zeichen. Ein niedrigeres Limit pro Einzelaufruf kann dieses Maximum verringern, aber nicht erhöhen.</dd></div>
-<div><dt>search_text</dt><dd>Volltextsuche in Dateien. Werkslimit: maximal 100 passende Zeilen, 2.000 Zeichen pro Zeile und insgesamt 30.000 Zeichen. Teilt sich das Limit für die maximale Einzeldateigröße mit inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Glob-Suche nach Dateipfaden. Muster unterstützen <code>*</code>, <code>**</code>, <code>?</code>, Zeichenklassen wie <code>[a-z]</code>, <code>|</code>-Alternativen und geschweifte Gruppen wie <code>*.{ts,tsx}</code>, auch verschachtelt. Werkslimit: maximal 200 zurückgegebene Pfade und 20.000 Zeichen. Ein niedrigeres Limit pro Einzelaufruf kann dieses Maximum verringern, aber nicht erhöhen.</dd></div>
+<div><dt>search_text</dt><dd>Volltextsuche in Dateien. Der Filter <code>include</code> akzeptiert dieselbe Pfad-Glob-Syntax. Werkslimit: maximal 100 passende Zeilen, 2.000 Zeichen pro Zeile und insgesamt 30.000 Zeichen. Teilt sich das Limit für die maximale Einzeldateigröße mit inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Erstellt eine Datei und überschreibt dabei gegebenenfalls eine bereits vorhandene Datei. Die Aktion muss weiterhin alle Berechtigungs- und Dateischutzprüfungen durchlaufen.</dd></div>
 <div><dt>patch_file</dt><dd>Ersetzt einen exakt angegebenen Textabschnitt. Der alte Textabschnitt muss genau einmal in der Datei vorkommen; ein mehrdeutiger Treffer führt zum Abbruch statt zum blinden Ersetzen aller Vorkommen.</dd></div>
 </dl>

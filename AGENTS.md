@@ -22,7 +22,7 @@ scripts/build_linux_release.sh [gnu|musl]        # release build (Docker) → ba
 
 ## Release & install (binding)
 
-After a product change is complete and verified, release and install automatically without waiting for another owner request, unless the owner explicitly says not to (owner, 2026-10-29). The safety gates and defer conditions below still apply; audit-only, docs-only and local experiments do not create a product release. This does not authorize Git commit/push, remote publication or Website deployment. Build release and install to `~/.local/bin/rune`:
+Every future product release MUST build and publish for all target platforms without exception (Linux x86_64/arm64 gnu/musl, macOS Apple Silicon/Intel, Windows x64/arm64 via CI; owner, 2026-11-05). On the website/downloads, any older archive version lacking a build on a platform must explicitly display that platform as unavailable, never omitting it silently. After a product change is complete and verified, release and install automatically without waiting for another owner request, unless the owner explicitly says not to (owner, 2026-10-29). The safety gates and defer conditions below still apply; audit-only, docs-only and local experiments do not create a product release. This does not authorize Git commit/push, remote publication or Website deployment. Build release and install to `~/.local/bin/rune`:
 
 1. Fully green quality gate (fmt + clippy + test).
 2. Bump the version in `[workspace.package]` of the root `Cargo.toml` — the only place the version lives.

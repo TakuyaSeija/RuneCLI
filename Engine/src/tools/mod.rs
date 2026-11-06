@@ -895,10 +895,12 @@ pub struct Scope {
     /// Where the walk starts.
     pub dir: std::path::PathBuf,
     /// Matched against each path below `dir`; `None` matches every file.
-    pub glob: Option<crate::scan::glob::Glob>,
+    pub glob: Option<crate::scan::glob::GlobSet>,
     /// The pattern is one file's own path and that file is there: the search
     /// is that file alone, not a walk of its folder.
     pub file: Option<std::path::PathBuf>,
+    /// One or more literal files found directly without walking.
+    pub files: Vec<std::path::PathBuf>,
 }
 
 impl Scope {
@@ -908,43 +910,73 @@ impl Scope {
             dir: jail.root().to_path_buf(),
             glob: None,
             file: None,
+            files: Vec::new(),
         }
     }
 
     pub fn of(jail: &crate::jail::Jail, pattern: &str) -> Result<Scope> {
-        use crate::scan::glob::{is_literal, split_walk_root, Glob};
+        use crate::scan::glob::{common_walk_root, expand_braces, is_literal, GlobSet};
         let pattern = spelt_for_walk(pattern.trim(), crate::platform::OS);
-        let (root, rest) = split_walk_root(&pattern);
+        let branches = expand_braces(&pattern);
+
+        // If every branch is a literal file path (no wildcards whatsoever),
+        // check if they exist directly on disk through the jail.
+        if !branches.is_empty() && branches.iter().all(|b| is_literal(b)) {
+            let mut resolved_files = Vec::new();
+            for b in &branches {
+                if let Ok(path) = jail.resolve(b) {
+                    if std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.is_file()) {
+                        resolved_files.push(path);
+                    }
+                }
+            }
+            if !resolved_files.is_empty() {
+                let primary = resolved_files.first().cloned();
+                return Ok(Scope {
+                    dir: jail.root().to_path_buf(),
+                    glob: None,
+                    file: primary,
+                    files: resolved_files,
+                });
+            }
+        }
+
+        let (root, rel_patterns) = common_walk_root(&branches);
+
         // A drive alone is that drive's root, never the folder it is in now.
         let drive;
         let root = if root.len() == 2 && root.ends_with(':') {
             drive = format!("{root}/");
             drive.as_str()
         } else {
-            root
+            root.as_str()
         };
+
         if root.is_empty() {
-            let glob = if rest.contains('/') {
-                Glob::new(rest)
-            } else {
-                Glob::new(&format!("**/{rest}"))
-            };
+            let globs: Vec<String> = rel_patterns
+                .into_iter()
+                .map(|p| {
+                    if p.contains('/') || p.starts_with('/') {
+                        p
+                    } else {
+                        format!("**/{p}")
+                    }
+                })
+                .collect();
             return Ok(Scope {
                 dir: jail.root().to_path_buf(),
-                glob: Some(glob),
+                glob: Some(GlobSet::new(globs)),
                 file: None,
+                files: Vec::new(),
             });
         }
+
         let dir = jail.resolve(root)?;
-        // A link is never followed — the walk would not have followed it
-        // either — so only a regular file is taken as the one to search.
-        let file = (!rest.is_empty() && is_literal(rest))
-            .then(|| dir.join(rest))
-            .filter(|path| std::fs::symlink_metadata(path).is_ok_and(|meta| meta.is_file()));
         Ok(Scope {
             dir,
-            glob: Some(Glob::new(rest)),
-            file,
+            glob: Some(GlobSet::new(rel_patterns)),
+            file: None,
+            files: Vec::new(),
         })
     }
 }
@@ -2167,6 +2199,52 @@ mod tests {
         crate::platform::fixture::symlink("/etc/hostname", root.join("src/host")).unwrap();
         let scope = Scope::of(&jail, "src/host").unwrap();
         assert!(scope.file.is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn scope_handles_complex_brace_expansions_from_session_714() {
+        let (root, jail) = workspace("brace_scope");
+
+        // 1. Pattern 11: docs/Current/{Desktop,Mobile,Backend}/**/*{Deploy,Port,Build,Release}*.md
+        let p11 = "Cloud/SeaDrive/docs/Current/{Desktop,Mobile,Backend}/**/*{Deploy,Port,Build,Release}*.md";
+        let scope = Scope::of(&jail, p11).unwrap();
+        assert_eq!(scope.dir, root.join("Cloud/SeaDrive/docs/Current"));
+        let glob = scope.glob.as_ref().unwrap();
+        assert!(glob.matches("Desktop/Deploy.md"));
+        assert!(glob.matches("Desktop/Sub/DeployInstructions.md"));
+        assert!(glob.matches("Mobile/PortConfig.md"));
+        assert!(glob.matches("Backend/BuildGuide.md"));
+        assert!(glob.matches("Backend/ReleaseNotes.md"));
+        assert!(!glob.matches("Desktop/OtherFile.txt"));
+        assert!(!glob.matches("Other/Deploy.md"));
+
+        // 2. Pattern 12: heterogeneous paths
+        let p12 = "Cloud/SeaDrive/{DeploySeaDrive.sh,scripts/*.sh,Application/Desktop/**/*.sh,Application/Mobile/**/*.sh}";
+        let scope = Scope::of(&jail, p12).unwrap();
+        assert_eq!(scope.dir, root.join("Cloud/SeaDrive"));
+        let glob = scope.glob.as_ref().unwrap();
+        assert!(glob.matches("DeploySeaDrive.sh"));
+        assert!(glob.matches("scripts/start.sh"));
+        assert!(!glob.matches("scripts/sub/start.sh")); // single star inside scripts/*.sh
+        assert!(glob.matches("Application/Desktop/build.sh"));
+        assert!(glob.matches("Application/Desktop/nested/deep/run.sh"));
+        assert!(glob.matches("Application/Mobile/ci.sh"));
+        assert!(!glob.matches("random.sh"));
+
+        // 3. Multi-literal files direct lookup (no walk)
+        std::fs::write(root.join("WebsiteDev.sh"), "#!/bin/sh").unwrap();
+        std::fs::create_dir_all(root.join("Studio")).unwrap();
+        std::fs::write(root.join("Studio/WebsiteDev.sh"), "#!/bin/sh").unwrap();
+        let p7 = "{WebsiteDev.sh,Studio/WebsiteDev.sh,Cloud/SeaDrive/WebsiteDev.sh}";
+        let scope = Scope::of(&jail, p7).unwrap();
+        assert_eq!(scope.files.len(), 2);
+        assert!(scope.files.contains(&root.join("WebsiteDev.sh")));
+        assert!(scope.files.contains(&root.join("Studio/WebsiteDev.sh")));
+        assert!(!scope
+            .files
+            .contains(&root.join("Cloud/SeaDrive/WebsiteDev.sh")));
+
         let _ = std::fs::remove_dir_all(&root);
     }
 

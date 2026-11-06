@@ -180,100 +180,143 @@
   },
   "notes": {
     "0.7.8": [
-      "Linux terpasang di semua distribusi, Rune berjalan lewat loader, warna tmux benar, dan web_fetch bisa membawa cookie."
+      "Dukungan instalasi Linux universal di seluruh distro utama menggunakan runtime loader mandiri.",
+      "Perbaikan warna palet tmux 256 dan penanganan otomatis cookie HTTP saat pemanggilan web_fetch."
     ],
     "0.8.0": [
-      "Dua puluh preset model, dengan pola preset lama yang lebih tenang."
+      "Katalog preset model diperluas dengan dua puluh profil model terkalibrasi dan dukungan endpoint lokal kustom.",
+      "Standarisasi normalisasi dialek API untuk OpenAI, Anthropic, dan endpoint model gateway yang kompatibel."
     ],
     "0.8.1": [
-      "Kursor pemilih sesi memakai nomor mulai 1, jadi tidak lagi mendarat di baris yang salah."
+      "Kursor pemilih sesi dikoreksi ke pengindeksan berbasis 1, mencegah penandaan baris yang meleset satu baris.",
+      "Mengatasi kendala pintasan keyboard saat menelusuri arsip prompt dan riwayat sesi sebelumnya."
     ],
     "0.8.9": [
-      "Pengiriman pesan, compaction, dan urutan sesi diperbaiki."
+      "Penyempurnaan algoritma pemadatan konteks untuk menjaga fakta arsitektur penting saat membersihkan riwayat lama.",
+      "Penguatan antrean sesi dan pengurutan kronologis terhadap operasi jendela terminal konkuren."
     ],
     "0.9.0": [
-      "Pesan yang dikirim diakui, dan sesi bisa dilanjutkan setelah restart."
+      "Protokol penerimaan sesi langsung mengonfirmasi pengiriman prompt sebelum menjalankan proses engine berat.",
+      "Kelanjutan sesi yang mulus setelah restart daemon atau host dengan jurnal event dan record yang tidak dapat diubah."
     ],
     "0.9.1": [
-      "Pekerjaan direncanakan dari konteks yang ada, dan thinking bisa dimatikan atau disetel rendah lewat gateway model."
+      "Perencanaan eksekusi kontekstual menentukan peluncuran tool secara dinamis berdasarkan dependensi tugas.",
+      "Kontrol kapabilitas terintegrasi untuk menonaktifkan reasoning atau menyetel level rendah melalui gateway model."
     ],
     "0.9.2": [
-      "Menyalin dan menyeleksi dengan mouse bekerja seperti di tempat lain, termasuk Clear."
+      "Dukungan pemilihan dan penyalinan teks mouse terminal diselaraskan dengan standar terminal, termasuk pembersihan seleksi.",
+      "Koordinat kursor dan batas visual tetap stabil tanpa gangguan artefak tampilan terminal."
     ],
     "0.9.3": [
-      "Perintah yang Anda jalankan sendiri dengan ! berperilaku seperti bagian sesi lainnya, dan tautannya bisa dibuka."
+      "Eksekusi shell manual via ! menjalankan seluruh skrip multibaris melalui gate izin dengan otorisasi penuh pengguna.",
+      "Tautan dan referensi berkas pada output perintah dapat langsung dibuka di peramban sistem."
     ],
     "0.9.4": [
-      "Skrip shell multi-baris ditampilkan apa adanya, dan perintah ! tetap membawa konteksnya."
+      "Pratinjau jujur skrip shell multibaris menampilkan sintaks perintah lengkap sebelum meminta konfirmasi izin.",
+      "Perintah shell manual ! mempertahankan konteks percakapan dan direktori kerja aktif sebelumnya lintas giliran."
     ],
     "0.9.5": [
-      "Output proses yang berjalan atau menunggu ditulis ke lognya sendiri."
+      "Proses latar belakang yang berjalan atau menunggu mengalirkan output standar dan error ke berkas log terisolasi.",
+      "Peningkatan deteksi tunggu terminal mengenali prompt input interaktif di semua sesi PTY Linux."
     ],
     "0.9.6": [
-      "Composer menampilkan satu baris, dan prompt mengalir saat Anda mengetik."
+      "Streaming prompt waktu nyata menampilkan baris pratinjau pertama di composer saat Anda mengetik.",
+      "Penyempurnaan posisi kursor terminal dan perenderan pembungkusan teks (soft-wrap) di viewport lebar maupun sempit."
     ],
     "0.9.7": [
-      "Composer menampilkan newline secara eksplisit, bukan baris mentah dari sumbernya."
+      "Composer multibaris menampilkan indikator baris baru eksplisit alih-alih jeda baris mentah di output terminal.",
+      "Peningkatan responsivitas pengeditan teks saat menempelkan perintah shell multibaris ke editor input."
     ],
     "0.9.8": [
-      "Hitungan konteks tetap jujur: ukuran yang tidak diketahui tidak pernah ditebak."
+      "Penghitungan konteks yang jujur memperlakukan jumlah byte yang tidak terverifikasi sebagai tidak diketahui.",
+      "Panduan tugas latar belakang menjelaskan mengapa polling shell boros token dan cara menunggu notifikasi."
     ],
     "0.9.9": [
-      "Satu pemilik untuk tiap blok instruksi, dan footer tetap menyimpan Esc, retry, serta konfirmasi."
+      "Kepemilikan tunggal formal per blok instruksi sistem untuk mencegah arahan yang saling bertentangan.",
+      "Footer terminal mempertahankan pembatalan Esc, hitung mundur coba lagi, dan kartu konfirmasi izin."
     ],
     "0.10.0": [
-      "Pemberitahuan update tetap terlihat di tampilan sesi."
+      "Pemberitahuan pembaruan langsung tetap tersemat dan terlihat pada tampilan sesi aktif selama kompilasi latar belakang.",
+      "Pengujian lintas platform divalidasi penuh di Linux, macOS (Apple Silicon & Intel), dan Windows."
     ],
     "0.10.1": [
-      "Memasang bantuan resmi tidak lagi menutupi atau menimpa skill Anda sendiri."
+      "Pemasangan skill bantuan resmi diisolasi agar tidak pernah menimpa atau membayangi skill buatan pengguna.",
+      "Pembersihan otomatis direktori cadangan peningkatan versi lama untuk menghemat ruang disk lokal."
     ],
     "0.10.3": [
-      "Output terminal tidak lagi menghitung baris input yang dipantulkannya, dan aksi tool tetap membawa deskripsinya."
+      "Output eksekusi terminal memisahkan baris input shell yang digemakan dari output program standar yang sebenarnya.",
+      "Kalimat aksi tool mempertahankan deskripsi eksplisit untuk transparansi audit pengguna selama streaming."
     ],
     "0.10.4": [
-      "Log menampilkan teks galat aslinya, dan panggilan identik tiga atau enam kali ditandai."
+      "Log kesalahan percakapan (/logs) menyimpan teks kesalahan penyedia asli bersama status giliran engine.",
+      "Pemanggilan tool identik yang dilakukan berulang kali dilacak dan ditandai sebelum menghabiskan kuota permintaan."
     ],
     "0.10.5": [
-      "Peringatan pengulangan kini menyebut apa yang sebaiknya dilakukan."
+      "Penjaga pengulangan kontekstual membedakan penantian notifikasi proses dari kegagalan eksekusi perintah berulang.",
+      "Diagnostik kesalahan yang disempurnakan dengan rekomendasi pemulihan langsung untuk setiap kategori kegagalan tool."
     ],
     "0.10.6": [
-      "Hasil tool tetap murni, dan panggilan yang terulang dalam satu giliran disebut di percakapan."
+      "Hasil tool tetap 100% data murni; pemberitahuan pengulangan dikirim via system notice pada Cadence B (3, 6, 9...).",
+      "Peringatan pengulangan memberi panduan praktis: hentikan polling tugas latar belakang atau ganti pendekatan saat buntu."
     ],
     "0.10.7": [
-      "Jawaban panjang tidak lagi terpotong lewat gateway model."
+      "Menyelaraskan batas plafon output model gateway dengan max_tokens penyedia alih-alih anggaran thinking rendah.",
+      "Verifikasi kelengkapan streaming hingga 10.712 token pada prompt arsitektur kompleks tanpa terpotong prematur."
     ],
     "0.10.9": [
-      "Memory proyek menyebut tujuannya, argumen tool menerima alias, dan path yang salah mendapat saran terdekat."
+      "Prompt memori proyek menetapkan panduan retensi pengetahuan jangka panjang lintas sesi secara eksplisit.",
+      "Skema tool menerima alias argumen umum, membatasi teks aksi, dan memberikan saran jalur berkas terdekat.",
+      "Web fetch mengelola cookie sesi otomatis lintas pengalihan URL tanpa perlu deklarasi header manual."
     ],
     "0.10.10": [
-      "Petunjuk yang lebih jelas soal menunggu pekerjaan latar, path berkas, dan patch yang kedaluwarsa."
+      "Kejelasan instruksi sistem ditingkatkan terkait eksekusi latar belakang, mencegah loop polling yang mubazir.",
+      "Peningkatan pelaporan error tool berkas dengan saran jalur terdekat dan panduan penolakan patch kedaluwarsa."
     ],
     "0.11.0": [
-      "Header respons kosong tidak lagi muncul saat teks yang dialirkan hanya berisi spasi."
+      "Header respons kosong tidak lagi muncul saat streaming model hanya berisi spasi atau baris kosong di awal.",
+      "Transparansi protokol dan kesetiaan byte terjaga tanpa pemangkasan regex hardcode yang merusak teks asli."
     ],
     "0.11.1": [
-      "Balasan yang mengulang satu unit yang sama dihentikan saat mengalir, dan Anda memilih menyimpan atau membuangnya."
+      "Penjaga pengulangan mendeteksi dan menghentikan pengulangan unit token pada batas 4 KiB (atau 16 KiB spasi).",
+      "Formulir klarifikasi interaktif memungkinkan Anda mempertahankan teks awal yang valid atau membuang output rusak.",
+      "Kinerja streaming normal terjaga tanpa batas token sembarangan atau kesalahan deteksi pada data terminifikasi."
     ],
     "0.11.2": [
-      "Jawaban selaan tidak lagi menyisakan jarak sebelum langkah berikutnya."
+      "Menghilangkan baris kosong yang menggantung pada respons model selaan di renderer UI terminal.",
+      "Jarak vertikal spine antara pemanggilan tool berurutan dibuat rapat dan konsisten secara visual."
     ],
     "0.11.3": [
-      "Satu tool mengetik ke atau menghentikan tugas latar menggantikan dua tool lama, dan tugas yang selesai melaporkan dirinya beserta outputnya."
+      "Pengelolaan proses latar belakang digabung ke dalam satu tool terpadu process_control (type dan stop).",
+      "Menggantikan dua tool lama (terminal_input dan kill_task) untuk menyederhanakan skema pemanggilan tool.",
+      "Peningkatan database format 28 memastikan catatan sesi lama bertransisi mulus ke pengontrol proses terpadu."
     ],
     "0.11.4": [
-      "Perbaikan dari audit tugas latar dan notifikasinya."
+      "Notifikasi tugas latar belakang mandiri menyertakan potongan output ter-defuse langsung di muatan event.",
+      "Menghilangkan polling wake API tambahan dengan menggabungkan metadata proses, kode keluar, dan baris terbaru.",
+      "Pembersihan tugas diperkuat untuk memastikan pohon proses berhenti tuntas tanpa menyisakan proses yatim."
     ],
     "0.11.5": [
-      "Layar bantuan saat start pertama tidak lagi berlomba dengan start yang lambat, dan path Windows yang berakhir dengan spasi atau titik ditangani."
+      "Mengatasi persaingan inisialisasi awal antara verifikasi skill bantuan produk dan pembuatan sesi cold-start.",
+      "Menangani kasus khusus pola jalur berkas Windows yang diakhiri tanda titik atau spasi.",
+      "Uji coba smoke test diperluas untuk memverifikasi lingkungan bersih di seluruh platform POSIX dan Windows."
     ],
     "0.11.6": [
-      "Istilah elevation pada layar !."
+      "Penjelasan hak akses dan elevasi keamanan pada layar shell manual (! commands) menjabarkan batasan eksekusi.",
+      "Semantik pengecualian sanitizer dan classifier pada shell manual diperjelas di lingkungan POSIX dan Windows."
     ],
     "0.11.7": [
-      "Reasoning mengalir sebelum jawaban, jadi balasan tidak terbelah di tengah, dan blok pemikiran disatukan per giliran."
+      "Delta reasoning dievaluasi ketat sebelum delta teks pada streaming respons, menghilangkan pemikiran terbelah.",
+      "Fragmen pemikiran selaan digabungkan per putaran turn, menjaga batas visual yang bersih sebelum teks akhir.",
+      "Sesi anak IPC handover multi-hop menerima konfirmasi pengakuan yang andal sebelum pelepasan host induk."
     ],
     "0.11.8": [
-      "Mengganti mode izin saat balasan mengalir tidak lagi membuat footer berubah tata letak, dan notifikasi status yang sedang Anda baca tidak ikut terhapus."
+      "Mengubah mode izin saat streaming berjalan tidak lagi memicu salah hitung prioritas atau reflow footer.",
+      "Pemberitahuan status aktif yang sedang dibaca dipertahankan saat pergantian mode di tengah streaming.",
+      "Jaminan prioritas penuh untuk pembatalan Esc, coba lagi linier, dan dialog konfirmasi tetap terjaga di semua jendela."
+    ],
+    "0.11.9": [
+      "Glob path kini mengekspansi alternatif kurung kurawal seperti *.{ts,tsx}, termasuk grup bersarang, bersama alternatif |.",
+      "find_files dan filter include pada search_text dapat mencari path yang dikelompokkan itu dalam satu pemanggilan."
     ]
   }
 }

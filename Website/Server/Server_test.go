@@ -247,11 +247,21 @@ func TestEveryPageRendersWithTheSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestInstanceUsesTheAdjacentHealthPort(t *testing.T) {
+	f := newDownloads(t)
+	cfg := testConfig(f.dir)
+	cfg.Env, cfg.Origin = "Prod", "https://atoryn.com"
+	cfg.Listen, cfg.Health = []string{"127.0.0.1:3200"}, "127.0.0.1:3201"
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("the adjacent production pair was refused: %v", err)
+	}
+}
+
 func TestProdAddsHSTSAndIndexingOnlyWhenAsked(t *testing.T) {
 	f := newDownloads(t)
 	cfg := testConfig(f.dir)
 	cfg.Env, cfg.Origin, cfg.Indexing = "Prod", "https://atoryn.com", true
-	cfg.Listen = []string{"127.0.0.1:3401"}
+	cfg.Listen = []string{"127.0.0.1:3200"}
 	h := newTestServer(t, cfg).routes()
 	w := get(t, h, "GET", "/Studio/")
 	if w.Header().Get("Strict-Transport-Security") == "" || w.Header().Get("X-Robots-Tag") != "" ||
@@ -654,7 +664,8 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 		"sqlite", "jsonl", "ledger", "arc-swap", "pbkdf", "argon",
 		"rune.db", "master.key", "secrets.vault", "claude.md",
 		"upgrade/v", "protocol ", "schema", "/home/", "noire", "deploy/", "ops/",
-		"localhost", ":3301", ":3311", ":3401", ":3501", "3303", "3313", "3403", "3503",
+		"localhost", ":3200", ":3201", ":3202", ":3203", ":3250", ":3251",
+		":3301", ":3311", ":3401", ":3501", "3303", "3313", "3403", "3503",
 		"nginx", "cloudflared", "systemd", "seadrive", "github", "takuya",
 		"innerhtml", "eval(", "document.write", "style=", "onclick", "onload=", "javascript:",
 	}
@@ -789,7 +800,7 @@ func TestConfigRefusesPublicListeners(t *testing.T) {
 		"all interfaces": func(c *Config) { c.Listen = []string{":3501"} },
 		"any address":    func(c *Config) { c.Listen = []string{"0.0.0.0:3501"} },
 		"lan in prod": func(c *Config) {
-			c.Env, c.Origin, c.Listen = "Prod", "https://atoryn.com", []string{"192.168.18.10:3401"}
+			c.Env, c.Origin, c.Listen = "Prod", "https://atoryn.com", []string{"192.168.18.10:3200"}
 		},
 		"health on lan":         func(c *Config) { c.Health = "192.168.18.10:3503" },
 		"shared address in dev": func(c *Config) { c.Listen = []string{"100.64.0.1:3501"} },

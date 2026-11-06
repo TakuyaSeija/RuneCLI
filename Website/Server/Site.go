@@ -149,6 +149,26 @@ func (s *site) parseLocale(l *locale) error {
 		"installFor": func(version string) string {
 			return "curl -fsSL " + s.cfg.Origin + s.cfg.BasePath + "/install.sh | RUNE_VERSION=" + version + " sh"
 		},
+		"minorOf": minorOf,
+		"seriesTitle": func(minor string) string {
+			if t, ok := minorSeriesTitles[minor]; ok {
+				return t
+			}
+			return "Series " + minor
+		},
+		"missingPlatforms": missingPlatforms,
+		"prevRelease": func(releases []*releaseView, i int) *releaseView {
+			if i+1 < len(releases) {
+				return releases[i+1]
+			}
+			return nil
+		},
+		"nextRelease": func(releases []*releaseView, i int) *releaseView {
+			if i-1 >= 0 {
+				return releases[i-1]
+			}
+			return nil
+		},
 		"doneCount": func(tasks []recTask) int {
 			done := 0
 			for _, task := range tasks {
@@ -412,6 +432,64 @@ func (s *site) renderInstallerPS(cat *Catalog) ([]byte, error) {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+type missingPlatform struct {
+	Name     string
+	Platform string
+}
+
+var minorSeriesTitles = map[string]string{
+	"0.11": "Series 0.11 · Streaming & Tools",
+	"0.10": "Series 0.10 · Supervision & Guards",
+	"0.9":  "Series 0.9 · Shell & Terminal",
+	"0.8":  "Series 0.8 · Presets & Compaction",
+	"0.7":  "Series 0.7 · Distros & Foundation",
+}
+
+func minorOf(version string) string {
+	parts := strings.SplitN(version, ".", 3)
+	if len(parts) >= 2 {
+		return parts[0] + "." + parts[1]
+	}
+	return version
+}
+
+func missingPlatforms(r *releaseView) []missingPlatform {
+	if r == nil {
+		return nil
+	}
+	var hasLinux, hasMacOS, hasWindows bool
+	for _, f := range r.Files {
+		switch f.OS {
+		case "linux":
+			hasLinux = true
+		case "macos":
+			hasMacOS = true
+		case "windows":
+			hasWindows = true
+		}
+	}
+	var missing []missingPlatform
+	if !hasMacOS {
+		missing = append(missing, missingPlatform{
+			Name:     "Rune for macOS",
+			Platform: "macOS · Apple silicon / Intel",
+		})
+	}
+	if !hasWindows {
+		missing = append(missing, missingPlatform{
+			Name:     "Rune for Windows",
+			Platform: "Windows · x64 / ARM64",
+		})
+	}
+	if !hasLinux {
+		missing = append(missing, missingPlatform{
+			Name:     "Rune for Linux",
+			Platform: "Linux · x86_64 / aarch64",
+		})
+	}
+	return missing
 }
 
 // buildLabel says which machine an archive is for, the way the download list

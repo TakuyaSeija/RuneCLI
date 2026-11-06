@@ -218,9 +218,21 @@ function Install-Rune {
         if ($onPath) {
             Say 'Start it in a project folder with: rune'
         } else {
-            Say "$dir is not on your PATH. To add it for your account, run this once and open a new terminal:"
-            Say "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$dir', 'User')"
-            Say "Or start it by its full path: & '$target'"
+            try {
+                $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+                $parts = if ([string]::IsNullOrEmpty($userPath)) { @() } else { $userPath -split ';' }
+                if (@($parts | Where-Object { $_.TrimEnd('\') -ieq $dir.TrimEnd('\') }).Count -eq 0) {
+                    $newUserPath = if ([string]::IsNullOrEmpty($userPath)) { $dir } else { "$userPath;$dir" }
+                    [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+                    Say "  configured User PATH in Windows Registry"
+                }
+                $env:PATH = "$env:PATH;$dir"
+                Say "Added $dir to your PATH. Start it with: rune"
+            } catch {
+                Say "$dir is not on your PATH. To add it for your account, run this once and open a new terminal:"
+                Say "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$dir', 'User')"
+                Say "Or start it by its full path: & '$target'"
+            }
         }
         Say 'The first time Rune starts, it asks once for Administrator confirmation to set up the account it runs commands in.'
     } finally {

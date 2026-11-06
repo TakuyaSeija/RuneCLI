@@ -47,10 +47,11 @@ the version the manual documents.
 - **The site** (`/Studio/`): `Ops/Web/StudioWeb.sh` freezes the *committed*
   `Website/` into `~/Deploy/Atoryn/Studio/releases/<id>/`, each with its own
   `atoryn-studio-web` binary, `Config.json` and `Release.json`. `switch` starts
-  the new release on the idle colour (blue 3301 / green 3311, health +2), waits
+  the new release on the idle colour (blue 3200 / green 3202, health +1), waits
   for health, then points nginx at it; the old colour stays as a rollback
-  standby. `Ops/Web/Install.sh` installs the units once and retires the old dev
-  unit.
+  standby. The first migration from the retired ports keeps its verified legacy
+  colour as a temporary rollback target until `stop-standby` completes it.
+  `Ops/Web/Install.sh` installs the units once and retires the old dev unit.
 - **The CLI** (`rune`): `Ops/Release/PublishRune.sh` packs the Linux builds with
   the license and notices, writes `release.json` and `SHA256SUMS`, signs the sums
   with the release key, verifies them with the same `openssl` check the installers

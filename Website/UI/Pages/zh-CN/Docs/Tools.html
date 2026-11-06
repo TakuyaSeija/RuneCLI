@@ -5,8 +5,8 @@
 <h2 id="file-tools">文件与搜索工具</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>读取单个文件（对文本文件支持指定包含首尾的行范围）。出厂默认最大文件体积为 16 MiB，返回文本上限为 30,000 个字符。受支持的非文本文件可作为附件发送给具备相应能力的模型。</dd></div>
-<div><dt>find_files</dt><dd>按通配符（glob）搜索文件路径。出厂默认最多返回 200 条路径、总长不超过 20,000 个字符。单次调用传入的较小限制只能缩减而不能突破该上限。</dd></div>
-<div><dt>search_text</dt><dd>搜索文件文本内容。出厂默认最多返回 100 条匹配行、单行最多 2,000 个字符、总计最多 30,000 个字符。单文件大小上限与 <code>inspect_file</code> 共用。</dd></div>
+<div><dt>find_files</dt><dd>按通配符（glob）搜索文件路径。模式支持 <code>*</code>、<code>**</code>、<code>?</code>、如 <code>[a-z]</code> 的字符类、<code>|</code> 备选项，以及如 <code>*.{ts,tsx}</code> 的花括号分组（包括嵌套分组）。出厂默认最多返回 200 条路径、总长不超过 20,000 个字符。单次调用传入的较小限制只能缩减而不能突破该上限。</dd></div>
+<div><dt>search_text</dt><dd>搜索文件文本内容。其 <code>include</code> 过滤器接受相同的路径 glob 语法。出厂默认最多返回 100 条匹配行、单行最多 2,000 个字符、总计最多 30,000 个字符。单文件大小上限与 <code>inspect_file</code> 共用。</dd></div>
 <div><dt>create_file</dt><dd>创建文件（若同名文件已存在则覆盖）。执行前仍需通过权限模式检查与文件快照保护。</dd></div>
 <div><dt>patch_file</dt><dd>替换一处精确匹配的文本片段。旧文本在目标范围内必须且只能出现一次；若匹配到多处，系统会拒绝执行，而不会盲目替换所有出现位置。</dd></div>
 </dl>

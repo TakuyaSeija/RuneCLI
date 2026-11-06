@@ -5,8 +5,8 @@
 <h2 id="file-tools">Outils de fichiers</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>Lit un fichier, avec des plages de lignes inclusives pour le texte. Taille maximale de fichier par défaut de 16 MiB et texte renvoyé limité à 30 000 caractères. Un fichier non textuel pris en charge peut être joint à la requête pour un modèle compatible.</dd></div>
-<div><dt>find_files</dt><dd>Recherche de chemins par motif (glob). Maximum par défaut de 200 chemins renvoyés et 20 000 caractères. Une limite plus basse passée lors d’un appel peut réduire ce maximum, mais jamais l’augmenter.</dd></div>
-<div><dt>search_text</dt><dd>Recherche dans le contenu des fichiers. Maximum par défaut de 100 lignes correspondantes, 2 000 caractères par ligne et 30 000 caractères au total. Partage la limite de taille de fichier individuel avec inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Recherche de chemins par motif (glob). Les motifs prennent en charge <code>*</code>, <code>**</code>, <code>?</code>, des classes de caractères comme <code>[a-z]</code>, les alternatives <code>|</code> et les groupes entre accolades comme <code>*.{ts,tsx}</code>, y compris imbriqués. Maximum par défaut de 200 chemins renvoyés et 20 000 caractères. Une limite plus basse passée lors d’un appel peut réduire ce maximum, mais jamais l’augmenter.</dd></div>
+<div><dt>search_text</dt><dd>Recherche dans le contenu des fichiers. Son filtre <code>include</code> accepte la même syntaxe glob pour les chemins. Maximum par défaut de 100 lignes correspondantes, 2 000 caractères par ligne et 30 000 caractères au total. Partage la limite de taille de fichier individuel avec inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Crée un fichier, en écrasant un fichier existant le cas échéant. L’action doit toujours passer les contrôles d’autorisations et de protection des fichiers.</dd></div>
 <div><dt>patch_file</dt><dd>Remplace un fragment de texte exact. L’ancien texte doit apparaître une seule et unique fois ; une correspondance ambiguë n’autorise pas le remplacement de toutes les occurrences.</dd></div>
 </dl>

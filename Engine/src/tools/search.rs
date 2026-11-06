@@ -49,7 +49,7 @@ impl Tool for SearchText {
                     },
                     "include": {
                         "type": "string",
-                        "description": "Search only files whose name or path matches this glob, e.g. *.py or src/server/main.go."
+                        "description": "Search only files whose name or path matches this glob, e.g. *.{py,sh}, src/server/main.go, or {src,tests}/**/*.rs."
                     },
                     "limit": {
                         "type": "integer",
@@ -140,25 +140,33 @@ impl Tool for SearchText {
                 skipped.extend(here.into_iter().map(|(n, why)| (rel.clone(), n, why)));
                 hits.len() < limit && !ctx.cancelled()
             };
-            match &scope.file {
-                Some(file) => {
-                    scan(file);
+            if !scope.files.is_empty() {
+                for file in &scope.files {
+                    if !scan(file) {
+                        break;
+                    }
                 }
-                None => {
-                    stats = Some(walk::walk(
-                        &scope.dir,
-                        &Options::configured(&self.0.config),
-                        |e| {
-                            if scope
-                                .glob
-                                .as_ref()
-                                .is_some_and(|glob| !glob.matches(&e.rel))
-                            {
-                                return true;
-                            }
-                            scan(&e.path)
-                        },
-                    )?);
+            } else {
+                match &scope.file {
+                    Some(file) => {
+                        scan(file);
+                    }
+                    None => {
+                        stats = Some(walk::walk(
+                            &scope.dir,
+                            &Options::configured(&self.0.config),
+                            |e| {
+                                if scope
+                                    .glob
+                                    .as_ref()
+                                    .is_some_and(|glob| !glob.matches(&e.rel))
+                                {
+                                    return true;
+                                }
+                                scan(&e.path)
+                            },
+                        )?);
+                    }
                 }
             }
             if let Some(e) = err {
@@ -384,6 +392,12 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("Default false"));
+
+        let inc = decl.parameters["properties"]["include"]["description"]
+            .as_str()
+            .unwrap();
+        assert!(inc.contains("*.{py,sh}"));
+        assert!(inc.contains("{src,tests}/**/*.rs"));
     }
 
     /// Session 570: `suspend fun call|fun call(` with regex true came back as

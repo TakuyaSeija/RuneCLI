@@ -32,13 +32,13 @@ impl Tool for FindFiles {
         ToolDecl {
             name: "find_files".into(),
             description:
-                "Find files by path pattern. *.py matches at any depth; src/**/*.py only under src."
+                "Find files by path pattern. Supports wildcards (*, **, ?), character classes ([a-z]), alternatives (a|b), and brace expansions ({a,b}). *.py matches at any depth; src/**/*.py only under src."
                     .into(),
             parameters: flat_schema(
                 json!({
                     "pattern": {
                         "type": "string",
-                        "description": "Glob pattern from the workspace root, e.g. *.ts, docs/**/*.md, package.json."
+                        "description": "Glob pattern from the workspace root, e.g. *.{ts,tsx}, docs/**/*.md, or {package.json,README.md}."
                     },
                     "limit": {
                         "type": "integer",
@@ -84,20 +84,26 @@ impl Tool for FindFiles {
 
         let mut hits: Vec<String> = Vec::new();
         let mut stats = None;
-        match &scope.file {
-            Some(file) => hits.push(ctx.jail.display(file)),
-            None => {
-                stats = Some(walk::walk(
-                    &scope.dir,
-                    &Options::configured(&self.0.config),
-                    |e| {
-                        if scope.glob.as_ref().is_none_or(|glob| glob.matches(&e.rel)) {
-                            hits.push(ctx.jail.display(&e.path));
-                        }
-                        hits.len() < limit && !ctx.cancelled()
-                    },
-                )?);
+        if !scope.files.is_empty() {
+            for file in &scope.files {
+                hits.push(ctx.jail.display(file));
+                if hits.len() >= limit {
+                    break;
+                }
             }
+        } else if let Some(file) = &scope.file {
+            hits.push(ctx.jail.display(file));
+        } else {
+            stats = Some(walk::walk(
+                &scope.dir,
+                &Options::configured(&self.0.config),
+                |e| {
+                    if scope.glob.as_ref().is_none_or(|glob| glob.matches(&e.rel)) {
+                        hits.push(ctx.jail.display(&e.path));
+                    }
+                    hits.len() < limit && !ctx.cancelled()
+                },
+            )?);
         }
 
         let mut out = format!("=== {raw} — {} match(es) ===\n", hits.len());
@@ -134,5 +140,23 @@ impl Tool for FindFiles {
         let summary = format!("found {}", plural(hits.len(), "match"));
         Ok(Outcome::new(summary, format!("{notice}{content}"))
             .with_detail(json!({ "matches": hits.len() })))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_files_declaration_explains_wildcards_and_braces() {
+        let tool = FindFiles(std::sync::Arc::new(crate::limits::Limits::default()));
+        let decl = tool.declaration();
+        assert!(decl.description.contains("brace expansions ({a,b})"));
+        assert!(decl.description.contains("alternatives (a|b)"));
+        let pattern_desc = decl.parameters["properties"]["pattern"]["description"]
+            .as_str()
+            .unwrap();
+        assert!(pattern_desc.contains("*.{ts,tsx}"));
+        assert!(pattern_desc.contains("{package.json,README.md}"));
     }
 }

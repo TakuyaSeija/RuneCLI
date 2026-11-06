@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="Auf dieser Seite">
-      <p class="index-title">Releases</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
-  </aside>
-  <article class="article">
-    <header class="article-head">
-      <h1>Änderungsprotokoll</h1>
-      <p class="article-lead">Alle veröffentlichten Builds von RuneAgent. Jeder Build ist signiert; das Installationsskript installiert die neueste Version oder über die Versionsnummer jede ältere Ausgabe.</p>
-    </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">Aktuell</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="Release-Navigation">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
       </div>
-      <div class="release-body">
-        <h2>Version {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
-          {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">Was diese Version geändert hat, wurde nicht aufgezeichnet. Sie bleibt veröffentlicht, damit eine ältere Ausgabe über ihre Versionsnummer installierbar ist.</p>
+      <button class="drawer-close" type="button" aria-label="Navigation schließen"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>Releases <span class="meta">Verlauf</span></summary>
+      <nav aria-label="Releases">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>Version {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
         {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">Das erste Release erscheint hier mit Datum, Hinweisen und den veröffentlichten Dateien.</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">Wie du einen Download manuell prüfst, steht auf der <a class="link" href="{{url "install"}}">Installationsseite</a>.</p>
-    {{- end}}
+      </nav>
+      <p class="docs-version">Referenz für Rune {{.DocVersion}}<br>Überprüfe deinen Build mit <code>rune -version</code>.</p>
+    </details>
+  </aside>
+
+  <article class="article history-article">
+    <header class="article-head">
+      <p class="crumbs">Releases<span aria-hidden="true">/</span>Verlauf</p>
+      <h1>Changelog</h1>
+      <p class="article-lead">Jeder veröffentlichte Build von RuneAgent. Jeder Build ist signiert; das Installationsprogramm liefert die neueste Version, ältere Versionen lassen sich nach Versionsnummer installieren.</p>
+    </header>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">Releases<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>Version {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">Aktuell</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Änderungen in diesem Release</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">Die Änderungen dieser Version wurden nicht aufgezeichnet. Sie wird bereitgestellt, damit ältere Builds per Versionsnummer installierbar bleiben.</p>
+          {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">Veröffentlichte Downloads</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">Datei</th>
+                  <th scope="col">Plattform</th>
+                  <th scope="col">Größe</th>
+                  <th scope="col" class="th-action">Download</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">Download</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">Nicht verfügbar</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">Für diese Version wurden keine öffentlichen Builds veröffentlicht.</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Adjacent versions">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Vorherige Version</span>
+            <strong>Version {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>Nächste Version</span>
+            <strong>Version {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">Das erste Release erscheint hier mit Datum, Hinweisen und den genauen Dateien.</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="Auf dieser Seite">
+      <p class="index-title">Auf dieser Seite</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">Änderungen</a></li>
+        <li><a href="#downloads">Downloads</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}

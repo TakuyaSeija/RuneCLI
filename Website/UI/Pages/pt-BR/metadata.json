@@ -180,100 +180,143 @@
   },
   "notes": {
     "0.7.8": [
-      "O Linux instala em todas as distribuições, o Rune roda por um carregador, as cores do tmux ficam certas e o web_fetch pode levar cookies."
+      "Universal Linux distribution support using a self-contained runtime loader across all major distributions.",
+      "Terminal UI fixes for tmux 256-color palettes and automated HTTP cookie handling during web fetch operations."
     ],
     "0.8.0": [
-      "Vinte predefinições de modelos, no padrão antigo e mais discreto de predefinições."
+      "Expanded provider preset catalog featuring twenty calibrated model profiles and custom local endpoints.",
+      "Standardized API dialect normalization for OpenAI, Anthropic, and compatible model gateway endpoints."
     ],
     "0.8.1": [
-      "O cursor do seletor de sessões conta a partir de 1, então não cai mais na linha errada."
+      "Session picker caret positioning corrected to 1-based indexing, eliminating off-by-one row highlights.",
+      "Resolved keyboard navigation short-circuits when browsing historical prompt and session archives."
     ],
     "0.8.9": [
-      "Envio, compactação e a ordem das sessões foram corrigidos."
+      "Refined context compaction algorithm to preserve essential architecture facts while clearing expired history.",
+      "Hardened session admission queue and chronological ordering against concurrent terminal window operations."
     ],
     "0.9.0": [
-      "Uma mensagem enviada é confirmada, e uma sessão continua depois de reiniciar."
+      "Session admission flow immediately acknowledges submitted prompts before triggering heavy engine turns.",
+      "Seamless session resumption across daemon and host restarts with immutable event journals and records."
     ],
     "0.9.1": [
-      "O trabalho é planejado a partir do contexto disponível, e o raciocínio pode ser desligado ou reduzido pelo gateway model."
+      "Contextual execution planning dynamically determines tool launch intent from task dependencies.",
+      "Integrated reasoning controls allow switching thinking off or setting low effort levels via model gateways."
     ],
     "0.9.2": [
-      "Copiar e selecionar com o mouse funciona como nos outros lugares, incluindo Clear."
+      "Terminal mouse selection and copy support aligned with standard terminal behavior, including clear selection.",
+      "Maintained stable caret coordinates and visual boundaries without terminal chrome artifacts."
     ],
     "0.9.3": [
-      "Um comando que você mesmo executa com ! se comporta como o resto da sessão, e seus links podem ser abertos."
+      "Manual shell execution via ! runs entire multiline scripts through the permission gate with full access.",
+      "Terminal links and file references in command outputs can be inspected and opened in the default browser."
     ],
     "0.9.4": [
-      "Um script de shell com várias linhas é pré-visualizado como é, e um comando ! mantém seu contexto."
+      "Honest multiline shell script previews display complete command syntax before asking for confirmation.",
+      "Manual ! shell commands retain preceding conversation context and active working directory across turns."
     ],
     "0.9.5": [
-      "A saída de um processo em execução ou à espera é escrita no próprio registro."
+      "Running and waiting background processes stream standard output and error to independent, dedicated log files.",
+      "Enhanced terminal wait detection recognizes interactive input prompts across all Linux PTY sessions."
     ],
     "0.9.6": [
-      "O compositor mostra uma linha, e o prompt flui enquanto você digita."
+      "Real-time prompt streaming displays the first preview line in the composer as you type.",
+      "Improved terminal cursor positioning and soft-wrap rendering on wide and narrow terminal viewports."
     ],
     "0.9.7": [
-      "O compositor mostra a quebra de linha de forma explícita, e não as quebras cruas da origem."
+      "Multiline composer displays explicit newline indicators rather than raw line break jumps in terminal output.",
+      "Improved text editing responsiveness when pasting multi-line shell commands into the input editor."
     ],
     "0.9.8": [
-      "A contagem de contexto continua honesta: um tamanho desconhecido nunca é adivinhado."
+      "Strict context accounting treats unverified byte counts as unknown rather than guessing model capacity.",
+      "Background task guidance explains why shell polling loops waste tokens and how to wait for notifications."
     ],
     "0.9.9": [
-      "Um só dono por bloco de instruções, e o rodapé mantém Esc, nova tentativa e a confirmação."
+      "Formalized single ownership per system instruction block to eliminate contradictory guidance.",
+      "Terminal footer preserves armed Esc cancellation, retry countdowns, and permission confirmation cards."
     ],
     "0.10.0": [
-      "O aviso de atualização permanece visível na visão da sessão."
+      "Live update notices remain pinned and visible in the active session view during background compilation.",
+      "Cross-platform test gate validated across Linux, macOS (Apple Silicon & Intel), and Windows."
     ],
     "0.10.1": [
-      "Instalar a ajuda oficial não pode mais esconder nem sobrescrever suas próprias habilidades."
+      "Official help skill installation isolated to ensure user skills are never shadowed or overwritten.",
+      "Introduced automatic backup pruning for old upgrade directories to preserve local disk space."
     ],
     "0.10.3": [
-      "A saída do terminal não conta mais as linhas de entrada que ecoa, e as ações de ferramenta mantêm sua descrição."
+      "Terminal execution output accurately decouples echoed shell input lines from actual program standard output.",
+      "Tool action sentences retain explicit descriptions for transparent user auditing during streaming."
     ],
     "0.10.4": [
-      "Os registros mostram o texto de erro original, e chamadas idênticas três ou seis vezes são sinalizadas."
+      "Conversation error logs (/logs) preserve original provider error text alongside engine turn status.",
+      "Identical tool calls executed consecutively are tracked and flagged before exhausting request budgets."
     ],
     "0.10.5": [
-      "Um aviso de repetição agora diz o que fazer a respeito."
+      "Contextual loop guard distinguishes waiting for process notifications from repeated command execution failures.",
+      "Enhanced error diagnostics with immediate recovery recommendations tailored to each tool failure category."
     ],
     "0.10.6": [
-      "Os resultados de ferramenta ficam puros, e uma chamada repetida no mesmo turno é nomeada na conversa."
+      "Tool results remain 100% pure data; repetition notices now arrive via system notices on Cadence B (3, 6, 9...).",
+      "Loop warnings provide actionable guidance: stop polling for background work, or switch approach when stuck."
     ],
     "0.10.7": [
-      "Respostas longas não são mais cortadas pelo gateway model."
+      "Aligned model gateway output ceilings with provider max_tokens rather than low thinking budgets.",
+      "Verified streaming completions up to 10,712 tokens on complex architectural prompts without premature cutoffs."
     ],
     "0.10.9": [
-      "A memória de projeto diz para que serve, os argumentos de ferramenta aceitam apelidos, e um caminho errado recebe uma sugestão mais próxima."
+      "Project memory prompt explicitly establishes long-term knowledge retention guidelines across sessions.",
+      "Tool definitions accept common argument aliases, clamp action text, and provide nearest path suggestions.",
+      "Web fetch automatically handles session cookies across redirects without manual header declarations."
     ],
     "0.10.10": [
-      "Instruções mais claras sobre esperar trabalho em segundo plano, caminhos de arquivos e correções desatualizadas."
+      "Enhanced system prompt clarity regarding background execution dependencies, avoiding redundant polling loops.",
+      "Strengthened file tool error reporting with fuzzy path suggestions and stale patch rejection guidance."
     ],
     "0.11.0": [
-      "Um cabeçalho de resposta vazio não aparece mais quando o texto transmitido só tem espaços."
+      "Eliminated empty response headers when streamed model responses contain only leading whitespace or blank lines.",
+      "Preserved flow transparency and exact byte fidelity without hardcoded regex or lossy stripping."
     ],
     "0.11.1": [
-      "Uma resposta que repete uma mesma unidade é interrompida enquanto transmite, e você mantém ou descarta o texto."
+      "Added an engine-level repetition guard that detects and halts repeating token loops at 4 KiB (or 16 KiB whitespace).",
+      "Prompted interactive clarification form allowing you to keep valid preceding prose or discard corrupted outputs.",
+      "Preserved normal streaming performance without arbitrary token length limits or false positives on minified data."
     ],
     "0.11.2": [
-      "Uma resposta intermediária não deixa mais um vão antes do passo seguinte."
+      "Eliminated dangling empty lines on intermediate model responses in the terminal UI renderer.",
+      "Unified vertical spine spacing between consecutive tool invocations for consistent visual structure."
     ],
     "0.11.3": [
-      "Uma única ferramenta digita numa tarefa em segundo plano ou a encerra no lugar de duas antigas, e uma tarefa terminada se anuncia com a própria saída."
+      "Consolidated background process management into a unified process_control tool supporting type and stop actions.",
+      "Replaced two legacy tools (terminal_input and kill_task) to streamline tool discovery and eliminate parameter ambiguity.",
+      "Introduced format 28 database upgrade ensuring older session records transition smoothly to unified process control."
     ],
     "0.11.4": [
-      "Correções encontradas ao auditar as tarefas em segundo plano e suas notificações."
+      "Self-contained background task notifications deliver defused process output directly in the event notification payload.",
+      "Eliminated auxiliary wake API polling roundtrips by bundling process metadata, exit code, and recent lines into one packet.",
+      "Strengthened task cleanup routines to ensure process trees terminate reliably without orphaned sub-processes."
     ],
     "0.11.5": [
-      "A tela de ajuda do primeiro início não disputa mais com um início lento, e caminhos do Windows terminados em espaço ou ponto são tratados."
+      "Resolved first-start initialization race where official product help skill verification competed with session creation.",
+      "Handled Windows filesystem edge cases for directory and file path patterns ending in trailing dots or whitespace.",
+      "Smoke test suite expanded to verify clean environment startup across all supported POSIX and Windows platforms."
     ],
     "0.11.6": [
-      "A redação sobre elevação na tela !."
+      "Elevation and security privilege wording on the manual shell screen (! commands) explicitly explains execution boundaries.",
+      "Sanitizer and classifier bypass semantics on manual shell execution are clarified across POSIX and Windows ConPTY environments."
     ],
     "0.11.7": [
-      "O raciocínio flui antes da resposta, então uma resposta não é mais partida ao meio, e os blocos de pensamento se unem por turno."
+      "Reasoning deltas are evaluated strictly before text deltas in streaming responses, eliminating split thoughts.",
+      "Intermediate thought fragments are coalesced per turn round, maintaining a clean visual boundary before final text.",
+      "Multi-hop handover IPC child sessions receive reliable acknowledgement before parent host release."
     ],
     "0.11.8": [
-      "Trocar o modo de permissão enquanto uma resposta transmite não reordena mais o rodapé, e um aviso de estado que você está lendo não é apagado."
+      "Changing permission mode during active streaming no longer triggers false priority recalculations or footer reflows.",
+      "Active status notices being read are preserved during mid-stream mode switching, preventing premature status wipeouts.",
+      "Full priority guarantees for Esc cancellation, linear retries, and confirmation dialogs remain intact across all windows."
+    ],
+    "0.11.9": [
+      "Os globs de caminho agora expandem alternativas entre chaves como *.{ts,tsx}, incluindo grupos aninhados, além de alternativas com |.",
+      "find_files e o filtro include de search_text podem pesquisar esses caminhos agrupados em uma chamada."
     ]
   }
 }

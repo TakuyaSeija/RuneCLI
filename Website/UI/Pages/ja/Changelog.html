@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="このページの内容">
-      <p class="index-title">リリース一覧</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
-  </aside>
-  <article class="article">
-    <header class="article-head">
-      <h1>変更履歴</h1>
-      <p class="article-lead">公開されたすべての RuneAgent ビルド。各ビルドは署名されており、インストーラは最新版を導入しますが、バージョン番号を指定して過去の版を入れることもできます。</p>
-    </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="リリースナビゲーション">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
       </div>
-      <div class="release-body">
-        <h2>バージョン {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
-          {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">このバージョンで何が変わったかは記録されていません。以前の版を番号で導入できるように公開しています。</p>
+      <button class="drawer-close" type="button" aria-label="ナビゲーションを閉じる"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>リリース <span class="meta">履歴</span></summary>
+      <nav aria-label="リリース">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>バージョン {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
         {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">最初のリリースが公開されると、日付、リリースノート、配布ファイルがここに表示されます。</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">ダウンロードファイルの手動検証手順は<a class="link" href="{{url "install"}}">インストールページ</a>をご覧ください。</p>
-    {{- end}}
+      </nav>
+      <p class="docs-version">Rune リファレンス {{.DocVersion}}<br><code>rune -version</code> でビルドを確認してください。</p>
+    </details>
+  </aside>
+
+  <article class="article history-article">
+    <header class="article-head">
+      <p class="crumbs">リリース<span aria-hidden="true">/</span>履歴</p>
+      <h1>変更履歴</h1>
+      <p class="article-lead">RuneAgent のすべての公開ビルド。各ビルドには署名が付与されています。インストーラーは最新版を提供し、過去のバージョンは番号指定でインストール可能です。</p>
+    </header>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">リリース<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>バージョン {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">最新</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">このリリースの変更点</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">このバージョンの変更内容は記録されていません。過去のビルドをバージョン番号でインストール可能に保つために公開されています。</p>
+          {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">公開ダウンロード</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">ファイル</th>
+                  <th scope="col">プラットフォーム</th>
+                  <th scope="col">サイズ</th>
+                  <th scope="col" class="th-action">ダウンロード</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">ダウンロード</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">利用不可</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">このバージョンの公開ビルドはありません。</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Adjacent versions">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>前のバージョン</span>
+            <strong>バージョン {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>次のバージョン</span>
+            <strong>バージョン {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">最初のリリースは、日付、メモ、および公開されたファイルとともにここに表示されます。</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="目次">
+      <p class="index-title">目次</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">変更履歴</a></li>
+        <li><a href="#downloads">ダウンロード</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}

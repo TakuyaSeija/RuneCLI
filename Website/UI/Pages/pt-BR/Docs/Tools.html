@@ -5,8 +5,8 @@
 <h2 id="file-tools">Ferramentas de arquivos</h2>
 <dl class="ref">
 <div><dt>inspect_file</dt><dd>Lê um arquivo, aceitando intervalos inclusivos de linhas para arquivos de texto. O tamanho máximo de fábrica do arquivo é 16 MiB e o texto retornado é de 30.000 caracteres. Um arquivo não textual compatível pode ser anexado para um modelo que suporte essa mídia.</dd></div>
-<div><dt>find_files</dt><dd>Busca caminhos de arquivos por padrão glob. O máximo de fábrica é de 200 caminhos retornados e 20.000 caracteres. Um limite menor por chamada pode reduzir, mas nunca aumentar, esse teto.</dd></div>
-<div><dt>search_text</dt><dd>Busca no conteúdo dos arquivos. O máximo de fábrica é de 100 linhas correspondentes, 2.000 caracteres por linha e 30.000 caracteres no total. Compartilha o limite de tamanho individual de arquivo com inspect_file.</dd></div>
+<div><dt>find_files</dt><dd>Busca caminhos de arquivos por padrão glob. Os padrões aceitam <code>*</code>, <code>**</code>, <code>?</code>, classes de caracteres como <code>[a-z]</code>, alternativas <code>|</code> e grupos entre chaves como <code>*.{ts,tsx}</code>, inclusive grupos aninhados. O máximo de fábrica é de 200 caminhos retornados e 20.000 caracteres. Um limite menor por chamada pode reduzir, mas nunca aumentar, esse teto.</dd></div>
+<div><dt>search_text</dt><dd>Busca no conteúdo dos arquivos. O filtro <code>include</code> aceita a mesma sintaxe de glob para caminhos. O máximo de fábrica é de 100 linhas correspondentes, 2.000 caracteres por linha e 30.000 caracteres no total. Compartilha o limite de tamanho individual de arquivo com inspect_file.</dd></div>
 <div><dt>create_file</dt><dd>Cria um arquivo, sobrescrevendo o existente caso já haja um no mesmo caminho. A ação ainda precisa passar pelas permissões e pela proteção de arquivos.</dd></div>
 <div><dt>patch_file</dt><dd>Substitui um trecho exato de texto. O trecho antigo precisa ocorrer exatamente uma vez; uma correspondência ambígua não é instrução para substituir todas as ocorrências.</dd></div>
 </dl>

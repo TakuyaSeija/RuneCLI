@@ -23,7 +23,7 @@ import (
 
 func main() {
 	cfgPath := flag.String("config", "", "config file")
-	instance := flag.Int("instance", 0, "PROD blue/green port N: site on 127.0.0.1:N, health on 127.0.0.1:N+2")
+	instance := flag.Int("instance", 0, "PROD blue/green port N: site on 127.0.0.1:N, health on 127.0.0.1:N+1")
 	check := flag.Bool("check", false, "validate config, pages and catalog, then exit")
 	flag.Parse()
 	log.SetFlags(0) // the journal stamps the time
@@ -35,7 +35,7 @@ func main() {
 				err = fmt.Errorf("instance port out of range")
 			}
 			cfg.Listen = []string{fmt.Sprintf("127.0.0.1:%d", *instance)}
-			cfg.Health = fmt.Sprintf("127.0.0.1:%d", *instance+2)
+			cfg.Health = fmt.Sprintf("127.0.0.1:%d", *instance+1)
 		}
 		if err == nil {
 			err = cfg.validate()

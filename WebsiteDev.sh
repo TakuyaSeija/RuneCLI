@@ -5,11 +5,12 @@
 #   WebsiteDev.sh Shutdown    stop
 #   WebsiteDev.sh Status
 #
-# The pages are embedded in the binary (UI/ui.go), so every Start rebuilds: a
-# change in Website/ shows after the next Start. Runs as the owner, needs no
-# root, writes only inside Website/build/Dev/ (ignored by Git) and never
-# touches production (~/Deploy, /etc, systemd, nginx).
-# Dev port = prod + 100 inside Studio's 3300-3499; listens on the LAN address
+# The pages are embedded in the binary (UI/ui.go), so every Start rebuilds and
+# replaces its recorded DEV process: a port migration never leaves an old
+# listener behind. Runs as the owner, needs no root, writes only inside
+# Website/build/Dev/ (ignored by Git) and never touches production
+# (~/Deploy, /etc, systemd, nginx).
+# Dev port lives in Studio's 3250-3299 block; it listens on the LAN address
 # only. The health listener is loopback by the server's own rule.
 set -euo pipefail
 
@@ -18,8 +19,8 @@ WEB="$STUDIO/Website"
 RUN="$WEB/build/Dev"
 BIN="$RUN/atoryn-studio-web-dev"
 HOST="${ATORYN_DEV_HOST:-192.168.18.10}"
-PORT=3401
-HEALTH_PORT=$((PORT + 2))
+PORT=3250
+HEALTH_PORT=$((PORT + 1))
 # Release packages: DEV keeps its own folder, never the live one, so a test
 # build can never appear as a real release on the site.
 DOWNLOADS="${STUDIO_DEV_DOWNLOADS:-/home/noire/.data/Atoryn/StudioDev/Releases}"
@@ -80,7 +81,7 @@ write_config() {
   "health": "127.0.0.1:$HEALTH_PORT",
   "downloads": "$DOWNLOADS",
   "indexing": false,
-  "parentUrl": "${STUDIO_DEV_PARENT:-http://$HOST:3601}"
+  "parentUrl": "${STUDIO_DEV_PARENT:-http://$HOST:3050}"
 }
 EOF
 }
@@ -119,18 +120,17 @@ stop_server() {
 cmd_start() {
     have_addr || die "$HOST is not an address of this machine (set ATORYN_DEV_HOST)"
     lock
-    # Build first: a failed build must never take down a running server.
+    # Build first: a failed build must never take down a running server. Once it
+    # succeeded, any recorded instance is our old build even if a port migration
+    # made the new pair free; stop it before recording the new server PID.
     build
-    if port_busy "$PORT" || port_busy "$HEALTH_PORT"; then
-        if ours_alive || group_alive "$(pid_of)"; then
-            echo "Studio   restarting with a fresh build"
-            stop_server
-        else
-            die "port $PORT or $HEALTH_PORT is in use by another process"
-        fi
+    if ours_alive || group_alive "$(pid_of)"; then
+        echo "Studio   restarting with a fresh build"
+        stop_server
     fi
-    port_busy "$PORT" && die "port $PORT is already in use"
-    port_busy "$HEALTH_PORT" && die "port $HEALTH_PORT is already in use"
+    if port_busy "$PORT" || port_busy "$HEALTH_PORT"; then
+        die "port $PORT or $HEALTH_PORT is in use by another process"
+    fi
     # Closing fd 9 and detaching: the server must hold no lock and no terminal.
     setsid nohup "$BIN" --config "$RUN/Config.json" >"$RUN/server.log" 2>&1 </dev/null 9>&- &
     echo $! >"$RUN/server.pid"

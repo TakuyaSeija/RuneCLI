@@ -1,26 +1,43 @@
 {{define "article"}}
-<h2 id="checks">Qué demuestra la verificación</h2>
-<p>El instalador verifica primero la firma de publicación de la lista de sumas de comprobación y, a continuación, comprueba el paquete descargado frente a esa lista firmada antes de instalarlo. Son dos comprobaciones distintas: una suma de comprobación por sí sola no autentica quién la publicó, y una firma válida tampoco demuestra que una versión esté libre de errores o de comportamientos indeseados.</p>
-<p>El instalador también comprueba la plataforma seleccionada, los nombres esperados de los archivos dentro del paquete y que el binario se inicie correctamente. Instala el programa mediante un cambio de nombre atómico para no exponer nunca un ejecutable copiado a medias. Si quieres conocer su funcionamiento exacto, revisa el código fuente del instalador, <a href="{{url "install.sh"}}">install.sh</a> o <a href="{{url "install.ps1"}}">install.ps1</a>, antes de ejecutarlo.</p>
-<h2 id="release-key">Clave de firma de versiones</h2>
-{{if .Catalog.KeyFingerprint}}
-<p>Huella digital (SHA-256) de la clave de firma publicada:</p>
-<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
-<p>La clave pública está disponible en <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. Verifica siempre que puedas la huella digital a través de un canal de confianza independiente. Descargar tanto la clave como la huella desde un mismo origen comprometido no aportaría una verificación independiente.</p>
-{{else}}
-<p class="notice">No hay ninguna clave de firma publicada en el catálogo actual. La huella digital aparecerá junto con la primera versión firmada; no trates la ausencia de clave como una verificación válida.</p>
+<h2 id="checks">What verification establishes</h2>
+<p>The installer verifies the release signature on the checksum list, then checks the archive against that signed list before installing it. These are different checks: a checksum alone does not authenticate its publisher, and a valid signature does not prove a release has no bugs or harmful behavior.</p>
+<p>The installer also checks the selected platform, expected archive names and whether the binary runs. It installs with an atomic rename instead of exposing a partly copied executable. Review the installer source before running it if you need to understand its exact behavior.</p>
+
+<h2 id="checksums">Checksums (SHA256SUMS)</h2>
+<p>The <code>SHA256SUMS</code> file records the cryptographic SHA-256 hash for every published binary archive, offline package, and release manifest in a given release. Comparing the hash of your downloaded file against this list verifies byte-for-byte integrity and proves that the file was not corrupted or altered during transit.</p>
+{{with .Latest}}
+<p class="verification-action"><a class="btn-dl" href="{{url "download"}}/{{.Version}}/SHA256SUMS" download="SHA256SUMS">Download SHA256SUMS ({{.Version}})</a></p>
 {{end}}
-<h2 id="manual-verification">Verificar manualmente los archivos descargados</h2>
-<p>Desde la <a href="{{url "install"}}">lista de descargas</a>, obtén el paquete correspondiente a tu sistema, SHA256SUMS, SHA256SUMS.sig y la clave pública verificada. Las versiones se firman con una clave ECDSA P-256 sobre SHA-256, compatible tanto con OpenSSL como con el LibreSSL incluido en macOS. En ese directorio, verifica primero la firma y después la suma de comprobación del paquete. En Linux:</p>
+
+<h2 id="signature">Cryptographic signature (SHA256SUMS.sig)</h2>
+<p>The <code>SHA256SUMS.sig</code> file contains a digital signature of the checksum file, created using an ECDSA P-256 private key held securely by Atoryn Studio. Verifying this signature cryptographically authenticates the checksum list and proves that it originated from Atoryn Studio.</p>
+{{with .Latest}}
+<p class="verification-action"><a class="btn-dl" href="{{url "download"}}/{{.Version}}/SHA256SUMS.sig" download="SHA256SUMS.sig">Download SHA256SUMS.sig ({{.Version}})</a></p>
+{{end}}
+
+<h2 id="release-key">Release signing key (signing-key.pem)</h2>
+<p>The public key is available as <a href="{{url "signing-key.pem"}}">signing-key.pem</a>. It is used by OpenSSL, macOS LibreSSL, and Windows CNG to verify the ECDSA signature on the checksum list.</p>
+{{if .Catalog.KeyFingerprint}}
+<p>Published release-key fingerprint, SHA-256:</p>
+<pre class="block"><code>{{.Catalog.KeyFingerprint}}</code></pre>
+<p>Verify the fingerprint through an independently trusted channel when possible. Downloading the key and fingerprint from the same compromised origin would not independently establish trust.</p>
+<p class="verification-action"><a class="btn-dl" href="{{url "signing-key.pem"}}" download="SigningKey.pem">Download Public Key (SigningKey.pem)</a></p>
+{{else}}
+<p class="notice">No release signing key is published in the current catalog. A fingerprint will appear with the first signed release; do not treat a missing key as successful verification.</p>
+{{end}}
+
+<h2 id="manual-verification">Verify downloaded files by hand</h2>
+<p>From the <a href="{{url "install"}}">download list</a>, obtain the intended archive, SHA256SUMS, SHA256SUMS.sig and the verified public key. Releases are signed with an ECDSA P-256 key over SHA-256, which OpenSSL and the LibreSSL that macOS ships can both check. In that directory, verify the signature first, then the archive's checksum. On Linux:</p>
 <pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS</code></pre>
-<p>En macOS, la comprobación de la firma es idéntica; comprueba después el paquete descargado indicando su nombre:</p>
+<p>On macOS, the signature check is the same; check the archive you downloaded by its name:</p>
 <pre class="block"><code>openssl dgst -sha256 -verify signing-key.pem -signature SHA256SUMS.sig SHA256SUMS
 grep ' rune-VERSION-macos-aarch64.tar.gz$' SHA256SUMS | shasum -a 256 --check</code></pre>
-<p>En Windows, el instalador comprueba la firma automáticamente. Si quieres comparar tú mismo un paquete descargado con la lista firmada, imprime su suma en PowerShell y comprueba que coincide con el valor de su línea en SHA256SUMS:</p>
+<p>On Windows, the installer checks the signature for you. To compare a downloaded archive with the signed list yourself, print its checksum in PowerShell and find the same value on that archive's line in SHA256SUMS:</p>
 <pre class="block"><code>(Get-FileHash .\rune-VERSION-windows-x86_64.zip -Algorithm SHA256).Hash.ToLower()</code></pre>
-<p>Sustituye VERSION por el número de la versión descargada. La comprobación de la firma debe imprimir <code>Verified OK</code>, y la comprobación de la suma debe mencionar explícitamente el paquete que vas a utilizar. Que otro archivo de la lista supere la comprobación no valida un paquete ausente. Si detectas cualquier discrepancia, detente y no ejecutes el archivo descargado.</p>
-<h2 id="limits">Límites y actualizaciones</h2>
-<p>Una firma vincula unos bytes exactos con una clave de publicación, pero no audita de forma independiente el código fuente, ni demuestra que la compilación sea reproducible, ni garantiza la seguridad de las dependencias ni subsana el compromiso de una clave de firma. Mantén clara esta distinción cuando compartas instrucciones de verificación.</p>
-<p>Instala la versión firmada deseada y comprueba el resultado con <code>rune -version</code>. En Linux y macOS, las sesiones abiertas compatibles pasan a la nueva compilación instalada cuando quedan inactivas. En Windows, las ventanas abiertas mantienen su compilación actual hasta que abras una nueva instancia de Rune. Nunca fuerces el cierre de tareas activas solo para que cambie el número de versión en pantalla.</p>
+<p>Replace VERSION with the release you downloaded. The signature check must print <code>Verified OK</code>, and the checksum check must name the archive you intend to use. Stop on any mismatch rather than running the download.</p>
+
+<h2 id="limits">Limits and updates</h2>
+<p>A signature ties bytes to a release key. It does not independently audit the source, prove reproducible builds, guarantee dependency safety or undo a compromised signing key. Keep the trust distinction visible when sharing verification instructions.</p>
+<p>Install the intended signed release and check <code>rune -version</code>. On Linux/macOS, compatible open sessions can move to a new installed build when idle. Windows windows keep their current build until a new Rune is opened.</p>
 {{end}}

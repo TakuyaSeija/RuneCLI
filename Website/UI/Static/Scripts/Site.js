@@ -167,24 +167,35 @@
   // once the page can scroll no further, so a short closing section is still reached. A heading chosen in
   // the contents stays marked while the page travels to it, until the reader scrolls on their own.
   const links = [...document.querySelectorAll('.index a[href^="#"]')];
-  const headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
-  if (headings.length) {
+  let headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
+  let refreshHeadings = () => {
+    headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
+  };
+  if (links.length) {
     let queued = false;
     let chosen = headings.find((heading) => "#" + heading.id === location.hash) || null;
     const mark = (current) => {
       for (const link of links) {
-        if (link.hash === "#" + current.id) link.setAttribute("aria-current", "true");
+        if (current && link.hash === "#" + current.id) link.setAttribute("aria-current", "true");
         else link.removeAttribute("aria-current");
       }
     };
     const update = () => {
       queued = false;
-      if (chosen) { mark(chosen); return; }
+      if (chosen) {
+        const top = chosen.getBoundingClientRect().top;
+        if (Math.abs(top) <= 160) {
+          chosen = null;
+        } else {
+          mark(chosen);
+          return;
+        }
+      }
       const root = document.documentElement;
       let current = headings[0];
       if (Math.ceil(scrollY + innerHeight) >= root.scrollHeight - 2) current = headings[headings.length - 1];
-      else for (const heading of headings) if (heading.getBoundingClientRect().top <= 150) current = heading;
-      mark(current);
+      else for (const heading of headings) if (heading.getBoundingClientRect().top <= 160) current = heading;
+      if (current) mark(current);
     };
     for (const link of links) {
       link.addEventListener("click", () => {
@@ -195,6 +206,7 @@
     const release = () => { chosen = null; };
     addEventListener("wheel", release, { passive: true });
     addEventListener("touchmove", release, { passive: true });
+    addEventListener("pointerdown", release, { passive: true });
     addEventListener("keydown", (event) => { if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End", " "].includes(event.key)) release(); });
     addEventListener("scroll", () => { if (!queued) { queued = true; requestAnimationFrame(update); } }, { passive: true });
     update();
@@ -271,6 +283,98 @@
         langSwitch.open = false;
         if (langTrigger) langTrigger.focus({ preventScroll: true });
       }
+    });
+  }
+
+  // Changelog reactive single-version switcher and TOC scroll
+  const changelogPanels = document.querySelector(".changelog-panels");
+  if (changelogPanels) {
+    const panels = [...changelogPanels.querySelectorAll(".changelog-panel")];
+    const navLinks = [...document.querySelectorAll(".docs-sidebar .history-link")];
+    const pageNavLinks = [...document.querySelectorAll(".history-page-nav")];
+
+    const showVersion = (ver, updateUrl) => {
+      let target = panels.find((p) => p.dataset.version === ver);
+      if (!target && panels.length) target = panels[0];
+      if (!target) return;
+
+      panels.forEach((p) => {
+        const isActive = p === target;
+        p.classList.toggle("is-active", isActive);
+        const h3s = p.querySelectorAll(".prose h3");
+        if (h3s.length >= 2) {
+          if (isActive) {
+            h3s[0].id = "changes";
+            h3s[1].id = "downloads";
+          } else {
+            h3s[0].id = "changes-" + p.dataset.version;
+            h3s[1].id = "downloads-" + p.dataset.version;
+          }
+        }
+      });
+      refreshHeadings();
+
+      const activeVer = target.dataset.version;
+
+      navLinks.forEach((link) => {
+        const isCurrent = link.dataset.version === activeVer;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "page");
+          const group = link.closest("details.docs-group");
+          if (group) group.open = true;
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+
+      if (updateUrl && location.hash !== "#v" + activeVer) {
+        history.replaceState(null, "", "#v" + activeVer);
+      }
+    };
+
+    const onHash = () => {
+      const hash = location.hash.replace(/^#v/, "");
+      if (hash) {
+        showVersion(hash, false);
+      } else if (panels.length) {
+        showVersion(panels[0].dataset.version, false);
+      }
+    };
+
+    window.addEventListener("hashchange", onHash);
+    if (location.hash) {
+      onHash();
+    } else if (panels.length) {
+      showVersion(panels[0].dataset.version, false);
+    }
+
+    [...navLinks, ...pageNavLinks].forEach((link) => {
+      link.addEventListener("click", (e) => {
+        const ver = link.dataset.version;
+        if (!ver) return;
+        e.preventDefault();
+        showVersion(ver, true);
+        const drawer = document.getElementById("docs-nav");
+        const scrim = document.querySelector(".scrim");
+        if (drawer && drawer.classList.contains("is-open")) {
+          drawer.classList.remove("is-open");
+          if (scrim) scrim.classList.remove("is-open");
+          document.body.style.overflow = "";
+        }
+        const main = document.getElementById("main");
+        if (main) main.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+
+    const tocLinks = [...document.querySelectorAll("#changelog-toc a")];
+    tocLinks.forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const targetHeading = document.getElementById(link.hash.slice(1));
+        if (targetHeading) {
+          targetHeading.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
     });
   }
 })();

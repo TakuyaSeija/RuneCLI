@@ -1,54 +1,130 @@
 {{define "content"}}
-<div class="read-layout history-layout">
-  <aside class="read-index">
-    {{- if .Releases}}
-    <nav class="index history" aria-label="في هذه الصفحة">
-      <p class="index-title">الإصدارات</p>
-      {{- range $i, $g := .History}}
-      <details class="history-group"{{if eq $i 0}} open{{end}}>
-        <summary>{{$g.Minor}}<span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
-        <ol>
-          {{- range $g.Releases}}
-          <li><a href="#v{{.Version}}">{{.Version}}</a></li>
-          {{- end}}
-        </ol>
-      </details>
-      {{- end}}
-    </nav>
-    {{- end}}
-  </aside>
-  <article class="article">
-    <header class="article-head">
-      <h1>سجل التغييرات</h1>
-      <p class="article-lead">كل إصدار منشور من RuneAgent. كل نسخة موقّعة رقمياً؛ يثبّت برنامج التثبيت أحدث إصدار تلقائياً، ويمكن تثبيت أي إصدار سابق بتحديد رقمه.</p>
-    </header>
-    {{- range $i, $r := .Releases}}
-    <section class="release" id="v{{$r.Version}}">
-      <div class="release-meta">
-        {{- if eq $i 0}}<span class="tag">الأحدث</span>{{end}}
-        <span class="date">{{$r.Date}}</span>
+<div class="shell docs-layout history-docs-layout">
+  <aside class="docs-sidebar" id="docs-nav" aria-label="التنقل بين الإصدارات">
+    <div class="drawer-head">
+      <div class="drawer-brand">
+        <img class="drawer-mark" src="{{asset "Images/Logo.png"}}" width="22" height="22" alt="" decoding="async">
+        <span class="brand-name">RuneAgent</span>
+        <span class="brand-by">Atoryn Studio</span>
       </div>
-      <div class="release-body">
-        <h2>الإصدار {{$r.Version}}</h2>
-        {{- if $r.Notes}}
-        <ul class="release-notes">
-          {{- range $r.Notes}}
-          <li>{{.}}</li>
-          {{- end}}
-        </ul>
-        {{- else}}
-        <p class="release-none">لم يُسجَّل ما غيّرته هذه النسخة. وقد نُشرت ليبقى الإصدار الأقدم قابلاً للتثبيت برقمه.</p>
+      <button class="drawer-close" type="button" aria-label="إغلاق التنقل"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <details class="docs-menu" open>
+      <summary>الإصدارات <span class="meta">السجل</span></summary>
+      <nav aria-label="الإصدارات">
+        {{- range $i, $g := .History}}
+        <details class="docs-group history-group"{{if eq $i 0}} open{{end}}>
+          <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
+          <ul>
+            {{- range $j, $r := $g.Releases}}
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>الإصدار {{$r.Version}}</a></li>
+            {{- end}}
+          </ul>
+        </details>
         {{- end}}
-        <p class="release-command"><code>{{installFor $r.Version}}</code></p>
-        <p class="release-files">{{range $j, $f := $r.Files}}{{if $j}}<span aria-hidden="true">&middot;</span>{{end}}<a href="{{url "download"}}/{{$r.Version}}/{{$f.Name}}">{{buildLabel $f}}</a>{{end}}</p>
-      </div>
-    </section>
-    {{- else}}
-    <div class="empty" id="empty">سيظهر الإصدار الأول هنا مع تاريخه وملاحظاته والملفات المنشورة.</div>
-    {{- end}}
-    {{- with .Latest}}
-    <p class="small after">تحقق من أي ملف منشور يدوياً عبر <a class="link" href="{{url "install"}}">صفحة التثبيت</a>.</p>
-    {{- end}}
+      </nav>
+      <p class="docs-version">مرجع Rune {{.DocVersion}}<br>تحقق من بنيتك عبر <code>rune -version</code>.</p>
+    </details>
+  </aside>
+
+  <article class="article history-article">
+    <header class="article-head">
+      <p class="crumbs">الإصدارات<span aria-hidden="true">/</span>السجل</p>
+      <h1>سجل التغييرات</h1>
+      <p class="article-lead">كل إصدار منشور من RuneAgent. كل إصدار موقّع رقمياً؛ يوفر المثبت أحدث نسخة، ويمكن تثبيت أي إصدار أقدم برقم الإصدار.</p>
+    </header>
+    <div class="changelog-panels">
+      {{- range $i, $r := .Releases}}
+      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+        <div class="version-head">
+          <p class="crumbs">الإصدارات<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
+          <h2>الإصدار {{$r.Version}}</h2>
+          <div class="release-meta-row">
+            {{- if eq $i 0}}<span class="tag">الأحدث</span>{{end}}
+            <span class="date">{{$r.Date}}</span>
+          </div>
+        </div>
+
+        <div class="prose">
+          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">التغييرات في هذا الإصدار</h3>
+          {{- if $r.Notes}}
+          <ul class="release-notes">
+            {{- range $r.Notes}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- else}}
+          <p class="release-none">لم يتم تسجيل التغييرات لهذا الإصدار. يتم نشره ليظل قابلاً للتثبيت حسب رقم الإصدار.</p>
+          {{- end}}
+
+          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">التنزيلات المنشورة</h3>
+          {{- if $r.Files}}
+          <div class="table-wrap download-table-wrap">
+            <table class="data download-table">
+              <thead>
+                <tr>
+                  <th scope="col">الملف</th>
+                  <th scope="col">المنصة</th>
+                  <th scope="col">الحجم</th>
+                  <th scope="col" class="th-action">تنزيل</th>
+                </tr>
+              </thead>
+              <tbody>
+                {{- range $r.Files}}
+                <tr>
+                  <td><code>{{.Name}}</code></td>
+                  <td>{{buildLabel .}}</td>
+                  <td class="td-size">{{printf "%.1f" (mb .Size)}} MiB</td>
+                  <td class="td-action"><a class="btn-dl" href="{{url "download"}}/{{$r.Version}}/{{.Name}}" download="{{.Name}}">تنزيل</a></td>
+                </tr>
+                {{- end}}
+                {{- range (missingPlatforms $r)}}
+                <tr class="tr-unavailable">
+                  <td><span class="meta-name">{{.Name}}</span></td>
+                  <td>{{.Platform}}</td>
+                  <td class="td-size">&mdash;</td>
+                  <td class="td-action"><span class="badge-unavailable">غير متوفر</span></td>
+                </tr>
+                {{- end}}
+              </tbody>
+            </table>
+          </div>
+          {{- else}}
+          <p class="empty">لم يتم نشر أي نسخ عامة لهذا الإصدار.</p>
+          {{- end}}
+        </div>
+
+        <nav class="docs-pagination" aria-label="Adjacent versions">
+          {{- with (prevRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>الإصدار السابق</span>
+            <strong>الإصدار {{.Version}}</strong>
+          </a>
+          {{- else}}
+          <span></span>
+          {{- end}}
+          {{- with (nextRelease $.Releases $i)}}
+          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+            <span>الإصدار التالي</span>
+            <strong>الإصدار {{.Version}}</strong>
+          </a>
+          {{- end}}
+        </nav>
+      </section>
+      {{- else}}
+      <div class="empty" id="empty">سيظهر أول إصدار منشور هنا، شاملاً التاريخ والملاحظات والملفات المنشورة.</div>
+      {{- end}}
+    </div>
   </article>
+
+  <aside class="docs-toc">
+    <nav class="index" aria-label="في هذه الصفحة">
+      <p class="index-title">في هذه الصفحة</p>
+      <ol id="changelog-toc">
+        <li><a href="#changes">التغييرات</a></li>
+        <li><a href="#downloads">التنزيلات</a></li>
+      </ol>
+    </nav>
+  </aside>
 </div>
 {{end}}
