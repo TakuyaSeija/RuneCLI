@@ -1,6 +1,7 @@
 package main
 
 import (
+	"html"
 	"strings"
 	"testing"
 )
@@ -17,8 +18,17 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 	h := newTestServer(t, testConfig(f.dir)).routes()
 
 	english := get(t, h, "GET", "/Studio/changelog").Body.String()
-	if want := englishNotes["0.11.7"][0]; !strings.Contains(english, want) {
-		t.Fatalf("the changelog does not show 0.11.7's recorded change")
+	note := englishNotes["0.11.7"]
+	if !strings.Contains(english, note.Title) {
+		t.Fatalf("the changelog does not show 0.11.7's title")
+	}
+	for _, para := range note.Paragraphs {
+		if !strings.Contains(english, para) {
+			t.Fatalf("the changelog does not show 0.11.7's paragraph")
+		}
+	}
+	if len(note.Points) == 0 || !strings.Contains(english, note.Points[0]) {
+		t.Fatalf("the changelog does not show 0.11.7's detail lines")
 	}
 	if !strings.Contains(english, "was not recorded") {
 		t.Fatalf("a version whose change was never recorded must say so")
@@ -35,7 +45,9 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 
 	for _, l := range locales[1:] {
 		body := get(t, h, "GET", "/Studio/"+l.Code+"/changelog").Body.String()
-		if want := l.text.Notes["0.11.7"][0]; !strings.Contains(body, want) {
+		want := l.text.Notes["0.11.7"]
+		// A page escapes its text, so a title with an apostrophe arrives as &#39;.
+		if !strings.Contains(body, html.EscapeString(want.Title)) || !strings.Contains(body, html.EscapeString(want.Paragraphs[0])) {
 			t.Errorf("%s shows the English words for 0.11.7", l.Code)
 		}
 		if strings.Contains(body, "was not recorded") {
@@ -44,5 +56,42 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 	}
 	if !strings.Contains(get(t, h, "GET", "/Studio/id/changelog").Body.String(), "tidak tercatat") {
 		t.Errorf("Indonesian changelog does not admit a missing record in Indonesian")
+	}
+}
+// A version's entry is layered: a title, the paragraph that says what changed
+// and why, then short detail lines (owner, 2026-11-06). A bare list of
+// sentences was rejected; this holds every published version to the shape.
+func TestEveryChangelogEntryIsLayered(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.11.9", fakeRune("0.11.9"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	if len(englishNotes) == 0 {
+		t.Fatal("no changelog notes were loaded")
+	}
+	for version, n := range englishNotes {
+		if strings.TrimSpace(n.Title) == "" {
+			t.Errorf("%s has no title", version)
+		}
+		if len(n.Paragraphs) == 0 {
+			t.Errorf("%s has no paragraph saying what changed and why", version)
+		}
+		for i, p := range n.Paragraphs {
+			if strings.TrimSpace(p) == "" {
+				t.Errorf("%s paragraph %d is empty", version, i)
+			}
+		}
+	}
+	// The page must render all three layers, in the reader's own language.
+	for _, code := range []string{"", "id", "fr"} {
+		path := "/Studio/changelog"
+		if code != "" {
+			path = "/Studio/" + code + "/changelog"
+		}
+		body := get(t, h, "GET", path).Body.String()
+		for _, want := range []string{"release-note-title", "release-note-body", "release-notes"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s changelog does not render %s", path, want)
+			}
+		}
 	}
 }

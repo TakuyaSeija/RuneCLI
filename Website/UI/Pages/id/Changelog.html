@@ -47,12 +47,18 @@
 
         <div class="prose">
           <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Perubahan pada rilis ini</h3>
-          {{- if $r.Notes}}
+          {{- if $r.Note}}
+          <h4 class="release-note-title">{{$r.Note.Title}}</h4>
+          {{- range $r.Note.Paragraphs}}
+          <p class="release-note-body">{{.}}</p>
+          {{- end}}
+          {{- if $r.Note.Points}}
           <ul class="release-notes">
-            {{- range $r.Notes}}
+            {{- range $r.Note.Points}}
             <li>{{.}}</li>
             {{- end}}
           </ul>
+          {{- end}}
           {{- else}}
           <p class="release-none">Perubahan pada versi ini tidak tercatat. Versi ini diterbitkan agar versi lama tetap bisa dipasang dengan menyebutkan nomornya.</p>
           {{- end}}

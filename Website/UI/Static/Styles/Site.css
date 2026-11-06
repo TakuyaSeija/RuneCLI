@@ -77,6 +77,9 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
 .tag{display:inline-flex;align-self:start;padding:2px 10px;border:1px solid var(--line-2);border-radius:99px;font-size:12px;color:var(--ink)}
 .date{font-size:13px;color:var(--meta)}
 .release-notes{margin:18px 0;padding-left:22px;list-style:disc;font-size:15px;line-height:1.75}
+.release-note-title{margin:22px 0 10px;font-family:var(--sans);font-size:17px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.release-note-body{margin:0 0 14px;font-size:15px;line-height:1.75;color:var(--body)}
+.release-note-title+.release-note-body{margin-top:0}
 .release-none{margin:18px 0;font-size:15px;color:var(--meta);line-height:1.75}
 
 /* Download table: Install page uses compact scroll; Changelog displays full list without scrolldown */

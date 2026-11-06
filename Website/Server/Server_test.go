@@ -105,7 +105,7 @@ func (f *releaseFixture) publishArchives(t *testing.T, version string, archives 
 			Size: int64(len(art)), SHA256: hex.EncodeToString(sum[:])})
 		fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(sum[:]), name)
 	}
-	meta, _ := json.Marshal(Release{Version: version, Date: "2026-10-24", Notes: []string{"First release."}, Files: files})
+	meta, _ := json.Marshal(Release{Version: version, Date: "2026-10-24", Notes: []string{"First release: the artifact own words, which the page never shows."}, Files: files})
 	os.WriteFile(filepath.Join(dir, metaFile), meta, 0o644)
 	msum := sha256.Sum256(meta)
 	fmt.Fprintf(&sums, "%s  %s\n", hex.EncodeToString(msum[:]), metaFile)

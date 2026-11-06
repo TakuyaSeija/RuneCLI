@@ -250,11 +250,11 @@ func (s *site) urlIn(l *locale, route string) string {
 
 // pageData is what every page template sees.
 // releaseView is one published build with the changelog's words for a language:
-// the release itself (date, files, version) plus the recorded changes, which the
+// the release itself (date, files, version) plus the recorded change, which the
 // site owns so a version already published can still gain its notes.
 type releaseView struct {
 	*Release
-	Notes []string
+	Note *releaseNote
 }
 
 type historyGroupView struct {
@@ -265,13 +265,16 @@ type historyGroupView struct {
 // notesFor is the page's language's words for a version, or English's: a reader
 // never sees a version's changes in a language the site does not hold, because
 // the catalogue is checked at startup for exactly the same versions and lines.
-func (s *site) notesFor(l *locale, version string) []string {
+func (s *site) notesFor(l *locale, version string) *releaseNote {
 	if l != nil && l.text != nil {
-		if lines, ok := l.text.Notes[version]; ok {
-			return lines
+		if n, ok := l.text.Notes[version]; ok {
+			return &n
 		}
 	}
-	return englishNotes[version]
+	if n, ok := englishNotes[version]; ok {
+		return &n
+	}
+	return nil
 }
 
 func (s *site) releaseViews(cat *Catalog, l *locale) []*releaseView {
@@ -280,7 +283,7 @@ func (s *site) releaseViews(cat *Catalog, l *locale) []*releaseView {
 	}
 	out := make([]*releaseView, 0, len(cat.Releases))
 	for _, r := range cat.Releases {
-		out = append(out, &releaseView{Release: r, Notes: s.notesFor(l, r.Version)})
+		out = append(out, &releaseView{Release: r, Note: s.notesFor(l, r.Version)})
 	}
 	return out
 }
@@ -290,7 +293,7 @@ func (s *site) historyViews(cat *Catalog, l *locale) []*historyGroupView {
 	for _, group := range cat.History() {
 		view := &historyGroupView{Minor: group.Minor}
 		for _, r := range group.Releases {
-			view.Releases = append(view.Releases, &releaseView{Release: r, Notes: s.notesFor(l, r.Version)})
+			view.Releases = append(view.Releases, &releaseView{Release: r, Note: s.notesFor(l, r.Version)})
 		}
 		out = append(out, view)
 	}

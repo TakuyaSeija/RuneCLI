@@ -24,12 +24,15 @@ The archived versions are not a list in the script: it asks every binary kept in
 (0.7.8 through the current release, 41 versions when this was written), so a
 version found later needs no edit. The changelog's words live with the site, not with the artifact:
 `Website/UI/Pages/ChangelogNotes.json` holds them in English (which owns the
-versions) and `UI/Pages/<code>/ChangelogNotes.json` holds each translation, and
-the site refuses to start unless a translation holds exactly the same versions
-with the same number of lines. A version with no entry has no recorded change and
-the page says so in that language. Because the words are the site's, a version
-published long ago can still gain its notes — a published version is never
-replaced.
+versions) and each translation keeps its own under `notes` in
+`UI/Pages/<code>/metadata.json`. An entry is layered, never a bare list of
+sentences (owner, 2026-11-06): a `title` naming the change, at least one
+`paragraphs` entry saying what changed and why, and short `points` a reader
+scans. The site refuses to start unless a translation holds exactly the same
+versions, the same number of paragraphs and the same number of points, and it
+says honestly in that language when a version has no recorded change at all.
+Because the words are the site's, a version published long ago can still gain
+its notes — a published version is never replaced.
 
 `Ops/Release/SyncDevReleases.sh` gives the **DEV** site the real published
 releases in DEV's own folder (`~/.data/Atoryn/StudioDev/Releases`), copying any

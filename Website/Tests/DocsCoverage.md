@@ -30,7 +30,7 @@ The public illustration retains Ask-mode simulated approvals by owner choice. It
 
 ## Changelog
 
-`Pages/Changelog.html` lists every published build, newest first, and its sidebar groups the releases by minor version (`0.11`, `0.10`, ...) with each group's versions inside it — one or ten of them, however many were published under that minor. A version whose changes were recorded shows them; a version published only so an older build stays installable says that what it changed was not recorded, in every language, rather than inventing a line.
+`Pages/Changelog.html` lists every published build, newest first, and its sidebar groups the releases by minor version (`0.11`, `0.10`, ...) with each group's versions inside it — one or ten of them, however many were published under that minor. A version whose changes were recorded shows them in three layers — a title naming the change, a paragraph saying what changed and why, and short detail lines to scan (owner, 2026-11-06) — and a version published only so an older build stays installable says that what it changed was not recorded, in every language, rather than inventing a line.
 
 ## Article coverage
 

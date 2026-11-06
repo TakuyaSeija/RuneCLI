@@ -179,144 +179,344 @@
     "and": "및"
   },
   "notes": {
-    "0.7.8": [
-      "Universal Linux distribution support using a self-contained runtime loader across all major distributions.",
-      "Terminal UI fixes for tmux 256-color palettes and automated HTTP cookie handling during web fetch operations."
-    ],
-    "0.8.0": [
-      "Expanded provider preset catalog featuring twenty calibrated model profiles and custom local endpoints.",
-      "Standardized API dialect normalization for OpenAI, Anthropic, and compatible model gateway endpoints."
-    ],
-    "0.8.1": [
-      "Session picker caret positioning corrected to 1-based indexing, eliminating off-by-one row highlights.",
-      "Resolved keyboard navigation short-circuits when browsing historical prompt and session archives."
-    ],
-    "0.8.9": [
-      "Refined context compaction algorithm to preserve essential architecture facts while clearing expired history.",
-      "Hardened session admission queue and chronological ordering against concurrent terminal window operations."
-    ],
-    "0.9.0": [
-      "Session admission flow immediately acknowledges submitted prompts before triggering heavy engine turns.",
-      "Seamless session resumption across daemon and host restarts with immutable event journals and records."
-    ],
-    "0.9.1": [
-      "Contextual execution planning dynamically determines tool launch intent from task dependencies.",
-      "Integrated reasoning controls allow switching thinking off or setting low effort levels via model gateways."
-    ],
-    "0.9.2": [
-      "Terminal mouse selection and copy support aligned with standard terminal behavior, including clear selection.",
-      "Maintained stable caret coordinates and visual boundaries without terminal chrome artifacts."
-    ],
-    "0.9.3": [
-      "Manual shell execution via ! runs entire multiline scripts through the permission gate with full access.",
-      "Terminal links and file references in command outputs can be inspected and opened in the default browser."
-    ],
-    "0.9.4": [
-      "Honest multiline shell script previews display complete command syntax before asking for confirmation.",
-      "Manual ! shell commands retain preceding conversation context and active working directory across turns."
-    ],
-    "0.9.5": [
-      "Running and waiting background processes stream standard output and error to independent, dedicated log files.",
-      "Enhanced terminal wait detection recognizes interactive input prompts across all Linux PTY sessions."
-    ],
-    "0.9.6": [
-      "Real-time prompt streaming displays the first preview line in the composer as you type.",
-      "Improved terminal cursor positioning and soft-wrap rendering on wide and narrow terminal viewports."
-    ],
-    "0.9.7": [
-      "Multiline composer displays explicit newline indicators rather than raw line break jumps in terminal output.",
-      "Improved text editing responsiveness when pasting multi-line shell commands into the input editor."
-    ],
-    "0.9.8": [
-      "Strict context accounting treats unverified byte counts as unknown rather than guessing model capacity.",
-      "Background task guidance explains why shell polling loops waste tokens and how to wait for notifications."
-    ],
-    "0.9.9": [
-      "Formalized single ownership per system instruction block to eliminate contradictory guidance.",
-      "Terminal footer preserves armed Esc cancellation, retry countdowns, and permission confirmation cards."
-    ],
-    "0.10.0": [
-      "Live update notices remain pinned and visible in the active session view during background compilation.",
-      "Cross-platform test gate validated across Linux, macOS (Apple Silicon & Intel), and Windows."
-    ],
-    "0.10.1": [
-      "Official help skill installation isolated to ensure user skills are never shadowed or overwritten.",
-      "Introduced automatic backup pruning for old upgrade directories to preserve local disk space."
-    ],
-    "0.10.3": [
-      "Terminal execution output accurately decouples echoed shell input lines from actual program standard output.",
-      "Tool action sentences retain explicit descriptions for transparent user auditing during streaming."
-    ],
-    "0.10.4": [
-      "Conversation error logs (/logs) preserve original provider error text alongside engine turn status.",
-      "Identical tool calls executed consecutively are tracked and flagged before exhausting request budgets."
-    ],
-    "0.10.5": [
-      "Contextual loop guard distinguishes waiting for process notifications from repeated command execution failures.",
-      "Enhanced error diagnostics with immediate recovery recommendations tailored to each tool failure category."
-    ],
-    "0.10.6": [
-      "Tool results remain 100% pure data; repetition notices now arrive via system notices on Cadence B (3, 6, 9...).",
-      "Loop warnings provide actionable guidance: stop polling for background work, or switch approach when stuck."
-    ],
-    "0.10.7": [
-      "Aligned model gateway output ceilings with provider max_tokens rather than low thinking budgets.",
-      "Verified streaming completions up to 10,712 tokens on complex architectural prompts without premature cutoffs."
-    ],
-    "0.10.9": [
-      "Project memory prompt explicitly establishes long-term knowledge retention guidelines across sessions.",
-      "Tool definitions accept common argument aliases, clamp action text, and provide nearest path suggestions.",
-      "Web fetch automatically handles session cookies across redirects without manual header declarations."
-    ],
-    "0.10.10": [
-      "Enhanced system prompt clarity regarding background execution dependencies, avoiding redundant polling loops.",
-      "Strengthened file tool error reporting with fuzzy path suggestions and stale patch rejection guidance."
-    ],
-    "0.11.0": [
-      "Eliminated empty response headers when streamed model responses contain only leading whitespace or blank lines.",
-      "Preserved flow transparency and exact byte fidelity without hardcoded regex or lossy stripping."
-    ],
-    "0.11.1": [
-      "Added an engine-level repetition guard that detects and halts repeating token loops at 4 KiB (or 16 KiB whitespace).",
-      "Prompted interactive clarification form allowing you to keep valid preceding prose or discard corrupted outputs.",
-      "Preserved normal streaming performance without arbitrary token length limits or false positives on minified data."
-    ],
-    "0.11.2": [
-      "Eliminated dangling empty lines on intermediate model responses in the terminal UI renderer.",
-      "Unified vertical spine spacing between consecutive tool invocations for consistent visual structure."
-    ],
-    "0.11.3": [
-      "Consolidated background process management into a unified process_control tool supporting type and stop actions.",
-      "Replaced two legacy tools (terminal_input and kill_task) to streamline tool discovery and eliminate parameter ambiguity.",
-      "Introduced format 28 database upgrade ensuring older session records transition smoothly to unified process control."
-    ],
-    "0.11.4": [
-      "Self-contained background task notifications deliver defused process output directly in the event notification payload.",
-      "Eliminated auxiliary wake API polling roundtrips by bundling process metadata, exit code, and recent lines into one packet.",
-      "Strengthened task cleanup routines to ensure process trees terminate reliably without orphaned sub-processes."
-    ],
-    "0.11.5": [
-      "Resolved first-start initialization race where official product help skill verification competed with session creation.",
-      "Handled Windows filesystem edge cases for directory and file path patterns ending in trailing dots or whitespace.",
-      "Smoke test suite expanded to verify clean environment startup across all supported POSIX and Windows platforms."
-    ],
-    "0.11.6": [
-      "Elevation and security privilege wording on the manual shell screen (! commands) explicitly explains execution boundaries.",
-      "Sanitizer and classifier bypass semantics on manual shell execution are clarified across POSIX and Windows ConPTY environments."
-    ],
-    "0.11.7": [
-      "Reasoning deltas are evaluated strictly before text deltas in streaming responses, eliminating split thoughts.",
-      "Intermediate thought fragments are coalesced per turn round, maintaining a clean visual boundary before final text.",
-      "Multi-hop handover IPC child sessions receive reliable acknowledgement before parent host release."
-    ],
-    "0.11.8": [
-      "Changing permission mode during active streaming no longer triggers false priority recalculations or footer reflows.",
-      "Active status notices being read are preserved during mid-stream mode switching, preventing premature status wipeouts.",
-      "Full priority guarantees for Esc cancellation, linear retries, and confirmation dialogs remain intact across all windows."
-    ],
-    "0.11.9": [
-      "경로 glob이 중첩 그룹을 포함해 *.{ts,tsx} 같은 중괄호 대안을 확장하고 | 대안도 지원합니다.",
-      "find_files와 search_text의 include 필터는 이러한 그룹화된 경로를 한 번의 호출로 검색할 수 있습니다."
-    ]
+    "0.7.8": {
+      "title": "모든 리눅스 배포판에서, 그리고 터미널의 가장자리 수정",
+      "paragraphs": [
+        "Rune은 더 이상 하나의 glibc 기준에 의존하지 않습니다. 자체 포함 런타임 로더 덕분에 같은 빌드가 모든 주요 리눅스 배포판에서 시작되고, 터미널과 웹 가져오기 동작도 사람들이 실제로 쓰는 환경에 맞춰졌습니다."
+      ],
+      "points": [
+        "모든 주요 리눅스 배포판을 위한 자체 포함 런타임 로더.",
+        "tmux 256색 팔레트가 올바르게 표시됩니다.",
+        "web_fetch가 세션 쿠키를 자동으로 처리합니다."
+      ]
+    },
+    "0.8.0": {
+      "title": "스무 개 모델 프리셋과 하나의 방언 정규화",
+      "paragraphs": [
+        "공급자 카탈로그가 보정된 스무 개의 모델 프로필로 늘어났고, 직접 쓰는 로컬 엔드포인트 자리도 생겼습니다. 그 뒤에는 하나의 정규화 계층이 있어 OpenAI, Anthropic, 호환 게이트웨이 엔드포인트를 같은 방식으로 설명합니다."
+      ],
+      "points": [
+        "보정된 모델 프리셋 스무 개, 그리고 사용자 지정 로컬 엔드포인트.",
+        "OpenAI, Anthropic, 호환 게이트웨이가 공유하는 API 방언 정규화."
+      ]
+    },
+    "0.8.1": {
+      "title": "세션 선택기가 올바른 행을 가리킨다",
+      "paragraphs": [
+        "두 가지 탐색 결함이 사라졌습니다. 세션 선택기의 커서가 한 행 어긋났고, 이전 프롬프트와 세션을 훑을 때 키보드 탐색이 너무 일찍 멈출 수 있었습니다."
+      ],
+      "points": [
+        "세션 선택기 커서가 1부터 시작하는 인덱스를 쓰므로 잘못된 행 강조가 없습니다.",
+        "프롬프트와 세션 기록을 훑을 때 키보드 탐색이 더 이상 중간에 끊기지 않습니다."
+      ]
+    },
+    "0.8.9": {
+      "title": "압축은 구조를, 접수는 순서를 지킨다",
+      "paragraphs": [
+        "오래된 기록이 이제 세션의 토대가 되는 사실을 잃지 않고 정리되며, 접수 대기열은 여러 터미널 창이 동시에 움직여도 시간 순서를 유지합니다."
+      ],
+      "points": [
+        "컨텍스트 압축은 핵심 구조 사실을 보존하며 만료된 기록을 정리합니다.",
+        "세션 접수 대기열과 그 순서가 동시 터미널 창에도 흔들리지 않습니다."
+      ]
+    },
+    "0.9.0": {
+      "title": "보낸 프롬프트는 즉시 확인된다",
+      "paragraphs": [
+        "접수가 더 이상 사람을 침묵 속에 기다리게 하지 않습니다. 프롬프트는 엔진이 그 턴의 무거운 작업을 시작하기 전에 즉시 확인되고, 세션은 불변 이벤트 저널 덕분에 데몬이나 호스트 재시작을 넘어 유지됩니다."
+      ],
+      "points": [
+        "세션 접수가 엔진 턴이 시작되기 전에 보낸 프롬프트를 확인합니다.",
+        "불변 이벤트 기록을 바탕으로 데몬과 호스트 재시작을 넘어 세션을 재개합니다."
+      ]
+    },
+    "0.9.1": {
+      "title": "작업에서 얻는 실행 의도, 그리고 설정할 수 있는 사고",
+      "paragraphs": [
+        "명령을 포그라운드에서 돌릴지 백그라운드에서 돌릴지가 이제 도구 이름이 아니라 작업 자체의 의존성에서 얻는 계획 판단이 되었습니다. 같은 릴리스에서 모델의 사고 설정도 손에 닿게 되어, 게이트웨이를 통해 끄거나 낮은 노력 단계를 고를 수 있습니다."
+      ],
+      "points": [
+        "맥락적 실행 계획이 작업 의존성에서 도구 실행 의도를 이끌어냅니다.",
+        "추론 제어가 모델 게이트웨이를 통해 사고를 끄거나 낮은 노력 단계를 고릅니다."
+      ]
+    },
+    "0.9.2": {
+      "title": "마우스 선택이 터미널처럼 동작한다",
+      "paragraphs": [
+        "마우스로 텍스트를 선택해 복사하는 동작이 선택 해제까지 포함해 터미널 자체의 관습을 따르게 되었고, 커서는 좌표를 안정적으로 유지하며 화면에 어색한 장식이 남지 않습니다."
+      ],
+      "points": [
+        "마우스 선택, 복사, 선택 해제가 표준 터미널 동작을 따릅니다.",
+        "커서 좌표와 시각 경계가 안정적으로 유지되고 장식 결함이 없습니다."
+      ]
+    },
+    "0.9.3": {
+      "title": "수동 스크립트, 그리고 열 수 있는 참조",
+      "paragraphs": [
+        "명시적인 `!`는 그 호출에만 전체 권한으로 권한 게이트를 통해 여러 줄 스크립트 전체를 실행하며, 명령 출력의 링크나 파일 참조는 요청했을 때만 확인하고 브라우저에서 열 수 있습니다."
+      ],
+      "points": [
+        "`!`는 그 호출에만 전체 권한으로 여러 줄 스크립트 전체를 권한 게이트를 통해 실행합니다.",
+        "터미널 링크와 파일 참조는 요청 시 확인하고 열 수 있습니다."
+      ]
+    },
+    "0.9.4": {
+      "title": "미리보기는 스크립트 전체를 보여준다",
+      "paragraphs": [
+        "수동 `!` 스크립트를 확인하기 전에 잘린 첫 줄이 아니라 모든 줄을 봅니다. 그 스크립트는 앞선 대화 맥락과 작업 디렉터리도 유지합니다."
+      ],
+      "points": [
+        "여러 줄 셸 스크립트 미리보기가 확인 전에 명령 전체를 보여줍니다.",
+        "수동 `!` 명령은 앞선 맥락과 현재 작업 디렉터리를 유지합니다."
+      ]
+    },
+    "0.9.5": {
+      "title": "백그라운드 출력에 갈 곳이 생겼다",
+      "paragraphs": [
+        "실행 중이고 기다리는 프로세스가 이제 표준 출력과 표준 오류를 각자의 로그 파일로 흘려보내고, 엔진은 리눅스 PTY 세션의 대화형 입력을 침묵처럼 보이게 두지 않고 인식합니다."
+      ],
+      "points": [
+        "실행 중이고 기다리는 프로세스가 stdout과 stderr를 전용 로그 파일로 흘려보냅니다.",
+        "입력 대기 감지가 리눅스 PTY 세션의 대화형 프롬프트를 인식합니다."
+      ]
+    },
+    "0.9.6": {
+      "title": "입력하는 동안 입력창이 미리 보여준다",
+      "paragraphs": [
+        "프롬프트의 첫 줄이 입력하는 동안 입력창에 표시되고, 커서 배치와 소프트 줄바꿈이 넓은 터미널과 좁은 터미널 모두에서 수정되었습니다."
+      ],
+      "points": [
+        "실시간 프롬프트 스트리밍이 입력창에 첫 미리보기 줄을 보여줍니다.",
+        "넓고 좁은 화면 모두에서 커서 배치와 소프트 줄바꿈 렌더링을 수정했습니다."
+      ]
+    },
+    "0.9.7": {
+      "title": "줄바꿈은 건너뛰지 않고 그린다",
+      "paragraphs": [
+        "여러 줄 입력창이 이제 원시 줄바꿈이 터미널을 움직이게 두지 않고 명시적인 줄바꿈 표시를 그리며, 여러 줄 셸 명령을 편집기에 붙여 넣어도 반응이 유지됩니다."
+      ],
+      "points": [
+        "여러 줄 입력창이 원시 줄바꿈 대신 명시적 줄바꿈 표시를 보여줍니다.",
+        "여러 줄 셸 명령을 붙여 넣을 때 편집 반응이 좋아졌습니다."
+      ]
+    },
+    "0.9.8": {
+      "title": "모르는 것은 모르는 채로 둔다",
+      "paragraphs": [
+        "아무도 확인하지 않은 바이트 수가 이제 추측한 모델 용량으로 환산되지 않고 모르는 값으로 다뤄지며, 엔진의 백그라운드 안내가 셸 폴링 루프가 왜 토큰을 낭비하는지와 대신 알림을 기다리는 방법을 설명합니다."
+      ],
+      "points": [
+        "엄격한 컨텍스트 계산이 확인되지 않은 바이트 수를 모르는 값으로 다루며 추측하지 않습니다.",
+        "백그라운드 안내가 폴링이 토큰을 낭비하는 이유와 기다리는 방법을 설명합니다."
+      ]
+    },
+    "0.9.9": {
+      "title": "지시마다 하나의 주인, 약속을 지키는 하단 표시줄",
+      "paragraphs": [
+        "각 시스템 지시 블록에 이제 단일 주인이 있어 두 출처가 서로 모순될 수 없습니다. 터미널 하단 표시줄은 필요한 동안 무장된 Esc 취소, 재시도 카운트다운, 권한 확인 카드를 계속 보여줍니다."
+      ],
+      "points": [
+        "시스템 지시 블록마다 단일 소유권을 두어 모순되는 안내를 없앴습니다.",
+        "하단 표시줄이 무장된 Esc 취소, 재시도 카운트다운, 권한 확인을 유지합니다."
+      ]
+    },
+    "0.10.0": {
+      "title": "업데이트 알림은 보이는 곳에 머문다",
+      "paragraphs": [
+        "작업 중에 새 빌드로 인계되면 알림이 다시 그리기로 사라지지 않고 활성 세션 보기에 고정되며, 전체 테스트 게이트가 실제 리눅스, macOS, Windows 기계에서 돌기 시작했습니다."
+      ],
+      "points": [
+        "실시간 업데이트 알림이 활성 세션 보기에 고정되어 보입니다.",
+        "플랫폼 간 게이트를 리눅스, macOS(Apple silicon과 Intel), Windows에서 검증했습니다."
+      ]
+    },
+    "0.10.1": {
+      "title": "공식 도움말은 절대 가려지지 않는다",
+      "paragraphs": [
+        "공식 도움말 스킬이 이제 사용자의 스킬이 가리거나 덮어쓸 수 없는 곳에 설치됩니다. 오래된 업그레이드 디렉터리는 자동으로 정리되어 디스크를 더 채우지 않습니다."
+      ],
+      "points": [
+        "공식 도움말 스킬 설치가 사용자 스킬과 분리됩니다.",
+        "오래된 업그레이드 디렉터리의 자동 정리가 로컬 디스크 공간을 지킵니다."
+      ]
+    },
+    "0.10.3": {
+      "title": "터미널 출력은 프로그램이 말한 것을 전한다",
+      "paragraphs": [
+        "메아리로 되돌아온 셸 입력이 프로그램이 실제로 출력한 것과 분리되어, 복사한 결과에는 프로그램의 출력만 담깁니다. 도구의 동작 문장은 스트리밍 중에도 설명을 유지해 호출을 감사할 수 있습니다."
+      ],
+      "points": [
+        "터미널 출력이 되돌아온 셸 입력과 프로그램의 stdout을 분리합니다.",
+        "도구 동작 문장이 스트리밍 중에도 명확한 설명을 유지합니다."
+      ]
+    },
+    "0.10.4": {
+      "title": "오류는 제 말을 지키고, 반복은 세어진다",
+      "paragraphs": [
+        "`/logs`가 공급자의 원본 오류 텍스트를 바꿔 쓰지 않고 엔진 턴 상태 옆에 보여주며, 같은 호출이 되풀이되면 요청 예산을 다 쓰기 전에 알아챕니다."
+      ],
+      "points": [
+        "`/logs`가 원본 공급자 오류 텍스트를 턴 상태와 함께 보존합니다.",
+        "연속된 동일 도구 호출이 예산 소진 전에 추적되고 표시됩니다."
+      ]
+    },
+    "0.10.5": {
+      "title": "기다리는 것은 반복하는 것이 아니다",
+      "paragraphs": [
+        "루프 가드가 이제 프로세스 알림을 기다리는 것과 계속 실패하는 명령을 반복하는 것을 구분하며, 도구 실패에는 그 분류에 맞는 복구 단계가 함께 옵니다."
+      ],
+      "points": [
+        "루프 가드가 알림 대기와 명령 반복 실패를 구분합니다.",
+        "오류 진단이 실패 분류마다 즉각적인 복구 조언을 담습니다."
+      ]
+    },
+    "0.10.6": {
+      "title": "도구 결과는 데이터, 경고는 알림",
+      "paragraphs": [
+        "도구 결과가 이제 자기 데이터만 담습니다. 반복 경고는 간격이 점점 넓어지는 시스템 알림으로 도착하며, 무엇을 해야 하는지 알려줍니다. 백그라운드 작업 폴링을 멈추거나 접근을 바꾸라는 것입니다."
+      ],
+      "points": [
+        "도구 결과는 순수 데이터로 유지되고, 반복 알림은 Cadence B의 시스템 알림으로 옵니다.",
+        "루프 경고는 반복을 지목하는 데 그치지 않고 실행할 수 있는 안내를 담습니다."
+      ]
+    },
+    "0.10.7": {
+      "title": "출력 한도는 공급자에서 온다",
+      "paragraphs": [
+        "게이트웨이의 출력 한도가 이제 낮은 사고 예산이 아니라 공급자 자신의 `max_tokens`에서 읽히며, 그 예산이 이전에는 긴 답을 잘랐습니다. 1만 토큰이 넘는 완료도 이제 정상적으로 끝납니다."
+      ],
+      "points": [
+        "출력 한도를 사고 예산이 아니라 공급자의 `max_tokens`에 맞췄습니다.",
+        "최대 10,712토큰의 스트리밍 완료가 조기 절단 없이 검증되었습니다."
+      ]
+    },
+    "0.10.9": {
+      "title": "기억, 별칭, 쿠키",
+      "paragraphs": [
+        "프로젝트 기억 프롬프트가 이제 기억의 목적과 세션을 넘어 유지된다는 점을 분명히 밝힙니다. 도구 인자는 사람들이 실제로 입력하는 별칭을 받아들이고, 잘못된 경로에는 가장 가까운 후보를 주며, 웹 가져오기는 리디렉션을 넘어 세션 쿠키를 스스로 운반합니다."
+      ],
+      "points": [
+        "프로젝트 기억 프롬프트가 세션을 넘는 장기 보존을 명시합니다.",
+        "도구 인자는 흔한 별칭을 받고 동작 문장을 정리하며 가장 가까운 경로를 제안합니다.",
+        "web_fetch가 수동 헤더 없이 리디렉션을 넘는 세션 쿠키를 처리합니다."
+      ]
+    },
+    "0.10.10": {
+      "title": "쓸데없는 폴링은 줄고, 파일 오류는 분명해진다",
+      "paragraphs": [
+        "시스템 프롬프트가 이제 백그라운드 작업이 무엇에 의존하는지 설명하여 모델이 이미 돌고 있는 작업을 폴링하지 않습니다. 파일 도구는 잘못된 경로에 가장 가까운 후보로 답하고, 오래된 패치는 빈 실패가 아니라 안내와 함께 거부합니다."
+      ],
+      "points": [
+        "시스템 프롬프트가 백그라운드 실행 의존성을 분명히 하여 중복 폴링을 피합니다.",
+        "파일 도구 오류가 가까운 경로 제안과 오래된 패치 안내를 담습니다."
+      ]
+    },
+    "0.11.0": {
+      "title": "빈 응답 위에 빈 헤더를 그리지 않는다",
+      "paragraphs": [
+        "공백이나 빈 줄로 시작하는 스트리밍 응답이 예전에는 빈 `Response` 헤더를 그렸습니다. 이제는 텍스트가 있을 때만 헤더를 그리고, 바이트 자체는 정규식도 손실 있는 잘라내기도 없이 그대로 통과합니다."
+      ],
+      "points": [
+        "응답이 공백이나 빈 줄로 시작해도 빈 응답 헤더가 사라졌습니다.",
+        "흐름 투명성과 바이트 충실성을 유지하며 정규식이나 손실 있는 제거를 쓰지 않습니다."
+      ]
+    },
+    "0.11.1": {
+      "title": "반복하는 답은 스트리밍 중에 멈춘다",
+      "paragraphs": [
+        "엔진이 이제 짧은 단위를 끝없이 반복하는 응답을 알아보고 도착하는 대로 멈추며, 토큰 길이 한도는 두지 않습니다. 그다음 이미 아는 양식으로 반복 이전의 텍스트를 남길지 메시지를 버릴지 묻습니다."
+      ],
+      "points": [
+        "엔진 수준 반복 가드가 4 KiB(공백은 16 KiB)에서 반복 루프를 멈춥니다.",
+        "확인 양식이 앞선 글을 남기거나 손상된 출력을 버립니다.",
+        "정상 스트리밍 속도를 유지하며 임의의 토큰 한도나 축소된 데이터에 대한 오탐이 없습니다."
+      ]
+    },
+    "0.11.2": {
+      "title": "더 이상 매달리지 않는 간격",
+      "paragraphs": [
+        "중간 응답이 뒤에 빈 줄을 매달아 다음 도구 호출을 화면 아래로 밀어냈습니다. 끝의 빈 줄이 잘리고 도구 호출 사이의 축이 일정한 간격이 되었습니다."
+      ],
+      "points": [
+        "렌더러에서 중간 응답의 매달린 빈 줄을 제거했습니다.",
+        "연속된 도구 호출 사이의 세로 간격을 통일했습니다."
+      ]
+    },
+    "0.11.3": {
+      "title": "백그라운드 프로세스를 위한 하나의 도구",
+      "paragraphs": [
+        "백그라운드 작업은 `type`과 `stop` 동작을 가진 하나의 `process_control` 도구로 관리됩니다. 옛 도구 두 개가 사라져 볼 곳이 하나이고 모호한 매개변수 선택도 없으며, 포맷 28 업그레이드가 오래된 세션 기록을 매끄럽게 넘깁니다."
+      ],
+      "points": [
+        "`process_control`이 `type`과 `stop` 동작으로 백그라운드 관리를 통합합니다.",
+        "`terminal_input`과 `kill_task`를 제거해 매개변수 모호성을 없앴습니다.",
+        "포맷 28 업그레이드가 오래된 세션 기록을 통합 도구로 옮깁니다."
+      ]
+    },
+    "0.11.4": {
+      "title": "자기 출력을 품은 알림",
+      "paragraphs": [
+        "백그라운드 작업의 끝이 이제 하나의 자체 완결 알림으로 옵니다. 어떻게 끝났는지, 프로세스 ID, 그리고 아직 주지 않은 출력이 무해화되고 범위가 제한된 채로 담깁니다. 그 세부를 가져오던 추가 깨우기 왕복을 대체하며, 중지가 이제 프로세스 트리 전체에 닿습니다."
+      ],
+      "points": [
+        "알림이 무해화된 프로세스 출력을 이벤트 페이로드에 직접 담습니다.",
+        "메타데이터, 종료 코드, 최근 줄이 한 패킷으로 이동해 보조 깨우기 호출을 없앱니다.",
+        "정리 루틴이 프로세스 트리 전체를 고아 없이 끝냅니다."
+      ]
+    },
+    "0.11.5": {
+      "title": "첫 시작과 Windows 경로 패턴",
+      "paragraphs": [
+        "실제 기계에서 찾은 두 결함을 고쳤습니다. 첫 시작 때 공식 도움말 스킬이 세션 생성과 동시에 자기 검증을 했고, Windows에서는 점이나 공백으로 끝나는 경로 패턴이 처리되지 않았습니다. 스모크 스위트도 각 플랫폼에서 깨끗한 환경 시작을 확인합니다."
+      ],
+      "points": [
+        "첫 시작 때 도움말 스킬 검증과 세션 생성 사이의 경쟁을 해결했습니다.",
+        "끝이 점이나 공백인 Windows 경로 패턴을 처리합니다.",
+        "스모크 스위트가 POSIX와 Windows에서 깨끗한 환경 시작을 검증합니다."
+      ]
+    },
+    "0.11.6": {
+      "title": "수동 스크립트가 무엇을 할 수 있는지 분명히",
+      "paragraphs": [
+        "수동 셸 화면이 이제 `!` 명령의 실행 경계를 말로 설명합니다. 어떤 접근 권한을 가지는지, 그리고 그 한 번의 호출에서 분류기와 정화기가 우회된다는 점입니다. 문구는 POSIX 셸과 Windows ConPTY에서 실제로 일어나는 일과 일치합니다."
+      ],
+      "points": [
+        "수동 셸 화면이 `!` 명령의 권한 상승과 경계를 설명합니다.",
+        "POSIX와 Windows ConPTY에 대해 정화기와 분류기 우회의 의미를 분명히 했습니다."
+      ]
+    },
+    "0.11.7": {
+      "title": "사고는 뒤따르는 텍스트에 잘리지 않는다",
+      "paragraphs": [
+        "추론이 답변과 뒤섞여 도착해 사고의 한 문장이 답변 첫 단어에 잘리곤 했습니다. 이제 추론 델타가 텍스트 델타보다 먼저 평가되고 한 라운드의 조각이 합쳐져 최종 텍스트 앞에 깨끗한 경계가 남습니다."
+      ],
+      "points": [
+        "추론 델타를 텍스트 델타보다 엄격히 먼저 평가해 잘린 사고를 없앴습니다.",
+        "중간 사고 조각을 턴 라운드마다 합칩니다.",
+        "다중 홉 인계의 자식 세션이 부모 호스트 해제 전에 확인 응답을 받습니다."
+      ]
+    },
+    "0.11.8": {
+      "title": "스트리밍 중 모드 전환이 하단 표시줄을 다시 그리지 않는다",
+      "paragraphs": [
+        "응답이 스트리밍되는 동안 권한 모드를 바꾸면 이유 없이 우선순위를 다시 계산하고 하단 표시줄을 재배치했습니다. 이제 읽고 있던 상태 알림이 전환을 견디고, 하단 표시줄의 약속은 모든 창에서 그대로입니다."
+      ],
+      "points": [
+        "스트리밍 중 권한 모드 변경이 잘못된 우선순위 재계산이나 하단 표시줄 재배치를 일으키지 않습니다.",
+        "스트리밍 중 모드 전환에도 읽고 있는 상태 알림이 보존됩니다.",
+        "Esc 취소, 선형 재시도, 확인 대화상자가 모든 창에서 우선순위를 지킵니다."
+      ]
+    },
+    "0.11.9": {
+      "title": "묶인 경로 패턴을 한 번의 호출로 찾는다",
+      "paragraphs": [
+        "find_files와 search_text의 include 필터가 이제 경로 안의 중괄호 대안을 중첩 그룹까지 포함해 `|` 대안과 함께 확장합니다. `*.{ts,tsx}` 같은 패턴은 여러 번이 아니라 한 번의 디렉터리 순회로 끝나며, 이를 위해 어떤 공급자 스키마도 바뀌지 않았습니다."
+      ],
+      "points": [
+        "`*.{ts,tsx}` 같은 중괄호 대안, 중첩 그룹, `|` 대안을 네이티브로 확장합니다.",
+        "find_files와 search_text의 include 필터가 묶인 패턴을 한 번의 호출로 찾습니다.",
+        "확장은 엔진 안에서 일어나며 도구 스키마와 데이터베이스 포맷은 그대로입니다."
+      ]
+    }
   }
 }

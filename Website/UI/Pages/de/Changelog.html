@@ -47,12 +47,18 @@
 
         <div class="prose">
           <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Änderungen in diesem Release</h3>
-          {{- if $r.Notes}}
+          {{- if $r.Note}}
+          <h4 class="release-note-title">{{$r.Note.Title}}</h4>
+          {{- range $r.Note.Paragraphs}}
+          <p class="release-note-body">{{.}}</p>
+          {{- end}}
+          {{- if $r.Note.Points}}
           <ul class="release-notes">
-            {{- range $r.Notes}}
+            {{- range $r.Note.Points}}
             <li>{{.}}</li>
             {{- end}}
           </ul>
+          {{- end}}
           {{- else}}
           <p class="release-none">Die Änderungen dieser Version wurden nicht aufgezeichnet. Sie wird bereitgestellt, damit ältere Builds per Versionsnummer installierbar bleiben.</p>
           {{- end}}

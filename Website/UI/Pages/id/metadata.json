@@ -179,144 +179,344 @@
     "and": "dan"
   },
   "notes": {
-    "0.7.8": [
-      "Dukungan instalasi Linux universal di seluruh distro utama menggunakan runtime loader mandiri.",
-      "Perbaikan warna palet tmux 256 dan penanganan otomatis cookie HTTP saat pemanggilan web_fetch."
-    ],
-    "0.8.0": [
-      "Katalog preset model diperluas dengan dua puluh profil model terkalibrasi dan dukungan endpoint lokal kustom.",
-      "Standarisasi normalisasi dialek API untuk OpenAI, Anthropic, dan endpoint model gateway yang kompatibel."
-    ],
-    "0.8.1": [
-      "Kursor pemilih sesi dikoreksi ke pengindeksan berbasis 1, mencegah penandaan baris yang meleset satu baris.",
-      "Mengatasi kendala pintasan keyboard saat menelusuri arsip prompt dan riwayat sesi sebelumnya."
-    ],
-    "0.8.9": [
-      "Penyempurnaan algoritma pemadatan konteks untuk menjaga fakta arsitektur penting saat membersihkan riwayat lama.",
-      "Penguatan antrean sesi dan pengurutan kronologis terhadap operasi jendela terminal konkuren."
-    ],
-    "0.9.0": [
-      "Protokol penerimaan sesi langsung mengonfirmasi pengiriman prompt sebelum menjalankan proses engine berat.",
-      "Kelanjutan sesi yang mulus setelah restart daemon atau host dengan jurnal event dan record yang tidak dapat diubah."
-    ],
-    "0.9.1": [
-      "Perencanaan eksekusi kontekstual menentukan peluncuran tool secara dinamis berdasarkan dependensi tugas.",
-      "Kontrol kapabilitas terintegrasi untuk menonaktifkan reasoning atau menyetel level rendah melalui gateway model."
-    ],
-    "0.9.2": [
-      "Dukungan pemilihan dan penyalinan teks mouse terminal diselaraskan dengan standar terminal, termasuk pembersihan seleksi.",
-      "Koordinat kursor dan batas visual tetap stabil tanpa gangguan artefak tampilan terminal."
-    ],
-    "0.9.3": [
-      "Eksekusi shell manual via ! menjalankan seluruh skrip multibaris melalui gate izin dengan otorisasi penuh pengguna.",
-      "Tautan dan referensi berkas pada output perintah dapat langsung dibuka di peramban sistem."
-    ],
-    "0.9.4": [
-      "Pratinjau jujur skrip shell multibaris menampilkan sintaks perintah lengkap sebelum meminta konfirmasi izin.",
-      "Perintah shell manual ! mempertahankan konteks percakapan dan direktori kerja aktif sebelumnya lintas giliran."
-    ],
-    "0.9.5": [
-      "Proses latar belakang yang berjalan atau menunggu mengalirkan output standar dan error ke berkas log terisolasi.",
-      "Peningkatan deteksi tunggu terminal mengenali prompt input interaktif di semua sesi PTY Linux."
-    ],
-    "0.9.6": [
-      "Streaming prompt waktu nyata menampilkan baris pratinjau pertama di composer saat Anda mengetik.",
-      "Penyempurnaan posisi kursor terminal dan perenderan pembungkusan teks (soft-wrap) di viewport lebar maupun sempit."
-    ],
-    "0.9.7": [
-      "Composer multibaris menampilkan indikator baris baru eksplisit alih-alih jeda baris mentah di output terminal.",
-      "Peningkatan responsivitas pengeditan teks saat menempelkan perintah shell multibaris ke editor input."
-    ],
-    "0.9.8": [
-      "Penghitungan konteks yang jujur memperlakukan jumlah byte yang tidak terverifikasi sebagai tidak diketahui.",
-      "Panduan tugas latar belakang menjelaskan mengapa polling shell boros token dan cara menunggu notifikasi."
-    ],
-    "0.9.9": [
-      "Kepemilikan tunggal formal per blok instruksi sistem untuk mencegah arahan yang saling bertentangan.",
-      "Footer terminal mempertahankan pembatalan Esc, hitung mundur coba lagi, dan kartu konfirmasi izin."
-    ],
-    "0.10.0": [
-      "Pemberitahuan pembaruan langsung tetap tersemat dan terlihat pada tampilan sesi aktif selama kompilasi latar belakang.",
-      "Pengujian lintas platform divalidasi penuh di Linux, macOS (Apple Silicon & Intel), dan Windows."
-    ],
-    "0.10.1": [
-      "Pemasangan skill bantuan resmi diisolasi agar tidak pernah menimpa atau membayangi skill buatan pengguna.",
-      "Pembersihan otomatis direktori cadangan peningkatan versi lama untuk menghemat ruang disk lokal."
-    ],
-    "0.10.3": [
-      "Output eksekusi terminal memisahkan baris input shell yang digemakan dari output program standar yang sebenarnya.",
-      "Kalimat aksi tool mempertahankan deskripsi eksplisit untuk transparansi audit pengguna selama streaming."
-    ],
-    "0.10.4": [
-      "Log kesalahan percakapan (/logs) menyimpan teks kesalahan penyedia asli bersama status giliran engine.",
-      "Pemanggilan tool identik yang dilakukan berulang kali dilacak dan ditandai sebelum menghabiskan kuota permintaan."
-    ],
-    "0.10.5": [
-      "Penjaga pengulangan kontekstual membedakan penantian notifikasi proses dari kegagalan eksekusi perintah berulang.",
-      "Diagnostik kesalahan yang disempurnakan dengan rekomendasi pemulihan langsung untuk setiap kategori kegagalan tool."
-    ],
-    "0.10.6": [
-      "Hasil tool tetap 100% data murni; pemberitahuan pengulangan dikirim via system notice pada Cadence B (3, 6, 9...).",
-      "Peringatan pengulangan memberi panduan praktis: hentikan polling tugas latar belakang atau ganti pendekatan saat buntu."
-    ],
-    "0.10.7": [
-      "Menyelaraskan batas plafon output model gateway dengan max_tokens penyedia alih-alih anggaran thinking rendah.",
-      "Verifikasi kelengkapan streaming hingga 10.712 token pada prompt arsitektur kompleks tanpa terpotong prematur."
-    ],
-    "0.10.9": [
-      "Prompt memori proyek menetapkan panduan retensi pengetahuan jangka panjang lintas sesi secara eksplisit.",
-      "Skema tool menerima alias argumen umum, membatasi teks aksi, dan memberikan saran jalur berkas terdekat.",
-      "Web fetch mengelola cookie sesi otomatis lintas pengalihan URL tanpa perlu deklarasi header manual."
-    ],
-    "0.10.10": [
-      "Kejelasan instruksi sistem ditingkatkan terkait eksekusi latar belakang, mencegah loop polling yang mubazir.",
-      "Peningkatan pelaporan error tool berkas dengan saran jalur terdekat dan panduan penolakan patch kedaluwarsa."
-    ],
-    "0.11.0": [
-      "Header respons kosong tidak lagi muncul saat streaming model hanya berisi spasi atau baris kosong di awal.",
-      "Transparansi protokol dan kesetiaan byte terjaga tanpa pemangkasan regex hardcode yang merusak teks asli."
-    ],
-    "0.11.1": [
-      "Penjaga pengulangan mendeteksi dan menghentikan pengulangan unit token pada batas 4 KiB (atau 16 KiB spasi).",
-      "Formulir klarifikasi interaktif memungkinkan Anda mempertahankan teks awal yang valid atau membuang output rusak.",
-      "Kinerja streaming normal terjaga tanpa batas token sembarangan atau kesalahan deteksi pada data terminifikasi."
-    ],
-    "0.11.2": [
-      "Menghilangkan baris kosong yang menggantung pada respons model selaan di renderer UI terminal.",
-      "Jarak vertikal spine antara pemanggilan tool berurutan dibuat rapat dan konsisten secara visual."
-    ],
-    "0.11.3": [
-      "Pengelolaan proses latar belakang digabung ke dalam satu tool terpadu process_control (type dan stop).",
-      "Menggantikan dua tool lama (terminal_input dan kill_task) untuk menyederhanakan skema pemanggilan tool.",
-      "Peningkatan database format 28 memastikan catatan sesi lama bertransisi mulus ke pengontrol proses terpadu."
-    ],
-    "0.11.4": [
-      "Notifikasi tugas latar belakang mandiri menyertakan potongan output ter-defuse langsung di muatan event.",
-      "Menghilangkan polling wake API tambahan dengan menggabungkan metadata proses, kode keluar, dan baris terbaru.",
-      "Pembersihan tugas diperkuat untuk memastikan pohon proses berhenti tuntas tanpa menyisakan proses yatim."
-    ],
-    "0.11.5": [
-      "Mengatasi persaingan inisialisasi awal antara verifikasi skill bantuan produk dan pembuatan sesi cold-start.",
-      "Menangani kasus khusus pola jalur berkas Windows yang diakhiri tanda titik atau spasi.",
-      "Uji coba smoke test diperluas untuk memverifikasi lingkungan bersih di seluruh platform POSIX dan Windows."
-    ],
-    "0.11.6": [
-      "Penjelasan hak akses dan elevasi keamanan pada layar shell manual (! commands) menjabarkan batasan eksekusi.",
-      "Semantik pengecualian sanitizer dan classifier pada shell manual diperjelas di lingkungan POSIX dan Windows."
-    ],
-    "0.11.7": [
-      "Delta reasoning dievaluasi ketat sebelum delta teks pada streaming respons, menghilangkan pemikiran terbelah.",
-      "Fragmen pemikiran selaan digabungkan per putaran turn, menjaga batas visual yang bersih sebelum teks akhir.",
-      "Sesi anak IPC handover multi-hop menerima konfirmasi pengakuan yang andal sebelum pelepasan host induk."
-    ],
-    "0.11.8": [
-      "Mengubah mode izin saat streaming berjalan tidak lagi memicu salah hitung prioritas atau reflow footer.",
-      "Pemberitahuan status aktif yang sedang dibaca dipertahankan saat pergantian mode di tengah streaming.",
-      "Jaminan prioritas penuh untuk pembatalan Esc, coba lagi linier, dan dialog konfirmasi tetap terjaga di semua jendela."
-    ],
-    "0.11.9": [
-      "Glob path kini mengekspansi alternatif kurung kurawal seperti *.{ts,tsx}, termasuk grup bersarang, bersama alternatif |.",
-      "find_files dan filter include pada search_text dapat mencari path yang dikelompokkan itu dalam satu pemanggilan."
-    ]
+    "0.7.8": {
+      "title": "Linux di semua distribusi, dan perbaikan terminal di tepinya",
+      "paragraphs": [
+        "Rune berhenti bergantung pada satu baseline glibc. Loader runtime mandiri membuat satu build yang sama dapat dijalankan di semua distribusi Linux utama, dan perilaku terminal serta web fetch diselaraskan dengan yang benar-benar dipakai orang."
+      ],
+      "points": [
+        "Loader runtime mandiri untuk setiap distribusi Linux utama.",
+        "Palet 256 warna tmux tampil benar.",
+        "web_fetch menangani cookie sesi secara otomatis."
+      ]
+    },
+    "0.8.0": {
+      "title": "Dua puluh preset model dan satu normalisasi dialek",
+      "paragraphs": [
+        "Katalog penyedia bertambah menjadi dua puluh profil model terkalibrasi, dengan ruang untuk endpoint lokal milik Anda sendiri. Di belakangnya ada satu lapisan normalisasi, sehingga endpoint OpenAI, Anthropic, atau gateway yang kompatibel dijelaskan dengan cara yang sama."
+      ],
+      "points": [
+        "Dua puluh preset model terkalibrasi, ditambah endpoint lokal kustom.",
+        "Normalisasi dialek API dipakai bersama oleh OpenAI, Anthropic, dan gateway kompatibel."
+      ]
+    },
+    "0.8.1": {
+      "title": "Pemilih sesi menunjuk baris yang benar",
+      "paragraphs": [
+        "Dua gangguan navigasi hilang: kursor di pemilih sesi bergeser satu baris, dan navigasi papan ketik bisa berhenti terlalu cepat saat menelusuri prompt dan sesi lama."
+      ],
+      "points": [
+        "Kursor pemilih sesi memakai indeks 1-basis; tidak ada lagi sorotan baris meleset.",
+        "Navigasi papan ketik tidak lagi berhenti mendadak saat menelusuri arsip prompt dan sesi."
+      ]
+    },
+    "0.8.9": {
+      "title": "Pemadatan menjaga arsitektur, antrean menjaga urutannya",
+      "paragraphs": [
+        "Riwayat lama kini dibersihkan tanpa kehilangan fakta yang menjadi dasar sebuah sesi, dan antrean masuk menjaga urutan kronologisnya walaupun beberapa jendela terminal bertindak bersamaan."
+      ],
+      "points": [
+        "Pemadatan konteks mempertahankan fakta arsitektur penting sambil membersihkan riwayat kedaluwarsa.",
+        "Antrean masuk sesi dan urutannya tetap benar terhadap jendela terminal yang berjalan bersamaan."
+      ]
+    },
+    "0.9.0": {
+      "title": "Prompt yang dikirim langsung dikenali",
+      "paragraphs": [
+        "Antrean masuk tidak lagi membiarkan orang menunggu dalam diam. Prompt dikenali seketika, sebelum mesin memulai pekerjaan berat pada giliran itu, dan sesi bertahan melewati restart daemon atau host lewat jurnal peristiwa yang abadi."
+      ],
+      "points": [
+        "Antrean masuk sesi mengakui prompt terkirim sebelum giliran mesin dimulai.",
+        "Sesi dapat dilanjutkan melewati restart daemon dan host, didukung catatan peristiwa abadi."
+      ]
+    },
+    "0.9.1": {
+      "title": "Niat peluncuran dari tugasnya, dan thinking yang bisa diatur",
+      "paragraphs": [
+        "Apakah sebuah perintah berjalan di depan atau di latar kini diputuskan lewat perencanaan dari ketergantungan tugas itu sendiri, bukan dari nama alat. Rilis yang sama juga membuka pengaturan thinking milik model: mati, atau tingkat effort rendah, lewat gateway."
+      ],
+      "points": [
+        "Perencanaan eksekusi kontekstual menurunkan niat peluncuran alat dari ketergantungan tugas.",
+        "Kontrol reasoning mematikan thinking atau memilih tingkat effort rendah lewat gateway model."
+      ]
+    },
+    "0.9.2": {
+      "title": "Seleksi mouse berperilaku seperti terminal",
+      "paragraphs": [
+        "Memilih teks dengan mouse lalu menyalinnya kini mengikuti kebiasaan terminal itu sendiri, termasuk membatalkan seleksi, dengan kursor menjaga koordinatnya dan tanpa hiasan aneh di layar."
+      ],
+      "points": [
+        "Seleksi mouse, salin, dan batal seleksi mengikuti perilaku terminal standar.",
+        "Koordinat kursor dan batas tampilan tetap stabil tanpa artefak hiasan terminal."
+      ]
+    },
+    "0.9.3": {
+      "title": "Skrip manual, dan referensi yang bisa dibuka",
+      "paragraphs": [
+        "Tanda `!` yang eksplisit menjalankan seluruh skrip multiline melalui gerbang izin dengan akses penuh untuk panggilan itu saja, dan tautan atau rujukan berkas pada output perintah dapat diperiksa dan dibuka di peramban hanya bila Anda memintanya."
+      ],
+      "points": [
+        "`!` menjalankan seluruh skrip multiline melalui gerbang izin dengan akses penuh untuk panggilan itu.",
+        "Tautan terminal dan rujukan berkas dapat diperiksa dan dibuka atas permintaan."
+      ]
+    },
+    "0.9.4": {
+      "title": "Pratinjau menampilkan seluruh skrip",
+      "paragraphs": [
+        "Sebelum skrip `!` manual dikonfirmasi, Anda melihat semua barisnya, bukan hanya baris pertama yang dipendekkan. Skrip itu juga mempertahankan konteks percakapan dan direktori kerja yang mendahuluinya."
+      ],
+      "points": [
+        "Pratinjau skrip shell multiline menampilkan perintah lengkap sebelum konfirmasi.",
+        "Perintah `!` manual mempertahankan konteks dan direktori kerja aktif sebelumnya."
+      ]
+    },
+    "0.9.5": {
+      "title": "Output latar punya tempat sendiri",
+      "paragraphs": [
+        "Proses yang berjalan dan menunggu kini mengalirkan stdout dan stderr ke berkas lognya sendiri, dan mesin mengenali prompt interaktif pada sesi PTY Linux alih-alih membiarkannya tampak seperti diam."
+      ],
+      "points": [
+        "Proses yang berjalan dan menunggu mengalirkan stdout dan stderr ke berkas log khusus.",
+        "Deteksi tunggu input mengenali prompt interaktif di sesi PTY Linux."
+      ]
+    },
+    "0.9.6": {
+      "title": "Composer menampilkan pratinjau saat Anda mengetik",
+      "paragraphs": [
+        "Baris pertama prompt tampil di composer saat Anda mengetik, dan penempatan kursor serta pembungkusan lunak diperbaiki untuk terminal lebar maupun sempit."
+      ],
+      "points": [
+        "Streaming prompt real-time menampilkan baris pratinjau pertama di composer.",
+        "Penempatan kursor dan render soft-wrap diperbaiki pada tampilan lebar dan sempit."
+      ]
+    },
+    "0.9.7": {
+      "title": "Baris baru digambar, bukan dilompati",
+      "paragraphs": [
+        "Composer multiline kini menulis penanda baris baru yang eksplisit alih-alih membiarkan pemisah baris mentah menggeser terminal, dan menempelkan perintah shell multiline ke editor tetap responsif."
+      ],
+      "points": [
+        "Composer multiline menampilkan penanda baris baru eksplisit, bukan pemisah baris mentah.",
+        "Responsivitas penyuntingan lebih baik saat menempelkan perintah shell multiline."
+      ]
+    },
+    "0.9.8": {
+      "title": "Yang tidak diketahui tetap tidak diketahui",
+      "paragraphs": [
+        "Jumlah byte yang tidak terverifikasi kini diperlakukan sebagai tidak diketahui, bukan diubah menjadi tebakan kapasitas model, dan panduan latar mesin menjelaskan mengapa loop polling shell membuang token serta cara menunggu notifikasi."
+      ],
+      "points": [
+        "Akuntansi konteks ketat memperlakukan jumlah byte tak terverifikasi sebagai tidak diketahui, bukan tebakan.",
+        "Panduan latar menjelaskan mengapa loop polling membuang token dan cara menunggu."
+      ]
+    },
+    "0.9.9": {
+      "title": "Satu pemilik per instruksi, dan footer yang menepati janji",
+      "paragraphs": [
+        "Setiap blok instruksi sistem kini punya satu pemilik, sehingga dua sumber tidak bisa lagi saling bertentangan. Footer terminal mempertahankan pembatalan Esc yang siap, hitungan retry, dan kartu konfirmasi izin selama semuanya masih relevan."
+      ],
+      "points": [
+        "Kepemilikan tunggal per blok instruksi sistem, menghapus panduan yang bertentangan.",
+        "Footer mempertahankan pembatalan Esc, hitungan retry, dan konfirmasi izin."
+      ]
+    },
+    "0.10.0": {
+      "title": "Pemberitahuan pembaruan tetap terlihat",
+      "paragraphs": [
+        "Ketika build baru diambil alih saat Anda bekerja, pemberitahuannya tetap menempel di tampilan sesi aktif alih-alih hilang saat layar digambar ulang, dan seluruh gerbang uji mulai berjalan di mesin Linux, macOS, dan Windows sungguhan."
+      ],
+      "points": [
+        "Pemberitahuan pembaruan langsung tetap menempel dan terlihat di tampilan sesi aktif.",
+        "Gerbang lintas platform divalidasi di Linux, macOS (Apple silicon dan Intel), dan Windows."
+      ]
+    },
+    "0.10.1": {
+      "title": "Bantuan resmi tidak bisa ditimpa",
+      "paragraphs": [
+        "Skill bantuan resmi kini dipasang di tempat yang tidak bisa ditutupi atau ditimpa skill milik pengguna. Direktori upgrade lama dipangkas otomatis agar tidak lagi memenuhi disk."
+      ],
+      "points": [
+        "Pemasangan skill bantuan resmi diisolasi dari skill pengguna.",
+        "Pemangkasan otomatis direktori upgrade lama menjaga ruang disk lokal."
+      ]
+    },
+    "0.10.3": {
+      "title": "Output terminal mengatakan apa yang dikatakan program",
+      "paragraphs": [
+        "Gema input shell dipisahkan dari apa yang benar-benar dicetak program, sehingga hasil yang disalin hanya memuat output program itu, dan kalimat aksi sebuah alat mempertahankan deskripsinya saat streaming agar panggilannya tetap dapat diaudit."
+      ],
+      "points": [
+        "Output terminal memisahkan gema input shell dari stdout program.",
+        "Kalimat aksi alat mempertahankan deskripsi eksplisit untuk audit saat streaming."
+      ]
+    },
+    "0.10.4": {
+      "title": "Kesalahan memakai kata aslinya, dan pengulangan dihitung",
+      "paragraphs": [
+        "`/logs` menampilkan teks kesalahan asli dari penyedia di samping status giliran mesin alih-alih memparafrasenya, dan panggilan yang sama yang dibuat berulang kali dikenali sebelum menghabiskan anggaran permintaan."
+      ],
+      "points": [
+        "`/logs` mempertahankan teks kesalahan asli penyedia bersama status giliran.",
+        "Panggilan alat identik berturut-turut dilacak dan ditandai sebelum anggaran habis."
+      ]
+    },
+    "0.10.5": {
+      "title": "Menunggu bukan berarti mengulang",
+      "paragraphs": [
+        "Loop guard kini membedakan menunggu notifikasi proses dari mengulang perintah yang terus gagal, dan kegagalan sebuah alat datang bersama langkah pemulihan yang sesuai kategorinya."
+      ],
+      "points": [
+        "Loop guard membedakan menunggu notifikasi dari kegagalan perintah berulang.",
+        "Diagnostik kesalahan membawa saran pemulihan langsung untuk setiap kategori kegagalan."
+      ]
+    },
+    "0.10.6": {
+      "title": "Hasil alat adalah data, peringatan adalah notice",
+      "paragraphs": [
+        "Hasil alat kini hanya membawa datanya sendiri; peringatan pengulangan datang sebagai notice sistem, dengan jeda yang makin melebar, dan ia memberi tahu apa yang harus dilakukan: berhenti mem-polling tugas latar, atau ubah pendekatan."
+      ],
+      "points": [
+        "Hasil alat tetap data murni; notice pengulangan datang sebagai notice sistem pada Cadence B.",
+        "Peringatan loop membawa panduan yang bisa ditindaklanjuti, bukan hanya menyebut pengulangan."
+      ]
+    },
+    "0.10.7": {
+      "title": "Plafon output berasal dari penyedia",
+      "paragraphs": [
+        "Plafon output gateway kini dibaca dari `max_tokens` milik penyedia, bukan dari anggaran thinking yang rendah, yang sebelumnya memotong jawaban panjang. Penyelesaian lebih dari sepuluh ribu token kini selesai normal."
+      ],
+      "points": [
+        "Plafon output diselaraskan dengan `max_tokens` penyedia, bukan anggaran thinking.",
+        "Penyelesaian streaming hingga 10.712 token terverifikasi tanpa potongan dini."
+      ]
+    },
+    "0.10.9": {
+      "title": "Memori, alias, dan cookie",
+      "paragraphs": [
+        "Prompt memori proyek kini menyatakan dengan jelas untuk apa memori dan bahwa ia dipertahankan antar sesi. Argumen alat menerima alias yang benar-benar diketik orang, path yang salah mendapat kandidat terdekat, dan web fetch membawa cookie sesi melewati redirect dengan sendirinya."
+      ],
+      "points": [
+        "Prompt memori proyek menyatakan retensi pengetahuan jangka panjang antar sesi.",
+        "Argumen alat menerima alias umum, merapikan teks aksi, dan menyarankan path terdekat.",
+        "web_fetch menangani cookie sesi melewati redirect tanpa header manual."
+      ]
+    },
+    "0.10.10": {
+      "title": "Lebih sedikit polling sia-sia, kesalahan berkas lebih jelas",
+      "paragraphs": [
+        "System prompt kini menjelaskan apa yang menjadi ketergantungan tugas latar, sehingga model berhenti mem-polling pekerjaan yang sudah berjalan. Alat berkas menjawab path yang salah dengan kandidat terdekat dan menolak patch basi dengan panduan, bukan kegagalan kosong."
+      ],
+      "points": [
+        "System prompt memperjelas ketergantungan eksekusi latar untuk menghindari polling berulang.",
+        "Kesalahan alat berkas membawa saran path terdekat dan panduan patch basi."
+      ]
+    },
+    "0.11.0": {
+      "title": "Tidak ada header kosong di atas respons kosong",
+      "paragraphs": [
+        "Respons yang dialirkan dan dimulai dengan spasi atau baris kosong dulu menggambar header `Response` kosong. Header kini hanya digambar bila ada teks, dan byte-nya tetap lewat tanpa diubah, tanpa regex dan tanpa pemangkasan yang merusak."
+      ],
+      "points": [
+        "Header respons kosong hilang ketika respons dimulai dengan spasi atau baris kosong.",
+        "Transparansi aliran dan kesetiaan byte tetap terjaga; tanpa regex atau stripping lossy."
+      ]
+    },
+    "0.11.1": {
+      "title": "Jawaban yang berulang dihentikan saat streaming",
+      "paragraphs": [
+        "Mesin kini mengenali respons yang mengulang satu unit pendek terus-menerus dan menghentikannya saat tiba, tanpa plafon panjang token. Anda lalu ditanya, lewat formulir yang sudah Anda kenal, apakah teks sebelum pengulangan dipertahankan atau pesannya dibuang."
+      ],
+      "points": [
+        "Repetition guard di tingkat mesin menghentikan loop berulang pada 4 KiB, atau 16 KiB untuk whitespace.",
+        "Formulir klarifikasi mempertahankan prosa sebelumnya atau membuang output yang rusak.",
+        "Kecepatan streaming normal terjaga, tanpa batas token sewenang-wenang dan tanpa false positive pada data terminifikasi."
+      ]
+    },
+    "0.11.2": {
+      "title": "Celah yang tidak lagi menggantung",
+      "paragraphs": [
+        "Respons selaan meninggalkan baris kosong yang menggantung, sehingga panggilan alat berikutnya terdorong ke bawah layar. Baris kosong di ujung kini dipangkas dan jarak antar-panggilan alat menjadi satu tinggi yang konsisten."
+      ],
+      "points": [
+        "Baris kosong menggantung dihapus dari respons selaan di renderer.",
+        "Jarak vertikal antar-panggilan alat dibuat seragam."
+      ]
+    },
+    "0.11.3": {
+      "title": "Satu alat untuk proses latar",
+      "paragraphs": [
+        "Pekerjaan latar dikelola satu alat `process_control` dengan aksi `type` dan `stop`. Dua alat lama dihapus, sehingga ada satu tempat untuk melihat dan tidak ada lagi pilihan parameter yang membingungkan, dan upgrade format 28 membawa catatan sesi lama dengan mulus."
+      ],
+      "points": [
+        "`process_control` menyatukan pengelolaan latar dengan aksi `type` dan `stop`.",
+        "`terminal_input` dan `kill_task` dihapus, mengakhiri ambiguitas parameter.",
+        "Upgrade format 28 memindahkan catatan sesi lama ke alat terpadu."
+      ]
+    },
+    "0.11.4": {
+      "title": "Notifikasi yang membawa output-nya sendiri",
+      "paragraphs": [
+        "Akhir sebuah tugas latar kini datang sebagai satu notifikasi mandiri: bagaimana ia berakhir, pid-nya, dan output yang belum diberikan kepada Anda, sudah di-defuse dan dibatasi. Ini menggantikan roundtrip bangun tambahan yang dulu mengambil detail itu, dan sebuah stop kini mencapai seluruh pohon proses."
+      ],
+      "points": [
+        "Notifikasi mengirimkan output proses yang sudah di-defuse di dalam payload peristiwa.",
+        "Metadata, kode keluar, dan baris terakhir dikirim dalam satu paket, menghapus satu panggilan bangun tambahan.",
+        "Rutinitas pembersihan mengakhiri seluruh pohon proses tanpa orphan."
+      ]
+    },
+    "0.11.5": {
+      "title": "Mulai pertama, dan pola path Windows",
+      "paragraphs": [
+        "Dua kesalahan yang ditemukan di mesin sungguhan sudah diperbaiki: pada mulai pertama, skill bantuan resmi memeriksa dirinya sementara sesi sedang dibuat, dan di Windows pola path yang berakhir dengan titik atau spasi tidak ditangani. Suite smoke juga memeriksa mulai di lingkungan bersih pada setiap platform."
+      ],
+      "points": [
+        "Rasio mulai-pertama antara verifikasi skill bantuan dan pembuatan sesi diselesaikan.",
+        "Pola path Windows dengan titik atau spasi di ujung ditangani.",
+        "Suite smoke memverifikasi mulai di lingkungan bersih pada POSIX dan Windows."
+      ]
+    },
+    "0.11.6": {
+      "title": "Apa yang boleh dilakukan skrip manual, dinyatakan jelas",
+      "paragraphs": [
+        "Layar shell manual kini menjelaskan batas eksekusi sebuah perintah `!` dengan kata-kata: akses apa yang dimilikinya, dan bahwa classifier serta sanitizer dilewati untuk panggilan itu. Perkataannya sesuai dengan yang terjadi di shell POSIX dan di Windows ConPTY."
+      ],
+      "points": [
+        "Layar shell manual menjelaskan batas elevasi dan hak istimewa perintah `!`.",
+        "Semantik pelewatan sanitizer dan classifier dijelaskan untuk POSIX dan Windows ConPTY."
+      ]
+    },
+    "0.11.7": {
+      "title": "Sebuah pikiran tidak dibelah teks sesudahnya",
+      "paragraphs": [
+        "Reasoning bisa tiba berselang-seling dengan jawaban, sehingga satu kalimat pemikiran terpotong oleh kata pertama balasan. Delta reasoning kini dievaluasi sebelum delta teks, dan fragmen satu putaran digabung, menjaga batas bersih sebelum teks final."
+      ],
+      "points": [
+        "Delta reasoning dievaluasi ketat sebelum delta teks, mengakhiri pemikiran yang terbelah.",
+        "Fragmen pemikiran selaan digabung per putaran giliran.",
+        "Sesi anak handover multi-hop dikenali sebelum host induk melepas."
+      ]
+    },
+    "0.11.8": {
+      "title": "Berganti mode saat streaming tidak lagi menggambar ulang footer",
+      "paragraphs": [
+        "Mengubah mode izin saat respons dialirkan dulu menghitung ulang prioritas dan menyusun ulang footer tanpa alasan. Notice status yang sedang Anda baca kini bertahan melewati pergantian itu, dan janji footer tetap utuh di setiap jendela."
+      ],
+      "points": [
+        "Mengubah mode izin saat streaming tidak lagi memicu perhitungan prioritas palsu atau reflow footer.",
+        "Notice status aktif dipertahankan saat berganti mode di tengah streaming.",
+        "Pembatalan Esc, retry linear, dan dialog konfirmasi tetap berprioritas di setiap jendela."
+      ]
+    },
+    "0.11.9": {
+      "title": "Pola path bergrup, dicari dalam satu panggilan",
+      "paragraphs": [
+        "find_files dan filter include pada search_text kini mengekspansi alternatif kurung kurawal dalam sebuah path, termasuk grup bersarang, bersama alternatif `|`. Pola seperti `*.{ts,tsx}` menjadi satu panggilan atas satu penelusuran direktori, bukan beberapa, dan tidak ada skema penyedia yang diubah untuk itu."
+      ],
+      "points": [
+        "Alternatif kurung kurawal seperti `*.{ts,tsx}`, grup bersarang, dan alternatif `|` diekspansi secara native.",
+        "find_files dan filter include search_text mencari pola bergrup dalam satu panggilan.",
+        "Ekspansi terjadi di mesin: tidak ada skema alat dan format basis data yang berubah."
+      ]
+    }
   }
 }

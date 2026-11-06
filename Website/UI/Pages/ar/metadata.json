@@ -179,144 +179,344 @@
     "and": "و"
   },
   "notes": {
-    "0.7.8": [
-      "Universal Linux distribution support using a self-contained runtime loader across all major distributions.",
-      "Terminal UI fixes for tmux 256-color palettes and automated HTTP cookie handling during web fetch operations."
-    ],
-    "0.8.0": [
-      "Expanded provider preset catalog featuring twenty calibrated model profiles and custom local endpoints.",
-      "Standardized API dialect normalization for OpenAI, Anthropic, and compatible model gateway endpoints."
-    ],
-    "0.8.1": [
-      "Session picker caret positioning corrected to 1-based indexing, eliminating off-by-one row highlights.",
-      "Resolved keyboard navigation short-circuits when browsing historical prompt and session archives."
-    ],
-    "0.8.9": [
-      "Refined context compaction algorithm to preserve essential architecture facts while clearing expired history.",
-      "Hardened session admission queue and chronological ordering against concurrent terminal window operations."
-    ],
-    "0.9.0": [
-      "Session admission flow immediately acknowledges submitted prompts before triggering heavy engine turns.",
-      "Seamless session resumption across daemon and host restarts with immutable event journals and records."
-    ],
-    "0.9.1": [
-      "Contextual execution planning dynamically determines tool launch intent from task dependencies.",
-      "Integrated reasoning controls allow switching thinking off or setting low effort levels via model gateways."
-    ],
-    "0.9.2": [
-      "Terminal mouse selection and copy support aligned with standard terminal behavior, including clear selection.",
-      "Maintained stable caret coordinates and visual boundaries without terminal chrome artifacts."
-    ],
-    "0.9.3": [
-      "Manual shell execution via ! runs entire multiline scripts through the permission gate with full access.",
-      "Terminal links and file references in command outputs can be inspected and opened in the default browser."
-    ],
-    "0.9.4": [
-      "Honest multiline shell script previews display complete command syntax before asking for confirmation.",
-      "Manual ! shell commands retain preceding conversation context and active working directory across turns."
-    ],
-    "0.9.5": [
-      "Running and waiting background processes stream standard output and error to independent, dedicated log files.",
-      "Enhanced terminal wait detection recognizes interactive input prompts across all Linux PTY sessions."
-    ],
-    "0.9.6": [
-      "Real-time prompt streaming displays the first preview line in the composer as you type.",
-      "Improved terminal cursor positioning and soft-wrap rendering on wide and narrow terminal viewports."
-    ],
-    "0.9.7": [
-      "Multiline composer displays explicit newline indicators rather than raw line break jumps in terminal output.",
-      "Improved text editing responsiveness when pasting multi-line shell commands into the input editor."
-    ],
-    "0.9.8": [
-      "Strict context accounting treats unverified byte counts as unknown rather than guessing model capacity.",
-      "Background task guidance explains why shell polling loops waste tokens and how to wait for notifications."
-    ],
-    "0.9.9": [
-      "Formalized single ownership per system instruction block to eliminate contradictory guidance.",
-      "Terminal footer preserves armed Esc cancellation, retry countdowns, and permission confirmation cards."
-    ],
-    "0.10.0": [
-      "Live update notices remain pinned and visible in the active session view during background compilation.",
-      "Cross-platform test gate validated across Linux, macOS (Apple Silicon & Intel), and Windows."
-    ],
-    "0.10.1": [
-      "Official help skill installation isolated to ensure user skills are never shadowed or overwritten.",
-      "Introduced automatic backup pruning for old upgrade directories to preserve local disk space."
-    ],
-    "0.10.3": [
-      "Terminal execution output accurately decouples echoed shell input lines from actual program standard output.",
-      "Tool action sentences retain explicit descriptions for transparent user auditing during streaming."
-    ],
-    "0.10.4": [
-      "Conversation error logs (/logs) preserve original provider error text alongside engine turn status.",
-      "Identical tool calls executed consecutively are tracked and flagged before exhausting request budgets."
-    ],
-    "0.10.5": [
-      "Contextual loop guard distinguishes waiting for process notifications from repeated command execution failures.",
-      "Enhanced error diagnostics with immediate recovery recommendations tailored to each tool failure category."
-    ],
-    "0.10.6": [
-      "Tool results remain 100% pure data; repetition notices now arrive via system notices on Cadence B (3, 6, 9...).",
-      "Loop warnings provide actionable guidance: stop polling for background work, or switch approach when stuck."
-    ],
-    "0.10.7": [
-      "Aligned model gateway output ceilings with provider max_tokens rather than low thinking budgets.",
-      "Verified streaming completions up to 10,712 tokens on complex architectural prompts without premature cutoffs."
-    ],
-    "0.10.9": [
-      "Project memory prompt explicitly establishes long-term knowledge retention guidelines across sessions.",
-      "Tool definitions accept common argument aliases, clamp action text, and provide nearest path suggestions.",
-      "Web fetch automatically handles session cookies across redirects without manual header declarations."
-    ],
-    "0.10.10": [
-      "Enhanced system prompt clarity regarding background execution dependencies, avoiding redundant polling loops.",
-      "Strengthened file tool error reporting with fuzzy path suggestions and stale patch rejection guidance."
-    ],
-    "0.11.0": [
-      "Eliminated empty response headers when streamed model responses contain only leading whitespace or blank lines.",
-      "Preserved flow transparency and exact byte fidelity without hardcoded regex or lossy stripping."
-    ],
-    "0.11.1": [
-      "Added an engine-level repetition guard that detects and halts repeating token loops at 4 KiB (or 16 KiB whitespace).",
-      "Prompted interactive clarification form allowing you to keep valid preceding prose or discard corrupted outputs.",
-      "Preserved normal streaming performance without arbitrary token length limits or false positives on minified data."
-    ],
-    "0.11.2": [
-      "Eliminated dangling empty lines on intermediate model responses in the terminal UI renderer.",
-      "Unified vertical spine spacing between consecutive tool invocations for consistent visual structure."
-    ],
-    "0.11.3": [
-      "Consolidated background process management into a unified process_control tool supporting type and stop actions.",
-      "Replaced two legacy tools (terminal_input and kill_task) to streamline tool discovery and eliminate parameter ambiguity.",
-      "Introduced format 28 database upgrade ensuring older session records transition smoothly to unified process control."
-    ],
-    "0.11.4": [
-      "Self-contained background task notifications deliver defused process output directly in the event notification payload.",
-      "Eliminated auxiliary wake API polling roundtrips by bundling process metadata, exit code, and recent lines into one packet.",
-      "Strengthened task cleanup routines to ensure process trees terminate reliably without orphaned sub-processes."
-    ],
-    "0.11.5": [
-      "Resolved first-start initialization race where official product help skill verification competed with session creation.",
-      "Handled Windows filesystem edge cases for directory and file path patterns ending in trailing dots or whitespace.",
-      "Smoke test suite expanded to verify clean environment startup across all supported POSIX and Windows platforms."
-    ],
-    "0.11.6": [
-      "Elevation and security privilege wording on the manual shell screen (! commands) explicitly explains execution boundaries.",
-      "Sanitizer and classifier bypass semantics on manual shell execution are clarified across POSIX and Windows ConPTY environments."
-    ],
-    "0.11.7": [
-      "Reasoning deltas are evaluated strictly before text deltas in streaming responses, eliminating split thoughts.",
-      "Intermediate thought fragments are coalesced per turn round, maintaining a clean visual boundary before final text.",
-      "Multi-hop handover IPC child sessions receive reliable acknowledgement before parent host release."
-    ],
-    "0.11.8": [
-      "Changing permission mode during active streaming no longer triggers false priority recalculations or footer reflows.",
-      "Active status notices being read are preserved during mid-stream mode switching, preventing premature status wipeouts.",
-      "Full priority guarantees for Esc cancellation, linear retries, and confirmation dialogs remain intact across all windows."
-    ],
-    "0.11.9": [
-      "توسّع أنماط glob للمسارات الآن البدائل بين الأقواس المعقوفة مثل *.{ts,tsx}، بما في ذلك المجموعات المتداخلة، إلى جانب بدائل |.",
-      "يمكن لـ find_files ومرشح include في search_text البحث في هذه المسارات المجمعة باستدعاء واحد."
-    ]
+    "0.7.8": {
+      "title": "لينكس على كل توزيعة، وإصلاحات الطرفية على الأطراف",
+      "paragraphs": [
+        "لم يعد Rune معتمدًا على أساس glibc واحد. محمّل تشغيل مستقل يسمح للبناء نفسه بالانطلاق على كل توزيعة لينكس رئيسية، وسلوك الطرفية وجلب الويب صار مطابقًا لما يستعمله الناس فعلًا."
+      ],
+      "points": [
+        "محمّل تشغيل مستقل لكل توزيعة لينكس رئيسية.",
+        "لوحات tmux ذات 256 لونًا تُعرض بشكل صحيح.",
+        "web_fetch يتعامل مع كوكيز الجلسة تلقائيًا."
+      ]
+    },
+    "0.8.0": {
+      "title": "عشرون إعدادًا مسبقًا للنماذج وتوحيد واحد للهجات",
+      "paragraphs": [
+        "نما كتالوج المزوّدين إلى عشرين ملف نموذج معاير، مع مكان لنقطة نهاية محلية خاصة بك. وخلفها طبقة توحيد واحدة، فتُوصف نقطة نهاية OpenAI أو Anthropic أو بوابة متوافقة بالطريقة نفسها."
+      ],
+      "points": [
+        "عشرون إعدادًا مسبقًا معايرًا للنماذج، مع نقاط نهاية محلية مخصّصة.",
+        "توحيد لهجة واجهة البرمجة تتشاركه OpenAI وAnthropic والبوابات المتوافقة."
+      ]
+    },
+    "0.8.1": {
+      "title": "منتقي الجلسات يشير إلى الصف الصحيح",
+      "paragraphs": [
+        "اختُتم خللان في التنقل: مؤشر منتقي الجلسات كان منزاحًا صفًا واحدًا، والتنقل بلوحة المفاتيح كان قد يتوقف مبكرًا أثناء تصفح المطالبات والجلسات القديمة."
+      ],
+      "points": [
+        "مؤشر منتقي الجلسات يستخدم ترقيمًا يبدأ من 1، فلا تظليل صف خاطئ.",
+        "التنقل بلوحة المفاتيح لا يتوقف مبكرًا أثناء تصفح أرشيف المطالبات والجلسات."
+      ]
+    },
+    "0.8.9": {
+      "title": "الضغط يحفظ المعمار، والقبول يحفظ الترتيب",
+      "paragraphs": [
+        "صار السجل القديم يُنظَّف دون فقدان الحقائق التي تقوم عليها الجلسة، ويحفظ طابور القبول ترتيبه الزمني حتى حين تعمل عدة نوافذ طرفية في الوقت نفسه."
+      ],
+      "points": [
+        "ضغط السياق يحفظ حقائق المعمار الجوهرية مع تنظيف السجل المنتهي.",
+        "طابور قبول الجلسات وترتيبه يصمد أمام النوافذ الطرفية المتزامنة."
+      ]
+    },
+    "0.9.0": {
+      "title": "المطالبة المرسلة تُقرّ فورًا",
+      "paragraphs": [
+        "لم يعد القبول يترك المرء ينتظر في صمت. تُقر المطالبة فورًا، قبل أن يبدأ المحرّك العمل الثقيل في هذه الجولة، وتبقى الجلسة عبر إعادة تشغيل الخدمة أو المضيف بفضل سجل أحداث ثابت."
+      ],
+      "points": [
+        "قبول الجلسة يُقر المطالبة المرسلة قبل بدء جولة المحرّك.",
+        "استئناف الجلسة عبر إعادة تشغيل الخدمة والمضيف، بفضل سجلات أحداث ثابتة."
+      ]
+    },
+    "0.9.1": {
+      "title": "نية الإطلاق من المهمة، وتفكير يمكن ضبطه",
+      "paragraphs": [
+        "صار قرار تشغيل أمر في المقدمة أو الخلفية قرار تخطيط مستمدًا من اعتماديات المهمة نفسها لا من اسم الأداة. وأتاح الإصدار نفسه الوصول إلى إعدادات التفكير: إيقافه أو اختيار مستوى جهد منخفض عبر البوابة."
+      ],
+      "points": [
+        "تخطيط التنفيذ السياقي يستنبط نية إطلاق الأداة من اعتماديات المهمة.",
+        "عناصر تحكم الاستدلال توقف التفكير أو تختار مستوى جهد منخفضًا عبر بوابات النماذج."
+      ]
+    },
+    "0.9.2": {
+      "title": "اختيار الفأرة يتصرف كطرفية",
+      "paragraphs": [
+        "صار اختيار النص بالفأرة ونسخه يتبع عرف الطرفية نفسها، بما في ذلك إلغاء الاختيار، مع بقاء إحداثيات المؤشر ثابتة ودون زخرفة غريبة على الشاشة."
+      ],
+      "points": [
+        "اختيار الفأرة والنسخ وإلغاء الاختيار تتبع سلوك الطرفية القياسي.",
+        "إحداثيات المؤشر وحدود العرض تبقى ثابتة دون عيوب الزخرفة."
+      ]
+    },
+    "0.9.3": {
+      "title": "سكربت يدوي، ومراجع يمكن فتحها",
+      "paragraphs": [
+        "علامة `!` الصريحة تشغّل سكربتًا كاملًا متعدد الأسطر عبر بوابة الإذن بوصول كامل لتلك النداء وحده، ويمكن فحص رابط أو مرجع ملف في خرج أمر وفتحه في المتصفح عندما تطلب ذلك فقط."
+      ],
+      "points": [
+        "`!` يشغّل سكربتًا كاملًا متعدد الأسطر عبر بوابة الإذن بوصول كامل لذلك النداء.",
+        "روابط الطرفية ومراجع الملفات يمكن فحصها وفتحها عند الطلب."
+      ]
+    },
+    "0.9.4": {
+      "title": "المعاينة تُظهر السكربت كله",
+      "paragraphs": [
+        "قبل تأكيد سكربت `!` اليدوي ترى كل أسطره، لا السطر الأول المختصر. ويحتفظ السكربت أيضًا بسياق المحادثة ومجلد العمل الذي سبقه."
+      ],
+      "points": [
+        "معاينة سكربت الصدفة متعدد الأسطر تُظهر الأمر كاملًا قبل التأكيد.",
+        "أوامر `!` اليدوية تحتفظ بالسياق السابق ومجلد العمل النشط."
+      ]
+    },
+    "0.9.5": {
+      "title": "لخرج الخلفية مكان يذهب إليه",
+      "paragraphs": [
+        "صار العملية التي تعمل وتنتظر تدفق مخرجاتها القياسية وأخطاءها إلى ملفات سجل خاصة بها، ويتعرف المحرّك على المطالبة التفاعلية في جلسات PTY على لينكس بدل أن تبدو صمتًا."
+      ],
+      "points": [
+        "العمليات العاملة والمنتظرة تدفق stdout وstderr إلى ملفات سجل مخصصة.",
+        "كشف انتظار الإدخال يتعرف على المطالبات التفاعلية في جلسات PTY على لينكس."
+      ]
+    },
+    "0.9.6": {
+      "title": "المحرّر يعاين أثناء الكتابة",
+      "paragraphs": [
+        "يُعرض السطر الأول من المطالبة في المحرّر أثناء كتابتك، وصُحح موضع المؤشر والالتفاف اللين على الطرفيات العريضة والضيقة."
+      ],
+      "points": [
+        "تدفق المطالبة الفوري يعرض سطر المعاينة الأول في المحرّر.",
+        "صُحح موضع المؤشر وعرض الالتفاف اللين على العروض العريضة والضيقة."
+      ]
+    },
+    "0.9.7": {
+      "title": "الأسطر الجديدة تُرسم ولا تُقفز",
+      "paragraphs": [
+        "صار المحرّر متعدد الأسطر يرسم علامة سطر جديد صريحة بدل أن يترك فواصل الأسطر الخام تحرّك الطرفية، ويبقى لصق أمر صدفة متعدد الأسطر في المحرّر سريع الاستجابة."
+      ],
+      "points": [
+        "المحرّر متعدد الأسطر يعرض علامات سطر جديد صريحة بدل الفواصل الخام.",
+        "استجابة تحرير أفضل عند لصق أوامر صدفة متعددة الأسطر."
+      ]
+    },
+    "0.9.8": {
+      "title": "المجهول يبقى مجهولًا",
+      "paragraphs": [
+        "صار عدد البايتات غير المتحقق منه يُعامل كمجهول بدل تحويله إلى سعة نموذج مخمّنة، ويشرح إرشاد الخلفية في المحرّك لماذا تُهدر حلقة استعلام الصدفة الرموز وكيف تنتظر إشعارًا بدلًا من ذلك."
+      ],
+      "points": [
+        "المحاسبة الصارمة للسياق تعامل البايتات غير المتحقق منها كمجهولة، لا كتخمين.",
+        "إرشاد الخلفية يشرح لماذا تُهدر حلقات الاستعلام الرموز وكيف تنتظر بدلًا من ذلك."
+      ]
+    },
+    "0.9.9": {
+      "title": "مالك واحد لكل تعليمة، وتذييل يفي بوعوده",
+      "paragraphs": [
+        "صار لكل كتلة تعليمات نظام مالك واحد، فلا يمكن لمصدرين أن يتناقضا بعد الآن. ويحتفظ تذييل الطرفية بإلغاء Esc المستعد وعدّاد إعادة المحاولة وبطاقة تأكيد الإذن طالما أن ذلك مهم."
+      ],
+      "points": [
+        "ملكية واحدة لكل كتلة تعليمات نظام، ما يزيل الإرشاد المتناقض.",
+        "التذييل يحتفظ بإلغاء Esc المستعد وعدّاد إعادة المحاولة وتأكيدات الإذن."
+      ]
+    },
+    "0.10.0": {
+      "title": "إشعار التحديث يبقى في مرمى نظرك",
+      "paragraphs": [
+        "حين يُسلَّم بناء جديد أثناء عملك، يبقى الإشعار مثبتًا في عرض الجلسة النشطة بدل أن يختفي مع إعادة الرسم، وبدأت بوابة الاختبار كاملة تعمل على أجهزة لينكس وماك وسواقي حقيقية."
+      ],
+      "points": [
+        "إشعارات التحديث الحيّ تبقى مثبتة ومرئية في عرض الجلسة النشطة.",
+        "بوابة عبر المنصات تحققت على لينكس وماك (Apple silicon وIntel) وويندوز."
+      ]
+    },
+    "0.10.1": {
+      "title": "مساعدة المنتج الرسمية لا تُحجب أبدًا",
+      "paragraphs": [
+        "صار مهارة المساعدة الرسمية تُثبَّت في مكان لا تحجبها فيه مهارات المستخدم ولا تكتب فوقها. وتُقلَّم مجلدات الترقية القديمة تلقائيًا كي لا تملأ القرص."
+      ],
+      "points": [
+        "تثبيت مهارة المساعدة الرسمية معزول عن مهارات المستخدم.",
+        "التقليم التلقائي لمجلدات الترقية القديمة يحفظ مساحة القرص المحلي."
+      ]
+    },
+    "0.10.3": {
+      "title": "خرج الطرفية يقول ما قاله البرنامج",
+      "paragraphs": [
+        "صار إدخال الصدفة المصدَّر منفصلًا عمّا طبعه البرنامج فعلًا، فيحوي الناتج المنسوخ خرج البرنامج وحده، وتحتفظ جملة إجراء الأداة بوصفها أثناء البث ليبقى النداء قابلًا للتدقيق."
+      ],
+      "points": [
+        "خرج الطرفية يفصل إدخال الصدفة المصدَّر عن stdout البرنامج.",
+        "جمل إجراء الأدوات تحتفظ بوصف صريح للتدقيق أثناء البث."
+      ]
+    },
+    "0.10.4": {
+      "title": "الأخطاء تحتفظ بكلماتها والتكرار يُحصى",
+      "paragraphs": [
+        "يعرض `/logs` نص خطأ المزوّد الأصلي بجانب حالة جولة المحرّك بدل إعادة صياغته، ويُلاحظ النداء نفسه المتكرر قبل أن يستنفد ميزانية الطلبات."
+      ],
+      "points": [
+        "`/logs` يحفظ نص خطأ المزوّد الأصلي مع حالة الجولة.",
+        "النداءات المتطابقة المتتالية تُتتبَّع وتُعلَّم قبل نفاد الميزانية."
+      ]
+    },
+    "0.10.5": {
+      "title": "الانتظار ليس تكرارًا",
+      "paragraphs": [
+        "صار حارس الحلقات يميّز انتظار إشعار العملية من تكرار أمر يفشل باستمرار، ويأتي فشل الأداة مصحوبًا بخطوة الاستعادة التي تناسب فئته."
+      ],
+      "points": [
+        "حارس الحلقات يميّز انتظار الإشعار من فشل الأوامر المتكرر.",
+        "تشخيصات الأخطاء تحمل نصيحة استعادة فورية لكل فئة فشل."
+      ]
+    },
+    "0.10.6": {
+      "title": "نتائج الأدوات بيانات، والتحذيرات إشعارات",
+      "paragraphs": [
+        "لا يحمل ناتج الأداة الآن سوى بياناته؛ ويأتي تحذير التكرار كإشعار نظام، بوتيرة تتسع، ويقول لك ما تفعله: أوقف استعلام مهمة خلفية، أو غيّر الطريقة."
+      ],
+      "points": [
+        "نتائج الأدوات تبقى بيانات خالصة؛ إشعارات التكرار تصل كإشعارات نظام على Cadence B.",
+        "تحذيرات الحلقات تحمل إرشادًا قابلًا للتنفيذ لا مجرد اسم التكرار."
+      ]
+    },
+    "0.10.7": {
+      "title": "سقف الخرج يأتي من المزوّد",
+      "paragraphs": [
+        "صار سقف خرج البوابة يُقرأ من `max_tokens` الخاصة بالمزوّد لا من ميزانية تفكير منخفضة، وهي التي كانت تقطع الإجابات الطويلة. الإكمالات التي تتجاوز عشرة آلاف رمز تنتهي الآن طبيعيًا."
+      ],
+      "points": [
+        "سقف الخرج صار مطابقًا لـ`max_tokens` الخاصة بالمزوّد لا لميزانية التفكير.",
+        "تحقق إكمال بث حتى 10,712 رمزًا دون قطع مبكر."
+      ]
+    },
+    "0.10.9": {
+      "title": "الذاكرة والأسماء البديلة والكوكيز",
+      "paragraphs": [
+        "صار إرشاد ذاكرة المشروع يبيّن بوضوح الغرض من الذاكرة وأنها تُحفظ بين الجلسات. ووسائط الأدوات تقبل الأسماء البديلة التي يكتبها الناس فعلًا، والمسار الخاطئ يحصل على أقرب مرشح، وجلب الويب يحمل كوكيز الجلسة عبر التحويلات من تلقاء نفسه."
+      ],
+      "points": [
+        "إرشاد ذاكرة المشروع ينص على الحفظ طويل الأمد بين الجلسات.",
+        "وسائط الأدوات تقبل الأسماء البديلة الشائعة وتهذب نص الإجراء وتقترح أقرب مسار.",
+        "web_fetch يتعامل مع كوكيز الجلسة عبر التحويلات دون ترويسات يدوية."
+      ]
+    },
+    "0.10.10": {
+      "title": "استعلام أقل بلا داعٍ وأخطاء ملفات أوضح",
+      "paragraphs": [
+        "صار إرشاد النظام يشرح ما تعتمد عليه المهمة الخلفية، فيكف النموذج عن استعلام عمل يعمل أصلًا. وأدوات الملفات تجيب عن مسار خاطئ بأقرب مرشح وترفض رقعة قديمة بإرشاد لا بمجرد فشل."
+      ],
+      "points": [
+        "إرشاد النظام يوضح اعتماديات التنفيذ الخلفي لتجنب الاستعلام المتكرر.",
+        "أخطاء أدوات الملفات تحمل اقتراحات أقرب مسار وإرشاد الرقعة القديمة."
+      ]
+    },
+    "0.11.0": {
+      "title": "لا ترويسة فارغة فوق استجابة فارغة",
+      "paragraphs": [
+        "الاستجابة المبثوثة التي تبدأ بمسافات أو أسطر فارغة كانت ترسم ترويسة `Response` فارغة. صارت الترويسة تُرسم فقط عند وجود نص، وتبقى البايتات تمر كما هي، دون تعبير نمطي ودون حذف ضائع."
+      ],
+      "points": [
+        "اختفت ترويسات الاستجابة الفارغة عندما تبدأ الاستجابة بمسافات أو أسطر فارغة.",
+        "وضوح التدفق ودقة البايتات محفوظان؛ دون تعبير نمطي أو تقليم ضائع."
+      ]
+    },
+    "0.11.1": {
+      "title": "الجواب المتكرر يُوقف أثناء البث",
+      "paragraphs": [
+        "صار المحرّك يتعرف على استجابة تكرر وحدة قصيرة مرارًا ويوقفها لحظة وصولها، دون سقف لطول الرموز. ثم يُسأل عبر النموذج الذي تعرفه: أبقي النص المكتوب قبل التكرار أم تُهمل الرسالة."
+      ],
+      "points": [
+        "حارس التكرار على مستوى المحرّك يوقف حلقة التكرار عند 4 كيبي بايت، أو 16 كيبي بايت للفراغات.",
+        "نموذج التوضيح يبقي النص السابق أو يهمل الخرج التالف.",
+        "سرعة البث الطبيعية محفوظة، دون سقف رموز اعتباطي ودون إنذارات كاذبة على البيانات المضغوطة."
+      ]
+    },
+    "0.11.2": {
+      "title": "فراغات لا تتدلى",
+      "paragraphs": [
+        "كانت الاستجابة البينية تترك أسطرًا فارغة متدلية تدفع نداء الأداة التالي إلى أسفل الشاشة. قُلّمت الأسطر الفارغة الأخيرة، وصار العمود الفقري بين نداءات الأدوات مسافة واحدة متسقة."
+      ],
+      "points": [
+        "حُذفت الأسطر الفارغة المتدلية من الاستجابات البينية في العارض.",
+        "وُحّد التباعد الرأسي بين نداءات الأدوات المتتالية."
+      ]
+    },
+    "0.11.3": {
+      "title": "أداة واحدة للعمليات الخلفية",
+      "paragraphs": [
+        "يُدار العمل الخلفي بأداة `process_control` واحدة بإجراءَي `type` و`stop`. أُزيلت أداتان قديمتان، فصار هناك مكان واحد للنظر ولا اختيار غامض للوسائط، وترقية التنسيق 28 تنقل سجلات الجلسات القديمة بسلاسة."
+      ],
+      "points": [
+        "`process_control` توحّد إدارة الخلفية بإجراءَي `type` و`stop`.",
+        "أُزيلت `terminal_input` و`kill_task`، فانتهى غموض الوسائط.",
+        "ترقية التنسيق 28 تنقل سجلات الجلسات القديمة إلى الأداة الموحّدة."
+      ]
+    },
+    "0.11.4": {
+      "title": "إشعار يحمل خرجه معه",
+      "paragraphs": [
+        "صار انتهاء المهمة الخلفية يصل كإشعار واحد قائم بذاته: كيف انتهت، ومعرّف عمليتها، والخرج الذي لم يُعطَ لك بعد، بعد تعطيله وتحديده. وهو يحل محل رحلة الإيقاظ الإضافية التي كانت تجلب هذه التفاصيل، وصار الإيقاف يصل إلى شجرة العمليات كلها."
+      ],
+      "points": [
+        "الإشعارات تسلّم خرج العملية بعد تعطيله داخل حمولة الحدث نفسها.",
+        "البيانات الوصفية ورمز الخروج والأسطر الأخيرة في حزمة واحدة، ما يزيل نداء إيقاظ مساعدًا.",
+        "إجراءات التنظيف تنهي شجرة العمليات كلها دون عمليات يتيمة."
+      ]
+    },
+    "0.11.5": {
+      "title": "البدء الأول وأنماط مسارات ويندوز",
+      "paragraphs": [
+        "أُصلح خللان اكتُشفا على أجهزة حقيقية: عند البدء الأول كانت مهارة المساعدة الرسمية تتحقق من نفسها بينما تُنشأ الجلسة، وعلى ويندوز لم يكن يُعالج نمط مسار ينتهي بنقطة أو مسافة. وتتحقق مجموعة الدخان أيضًا من بدء في بيئة نظيفة على كل منصة."
+      ],
+      "points": [
+        "حُلّل سباق البدء الأول بين التحقق من مهارة المساعدة وإنشاء الجلسة.",
+        "تُعالج أنماط مسارات ويندوز التي تنتهي بنقطة أو مسافة.",
+        "مجموعة الدخان تتحقق من بدء بيئة نظيفة على POSIX وويندوز."
+      ]
+    },
+    "0.11.6": {
+      "title": "ما يجوز للسكربت اليدوي، بكلمات صريحة",
+      "paragraphs": [
+        "صار شاشة الصدفة اليدوية تشرح حدود تنفيذ أمر `!` بالكلمات: أي وصول يملك، وأن المصنّف والمنقّي يُتجاوزان لذلك النداء وحده. والصياغة تطابق ما يحدث فعلًا في أصداف POSIX وفي ConPTY على ويندوز."
+      ],
+      "points": [
+        "شاشة الصدفة اليدوية تشرح حدود الرفع والامتياز لأوامر `!`.",
+        "توضيح دلالات تجاوز المنقّي والمصنّف لـPOSIX وConPTY في ويندوز."
+      ]
+    },
+    "0.11.7": {
+      "title": "الفكرة لا يشقّها النص الذي يليها",
+      "paragraphs": [
+        "كان الاستدلال يصل متشابكًا مع الجواب، فتُقطع جملة تفكير بأول كلمات الرد. صار تقييم فروق الاستدلال قبل فروق النص، وتُجمع شذرات الجولة الواحدة، فيبقى الحد نظيفًا قبل النص النهائي."
+      ],
+      "points": [
+        "تقييم فروق الاستدلال قبل فروق النص بدقة، فانتهت الأفكار المشقوقة.",
+        "جمع شذرات التفكير البينية لكل جولة.",
+        "جلسات التسليم متعددة القفزات تُقر قبل أن يحرّر المضيف الأب."
+      ]
+    },
+    "0.11.8": {
+      "title": "تبديل الوضع أثناء البث لا يعيد رسم التذييل",
+      "paragraphs": [
+        "كان تغيير وضع الإذن أثناء بث استجابة يعيد حساب الأولويات ويعيد ترتيب التذييل بلا سبب. والآن يبقى إشعار الحالة الذي تقرأه عبر التبديل، وتبقى وعود التذييل سليمة في كل نافذة."
+      ],
+      "points": [
+        "تغيير وضع الإذن أثناء البث لم يعد يثير إعادة حساب أولويات كاذبة أو إعادة ترتيب التذييل.",
+        "إشعارات الحالة النشطة تبقى محفوظة عند تبديل الوضع في منتصف البث.",
+        "إلغاء Esc وإعادة المحاولة الخطية ونوافذ التأكيد تبقى أولى بالأولوية في كل نافذة."
+      ]
+    },
+    "0.11.9": {
+      "title": "أنماط مسارات مجمّعة تُبحث في نداء واحد",
+      "paragraphs": [
+        "صار find_files ومُرشّح include في search_text يوسّعان بدائل الأقواس المعقوفة في المسار، بما في ذلك المجموعات المتداخلة، مع بدائل `|`. ونمط مثل `*.{ts,tsx}` يصبح نداءً واحدًا على مرور واحد في المجلد بدل عدة مرات، ولم يتغيّر أي مخطط مزوّد لتحقيق ذلك."
+      ],
+      "points": [
+        "توسيع أصلي لبدائل الأقواس مثل `*.{ts,tsx}` والمجموعات المتداخلة وبدائل `|`.",
+        "find_files ومُرشّح include في search_text يبحثان النمط المجمّع في نداء واحد.",
+        "التوسيع يحدث في المحرّك: لم يتغيّر مخطط الأدوات ولا تنسيق قاعدة البيانات."
+      ]
+    }
   }
 }

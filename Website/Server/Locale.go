@@ -76,12 +76,22 @@ type installText struct {
 	And     string `json:"and"`
 }
 
+// releaseNote is one version's recorded change as the site words it: a title,
+// the paragraph that says what changed and why, and the short lines a reader
+// scans. A bare list of sentences was rejected by the owner (2026-11-06): a
+// changelog must explain a change, not only name it.
+type releaseNote struct {
+	Title      string   `json:"title"`
+	Paragraphs []string `json:"paragraphs"`
+	Points     []string `json:"points"`
+}
+
 type localeText struct {
 	Pages       map[string]titled   `json:"pages"`
-	// Notes is the changelog's own words, one entry per version and one line per
-	// recorded change. English owns the keys; a translation holds exactly the
-	// same versions with the same number of lines (owner, 2026-11-05).
-	Notes       map[string][]string `json:"notes"`
+	// Notes is the changelog's own words, one layered entry per version.
+	// English owns the keys; a translation holds exactly the same versions with
+	// the same paragraphs and the same number of points (owner, 2026-11-06).
+	Notes       map[string]releaseNote `json:"notes"`
 	Groups      map[string]string   `json:"groups"`
 	DocsTitle   string              `json:"docs_title"`
 	Docs        map[string]labelled `json:"docs"`
@@ -92,8 +102,20 @@ type localeText struct {
 // localeTextPages are the non-documentation pages a translation titles.
 var localeTextPages = []string{"", "changelog", "license", "notfound"}
 
-// englishNotes is the changelog's source of words: version -> recorded changes.
-var englishNotes = map[string][]string{}
+// A changelog line is one sentence a reader scans; these ceilings keep a note
+// a note and not an article. A paragraph says what changed and why, so it is
+// allowed four times the length of one point. These are lengths of text, not
+// token guesses.
+const (
+	maxNoteTitle   = 120
+	maxNotePoint   = 300
+	maxNotePara    = 700
+	maxNoteParas   = 4
+	maxNotePoints  = 8
+)
+
+// englishNotes is the changelog's source of words: version -> layered change.
+var englishNotes = map[string]releaseNote{}
 
 func loadChangelogNotes() error {
 	raw, err := fs.ReadFile(ui.Files, "Pages/ChangelogNotes.json")
@@ -103,18 +125,39 @@ func loadChangelogNotes() error {
 	if err := json.Unmarshal(raw, &englishNotes); err != nil {
 		return fmt.Errorf("changelog notes: %w", err)
 	}
-	for version, lines := range englishNotes {
-		if len(lines) == 0 {
-			return fmt.Errorf("changelog notes: %s has no lines", version)
-		}
-		for i, line := range lines {
-			if strings.TrimSpace(line) == "" || len(line) > 300 {
-				return fmt.Errorf("changelog notes: %s line %d is empty or too long", version, i)
-			}
+	for version, n := range englishNotes {
+		if err := n.check("changelog notes: " + version); err != nil {
+			return err
 		}
 	}
 	return nil
 }
+
+// check holds one note to the layered shape: a title, at least one paragraph,
+// and lines that are neither empty nor longer than a reader scans.
+func (n releaseNote) check(where string) error {
+	if strings.TrimSpace(n.Title) == "" || len(n.Title) > maxNoteTitle {
+		return fmt.Errorf("%s: the title is empty or too long", where)
+	}
+	if len(n.Paragraphs) == 0 || len(n.Paragraphs) > maxNoteParas {
+		return fmt.Errorf("%s: %d paragraphs, want 1-%d", where, len(n.Paragraphs), maxNoteParas)
+	}
+	if len(n.Points) > maxNotePoints {
+		return fmt.Errorf("%s: %d points, at most %d", where, len(n.Points), maxNotePoints)
+	}
+	for i, p := range n.Paragraphs {
+		if strings.TrimSpace(p) == "" || len(p) > maxNotePara {
+			return fmt.Errorf("%s: paragraph %d is empty or too long", where, i)
+		}
+	}
+	for i, p := range n.Points {
+		if strings.TrimSpace(p) == "" || len(p) > maxNotePoint {
+			return fmt.Errorf("%s: point %d is empty or too long", where, i)
+		}
+	}
+	return nil
+}
+
 
 func loadLocaleTexts() error {
 	if err := loadChangelogNotes(); err != nil {
@@ -171,14 +214,14 @@ func (t *localeText) check() error {
 	if err := sameKeys("notes", keysOf(t.Notes), keysOf(englishNotes)); err != nil {
 		return err
 	}
-	for version, lines := range t.Notes {
-		if len(lines) != len(englishNotes[version]) {
-			return fmt.Errorf("note %s: %d lines, English has %d", version, len(lines), len(englishNotes[version]))
+	for version, n := range t.Notes {
+		en := englishNotes[version]
+		if len(n.Paragraphs) != len(en.Paragraphs) || len(n.Points) != len(en.Points) {
+			return fmt.Errorf("note %s: %d paragraphs and %d points, English has %d and %d",
+				version, len(n.Paragraphs), len(n.Points), len(en.Paragraphs), len(en.Points))
 		}
-		for i, line := range lines {
-			if strings.TrimSpace(line) == "" || len(line) > 300 {
-				return fmt.Errorf("note %s line %d is empty or too long", version, i)
-			}
+		if err := n.check("note " + version); err != nil {
+			return err
 		}
 	}
 	for k, v := range t.Groups {

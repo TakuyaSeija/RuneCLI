@@ -179,144 +179,344 @@
     "and": "y"
   },
   "notes": {
-    "0.7.8": [
-      "Universal Linux distribution support using a self-contained runtime loader across all major distributions.",
-      "Terminal UI fixes for tmux 256-color palettes and automated HTTP cookie handling during web fetch operations."
-    ],
-    "0.8.0": [
-      "Expanded provider preset catalog featuring twenty calibrated model profiles and custom local endpoints.",
-      "Standardized API dialect normalization for OpenAI, Anthropic, and compatible model gateway endpoints."
-    ],
-    "0.8.1": [
-      "Session picker caret positioning corrected to 1-based indexing, eliminating off-by-one row highlights.",
-      "Resolved keyboard navigation short-circuits when browsing historical prompt and session archives."
-    ],
-    "0.8.9": [
-      "Refined context compaction algorithm to preserve essential architecture facts while clearing expired history.",
-      "Hardened session admission queue and chronological ordering against concurrent terminal window operations."
-    ],
-    "0.9.0": [
-      "Session admission flow immediately acknowledges submitted prompts before triggering heavy engine turns.",
-      "Seamless session resumption across daemon and host restarts with immutable event journals and records."
-    ],
-    "0.9.1": [
-      "Contextual execution planning dynamically determines tool launch intent from task dependencies.",
-      "Integrated reasoning controls allow switching thinking off or setting low effort levels via model gateways."
-    ],
-    "0.9.2": [
-      "Terminal mouse selection and copy support aligned with standard terminal behavior, including clear selection.",
-      "Maintained stable caret coordinates and visual boundaries without terminal chrome artifacts."
-    ],
-    "0.9.3": [
-      "Manual shell execution via ! runs entire multiline scripts through the permission gate with full access.",
-      "Terminal links and file references in command outputs can be inspected and opened in the default browser."
-    ],
-    "0.9.4": [
-      "Honest multiline shell script previews display complete command syntax before asking for confirmation.",
-      "Manual ! shell commands retain preceding conversation context and active working directory across turns."
-    ],
-    "0.9.5": [
-      "Running and waiting background processes stream standard output and error to independent, dedicated log files.",
-      "Enhanced terminal wait detection recognizes interactive input prompts across all Linux PTY sessions."
-    ],
-    "0.9.6": [
-      "Real-time prompt streaming displays the first preview line in the composer as you type.",
-      "Improved terminal cursor positioning and soft-wrap rendering on wide and narrow terminal viewports."
-    ],
-    "0.9.7": [
-      "Multiline composer displays explicit newline indicators rather than raw line break jumps in terminal output.",
-      "Improved text editing responsiveness when pasting multi-line shell commands into the input editor."
-    ],
-    "0.9.8": [
-      "Strict context accounting treats unverified byte counts as unknown rather than guessing model capacity.",
-      "Background task guidance explains why shell polling loops waste tokens and how to wait for notifications."
-    ],
-    "0.9.9": [
-      "Formalized single ownership per system instruction block to eliminate contradictory guidance.",
-      "Terminal footer preserves armed Esc cancellation, retry countdowns, and permission confirmation cards."
-    ],
-    "0.10.0": [
-      "Live update notices remain pinned and visible in the active session view during background compilation.",
-      "Cross-platform test gate validated across Linux, macOS (Apple Silicon & Intel), and Windows."
-    ],
-    "0.10.1": [
-      "Official help skill installation isolated to ensure user skills are never shadowed or overwritten.",
-      "Introduced automatic backup pruning for old upgrade directories to preserve local disk space."
-    ],
-    "0.10.3": [
-      "Terminal execution output accurately decouples echoed shell input lines from actual program standard output.",
-      "Tool action sentences retain explicit descriptions for transparent user auditing during streaming."
-    ],
-    "0.10.4": [
-      "Conversation error logs (/logs) preserve original provider error text alongside engine turn status.",
-      "Identical tool calls executed consecutively are tracked and flagged before exhausting request budgets."
-    ],
-    "0.10.5": [
-      "Contextual loop guard distinguishes waiting for process notifications from repeated command execution failures.",
-      "Enhanced error diagnostics with immediate recovery recommendations tailored to each tool failure category."
-    ],
-    "0.10.6": [
-      "Tool results remain 100% pure data; repetition notices now arrive via system notices on Cadence B (3, 6, 9...).",
-      "Loop warnings provide actionable guidance: stop polling for background work, or switch approach when stuck."
-    ],
-    "0.10.7": [
-      "Aligned model gateway output ceilings with provider max_tokens rather than low thinking budgets.",
-      "Verified streaming completions up to 10,712 tokens on complex architectural prompts without premature cutoffs."
-    ],
-    "0.10.9": [
-      "Project memory prompt explicitly establishes long-term knowledge retention guidelines across sessions.",
-      "Tool definitions accept common argument aliases, clamp action text, and provide nearest path suggestions.",
-      "Web fetch automatically handles session cookies across redirects without manual header declarations."
-    ],
-    "0.10.10": [
-      "Enhanced system prompt clarity regarding background execution dependencies, avoiding redundant polling loops.",
-      "Strengthened file tool error reporting with fuzzy path suggestions and stale patch rejection guidance."
-    ],
-    "0.11.0": [
-      "Eliminated empty response headers when streamed model responses contain only leading whitespace or blank lines.",
-      "Preserved flow transparency and exact byte fidelity without hardcoded regex or lossy stripping."
-    ],
-    "0.11.1": [
-      "Added an engine-level repetition guard that detects and halts repeating token loops at 4 KiB (or 16 KiB whitespace).",
-      "Prompted interactive clarification form allowing you to keep valid preceding prose or discard corrupted outputs.",
-      "Preserved normal streaming performance without arbitrary token length limits or false positives on minified data."
-    ],
-    "0.11.2": [
-      "Eliminated dangling empty lines on intermediate model responses in the terminal UI renderer.",
-      "Unified vertical spine spacing between consecutive tool invocations for consistent visual structure."
-    ],
-    "0.11.3": [
-      "Consolidated background process management into a unified process_control tool supporting type and stop actions.",
-      "Replaced two legacy tools (terminal_input and kill_task) to streamline tool discovery and eliminate parameter ambiguity.",
-      "Introduced format 28 database upgrade ensuring older session records transition smoothly to unified process control."
-    ],
-    "0.11.4": [
-      "Self-contained background task notifications deliver defused process output directly in the event notification payload.",
-      "Eliminated auxiliary wake API polling roundtrips by bundling process metadata, exit code, and recent lines into one packet.",
-      "Strengthened task cleanup routines to ensure process trees terminate reliably without orphaned sub-processes."
-    ],
-    "0.11.5": [
-      "Resolved first-start initialization race where official product help skill verification competed with session creation.",
-      "Handled Windows filesystem edge cases for directory and file path patterns ending in trailing dots or whitespace.",
-      "Smoke test suite expanded to verify clean environment startup across all supported POSIX and Windows platforms."
-    ],
-    "0.11.6": [
-      "Elevation and security privilege wording on the manual shell screen (! commands) explicitly explains execution boundaries.",
-      "Sanitizer and classifier bypass semantics on manual shell execution are clarified across POSIX and Windows ConPTY environments."
-    ],
-    "0.11.7": [
-      "Reasoning deltas are evaluated strictly before text deltas in streaming responses, eliminating split thoughts.",
-      "Intermediate thought fragments are coalesced per turn round, maintaining a clean visual boundary before final text.",
-      "Multi-hop handover IPC child sessions receive reliable acknowledgement before parent host release."
-    ],
-    "0.11.8": [
-      "Changing permission mode during active streaming no longer triggers false priority recalculations or footer reflows.",
-      "Active status notices being read are preserved during mid-stream mode switching, preventing premature status wipeouts.",
-      "Full priority guarantees for Esc cancellation, linear retries, and confirmation dialogs remain intact across all windows."
-    ],
-    "0.11.9": [
-      "Los patrones glob de rutas ahora expanden alternativas entre llaves como *.{ts,tsx}, incluidos los grupos anidados, junto con las alternativas mediante |.",
-      "find_files y el filtro include de search_text pueden buscar esas rutas agrupadas en una sola llamada."
-    ]
+    "0.7.8": {
+      "title": "Linux en cualquier distribución, y los bordes del terminal",
+      "paragraphs": [
+        "Rune dejó de depender de una sola base de glibc. Un cargador de ejecución autocontenido permite que el mismo binario arranque en todas las distribuciones principales de Linux, y el comportamiento del terminal y de la descarga web se alineó con lo que la gente usa de verdad."
+      ],
+      "points": [
+        "Cargador de ejecución autocontenido para cada distribución principal de Linux.",
+        "Las paletas de 256 colores de tmux se dibujan correctamente.",
+        "web_fetch gestiona las cookies de sesión automáticamente."
+      ]
+    },
+    "0.8.0": {
+      "title": "Veinte presets de modelo y una única normalización de dialectos",
+      "paragraphs": [
+        "El catálogo de proveedores creció a veinte perfiles de modelo calibrados, con sitio para un endpoint local propio. Detrás hay una sola capa de normalización, así que un endpoint de OpenAI, Anthropic o una pasarela compatible se describe de la misma manera."
+      ],
+      "points": [
+        "Veinte presets de modelo calibrados, más endpoints locales propios.",
+        "Normalización de dialecto de API compartida por OpenAI, Anthropic y pasarelas compatibles."
+      ]
+    },
+    "0.8.1": {
+      "title": "El selector de sesiones señala la fila correcta",
+      "paragraphs": [
+        "Dos fallos de navegación desaparecen: el cursor del selector de sesiones se desviaba una fila, y la navegación por teclado podía detenerse antes de tiempo al recorrer prompts y sesiones anteriores."
+      ],
+      "points": [
+        "El cursor del selector de sesiones usa índice desde 1; no hay resaltado de fila desplazado.",
+        "La navegación por teclado ya no se corta al recorrer el archivo de prompts y sesiones."
+      ]
+    },
+    "0.8.9": {
+      "title": "El compactado conserva la arquitectura, la admisión su orden",
+      "paragraphs": [
+        "El historial antiguo ahora se limpia sin perder los hechos sobre los que se construye una sesión, y la cola de admisión mantiene su orden cronológico aunque varias ventanas de terminal actúen a la vez."
+      ],
+      "points": [
+        "El compactado de contexto conserva hechos esenciales de arquitectura mientras limpia historial caducado.",
+        "La cola de admisión de sesiones y su orden resisten ventanas de terminal concurrentes."
+      ]
+    },
+    "0.9.0": {
+      "title": "Un prompt enviado se reconoce al momento",
+      "paragraphs": [
+        "La admisión ya no deja a nadie esperando en silencio. El prompt se reconoce de inmediato, antes de que el motor empiece el trabajo pesado del turno, y la sesión sobrevive a un reinicio del demonio o del host gracias a su diario de eventos inmutable."
+      ],
+      "points": [
+        "La admisión de sesión reconoce el prompt enviado antes de que empiece el turno del motor.",
+        "La sesión se reanuda entre reinicios del demonio y del host, con registros de eventos inmutables."
+      ]
+    },
+    "0.9.1": {
+      "title": "La intención de lanzamiento viene de la tarea, y el pensamiento se ajusta",
+      "paragraphs": [
+        "Que un comando corra en primer plano o en segundo plano es ahora una decisión de planificación tomada desde las dependencias de la propia tarea, no desde el nombre de una herramienta. La misma versión abrió los ajustes de pensamiento del modelo: apagado, o un nivel bajo de esfuerzo, a través de la pasarela."
+      ],
+      "points": [
+        "La planificación contextual deriva la intención de lanzamiento de las dependencias de la tarea.",
+        "Los controles de razonamiento apagan el pensamiento o eligen un nivel bajo de esfuerzo mediante pasarelas."
+      ]
+    },
+    "0.9.2": {
+      "title": "La selección con ratón se comporta como un terminal",
+      "paragraphs": [
+        "Seleccionar texto con el ratón y copiarlo sigue ahora las convenciones propias del terminal, incluido limpiar la selección, con el cursor manteniendo coordenadas estables y sin adornos extraños en pantalla."
+      ],
+      "points": [
+        "La selección con ratón, el copiado y la limpieza siguen el comportamiento estándar del terminal.",
+        "Las coordenadas del cursor y los límites visuales se mantienen estables sin artefactos."
+      ]
+    },
+    "0.9.3": {
+      "title": "Un script manual, y referencias que se abren",
+      "paragraphs": [
+        "Una `!` explícita ejecuta un script multilínea completo a través de la puerta de permisos con acceso total sólo para esa llamada, y un enlace o una referencia a un archivo en la salida de un comando se puede inspeccionar y abrir en el navegador únicamente cuando lo pides."
+      ],
+      "points": [
+        "`!` ejecuta el script multilínea completo por la puerta de permisos con acceso total para esa llamada.",
+        "Los enlaces y referencias a archivos del terminal se inspeccionan y abren a petición."
+      ]
+    },
+    "0.9.4": {
+      "title": "La vista previa muestra el script entero",
+      "paragraphs": [
+        "Antes de confirmar un script `!` manual ves todas sus líneas, no una primera línea acortada. El script conserva también el contexto de la conversación y el directorio de trabajo que lo precedían."
+      ],
+      "points": [
+        "La vista previa de un script de shell multilínea muestra el comando completo antes de confirmar.",
+        "Los comandos `!` manuales conservan el contexto previo y el directorio de trabajo activo."
+      ]
+    },
+    "0.9.5": {
+      "title": "La salida en segundo plano tiene dónde ir",
+      "paragraphs": [
+        "Un proceso que corre y espera ahora vierte su salida estándar y su error en archivos de registro propios, y el motor reconoce un prompt interactivo en las sesiones PTY de Linux en vez de dejar que parezca silencio."
+      ],
+      "points": [
+        "Los procesos en ejecución y en espera vierten stdout y stderr en archivos de registro dedicados.",
+        "La detección de espera de entrada reconoce prompts interactivos en sesiones PTY de Linux."
+      ]
+    },
+    "0.9.6": {
+      "title": "El compositor previsualiza mientras escribes",
+      "paragraphs": [
+        "La primera línea del prompt se muestra en el compositor mientras la escribes, y se corrigió la colocación del cursor y el ajuste suave para terminales anchos y estrechos."
+      ],
+      "points": [
+        "El streaming de prompt en tiempo real muestra la primera línea de vista previa en el compositor.",
+        "Se corrigió la colocación del cursor y el renderizado del ajuste suave en vistas anchas y estrechas."
+      ]
+    },
+    "0.9.7": {
+      "title": "Los saltos de línea se dibujan, no se saltan",
+      "paragraphs": [
+        "El compositor multilínea ahora escribe un indicador explícito de salto de línea en vez de dejar que los saltos en bruto muevan el terminal, y pegar un comando de shell multilínea en el editor sigue siendo ágil."
+      ],
+      "points": [
+        "El compositor multilínea muestra indicadores explícitos de salto de línea en vez de saltos en bruto.",
+        "Mejor respuesta al editar al pegar comandos de shell multilínea."
+      ]
+    },
+    "0.9.8": {
+      "title": "Lo desconocido sigue siendo desconocido",
+      "paragraphs": [
+        "Un recuento de bytes que nadie verificó se trata ahora como desconocido en vez de convertirse en una capacidad de modelo adivinada, y la orientación de segundo plano del motor explica por qué un bucle de sondeo en shell gasta tokens y cómo esperar un aviso."
+      ],
+      "points": [
+        "La contabilidad estricta de contexto trata los bytes no verificados como desconocidos, nunca como conjetura.",
+        "La orientación de segundo plano explica por qué los bucles de sondeo gastan tokens y cómo esperar."
+      ]
+    },
+    "0.9.9": {
+      "title": "Un dueño por instrucción, y un pie que cumple",
+      "paragraphs": [
+        "Cada bloque de instrucción del sistema tiene ahora un solo dueño, así que dos fuentes ya no pueden contradecirse. El pie del terminal mantiene visible una cancelación con Esc armada, una cuenta atrás de reintento y una tarjeta de confirmación de permiso mientras importan."
+      ],
+      "points": [
+        "Un solo dueño por bloque de instrucción del sistema, eliminando orientación contradictoria.",
+        "El pie conserva la cancelación con Esc armada, las cuentas atrás de reintento y las confirmaciones de permiso."
+      ]
+    },
+    "0.10.0": {
+      "title": "El aviso de actualización se queda a la vista",
+      "paragraphs": [
+        "Cuando se entrega una compilación nueva mientras trabajas, el aviso queda fijado en la vista de la sesión activa en vez de desaparecer con un redibujado, y toda la puerta de pruebas empezó a correr en máquinas reales de Linux, macOS y Windows."
+      ],
+      "points": [
+        "Los avisos de actualización en vivo quedan fijos y visibles en la vista de sesión activa.",
+        "La puerta multiplataforma se validó en Linux, macOS (Apple silicon e Intel) y Windows."
+      ]
+    },
+    "0.10.1": {
+      "title": "La ayuda oficial no puede quedar a la sombra",
+      "paragraphs": [
+        "La habilidad de ayuda oficial se instala ahora donde ni las habilidades propias pueden taparla ni sobrescribirla. Los directorios de actualización antiguos se recortan solos para que dejen de llenar el disco."
+      ],
+      "points": [
+        "La instalación de la habilidad de ayuda oficial está aislada de las habilidades del usuario.",
+        "La limpieza automática de directorios antiguos conserva espacio en disco."
+      ]
+    },
+    "0.10.3": {
+      "title": "La salida del terminal dice lo que dijo el programa",
+      "paragraphs": [
+        "El eco de la entrada del shell queda separado de lo que el programa imprimió realmente, así que un resultado copiado contiene sólo la salida del programa, y la frase de acción de una herramienta conserva su descripción mientras se transmite para que la llamada siga siendo auditable."
+      ],
+      "points": [
+        "La salida del terminal separa el eco de la entrada del shell del stdout del programa.",
+        "Las frases de acción de las herramientas conservan descripciones explícitas para auditar."
+      ]
+    },
+    "0.10.4": {
+      "title": "Los errores conservan sus palabras y las repeticiones se cuentan",
+      "paragraphs": [
+        "`/logs` muestra el texto de error original del proveedor junto al estado del turno en vez de parafrasearlo, y la misma llamada repetida se nota antes de agotar el presupuesto de peticiones."
+      ],
+      "points": [
+        "`/logs` conserva el texto de error original del proveedor junto al estado del turno.",
+        "Las llamadas idénticas consecutivas se siguen y marcan antes de que se agote el presupuesto."
+      ]
+    },
+    "0.10.5": {
+      "title": "Esperar no es repetir",
+      "paragraphs": [
+        "El guardián de bucles ahora distingue esperar el aviso de un proceso de repetir un comando que falla sin parar, y un fallo de herramienta llega con el paso de recuperación que le corresponde por categoría."
+      ],
+      "points": [
+        "El guardián de bucles distingue esperar un aviso de fallos repetidos de comando.",
+        "El diagnóstico de errores trae consejo de recuperación inmediato por categoría de fallo."
+      ]
+    },
+    "0.10.6": {
+      "title": "Los resultados son datos, los avisos son avisos",
+      "paragraphs": [
+        "El resultado de una herramienta ahora lleva sólo sus datos; un aviso de repetición viaja como aviso del sistema, con cadencia creciente, y te dice qué hacer: dejar de sondear una tarea en segundo plano, o cambiar de enfoque."
+      ],
+      "points": [
+        "Los resultados de herramientas siguen siendo datos puros; los avisos de repetición llegan como avisos del sistema en Cadence B.",
+        "Los avisos de bucle traen orientación accionable en vez de sólo nombrar la repetición."
+      ]
+    },
+    "0.10.7": {
+      "title": "El techo de salida viene del proveedor",
+      "paragraphs": [
+        "El techo de salida de una pasarela se lee ahora del `max_tokens` del propio proveedor y no de un presupuesto de pensamiento bajo, que estaba cortando respuestas largas. Las terminaciones de más de diez mil tokens ahora acaban con normalidad."
+      ],
+      "points": [
+        "Techo de salida alineado con el `max_tokens` del proveedor, no con el presupuesto de pensamiento.",
+        "Terminaciones en streaming de hasta 10.712 tokens verificadas sin corte prematuro."
+      ]
+    },
+    "0.10.9": {
+      "title": "Memoria, alias y cookies",
+      "paragraphs": [
+        "El prompt de memoria del proyecto ahora dice con claridad para qué sirve la memoria y que se mantiene entre sesiones. Los argumentos de herramienta aceptan los alias que la gente escribe, una ruta equivocada recibe el candidato más cercano, y la descarga web lleva las cookies de sesión por las redirecciones por sí sola."
+      ],
+      "points": [
+        "El prompt de memoria del proyecto declara la retención a largo plazo entre sesiones.",
+        "Los argumentos aceptan alias comunes, ajustan el texto de acción y sugieren la ruta más cercana.",
+        "web_fetch gestiona las cookies de sesión entre redirecciones sin cabeceras manuales."
+      ]
+    },
+    "0.10.10": {
+      "title": "Menos sondeos inútiles, errores de archivo más claros",
+      "paragraphs": [
+        "El prompt del sistema ahora explica de qué depende una tarea en segundo plano, así que el modelo deja de sondear trabajo que ya corre. Las herramientas de archivo responden a una ruta mala con el candidato más cercano y rechazan un parche obsoleto con orientación en vez de un fallo seco."
+      ],
+      "points": [
+        "El prompt del sistema aclara las dependencias de ejecución en segundo plano para evitar sondeos.",
+        "Los errores de herramientas de archivo traen rutas cercanas y orientación sobre parches obsoletos."
+      ]
+    },
+    "0.11.0": {
+      "title": "Sin cabecera vacía sobre una respuesta vacía",
+      "paragraphs": [
+        "Una respuesta transmitida que empezaba con espacios o líneas en blanco dibujaba una cabecera `Response` vacía. Ahora la cabecera sólo se dibuja cuando hay texto, y los bytes siguen pasando intactos, sin expresiones regulares ni recortes con pérdida."
+      ],
+      "points": [
+        "Las cabeceras vacías desaparecen cuando la respuesta empieza con espacios o líneas en blanco.",
+        "Se conserva la transparencia del flujo y la fidelidad de los bytes; sin regex ni recorte con pérdida."
+      ]
+    },
+    "0.11.1": {
+      "title": "Una respuesta repetida se detiene mientras se transmite",
+      "paragraphs": [
+        "El motor ahora reconoce una respuesta que repite una unidad corta una y otra vez y la detiene al llegar, sin techo de longitud de tokens. Luego se te pregunta, con el formulario que ya conoces, si conservar el texto escrito antes de la repetición o descartar el mensaje."
+      ],
+      "points": [
+        "El guardián de repetición del motor detiene un bucle repetido a 4 KiB, o 16 KiB si es espacio en blanco.",
+        "El formulario de aclaración conserva la prosa previa o descarta la salida dañada.",
+        "Se mantiene la velocidad normal del streaming, sin límite arbitrario de tokens ni falsos positivos en datos minificados."
+      ]
+    },
+    "0.11.2": {
+      "title": "Huecos que ya no cuelgan",
+      "paragraphs": [
+        "Una respuesta intermedia dejaba líneas en blanco colgando tras de sí, lo que empujaba la siguiente llamada de herramienta hacia abajo. Se recortan las líneas finales en blanco y la columna entre llamadas de herramienta tiene ahora una distancia consistente."
+      ],
+      "points": [
+        "Se eliminaron las líneas en blanco colgantes de las respuestas intermedias en el renderizador.",
+        "Se unificó el espaciado vertical entre llamadas de herramienta consecutivas."
+      ]
+    },
+    "0.11.3": {
+      "title": "Una herramienta para los procesos en segundo plano",
+      "paragraphs": [
+        "El trabajo en segundo plano lo gestiona una sola herramienta `process_control` con acciones `type` y `stop`. Dos herramientas antiguas desaparecen, así que hay un solo lugar donde mirar y ninguna elección ambigua de parámetros, y una actualización de formato 28 traslada los registros antiguos."
+      ],
+      "points": [
+        "`process_control` unifica la gestión en segundo plano con acciones `type` y `stop`.",
+        "Se eliminaron `terminal_input` y `kill_task`, terminando con la ambigüedad de parámetros.",
+        "La actualización de formato 28 traslada los registros antiguos a la herramienta unificada."
+      ]
+    },
+    "0.11.4": {
+      "title": "Un aviso que lleva su propia salida",
+      "paragraphs": [
+        "El final de una tarea en segundo plano llega ahora como un aviso autocontenido: cómo terminó, su identificador de proceso y la salida que aún no se te había dado, neutralizada y acotada. Sustituye el viaje extra de despertar que traía esos detalles, y una parada alcanza ahora a todo el árbol de procesos."
+      ],
+      "points": [
+        "Los avisos entregan la salida del proceso ya neutralizada dentro de la carga del evento.",
+        "Metadatos, código de salida y líneas recientes viajan en un solo paquete, quitando una llamada auxiliar.",
+        "Las rutinas de limpieza terminan todo el árbol de procesos sin huérfanos."
+      ]
+    },
+    "0.11.5": {
+      "title": "Primer arranque y patrones de ruta en Windows",
+      "paragraphs": [
+        "Dos fallos hallados en máquinas reales están corregidos: en un primer arranque la habilidad de ayuda oficial se verificaba mientras se creaba la sesión, y en Windows un patrón de ruta que termina en punto o espacio no se trataba. La suite de humo también comprueba el arranque en entorno limpio en cada plataforma."
+      ],
+      "points": [
+        "Resuelta la carrera del primer arranque entre la verificación de la ayuda y la creación de sesión.",
+        "Se tratan los patrones de ruta de Windows que acaban en punto o espacio.",
+        "La suite de humo verifica el arranque en entorno limpio en POSIX y Windows."
+      ]
+    },
+    "0.11.6": {
+      "title": "Qué puede hacer un script manual, dicho claro",
+      "paragraphs": [
+        "La pantalla de shell manual ahora explica el límite de ejecución de un comando `!` con palabras: qué acceso tiene y que el clasificador y el saneador se saltan sólo para esa llamada. La redacción coincide con lo que ocurre en shells POSIX y en Windows ConPTY."
+      ],
+      "points": [
+        "La pantalla de shell manual explica los límites de elevación y privilegio de los comandos `!`.",
+        "Se aclara la semántica de salto del saneador y el clasificador para POSIX y Windows ConPTY."
+      ]
+    },
+    "0.11.7": {
+      "title": "Un pensamiento no lo parte el texto que sigue",
+      "paragraphs": [
+        "El razonamiento llegaba a veces intercalado con la respuesta, así que una frase de pensamiento quedaba cortada por las primeras palabras de la réplica. Los deltas de razonamiento se evalúan ahora antes que los de texto, y los fragmentos de una ronda se unen, manteniendo un límite limpio antes del texto final."
+      ],
+      "points": [
+        "Los deltas de razonamiento se evalúan estrictamente antes que los de texto, acabando con pensamientos partidos.",
+        "Los fragmentos de pensamiento intermedios se unen por ronda de turno.",
+        "Las sesiones hijas del traspaso multi-salto se reconocen antes de que el host padre libere."
+      ]
+    },
+    "0.11.8": {
+      "title": "Cambiar de modo a mitad del stream ya no redibuja el pie",
+      "paragraphs": [
+        "Cambiar el modo de permisos mientras se transmite una respuesta recalculaba prioridades y refluía el pie sin motivo. Un aviso de estado que estás leyendo ahora sobrevive al cambio, y las promesas del pie siguen intactas en cada ventana."
+      ],
+      "points": [
+        "Cambiar el modo de permisos durante el streaming ya no provoca recálculos falsos de prioridad ni reflujo del pie.",
+        "Los avisos de estado activos se conservan al cambiar de modo a mitad del stream.",
+        "La cancelación con Esc, los reintentos lineales y los diálogos de confirmación mantienen su prioridad en cada ventana."
+      ]
+    },
+    "0.11.9": {
+      "title": "Patrones de ruta agrupados, buscados en una llamada",
+      "paragraphs": [
+        "find_files y el filtro include de search_text ahora expanden alternativas entre llaves en una ruta, incluidos grupos anidados, junto con alternativas `|`. Un patrón como `*.{ts,tsx}` se resuelve en una sola llamada sobre un solo recorrido del directorio en vez de varias, y ningún esquema de proveedor cambió para lograrlo."
+      ],
+      "points": [
+        "Se expanden de forma nativa alternativas entre llaves como `*.{ts,tsx}`, grupos anidados y alternativas `|`.",
+        "find_files y el filtro include de search_text buscan un patrón agrupado en una llamada.",
+        "La expansión ocurre en el motor: no cambió ningún esquema de herramienta ni formato de base de datos."
+      ]
+    }
   }
 }
