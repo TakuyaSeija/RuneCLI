@@ -351,7 +351,7 @@ jobs:
   macos:
     name: macOS (arm64 gate, x64 build)
     if: github.ref != 'refs/heads/crossplatform' || contains(github.event.head_commit.message, '[ci macos]')
-    runs-on: macos-14
+    runs-on: macos-15
     # Billed ten times over: a hung test must not run long (its step stops
     # at 30 minutes; the rest is building).
     timeout-minutes: 110
@@ -550,7 +550,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: aarch64, runner: macos-14, path: release/rune }
+          - { arch: aarch64, runner: macos-15, path: release/rune }
           - { arch: x86_64, runner: macos-15-intel, path: x86_64-apple-darwin/release/rune }
     defaults:
       run:
