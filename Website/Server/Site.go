@@ -310,9 +310,9 @@ type pageData struct {
 	// Windows has no POSIX shell by default: its installer is a PowerShell script.
 	InstallCmdWindows string
 	// Parent is where the footer's "Atoryn" leads on this host.
-	Parent         string
-	Catalog        *Catalog
-	Latest         *Release
+	Parent  string
+	Catalog *Catalog
+	Latest  *Release
 	// Releases are the published builds with the changelog's words for this
 	// page's language, and History is the same list grouped by minor version for
 	// the sidebar.

@@ -58,6 +58,7 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 		t.Errorf("Indonesian changelog does not admit a missing record in Indonesian")
 	}
 }
+
 // A version's entry is layered: a title, the paragraph that says what changed
 // and why, then short detail lines (owner, 2026-11-06). A bare list of
 // sentences was rejected; this holds every published version to the shape.

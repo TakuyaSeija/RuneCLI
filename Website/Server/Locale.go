@@ -87,16 +87,16 @@ type releaseNote struct {
 }
 
 type localeText struct {
-	Pages       map[string]titled   `json:"pages"`
+	Pages map[string]titled `json:"pages"`
 	// Notes is the changelog's own words, one layered entry per version.
 	// English owns the keys; a translation holds exactly the same versions with
 	// the same paragraphs and the same number of points (owner, 2026-11-06).
 	Notes       map[string]releaseNote `json:"notes"`
-	Groups      map[string]string   `json:"groups"`
-	DocsTitle   string              `json:"docs_title"`
-	Docs        map[string]labelled `json:"docs"`
-	Chapters    map[string]string   `json:"chapters"`
-	InstallNote installText         `json:"install_note"`
+	Groups      map[string]string      `json:"groups"`
+	DocsTitle   string                 `json:"docs_title"`
+	Docs        map[string]labelled    `json:"docs"`
+	Chapters    map[string]string      `json:"chapters"`
+	InstallNote installText            `json:"install_note"`
 }
 
 // localeTextPages are the non-documentation pages a translation titles.
@@ -107,11 +107,11 @@ var localeTextPages = []string{"", "changelog", "license", "notfound"}
 // allowed four times the length of one point. These are lengths of text, not
 // token guesses.
 const (
-	maxNoteTitle   = 120
-	maxNotePoint   = 300
-	maxNotePara    = 700
-	maxNoteParas   = 4
-	maxNotePoints  = 8
+	maxNoteTitle  = 120
+	maxNotePoint  = 300
+	maxNotePara   = 700
+	maxNoteParas  = 4
+	maxNotePoints = 8
 )
 
 // englishNotes is the changelog's source of words: version -> layered change.
@@ -157,7 +157,6 @@ func (n releaseNote) check(where string) error {
 	}
 	return nil
 }
-
 
 func loadLocaleTexts() error {
 	if err := loadChangelogNotes(); err != nil {
