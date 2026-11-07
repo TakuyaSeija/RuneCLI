@@ -650,3 +650,64 @@ jobs:
       - name: Install through install.ps1 and start it
         # The shell is the matrix's: Windows PowerShell 5.1 or PowerShell 7.
         run: ${{ matrix.shell }} -NoProfile -NonInteractive -ExecutionPolicy Bypass -File Website/Tests/InstallerWindows.ps1
+
+  # The files a visitor downloads today, installed on real machines and started:
+  # install.sh on Linux and macOS, install.ps1 on Windows, all fetched from
+  # atoryn.com. Dispatch only, so an outside outage can never fail an ordinary
+  # push, and no secret, token or write permission is involved.
+  installer-live:
+    name: Published installer (${{ matrix.os }})
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, kind: posix }
+          - { os: macos-15, kind: posix }
+          - { os: windows-2025, kind: windows }
+    steps:
+      - name: Install rune and start it (Linux and macOS)
+        if: matrix.kind == 'posix'
+        shell: bash
+        run: |
+          set -euo pipefail
+          home="$RUNNER_TEMP/home"
+          mkdir -p "$home"
+          curl -fsSL https://atoryn.com/Studio/install.sh -o "$RUNNER_TEMP/install.sh"
+          grep -q 'RuneAgent' "$RUNNER_TEMP/install.sh"
+          latest="$(sed -n "s/^LATEST='\(.*\)'$/\1/p" "$RUNNER_TEMP/install.sh")"
+          test -n "$latest" || { echo "the published installer names no release"; exit 1; }
+          echo "published release: $latest"
+          out="$RUNNER_TEMP/out.txt"
+          env -i HOME="$home" PATH=/usr/bin:/bin TERM=dumb sh "$RUNNER_TEMP/install.sh" >"$out" 2>&1 ||
+            { cat "$out"; exit 1; }
+          got="$(env -i HOME="$home" RUNE_HOME="$home/rune" PATH=/usr/bin:/bin "$home/.local/bin/rune" --version)"
+          test "$got" = "rune $latest" || { echo "installed '$got', published 'rune $latest'"; cat "$out"; exit 1; }
+          echo "installed and started: $got"
+          if grep -q 'is not on your PATH' "$out"; then
+            grep -q 'export PATH=' "$out" || { echo "no one-line guidance printed"; cat "$out"; exit 1; }
+            echo "::notice::no writable folder on PATH here; the one line was printed, as designed"
+          else
+            grep -q 'Ready\.' "$out" || { echo "neither ready nor a one line"; cat "$out"; exit 1; }
+            command -v rune || { echo "claimed ready, but rune is not on PATH"; cat "$out"; exit 1; }
+            echo "::notice::ready in the same window: $(command -v rune)"
+          fi
+
+      - name: Install rune and start it (Windows)
+        if: matrix.kind == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = Join-Path $env:RUNNER_TEMP 'bin'
+          $env:RUNE_INSTALL_DIR = $dir
+          irm https://atoryn.com/Studio/install.ps1 | iex
+          if ($LASTEXITCODE -ne 0) { throw "installer exited $LASTEXITCODE" }
+          $exe = Join-Path $dir 'rune.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "no rune.exe at $exe" }
+          $version = (& $exe --version | Out-String).Trim()
+          if ($version -notmatch '^rune \d+\.\d+\.\d+$') { throw "unexpected version: $version" }
+          $onPath = @($env:PATH -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ieq $dir.TrimEnd('\') }).Count -gt 0
+          if (-not $onPath) { throw "the installer did not add $dir to this window's PATH" }
+          Write-Host "::notice::installed $version and this window resolves rune"
