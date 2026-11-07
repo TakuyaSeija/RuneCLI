@@ -481,7 +481,7 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 		}
 		os.WriteFile(filepath.Join(pkg, "install.sh"), []byte(script), 0o644)
 		os.WriteFile(filepath.Join(home, ".bashrc"), nil, 0o644)
-		cmd := exec.Command("script", "-qc", "bash -i", "/dev/null")
+		cmd := exec.Command("script", scriptArgs()...)
 		cmd.Dir = pkg
 		env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + bin, "TERM=dumb"}
 		if runtime.GOOS == "linux" {
@@ -514,6 +514,16 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 			t.Fatalf("%s closed the shell after a failed sourced run:\n%s", shell, out)
 		}
 	}
+}
+
+// scriptArgs runs an interactive shell under a fresh terminal: util-linux takes
+// the command with -c, while the BSD script of macOS takes it as arguments after
+// the typescript file and has no -c.
+func scriptArgs() []string {
+	if runtime.GOOS == "darwin" {
+		return []string{"-q", "/dev/null", "bash", "-i"}
+	}
+	return []string{"-qc", "bash -i", "/dev/null"}
 }
 
 // crlf rewrites a release's checksum list with CRLF line ends, as a list
