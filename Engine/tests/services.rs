@@ -975,6 +975,7 @@ fn a_model_connections_address_is_proven_before_it_changes() {
         key_name: None,
         key: Some("k".into()),
         model: None,
+        dialect: None,
     })
     .unwrap();
     let dead = {

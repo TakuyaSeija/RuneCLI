@@ -152,22 +152,24 @@ impl<'a> Activity<'a> {
             session,
             at: crate::store::now_ms(),
         };
-        activity.publish(true);
+        activity.publish(true, 0, 0);
         activity
     }
 
-    fn publish(&self, active: bool) {
+    fn publish(&self, active: bool, batch: u32, remaining: u32) {
         let _ = self.rt.events.send(crate::proto::Event::Compacting {
             session: self.session,
             active,
             at: self.at,
+            batch,
+            remaining,
         });
     }
 }
 
 impl Drop for Activity<'_> {
     fn drop(&mut self) {
-        self.publish(false);
+        self.publish(false, 0, 0);
     }
 }
 
@@ -245,8 +247,18 @@ fn summarise(
         .filter(|r| r.id <= cut.through_id && already.as_ref().is_none_or(|c| r.id > c.through_id))
         .collect();
     let previous = already.as_ref().map(|c| c.summary.as_str()).unwrap_or("");
-    let _activity = Activity::begin(rt, st.id);
-    let summary = write_summary(rt, st, settings, previous, &older)?;
+    let activity = Activity::begin(rt, st.id);
+    let summary = write_summary(
+        rt,
+        st,
+        settings,
+        previous,
+        &older,
+        Trace {
+            at: activity.at,
+            through: cut.through_id,
+        },
+    )?;
 
     // The world is read again here, once: the requests after this one replay
     // the snapshot, so the model holds today's memory, rules, skills, status and
@@ -448,25 +460,214 @@ fn write_summary(
     settings: &ModelSettings,
     previous: &str,
     rows: &[&Row],
+    trace: Trace,
 ) -> Result<String> {
     let config = rt.limits.config.snapshot();
     let chosen = super::auxiliary::route(rt, &config, "compact", settings, false)?;
-    match write_summary_on(rt, st, settings, previous, rows, false) {
-        Err(error @ crate::Error::ContextOverflow(_)) => {
+    // One request first. The older part of a session usually fits the window of
+    // the model about to read it, and one summary over everything keeps the
+    // thread of the work that a chain of per-fragment summaries loses (owner,
+    // 2026-11-07). The split below exists for the case the provider itself
+    // refuses the size — a real rejection, never a guess about tokens.
+    // Which route the split will use: the one that got this far.
+    let inherit;
+    match write_summary_once(rt, st, settings, previous, rows, false) {
+        Ok(summary) => return Ok(summary),
+        Err(crate::Error::ContextOverflow(_)) => {
             let active = super::auxiliary::route(rt, &config, "compact", settings, true)?;
-            if active.input_budget <= chosen.input_budget
-                || active.settings.provider == chosen.settings.provider
-                    && active.settings.model == chosen.settings.model
-            {
-                return Err(error);
+            let larger = active.input_budget > chosen.input_budget
+                && !(active.settings.provider == chosen.settings.provider
+                    && active.settings.model == chosen.settings.model);
+            if !larger {
+                // Nothing bigger to try — the same model, or a smaller one. The
+                // split is exactly what this case is for.
+                inherit = false;
+            } else {
+                super::log::info(rt, st.id, "compact", "compact_fallback", format!(
+                    "The selected compaction model {}/{} rejected the context; using the active model {}/{} with its larger configured input budget.",
+                    chosen.settings.provider, chosen.settings.model, active.settings.provider, active.settings.model));
+                match write_summary_once(rt, st, settings, previous, rows, true) {
+                    Ok(summary) => return Ok(summary),
+                    Err(crate::Error::ContextOverflow(_)) => inherit = true,
+                    Err(other) => return Err(other),
+                }
             }
-            super::log::info(rt, st.id, "compact", "compact_fallback", format!(
-                "The selected compaction model {}/{} rejected the context; using the active model {}/{} with its larger configured input budget.",
-                chosen.settings.provider, chosen.settings.model, active.settings.provider, active.settings.model));
-            write_summary_on(rt, st, settings, previous, rows, true)
         }
-        result => result,
+        Err(other) => return Err(other),
     }
+    // Still too large for one request: read it in batches, each carrying the
+    // summary written so far. This costs one summary per batch, so it is the
+    // fallback and not the shape of the work.
+    super::log::info(rt, st.id, "compact", "compact_split", "The whole older history was refused as one request; reading it in batches that fit the provider.".to_string());
+    write_summary_on(rt, st, settings, previous, rows, inherit, trace)
+}
+
+/// Where a summary is being written, and which cut it belongs to.
+#[derive(Clone, Copy)]
+struct Trace {
+    at: i64,
+    through: i64,
+}
+
+/// Every older source in one request, with the previous summary carried ahead
+/// of it. No batching and no trimming: the provider's own rejection is the
+/// only thing that makes this the wrong shape.
+fn write_summary_once(
+    rt: &Runtime,
+    st: &SessionState,
+    settings: &ModelSettings,
+    previous: &str,
+    rows: &[&Row],
+    inherit: bool,
+) -> Result<String> {
+    let config = rt.limits.config.snapshot();
+    let route = super::auxiliary::route(rt, &config, "compact", settings, inherit)?;
+    let output = route
+        .settings
+        .max_output
+        .expect("auxiliary output budget is resolved");
+    let system = system_for(output);
+    let mut input = String::new();
+    if !previous.is_empty() {
+        input.push_str(&super::text_batches::document(
+            "Generated summary before these sources",
+            previous,
+        ));
+    }
+    for document in super::compact_input::documents(rows, &config) {
+        input.push_str(&super::text_batches::document(
+            &document.label,
+            &document.body,
+        ));
+    }
+    if input.is_empty() {
+        return Err(crate::Error::invalid(
+            "no original source could be compacted",
+        ));
+    }
+    let turn = rows.last().map_or(0, |r| r.turn);
+    summarise_here(
+        rt,
+        st,
+        &config,
+        Call {
+            settings,
+            inherit,
+            turn,
+            system,
+            input,
+        },
+    )
+}
+
+/// One summary request, as the two shapes that send it build it: everything at
+/// once, or one batch of a chain.
+struct Call<'a> {
+    settings: &'a ModelSettings,
+    inherit: bool,
+    turn: i64,
+    system: String,
+    input: String,
+}
+
+/// One summary request, and the two refusals that are not a provider failure:
+/// an empty answer, which would replace the history with nothing.
+fn summarise_here(
+    rt: &Runtime,
+    st: &SessionState,
+    config: &crate::settings::configuration::Configuration,
+    call: Call<'_>,
+) -> Result<String> {
+    let result = super::auxiliary::run(
+        rt,
+        config,
+        super::auxiliary::Job {
+            session: st.id,
+            turn: call.turn,
+            role: "compact",
+            active: call.settings,
+            system: call.system,
+            input: call.input,
+            media: Vec::new(),
+            tools: Vec::new(),
+            cancel: st.cancel.clone(),
+            inherit: call.inherit,
+        },
+    );
+    let out = match result {
+        Ok(output) => output.text.trim().to_owned(),
+        Err(error) => {
+            // A cancel leaves no other trace: without this line the log says
+            // only "cancelled" and nobody can tell whether a person pressed
+            // stop, a window left, or Rune was shutting down (owner,
+            // 2026-11-07).
+            if matches!(error, crate::Error::Cancelled) {
+                super::log::warn(
+                    rt,
+                    st.id,
+                    "compact",
+                    "compact_cancelled",
+                    format!(
+                        "History summarisation was cancelled by {}.",
+                        st.cancel_reason()
+                    ),
+                );
+            }
+            return Err(error);
+        }
+    };
+    if out.is_empty() {
+        return Err(crate::error::Error::Provider(
+            "the model returned an empty summary; history was left as it is".into(),
+        ));
+    }
+    Ok(out)
+}
+
+/// What a batched summary has written so far, kept on disk between batches.
+///
+/// A compaction of a large history runs one request per batch, each taking
+/// seconds to minutes. Until this existed, a cancel at batch eight threw away
+/// seven batches of work — the whole reason the owner reported it as "tidak
+/// mau jalan" (2026-11-07). The file holds only what the model already wrote;
+/// the history itself is untouched, so a stale carry costs nothing worse than
+/// one extra request.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Carry {
+    /// The cut this carry belongs to. A different cut means a different
+    /// history, and the carry is discarded.
+    through_id: i64,
+    /// How many source fragments are already folded into `summary`.
+    consumed: usize,
+    summary: String,
+}
+
+fn carry_path(st: &SessionState) -> std::path::PathBuf {
+    st.scratch.join("compact-carry.json")
+}
+
+fn read_carry(path: &std::path::Path, through_id: i64) -> Option<Carry> {
+    let bytes = std::fs::read(path).ok()?;
+    let carry: Carry = serde_json::from_slice(&bytes).ok()?;
+    (carry.through_id == through_id && !carry.summary.is_empty()).then_some(carry)
+}
+
+fn write_carry(path: &std::path::Path, carry: &Carry) {
+    if let Ok(bytes) = serde_json::to_vec(carry) {
+        let _ = std::fs::write(path, bytes);
+    }
+}
+
+/// Say how far a batched compaction has got: summaries written, and how many
+/// fragments this request has not read yet.
+fn progress(rt: &Runtime, session: i64, at: i64, batch: u32, remaining: u32) {
+    let _ = rt.events.send(crate::proto::Event::Compacting {
+        session,
+        active: true,
+        at,
+        batch,
+        remaining,
+    });
 }
 
 fn write_summary_on(
@@ -476,7 +677,9 @@ fn write_summary_on(
     previous: &str,
     rows: &[&Row],
     inherit: bool,
+    trace: Trace,
 ) -> Result<String> {
+    let (at, through) = (trace.at, trace.through);
     let config = rt.limits.config.snapshot();
     let documents = super::compact_input::documents(rows, &config);
     let route = super::auxiliary::route(rt, &config, "compact", settings, inherit)?;
@@ -497,40 +700,57 @@ fn write_summary_on(
             fragment_room,
         )?);
     }
-    let mut summary = previous.to_owned();
+    let total = fragments.len() as u32;
+    let path = carry_path(st);
+    // A carry left by an interrupted attempt at the same cut is where this one
+    // starts: it is work already paid for.
+    let resumed = read_carry(&path, through);
+    let skip = resumed
+        .as_ref()
+        .map_or(0, |c| c.consumed)
+        .min(fragments.len());
+    let mut summary = resumed
+        .as_ref()
+        .map(|c| c.summary.clone())
+        .unwrap_or_else(|| previous.to_owned());
     let turn = rows.last().map_or(0, |r| r.turn);
-    let run = |input: String, system: String| -> Result<String> {
+    let unread = std::cell::Cell::new(total.saturating_sub(skip as u32));
+    let processed = std::cell::Cell::new(skip);
+    let mut written = 0u32;
+    let mut run = |input: String, system: String| -> Result<String> {
+        // One line before the request that is about to be made, so a long
+        // summarisation is visibly moving instead of looking stuck (owner,
+        // 2026-11-07: seven batches read as a hang).
+        written += 1;
+        progress(rt, st.id, at, written, unread.get());
         if input.len() > room {
             return Err(crate::Error::invalid("generated compaction carry exceeds the configured batch byte limit; increase compact.max_batch_size or reduce compact.max_output_tokens"));
         }
-        let out = super::auxiliary::run(
+        let done = summarise_here(
             rt,
+            st,
             &config,
-            super::auxiliary::Job {
-                session: st.id,
+            Call {
+                settings,
+                inherit,
                 turn,
-                role: "compact",
-                active: settings,
                 system,
                 input,
-                media: Vec::new(),
-                tools: Vec::new(),
-                cancel: st.cancel.clone(),
-                inherit,
             },
-        )?
-        .text
-        .trim()
-        .to_owned();
-        if out.is_empty() {
-            return Err(crate::error::Error::Provider(
-                "the model returned an empty summary; history was left as it is".into(),
-            ));
-        }
-        Ok(out)
+        )?;
+        // After every batch: a cancel from here on keeps this work.
+        write_carry(
+            &path,
+            &Carry {
+                through_id: through,
+                consumed: processed.get(),
+                summary: done.clone(),
+            },
+        );
+        Ok(done)
     };
     let mut batch = String::new();
-    for fragment in fragments {
+    for fragment in fragments.into_iter().skip(skip) {
         let carry = if summary.is_empty() {
             String::new()
         } else {
@@ -558,6 +778,8 @@ fn write_summary_on(
             }
         }
         batch.push_str(&fragment);
+        processed.set(processed.get() + 1);
+        unread.set(unread.get().saturating_sub(1));
     }
     if !batch.is_empty() {
         let carry = if summary.is_empty() {
@@ -572,6 +794,8 @@ fn write_summary_on(
             "no original source could be compacted",
         ));
     }
+    // Complete: the carry has nothing left to protect.
+    let _ = std::fs::remove_file(&path);
     Ok(summary)
 }
 
@@ -678,6 +902,36 @@ pub fn apply<R: Borrow<Row>>(rows: Vec<R>, through: Option<i64>) -> Vec<R> {
 mod tests {
     use super::*;
     use crate::store::sessions::Role;
+
+    /// A carry is read back only for the cut that wrote it: a different cut is
+    /// a different history, and its summary must not be carried into this one
+    /// (owner, 2026-11-07).
+    #[test]
+    fn a_carry_is_read_back_only_for_the_cut_it_belongs_to() {
+        let dir = std::env::temp_dir().join(format!("rune-carry-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("carry.json");
+
+        assert!(read_carry(&path, 7).is_none(), "nothing written yet");
+        write_carry(
+            &path,
+            &Carry {
+                through_id: 7,
+                consumed: 3,
+                summary: "so far".into(),
+            },
+        );
+        let back = read_carry(&path, 7).expect("the same cut resumes");
+        assert_eq!(back.consumed, 3);
+        assert_eq!(back.summary, "so far");
+        assert!(
+            read_carry(&path, 8).is_none(),
+            "a different cut discards it"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn row(id: i64, turn: i64, role: Role, content: &str) -> Row {
         Row {

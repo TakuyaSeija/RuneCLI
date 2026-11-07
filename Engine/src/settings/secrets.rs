@@ -35,7 +35,6 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
@@ -93,25 +92,18 @@ enum Entry {
 struct Key {
     name: Option<String>,
     value: String,
-    /// When this key may be used again. `None` means now.
-    resting_until: Option<Instant>,
-    /// Refused as invalid. A revoked key does not heal by waiting, so it is not
-    /// tried again until the user edits the file or restarts.
-    dead: bool,
 }
 
-impl Key {
-    fn ready(&self, now: Instant) -> bool {
-        !self.dead && self.resting_until.is_none_or(|t| t <= now)
-    }
-}
+// Health is deliberately absent. Rotation is decided per call by one owner,
+// `retry`, which counts the attempts each key has spent and moves a spent key
+// to the back; a second, persisted copy of "this key is resting" could only
+// disagree with it (owner, 2026-11-07).
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct KeyInfo {
     pub position: usize,
     pub name: String,
     pub preview: String,
-    pub ready: bool,
 }
 
 /// Generates a safe preview showing the first 8 characters and masking the rest.
@@ -189,8 +181,8 @@ impl Unavailable {
 /// What one key a connection names is, as every surface tells it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyState {
-    /// Held: how many keys, and how many are usable now.
-    Present { keys: usize, ready: usize },
+    /// Held: how many keys.
+    Present { keys: usize },
     /// The store holds no key under this name.
     NotInStore,
     /// There is no credential store file at all.
@@ -212,10 +204,9 @@ impl KeyState {
     /// One line about the key named `name`, for every surface.
     pub fn note(&self, name: &str) -> String {
         match self {
-            Self::Present { keys, ready } => match (keys, keys - ready) {
-                (1, 0) => "1 key".into(),
-                (n, 0) => format!("{n} keys"),
-                (n, resting) => format!("{n} keys · {resting} resting"),
+            Self::Present { keys } => match keys {
+                1 => "1 key".into(),
+                n => format!("{n} keys"),
             },
             Self::NotInStore => format!("Key missing: Rune's credential store holds no key for `{name}`"),
             Self::StoreAbsent => format!("Key missing: Rune's credential store (secrets.vault) is not in its home, so `{name}` has no key"),
@@ -306,10 +297,9 @@ impl Secrets {
     pub fn key_state(&self, name: &str) -> KeyState {
         match &self.store {
             Store::Unavailable(why) => KeyState::Unavailable(why.clone()),
-            _ if self.keys.contains_key(name) => {
-                let (keys, ready) = self.health(name);
-                KeyState::Present { keys, ready }
-            }
+            _ if self.keys.contains_key(name) => KeyState::Present {
+                keys: self.keys.get(name).map_or(0, Vec::len),
+            },
             Store::Absent => KeyState::StoreAbsent,
             Store::Ready => KeyState::NotInStore,
         }
@@ -354,38 +344,23 @@ impl Secrets {
 
     /// The key to use for `name` right now — the front of the ring.
     ///
-    /// A resting key is skipped while any other is ready. When *every* key is
-    /// resting the soonest one is handed back anyway, because "no key
-    /// configured" would be a lie and the caller bounds its own attempts.
+    /// Nothing is skipped for being "resting": the retry loop owns how many
+    /// times one key is tried and moves a spent key to the back itself, so a
+    /// second opinion here could only disagree with it (owner, 2026-11-07).
     pub fn get(&self, name: &str) -> Option<&str> {
-        let ring = self.keys.get(name)?;
-        let now = Instant::now();
-        ring.iter()
-            .find(|k| k.ready(now))
-            .or_else(|| {
-                ring.iter()
-                    .filter(|k| !k.dead)
-                    .min_by_key(|k| k.resting_until)
-            })
+        self.keys
+            .get(name)?
+            .first()
             .map(|k| k.value.as_str())
             .filter(|v| !v.is_empty())
     }
 
-    /// How many keys `name` holds, and how many of those are usable right now.
-    /// The settings panel reports this; nothing else needs the values.
-    pub fn health(&self, name: &str) -> (usize, usize) {
-        let now = Instant::now();
-        match self.keys.get(name) {
-            Some(ring) => (ring.len(), ring.iter().filter(|k| k.ready(now)).count()),
-            None => (0, 0),
-        }
-    }
-
-    /// Move the key that just failed to the back of its ring, and rest it.
+    /// Move the key that has spent its attempts to the back of its ring.
     ///
     /// `1,2,3,4` with 1 failing becomes `2,3,4,1`, exactly. Nothing happens when
     /// the ring holds one key — there is nowhere to move it to, and rewriting
     /// the file to say so would be noise.
+    ///
     /// Persisting the new order is **not** part of the rotation, and a failure
     /// to write must not be reported as one. By the time the file is touched the
     /// ring has already moved in memory, which is the whole of what the caller
@@ -393,9 +368,8 @@ impl Secrets {
     /// would immediately have to rotate away from again. Returning the write's
     /// error here made a read-only home turn a rate limit the ring had already
     /// recovered from into a hard failure — the user's second key sat unused
-    /// while the turn died with a disk error. Health is runtime-only in any case,
-    /// so nothing is lost but a head start.
-    pub fn demote(&mut self, name: &str, value: &str, rest: Duration, dead: bool) {
+    /// while the turn died with a disk error.
+    pub fn rotate(&mut self, name: &str, value: &str) {
         let original = self.snapshot();
         let Some(ring) = self.keys.get_mut(name) else {
             return;
@@ -403,13 +377,11 @@ impl Secrets {
         let Some(at) = ring.iter().position(|k| k.value == value) else {
             return;
         };
-        ring[at].dead |= dead;
-        ring[at].resting_until = Some(Instant::now() + rest);
         if ring.len() < 2 {
             return;
         }
-        let failed = ring.remove(at);
-        ring.push(failed);
+        let spent = ring.remove(at);
+        ring.push(spent);
         let _ = self.save(&original, &self.snapshot());
     }
 
@@ -448,8 +420,6 @@ impl Secrets {
         self.keys.entry(name.to_string()).or_default().push(Key {
             name: clean_name,
             value: key.to_string(),
-            resting_until: None,
-            dead: false,
         });
         Ok(())
     }
@@ -476,6 +446,36 @@ impl Secrets {
         if ring.is_empty() {
             self.keys.remove(name);
         }
+        Ok(true)
+    }
+
+    /// Give the key at `position` a new label, keeping its value exactly.
+    ///
+    /// A label is how a ring is read: two keys told apart only by a preview
+    /// are two keys nobody can choose between (owner, 2026-11-07).
+    pub fn rename_at(&mut self, name: &str, position: usize, key_name: &str) -> Result<bool> {
+        self.writable()?;
+        let label = key_name.trim();
+        if label.is_empty() {
+            return Err(Error::invalid("a key name cannot be empty"));
+        }
+        let Some(ring) = self.keys.get(name) else {
+            return Ok(false);
+        };
+        if position == 0 || position > ring.len() {
+            return Ok(false);
+        }
+        let at = position - 1;
+        let value = ring[at].value.clone();
+        let mut next = self.snapshot();
+        let values = next.get_mut(name).expect("the ring was just read");
+        values[at] = SecretItem::Named {
+            name: label.to_string(),
+            key: value,
+        };
+        self.write(&next)?;
+        let ring = self.keys.get_mut(name).expect("the ring was just read");
+        ring[at].name = Some(label.to_string());
         Ok(true)
     }
 
@@ -509,9 +509,8 @@ impl Secrets {
         }
     }
 
-    /// Key metadata for UI presentation: includes humanist names, safe previews, and health.
+    /// Key metadata for UI presentation: humanist names and safe previews.
     pub fn keys_metadata(&self, name: &str) -> Vec<KeyInfo> {
-        let now = Instant::now();
         match self.keys.get(name) {
             Some(ring) => ring
                 .iter()
@@ -527,7 +526,6 @@ impl Secrets {
                         position: i + 1,
                         name,
                         preview: mask_preview(&k.value),
-                        ready: k.ready(now),
                     }
                 })
                 .collect(),
@@ -749,15 +747,8 @@ fn new_key(item: SecretItem) -> Key {
         SecretItem::Named { name, key } => Key {
             name: Some(name),
             value: key,
-            resting_until: None,
-            dead: false,
         },
-        SecretItem::Plain(value) => Key {
-            name: None,
-            value,
-            resting_until: None,
-            dead: false,
-        },
+        SecretItem::Plain(value) => Key { name: None, value },
     }
 }
 
@@ -928,7 +919,7 @@ mod tests {
         let mut s = Secrets::load(&h).unwrap();
         assert_eq!(s.get("p"), Some("k1"));
 
-        s.demote("p", "k1", Duration::from_secs(60), false);
+        s.rotate("p", "k1");
         assert_eq!(s.ring("p"), vec!["k2", "k3", "k4", "k1"]);
         assert_eq!(s.get("p"), Some("k2"));
 
@@ -940,36 +931,19 @@ mod tests {
         );
     }
 
+    /// A key is never withheld: the ring hands out its front key whatever
+    /// happened to it before, because the retry loop — not the store — decides
+    /// when a key has spent its allowance (owner, 2026-11-07).
     #[test]
-    fn a_resting_key_is_skipped_and_a_refused_one_is_not_offered_at_all() {
-        let h = home("rest");
+    fn the_front_key_is_always_the_one_handed_out() {
+        let h = home("front");
         write_store(&h, r#"{"p":["k1","k2"]}"#);
         let mut s = Secrets::load(&h).unwrap();
 
-        s.demote("p", "k1", Duration::from_secs(600), false);
-        assert_eq!(
-            s.get("p"),
-            Some("k2"),
-            "a resting key must not be handed out"
-        );
-        assert_eq!(s.health("p"), (2, 1));
-
-        s.demote("p", "k2", Duration::from_secs(600), true);
-        // k2 is refused outright; k1 is only resting, so it is still the better
-        // answer than claiming nothing is configured.
-        assert_eq!(s.get("p"), Some("k1"));
-        assert_eq!(s.health("p"), (2, 0));
-    }
-
-    /// Health is not written down: a limit that expired while Rune was closed
-    /// has expired.
-    #[test]
-    fn resting_is_forgotten_across_a_reload() {
-        let h = home("forget");
-        write_store(&h, r#"{"p":["k1","k2"]}"#);
-        let mut s = Secrets::load(&h).unwrap();
-        s.demote("p", "k1", Duration::from_secs(600), true);
-        assert_eq!(Secrets::load(&h).unwrap().health("p"), (2, 2));
+        s.rotate("p", "k1");
+        assert_eq!(s.get("p"), Some("k2"));
+        s.rotate("p", "k2");
+        assert_eq!(s.get("p"), Some("k1"), "the ring wraps around");
     }
 
     /// One key has nowhere to rotate to, and rewriting the file to say so would
@@ -979,7 +953,7 @@ mod tests {
         let h = home("single");
         let mut s = Secrets::load(&h).unwrap();
         s.set("p", "only-key-000001").unwrap();
-        s.demote("p", "only-key-000001", Duration::from_secs(60), false);
+        s.rotate("p", "only-key-000001");
         // The on-disk form is the encrypted vault; decrypt it to check the shape is
         // preserved (a lone key stays a plain string, not an array).
         let blob = std::fs::read(h.join(VAULT_FILE)).unwrap();
@@ -1000,6 +974,27 @@ mod tests {
             Some("only-key-000001"),
             "with nowhere else to go it is still the key"
         );
+    }
+
+    /// A label can be changed without touching the value, and it survives the
+    /// file (owner, 2026-11-07).
+    #[test]
+    fn a_key_can_be_renamed_and_keeps_its_value() {
+        let h = home("rename");
+        write_store(&h, r#"{"p":["k1","k2"]}"#);
+        let mut s = Secrets::load(&h).unwrap();
+
+        assert!(s.rename_at("p", 2, "Backup").unwrap());
+        assert_eq!(s.keys_metadata("p")[1].name, "Backup");
+        assert_eq!(s.ring("p"), vec!["k1", "k2"], "the value is untouched");
+        assert_eq!(
+            Secrets::load(&h).unwrap().keys_metadata("p")[1].name,
+            "Backup",
+            "the new label reaches the file"
+        );
+
+        assert!(!s.rename_at("p", 9, "Nope").unwrap());
+        assert!(s.rename_at("p", 1, "   ").is_err());
     }
 
     #[test]
@@ -1140,7 +1135,7 @@ mod tests {
         let mut s = Secrets::load(&h).unwrap();
         s.set("p", "sk-present-key-0001").unwrap();
         assert_eq!(s.store(), &Store::Ready);
-        assert_eq!(s.key_state("p"), KeyState::Present { keys: 1, ready: 1 });
+        assert_eq!(s.key_state("p"), KeyState::Present { keys: 1 });
         assert_eq!(s.key_state("q"), KeyState::NotInStore);
         assert!(s.key_state("q").note("q").starts_with("Key missing"));
         assert!(s.require("q").is_err());

@@ -1565,6 +1565,22 @@ fn attribution() -> BTreeMap<String, String> {
     ])
 }
 
+/// The name a preset is shown under in the settings screen.
+///
+/// Almost every preset is a vendor's own product name. `compatible` is the
+/// internal word for "any endpoint that speaks one of our two wires", and it
+/// told the person nothing about what to type or which format to expect
+/// (owner, 2026-11-07). The id itself stays `compatible`: it is written in
+/// existing files and is the adapter identity, so renaming it would be a
+/// migration for a label.
+pub fn preset_title(name: &str) -> &str {
+    if name == "compatible" {
+        "Custom provider"
+    } else {
+        name
+    }
+}
+
 pub fn preset(name: &str) -> Option<&'static Preset> {
     PRESETS.iter().find(|p| p.name.eq_ignore_ascii_case(name))
 }

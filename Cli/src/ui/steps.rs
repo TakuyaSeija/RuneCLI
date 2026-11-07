@@ -94,6 +94,7 @@ impl Bullet {
 pub fn heading(tool: &Tool) -> String {
     let action = tool.action.trim();
     if !action.is_empty()
+        && plausible(action)
         && !action.eq_ignore_ascii_case("Running a command")
         && !action.eq_ignore_ascii_case("Running command")
     {
@@ -372,6 +373,11 @@ fn failure_code(tool: &Tool) -> Option<&str> {
 
 /// One bullet per item the call names.
 pub fn bullets(tool: &Tool) -> Vec<Bullet> {
+    // A call whose arguments are still arriving has nothing to say yet; an
+    // empty box under the model's sentence reads as a renderer fault.
+    if tool.hidden {
+        return Vec::new();
+    }
     let (displayed_added, displayed_removed) = tool.displayed_counts();
     let args = tool.args.as_ref();
 
@@ -572,6 +578,22 @@ pub fn bullets(tool: &Tool) -> Vec<Bullet> {
     }
 }
 
+/// Whether a model's sentence about its call can stand as the step's heading.
+///
+/// The action is free text from the model. A degenerate answer once put its own
+/// reasoning in that field — ` ...?  // This appears in execution output ...`
+/// (session 714, 2026-11-06; the call's path was literally `...`) — and drawn
+/// as a heading it reads as a renderer fault, which is exactly how it was
+/// reported. A heading is one short printable sentence; anything else falls
+/// back to the canonical verb and target, which are always true.
+fn plausible(action: &str) -> bool {
+    action.chars().count() <= 160
+        && !action.contains("//")
+        && !action.contains('`')
+        && action.chars().any(|c| c.is_alphanumeric())
+        && action.chars().all(|c| !c.is_control())
+}
+
 fn range(item: &Value) -> Option<(i64, i64)> {
     let list = item.get("view_range")?.as_array()?;
     Some((list.first()?.as_i64()?, list.get(1)?.as_i64()?))
@@ -657,6 +679,28 @@ mod tests {
     /// meant: a report is a check, never typing (the bug of 2026-11-04 drew
     /// every old report as `Type into process`). No step carries a bullet row
     /// repeating the tool's own name (`Control process_control`).
+    /// Session 714: the model put its own musing in `action` and a path of
+    /// `...`. That sentence must never stand as a step heading, while a real
+    /// sentence must (owner, 2026-11-07).
+    #[test]
+    fn a_degenerate_action_never_becomes_the_heading() {
+        let broken = tool(
+            "patch_file",
+            " ...?   // This appears in execution output, likely renderer bug from parsing the assistant message?",
+            serde_json::json!({"path": "...", "old_str": "...", "new_str": "..."}),
+        );
+        let line = heading(&broken);
+        assert!(!line.contains("//"), "{line}");
+        assert!(!line.contains("renderer bug"), "{line}");
+
+        let real = tool(
+            "patch_file",
+            "Update the port table",
+            serde_json::json!({"path": "Docs/AtorynPorts.md"}),
+        );
+        assert_eq!(heading(&real), "Update the port table");
+    }
+
     #[test]
     fn a_process_step_says_what_it_did_and_to_which_task() {
         for (name, args, said) in [

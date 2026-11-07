@@ -27,8 +27,17 @@
 //! Rune's curve alone decides every wait (owner, 2026-10-08). It used to win
 //! whenever a server asked for longer, and a gateway answering 503 with
 //! `Retry-After: 1800` then froze a turn for thirty minutes on its first retry
-//! — twice in one day, ended only by switching the model by hand. A key a
-//! server refused rests on the same curve.
+//! — twice in one day, ended only by switching the model by hand.
+//!
+//! # Two budgets, and what a key is worth
+//!
+//! One key is tried `retry.attempts_per_key` times, each failure waiting on the
+//! curve; when its own allowance is spent it hands over to the next key in the
+//! ring at once, because a fresh key has nothing to wait out. The ring starts
+//! over once every key has spent its own, and the whole call stops when
+//! `retry.max_attempts` is gone (owner, 2026-11-07). Nothing is remembered
+//! about a key between calls: there is no resting or dead state any more, so
+//! nothing can disagree with this loop.
 //!
 //! # Why the ring lives in `settings::secrets` and the policy lives here
 //!
@@ -48,7 +57,17 @@ use crate::settings::Settings;
 /// What the caller is told before a wait, so a retry is never a silent hang.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Waiting {
+    /// The attempt the next call will be, on the key it will use (1-based).
     pub attempt: u32,
+    /// The allowance one key gets before the ring moves on.
+    pub per_key: u32,
+    /// Which key the next call uses (1-based), and how many the ring holds.
+    pub key: u32,
+    pub keys: u32,
+    /// That key's own label, when it has one.
+    pub label: String,
+    /// Every attempt this call has made, and the global allowance.
+    pub total: u32,
     pub of: u32,
     pub wait: Duration,
     /// Whether the next attempt uses a different key.
@@ -61,15 +80,20 @@ pub struct Waiting {
     pub error: String,
 }
 
-/// What a failure means for the next attempt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Fault {
-    /// The same key may still work.
-    Wait,
-    /// This key is the problem: rest it, move it to the back, use the next.
-    Rotate { dead: bool, rest: Duration },
-    /// Repeating cannot help.
-    Fatal,
+/// Whether repeating this failure cannot change its answer.
+///
+/// Everything else — a rate limit, out of credit, a refused key, a dropped
+/// stream, a server error — spends one attempt of the key in use and moves to
+/// the next key once that key's own allowance is gone (owner, 2026-11-07).
+fn final_failure(e: &Error) -> bool {
+    matches!(
+        e,
+        Error::Cancelled
+            | Error::Incomplete(_)
+            | Error::ContextOverflow(_)
+            | Error::Invalid(_)
+            | Error::NotFound(_)
+    )
 }
 
 /// The caller's answer before (and during) a wait.
@@ -96,17 +120,26 @@ pub fn run<T>(
     attempt: &mut dyn FnMut() -> Result<T>,
 ) -> Result<T> {
     let config = panic::lock(settings).config.clone();
-    let max_retries = config.number("retry.max_attempts") as u32;
-    let mut retries = 0u32;
+    let global = config.number("retry.max_attempts") as u32;
+    let per_key = (config.number("retry.attempts_per_key") as u32).max(1);
+    let step = config.duration("retry.initial_delay");
+    let cap = config.duration("retry.max_delay");
+    let mut total = 0u32;
+    // Which key of the ring this call is using, 1-based. The store always
+    // keeps the key in use at the front, so the ordinal is the loop's own
+    // count — it is what makes "Key A" and "Key B" mean something on screen.
+    let mut ordinal = 1u32;
+    // What each key has spent in the round now running. A key that reaches its
+    // allowance hands over and its count starts again, so the next round gives
+    // it the same allowance — until the global budget is gone.
+    let mut spent: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
     loop {
-        let used =
-            secret.and_then(|name| panic::lock(settings).secrets.get(name).map(String::from));
         let error = match attempt() {
             Ok(value) => return Ok(value),
             Err(e) => e,
         };
-        retries += 1;
-        if retries > max_retries {
+        total += 1;
+        if final_failure(&error) || total > global {
             return Err(error);
         }
 
@@ -114,39 +147,36 @@ pub fn run<T>(
         // Built once, not once per countdown tick: the sentence the log keeps
         // is the provider's own, never a category standing in for it.
         let failure = one_line(&error.to_string());
-        let backoff = backoff(
-            retries,
-            config.duration("retry.initial_delay"),
-            config.duration("retry.max_delay"),
-        );
-        let (wait, rotated) = match fault(&error, backoff, config.duration("retry.credit_cooldown"))
-        {
-            Fault::Fatal => return Err(error),
-            Fault::Wait => (backoff, false),
-            Fault::Rotate { dead, rest } => {
-                if let (Some(name), Some(key)) = (secret, used.as_deref()) {
-                    let mut held = panic::lock(settings);
-                    let (total, _) = held.secrets.health(name);
-                    if total < 2 {
-                        // Nothing to rotate to: wait on the curve.
-                        drop(held);
-                        (backoff, false)
-                    } else {
-                        held.secrets.demote(name, key, rest, dead);
-                        drop(held);
-                        // The next key is fresh, so there is nothing to wait out.
-                        (Duration::ZERO, true)
-                    }
-                } else {
-                    (backoff, false)
-                }
+        let (used, _, keys) = front(settings, secret);
+        let count = spent.entry(used.clone().unwrap_or_default()).or_insert(0);
+        *count += 1;
+        // A key that has spent its whole allowance hands over now: a fresh key
+        // has nothing to wait out, and waiting before it would only delay the
+        // answer. Waiting belongs between attempts on the same key.
+        let rotate = keys > 1 && *count >= per_key;
+        let wait = if rotate {
+            if let (Some(name), Some(value)) = (secret, used.as_deref()) {
+                panic::lock(settings).secrets.rotate(name, value);
             }
+            *count = 0;
+            ordinal = ordinal % keys.max(1) + 1;
+            Duration::ZERO
+        } else {
+            backoff(total, step, cap)
         };
 
+        // What the next attempt will be, on the key it will use.
+        let (_, label, keys) = front(settings, secret);
+        let attempt_no = if rotate { 1 } else { *count + 1 };
         let mut tell = |wait: Duration, rotated: bool| -> Option<Error> {
             match announce(Waiting {
-                attempt: retries,
-                of: max_retries,
+                attempt: attempt_no,
+                per_key,
+                key: ordinal,
+                keys,
+                label: label.clone(),
+                total,
+                of: global,
                 wait,
                 rotated,
                 reason: reason.clone(),
@@ -159,7 +189,7 @@ pub fn run<T>(
                 ))),
             }
         };
-        if let Some(stop) = tell(wait, rotated) {
+        if let Some(stop) = tell(wait, rotate) {
             return Err(stop);
         }
         if !wait.is_zero() {
@@ -174,6 +204,31 @@ pub fn run<T>(
             }
         }
     }
+}
+
+/// The key the next attempt will use: its value, its label, its 1-based place
+/// in the ring and how many keys the ring holds.
+///
+/// `retry` asks this before and after a rotation rather than keeping its own
+/// copy: the ring is the credential store's, and one authority for "which key
+/// is in front" is what keeps the two from drifting.
+fn front(settings: &Arc<Mutex<Settings>>, secret: Option<&str>) -> (Option<String>, String, u32) {
+    let Some(name) = secret else {
+        return (None, String::new(), 0);
+    };
+    let held = panic::lock(settings);
+    let ring = held.secrets.ring(name);
+    let keys = ring.len() as u32;
+    if keys == 0 {
+        return (None, String::new(), 0);
+    }
+    let label = held
+        .secrets
+        .keys_metadata(name)
+        .first()
+        .map(|k| k.name.clone())
+        .unwrap_or_default();
+    (ring.first().map(|v| (*v).to_string()), label, keys)
 }
 
 /// A failure as one line for the log: white space collapsed, so a provider's
@@ -221,33 +276,6 @@ pub fn reason_for(e: &Error) -> String {
             }
         }
         _ => "Provider error".into(),
-    }
-}
-
-/// Read the failure. Every provider and transport error (including 400, 401,
-/// 403, 404, 429, 500, a dropped or empty stream) is retried; see the module
-/// docs for the few that repeating cannot change. Out of credit does not clear
-/// in seconds: that key rests for `credit` (`retry.credit_cooldown`) rather
-/// than walking back into the same refusal on the next attempt.
-fn fault(e: &Error, backoff: Duration, credit: Duration) -> Fault {
-    match e {
-        Error::Cancelled
-        | Error::Incomplete(_)
-        | Error::ContextOverflow(_)
-        | Error::Invalid(_)
-        | Error::NotFound(_) => Fault::Fatal,
-        Error::Rejected { status, .. } => match status {
-            429 | 401 | 403 => Fault::Rotate {
-                dead: false,
-                rest: backoff,
-            },
-            402 => Fault::Rotate {
-                dead: false,
-                rest: credit,
-            },
-            _ => Fault::Wait,
-        },
-        _ => Fault::Wait,
     }
 }
 
@@ -304,8 +332,6 @@ mod tests {
 
     /// A backoff value handed to [`fault`]; any value works, it is only echoed.
     const STEP: Duration = Duration::from_secs(3);
-    /// A credit cooldown handed to [`fault`].
-    const CREDIT: Duration = Duration::from_secs(900);
 
     /// The retries the shipped configuration allows.
     fn attempts() -> u32 {
@@ -337,11 +363,19 @@ mod tests {
         shared_in(&home(tag), secrets)
     }
 
-    /// What the whole feature is for: the first key is limited, and the call
-    /// succeeds on the second without the user doing anything.
+    /// What the whole feature is for: the first key has spent its allowance,
+    /// and the call succeeds on the second without the user doing anything.
     #[test]
-    fn a_limited_key_is_demoted_and_the_next_one_answers() {
-        let s = shared("rotate", r#"{"p":["k1","k2"]}"#);
+    fn a_spent_key_hands_over_and_the_next_one_answers() {
+        let dir = std::env::temp_dir().join(format!("rune-retry-handover-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("rune.toml"),
+            "[retry]\ninitial_delay = \"1ms\"\nmax_delay = \"3ms\"\nmax_attempts = 3\nattempts_per_key = 1\n",
+        )
+        .unwrap();
+        let s = shared_in(&dir, r#"{"p":["k1","k2"]}"#);
         let mut seen: Vec<String> = Vec::new();
         let mut announced = 0;
         let out = run(
@@ -351,9 +385,12 @@ mod tests {
                 announced += 1;
                 assert!(
                     w.rotated,
-                    "a rate limit must move to the next key, not sleep on this one"
+                    "a spent key must hand over, not sleep on the same one"
                 );
                 assert!(w.wait.is_zero(), "a fresh key has nothing to wait out");
+                assert_eq!(w.key, 2, "the next key is the second of the ring");
+                assert_eq!(w.keys, 2);
+                assert_eq!(w.per_key, 1);
                 Go::On
             },
             &mut || {
@@ -374,13 +411,61 @@ mod tests {
         assert_eq!(panic::lock(&s).secrets.ring("p"), vec!["k2", "k1"]);
     }
 
+    /// The owner's arithmetic: a key is tried until its own allowance is gone,
+    /// the next key starts at attempt 1 with no wait, and the ring wraps round
+    /// to the first key again while the global budget lasts (owner, 2026-11-07).
+    #[test]
+    fn every_key_spends_its_own_allowance_before_the_ring_wraps() {
+        let dir = std::env::temp_dir().join(format!("rune-retry-rounds-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("rune.toml"),
+            "[retry]\ninitial_delay = \"1ms\"\nmax_delay = \"3ms\"\nmax_attempts = 6\nattempts_per_key = 2\n",
+        )
+        .unwrap();
+        let s = shared_in(&dir, r#"{"p":["k1","k2"]}"#);
+        let mut seen: Vec<(u32, u32, bool, u32)> = Vec::new();
+        let _ = run(
+            &s,
+            Some("p"),
+            &mut |w| {
+                if seen.last().is_none_or(|last| last.3 != w.total) {
+                    seen.push((w.key, w.attempt, w.rotated, w.total));
+                }
+                Go::On
+            },
+            &mut || Err::<(), _>(rejected(429)),
+        );
+
+        // k1 twice, then k2 twice, then the ring starts over at k1.
+        assert_eq!(
+            seen,
+            vec![
+                (1, 2, false, 1),
+                (2, 1, true, 2),
+                (2, 2, false, 3),
+                (1, 1, true, 4),
+                (1, 2, false, 5),
+                (2, 1, true, 6),
+            ]
+        );
+    }
+
     /// Writing the new order down is an optimisation for the *next* launch —
     /// the rotation the caller asked for has already happened, in memory. A home
     /// that cannot be written must not turn a rate limit the ring just recovered
     /// from into a hard failure.
     #[test]
     fn a_rotation_answers_even_when_the_new_order_cannot_be_written_down() {
-        let dir = home("readonly");
+        let dir = std::env::temp_dir().join(format!("rune-retry-readonly-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("rune.toml"),
+            "[retry]\ninitial_delay = \"1ms\"\nmax_delay = \"3ms\"\nmax_attempts = 3\nattempts_per_key = 1\n",
+        )
+        .unwrap();
         let s = shared_in(&dir, r#"{"p":["k1","k2"]}"#);
         let read_only = crate::platform::fixture::Restricted::new(&dir, 0o555).unwrap();
         let out = run(&s, Some("p"), &mut |_| Go::On, &mut || {
@@ -497,10 +582,6 @@ mod tests {
                 .all(|reason| reason == "Stream stalled (300s without data)"),
             "{reasons:?}"
         );
-        assert_eq!(
-            fault(&Error::Stalled(Duration::from_secs(1)), STEP, CREDIT),
-            Fault::Wait
-        );
     }
 
     fn rejected(status: u16) -> Error {
@@ -511,19 +592,16 @@ mod tests {
     }
 
     #[test]
-    fn all_rejected_statuses_are_retried_and_only_what_cannot_change_is_fatal() {
-        for status in [400, 404, 422, 500, 502, 503] {
-            assert_eq!(fault(&rejected(status), STEP, CREDIT), Fault::Wait);
+    fn only_what_repeating_cannot_change_is_final() {
+        // Every status, every transport failure and a dropped stream spends an
+        // attempt: the key may be the problem, and the ring has another.
+        for status in [400, 401, 402, 403, 404, 408, 422, 429, 500, 502, 503] {
+            assert!(!final_failure(&rejected(status)), "{status}");
         }
-        // A dropped stream, an injected error frame, an empty answer.
-        assert_eq!(
-            fault(
-                &Error::Provider("the stream ended badly".into()),
-                STEP,
-                CREDIT
-            ),
-            Fault::Wait
-        );
+        assert!(!final_failure(&Error::Provider(
+            "the stream ended badly".into()
+        )));
+        assert!(!final_failure(&Error::Unreachable("dns".into())));
         for fatal in [
             Error::Cancelled,
             Error::Incomplete("length".into()),
@@ -531,7 +609,7 @@ mod tests {
             Error::invalid("no model chosen"),
             Error::NotFound("provider".into()),
         ] {
-            assert_eq!(fault(&fatal, STEP, CREDIT), Fault::Fatal, "{fatal}");
+            assert!(final_failure(&fatal), "{fatal}");
         }
     }
 
@@ -589,49 +667,6 @@ mod tests {
         assert_eq!(announced, Some(Duration::from_millis(1)));
     }
 
-    #[test]
-    fn a_call_that_never_landed_is_free_to_repeat() {
-        assert_eq!(
-            fault(&Error::Unreachable("dns".into()), STEP, CREDIT),
-            Fault::Wait
-        );
-        for status in [500, 502, 503, 504, 408] {
-            assert_eq!(fault(&rejected(status), STEP, CREDIT), Fault::Wait);
-        }
-    }
-
-    #[test]
-    fn the_statuses_that_are_the_keys_fault_rotate_and_retry() {
-        assert_eq!(
-            fault(&rejected(429), STEP, CREDIT),
-            Fault::Rotate {
-                dead: false,
-                rest: STEP
-            }
-        );
-        assert_eq!(
-            fault(&rejected(401), STEP, CREDIT),
-            Fault::Rotate {
-                dead: false,
-                rest: STEP
-            }
-        );
-        assert_eq!(
-            fault(&rejected(403), STEP, CREDIT),
-            Fault::Rotate {
-                dead: false,
-                rest: STEP
-            }
-        );
-        assert_eq!(
-            fault(&rejected(402), STEP, CREDIT),
-            Fault::Rotate {
-                dead: false,
-                rest: CREDIT
-            }
-        );
-    }
-
     fn secs(values: &[u64]) -> Vec<Duration> {
         values.iter().map(|s| Duration::from_secs(*s)).collect()
     }
@@ -680,6 +715,11 @@ mod tests {
         );
         assert_eq!(config.duration("retry.max_delay"), Duration::from_secs(60));
         assert_eq!(attempts(), 5);
+        assert_eq!(
+            config.number("retry.attempts_per_key"),
+            10,
+            "each key's own allowance is the owner's ten (2026-11-07)"
+        );
         // A configured step shorter than the old 3 s floor is used as written.
         assert_eq!(
             backoff(2, Duration::from_millis(500), Duration::from_secs(1)),
@@ -697,7 +737,7 @@ mod tests {
             &s,
             None,
             &mut |w| {
-                if w.attempt as usize > waits.len() {
+                if w.total as usize > waits.len() {
                     waits.push(w.wait);
                 }
                 Go::On
@@ -713,19 +753,6 @@ mod tests {
             waits,
             ms(&[1, 2, 3, 1, 2]),
             "1 ms step, 3 ms cap, five retries"
-        );
-    }
-
-    /// Out of credit rests the key for `retry.credit_cooldown`, read from the
-    /// configuration rather than from a constant of this module.
-    #[test]
-    fn out_of_credit_rests_the_key_for_the_configured_cooldown() {
-        assert_eq!(
-            fault(&rejected(402), STEP, Duration::from_secs(120)),
-            Fault::Rotate {
-                dead: false,
-                rest: Duration::from_secs(120)
-            }
         );
     }
 }

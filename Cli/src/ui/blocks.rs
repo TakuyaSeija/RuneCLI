@@ -85,6 +85,14 @@ pub struct Tool {
     /// does not want the other forty opened with it. `/verbose` still opens
     /// everything at once for anybody working without a pointer.
     pub open: bool,
+    /// Held back from the transcript while nothing of the call has arrived yet.
+    ///
+    /// A tool's arguments stream in pieces, and the first piece is often just
+    /// `action`: drawing the step there showed an empty box, which reads as a
+    /// broken renderer rather than as a call still being written (owner,
+    /// 2026-11-07). The step appears as soon as it has something to show — a
+    /// command's first characters, or the finished arguments.
+    pub hidden: bool,
 }
 
 pub(crate) struct CounterRamp {
@@ -199,6 +207,7 @@ impl Tool {
             ask: None,
             trimmed_lines: 0,
             open: false,
+            hidden: false,
         }
     }
 

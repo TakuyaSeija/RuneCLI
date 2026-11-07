@@ -230,6 +230,10 @@ pub struct SessionState {
     pub(crate) refused_servers: Mutex<Vec<(String, Vec<PathBuf>)>>,
     /// Set to stop the running turn. Cleared when the next one starts.
     pub cancel: Arc<AtomicBool>,
+    /// Who asked for the cancellation: the stop key, a window leaving, Rune
+    /// shutting down. A cancel used to leave no trace, so a summary that
+    /// stopped in the middle said only "cancelled" (owner, 2026-11-07).
+    cancel_reason: std::sync::Mutex<String>,
     /// The tool call running right now and the flag that stops just that one.
     ///
     /// Separate from `cancel` because "stop this runaway command" and "abandon
@@ -356,6 +360,7 @@ impl SessionState {
                 n.config.number("terminal.columns") as u16,
             )),
             cancel,
+            cancel_reason: Mutex::new(String::new()),
             current_calls: Mutex::new(Vec::new()),
             busy: AtomicBool::new(false),
             admission: Mutex::new(Admission::default()),
@@ -604,6 +609,20 @@ impl SessionState {
         held.inputs = inputs;
     }
 
+    /// Who asked for the cancellation, for the log line of whatever stopped.
+    pub fn cancel_reason(&self) -> String {
+        let held = self
+            .cancel_reason
+            .lock()
+            .map(|w| w.clone())
+            .unwrap_or_default();
+        if held.is_empty() {
+            "an unnamed caller".to_string()
+        } else {
+            held
+        }
+    }
+
     /// The jail in force right now.
     pub fn jail(&self) -> Jail {
         if self.confined() {
@@ -622,6 +641,15 @@ impl SessionState {
     }
 
     pub fn request_cancel(&self) {
+        self.request_cancel_because("the stop key");
+    }
+
+    /// [`SessionState::request_cancel`], naming who asked. The reason is kept
+    /// for the log line a cancelled operation writes, never for a decision.
+    pub fn request_cancel_because(&self, why: &str) {
+        if let Ok(mut held) = self.cancel_reason.lock() {
+            *held = why.to_string();
+        }
         self.cancel.store(true, Ordering::Relaxed);
         // The calls in flight watch their own flags, not this one, so stopping
         // the turn has to reach in and set them too.

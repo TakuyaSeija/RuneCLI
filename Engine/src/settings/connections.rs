@@ -506,7 +506,7 @@ pub fn list(s: &Settings) -> Value {
         .map(|c| {
             let adapter = web::adapter(&c.api);
             let base = |service| adapter.and_then(|a| web::base_of(s, c, a, service));
-            let (keys, ready) = s.secrets.health(&c.name);
+            let keys = s.secrets.ring(&c.name).len();
             let used = |u: Option<&Use>| u.map(|u| json!({ "added": u.added, "route": u.route }));
             let keyless = adapter.is_none_or(|a| matches!(a.key, Key::None));
             let state = (!keyless).then(|| s.secrets.key_state(&c.name));
@@ -523,7 +523,6 @@ pub fn list(s: &Settings) -> Value {
                 "routes": { "search": c.routes.search, "fetch": c.routes.fetch },
                 "zone": c.zone,
                 "keys": keys,
-                "ready": ready,
                 "keys_list": s.secrets.keys_metadata(&c.name),
                 "key_state": state.as_ref().map_or("none", |st| st.code()),
                 "key_note": state.map(|st| st.note(&c.name)),
@@ -546,7 +545,7 @@ pub fn list(s: &Settings) -> Value {
                 // Keys the vault already holds under the vendor's name — a
                 // connection removed keeps them, so setting it up again needs
                 // none (counts only; values never leave the vault).
-                "keys": s.secrets.health(a.id).0,
+                "keys": s.secrets.ring(a.id).len(),
                 "search": a.search.is_some(),
                 "fetch": a.fetch.is_some(),
                 "routes": a.routed(),

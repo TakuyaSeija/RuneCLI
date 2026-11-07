@@ -420,7 +420,7 @@ pub fn detached(
         .engine
         .session(session)
         .map(|s| {
-            s.state.request_cancel();
+            s.state.request_cancel_because("its window leaving");
             // On an upgrade the tasks were handed on, still running.
             if !upgrade {
                 s.state.background.stop_all();
@@ -523,7 +523,9 @@ impl Departed {
         if let Ok(session) = driver.engine.session(id) {
             session.state.files.stop();
             session.state.background.suspend();
-            session.state.request_cancel();
+            session
+                .state
+                .request_cancel_because("its last window leaving");
         }
     }
 

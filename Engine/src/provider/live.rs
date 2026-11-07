@@ -594,6 +594,11 @@ impl Provider for Live {
                 rotated: w.rotated,
                 reason: w.reason,
                 error: w.error,
+                per_key: w.per_key,
+                key: w.key,
+                keys: w.keys,
+                label: w.label,
+                total: w.total,
             }) {
                 Flow::Continue => crate::retry::Go::On,
                 Flow::Stop => crate::retry::Go::Cancel,
@@ -625,12 +630,19 @@ impl Provider for Live {
             let current = adjusted.borrow().clone();
             let result = self.attempt(&current, dialect, started, &mut forward);
             if let Err(Error::OutputLimit { limit, .. }) = &result {
-                if req.control.role == Some("compact")
-                    && current.settings.max_output.is_some_and(|n| *limit < n)
-                {
-                    let mut next = adjusted.borrow_mut();
+                // The provider named the ceiling it accepts. Adopt it — for the
+                // agent's turn as much as for a summary. It used to be lowered
+                // for `compact` alone, so a model whose published ceiling sat
+                // above its endpoint's real one retried the same refused
+                // request until the attempt budget died (owner, 2026-11-07).
+                let mut next = adjusted.borrow_mut();
+                if next.settings.max_output.is_none_or(|n| *limit < n) {
                     next.settings.max_output = Some(*limit);
-                    next.system = crate::session::compact::system_for(*limit);
+                    if req.control.role == Some("compact") {
+                        // The summariser is told to fit its answer in this
+                        // budget, so the instruction follows the ceiling.
+                        next.system = crate::session::compact::system_for(*limit);
+                    }
                 }
             }
             result

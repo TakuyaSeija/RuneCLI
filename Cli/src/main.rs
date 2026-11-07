@@ -282,6 +282,10 @@ fn run(args: args::Args) -> Result<(), String> {
                         key_name,
                         key,
                         model,
+                        // The command line adds a preset by its own name; a
+                        // custom endpoint's wire is asked on the settings
+                        // screen, never inferred here.
+                        dialect: None,
                     })?;
                     report::provider_added(&out);
                 }

@@ -11257,6 +11257,11 @@ mod tests {
                 wait_ms: seconds * 1000,
                 rotated: false,
                 reason: "Rate limited".into(),
+                per_key: 10,
+                key: 1,
+                keys: 1,
+                label: String::new(),
+                total: 1,
             });
             for width in [36, 60, 120, 180] {
                 let line = state_line(&app, width);

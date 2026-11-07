@@ -1267,6 +1267,11 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                         rotated,
                         reason,
                         error,
+                        per_key,
+                        key,
+                        keys,
+                        label,
+                        total,
                     } => {
                         // Once per attempt: the countdown repeats this chunk ten
                         // times a second, and the log is not a clock.
@@ -1282,10 +1287,15 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                                 "retry",
                                 "retrying",
                                 format!(
-                                "The request failed: {error}; attempt {attempt} of {of} in {}s{}.",
-                                wait_ms.div_ceil(1000),
-                                if rotated { " with the next API key" } else { "" }
-                            ),
+                                    "The request failed: {error}; attempt {attempt} of {per_key} on {} ({total} of {of} overall) in {}s{}.",
+                                    if label.is_empty() {
+                                        format!("key {key} of {keys}")
+                                    } else {
+                                        format!("{label}, key {key} of {keys}")
+                                    },
+                                    wait_ms.div_ceil(1000),
+                                    if rotated { " with the next API key" } else { "" }
+                                ),
                                 Some(serde_json::json!({ "reason": reason })),
                             );
                         }
@@ -1326,6 +1336,11 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                                         wait_ms: 0,
                                         rotated: false,
                                         reason: "Request settings changed".into(),
+                                        per_key,
+                                        key,
+                                        keys,
+                                        label: label.clone(),
+                                        total,
                                     },
                                 );
                                 return Flow::Stop;
@@ -1340,6 +1355,11 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                                 wait_ms,
                                 rotated,
                                 reason,
+                                per_key,
+                                key,
+                                keys,
+                                label,
+                                total,
                             },
                         );
                     }

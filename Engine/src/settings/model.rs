@@ -833,12 +833,14 @@ impl ModelSettings {
         put("frequency_penalty", self.frequency_penalty);
         put("presence_penalty", self.presence_penalty);
         let m = p.model(&self.model);
-        let ceiling = m.and_then(|m| m.max_output);
         let context = m.and_then(|m| m.context);
-        let auto_smart = smart_max_output(context, ceiling);
+        // `smart_max_output` already holds the result inside the vendor's own
+        // ceiling, so clamping a second time here was the same comparison made
+        // twice — and the second copy is the one that could drift from the
+        // first (owner, 2026-11-07).
         let n = self
             .max_output
-            .unwrap_or_else(|| ceiling.map_or(auto_smart, |limit| auto_smart.min(limit)));
+            .unwrap_or_else(|| smart_max_output(context, m.and_then(|m| m.max_output)));
         let supports = |key| m.and_then(|m| m.supports_parameter(key));
         let key = if supports("max_completion_tokens") == Some(true) {
             Some("max_completion_tokens")

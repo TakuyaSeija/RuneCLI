@@ -16,12 +16,25 @@ use std::{
 
 struct Judge {
     requests: Mutex<Vec<Request>>,
+    /// Refuse the next summary request as a provider whose window is smaller
+    /// than the history would. Recorded nowhere: the refusals a test cares
+    /// about are the batches that came after it.
+    refuse_compact_once: std::sync::atomic::AtomicBool,
 }
 impl Provider for Judge {
     fn name(&self) -> &str {
         "contract-judge"
     }
     fn stream(&self, r: &Request, sink: &mut dyn FnMut(Chunk) -> Flow) -> runeengine::Result<()> {
+        if r.control.role == Some("compact")
+            && self
+                .refuse_compact_once
+                .swap(false, std::sync::atomic::Ordering::Relaxed)
+        {
+            return Err(runeengine::error::Error::ContextOverflow(
+                "maximum context length exceeded".into(),
+            ));
+        }
         self.requests.lock().unwrap().push(r.clone());
         if r.control.role == Some("sanitizer") {
             let text = &r.messages[0].content;
@@ -121,6 +134,7 @@ impl Harness {
         }
         let judge = Arc::new(Judge {
             requests: Mutex::new(Vec::new()),
+            refuse_compact_once: std::sync::atomic::AtomicBool::new(false),
         });
         let (mut engine, events) =
             Engine::start(Config::at(home.join("rune.db"), home, judge.clone()).unwrap()).unwrap();
@@ -458,6 +472,12 @@ fn compact_uses_its_explicit_batch_byte_limit_without_token_conversion() {
         .unwrap();
     }
     drop(db);
+    // The whole history is sent first; the provider refuses it as too large,
+    // and the split that follows is what this test is about (owner,
+    // 2026-11-07: one summary request is the shape, batching is the fallback).
+    h.judge
+        .refuse_compact_once
+        .store(true, std::sync::atomic::Ordering::Relaxed);
     h.engine.handle(Command::SessionCompact {
         id: 8,
         session: h.id,
@@ -799,6 +819,9 @@ fn compact_reads_middle_user_constraints_in_budgeted_batches_and_uses_effective_
             .unwrap();
     }
     drop(db);
+    h.judge
+        .refuse_compact_once
+        .store(true, std::sync::atomic::Ordering::Relaxed);
     h.engine.handle(Command::SessionCompact {
         id: 90,
         session: h.id,

@@ -280,7 +280,11 @@ pub enum Field {
     SetupKeyName,
     SetupKey,
     SetupName,
+    /// Which wire a custom endpoint speaks: OpenAI-shaped or Anthropic.
+    SetupFormat,
     RemoveKey(String, usize),
+    /// Give one key of a connection a new label.
+    RenameKey(String, usize),
     /// Set the unreadable credential store aside and start a new one.
     NewCredentialStore,
     ModelContext {
@@ -733,6 +737,9 @@ struct ProviderDraft {
     model: String,
     /// A search/fetch connection rather than a model one.
     service: bool,
+    /// The wire a custom endpoint speaks: `openai` or `anthropic`. Only the
+    /// custom preset asks; every other preset knows its own.
+    format: String,
 }
 
 impl ProviderDraft {
@@ -741,11 +748,24 @@ impl ProviderDraft {
             preset: name.into(),
             name: name.into(),
             url: String::new(),
-            key_name: "Primary".to_string(),
+            key_name: String::new(),
             key: String::new(),
             model: String::new(),
             service: false,
+            format: "openai".into(),
         }
+    }
+}
+
+/// The two wires a custom endpoint may speak, in the words the screen uses.
+const FORMAT_CHOICES: [&str; 2] = ["OpenAI-compatible", "Anthropic-compatible"];
+
+/// The stored key of one choice above.
+fn format_key(choice: &str) -> &'static str {
+    if choice.starts_with("Anthropic") {
+        "anthropic"
+    } else {
+        "openai"
     }
 }
 
@@ -886,7 +906,7 @@ pub fn rows(app: &App) -> Vec<Row> {
                         .then(|| {
                             Row::new(
                                 Kind::AddPreset(name.into()),
-                                name,
+                                p["title"].as_str().unwrap_or(name),
                                 if p["needs_key"].as_bool().unwrap_or(true) {
                                     "API key required"
                                 } else {
@@ -894,7 +914,11 @@ pub fn rows(app: &App) -> Vec<Row> {
                                 }
                                 .into(),
                             )
-                            .help(p["key_hint"].as_str().unwrap_or("Configure this endpoint."))
+                            .help(if name == "compatible" {
+                                "Any endpoint of your own. The next step asks which wire it speaks: OpenAI-compatible (/chat/completions, Bearer token) or Anthropic-compatible (/v1/messages, x-api-key header)."
+                            } else {
+                                p["key_hint"].as_str().unwrap_or("Configure this endpoint.")
+                            })
                         })
                     }),
             );
@@ -993,9 +1017,29 @@ fn model_setup_rows(app: &App, draft: &ProviderDraft) -> Vec<Row> {
         )
         .help("Local account name saved in rune.toml. It does not change the adapter identity."),
     ];
+    // Only the custom preset has to be told which wire it speaks; every other
+    // preset knows its own (owner, 2026-11-07: "compatible" was a word nobody
+    // could act on).
+    if draft.preset == "compatible" {
+        rows.push(
+            Row::new(
+                Kind::Edit(Field::SetupFormat),
+                "API format",
+                format!(
+                    "[ {} ↵ ]",
+                    FORMAT_CHOICES
+                        .iter()
+                        .find(|c| format_key(c) == draft.format)
+                        .copied()
+                        .unwrap_or(FORMAT_CHOICES[0])
+                ),
+            )
+            .help("Which wire this endpoint speaks. OpenAI-compatible: POST /chat/completions with an Authorization: Bearer token. Anthropic-compatible: POST /v1/messages with an x-api-key header. The base URL stays the endpoint's own; Rune does not guess the format from the address."),
+        );
+    }
     rows.extend([
         Row::new(Kind::Edit(Field::SetupUrl), "API base URL", if url.is_empty() { "[ Required ↵ ]".into() } else { format!("[ {url} ↵ ]") }).help(endpoint_help).note(if required { "This provider needs an account-specific endpoint." } else { "Empty uses the provider's preset endpoint." }),
-        Row::new(Kind::Edit(Field::SetupKeyName), "Key name", format!("[ {} ↵ ]", draft.key_name)).help("Label for this credential in the encrypted vault."),
+        Row::new(Kind::Edit(Field::SetupKeyName), "Key name", if draft.key_name.trim().is_empty() { "[ Name this key ↵ ]".to_string() } else { format!("[ {} ↵ ]", draft.key_name) }).help("Every key carries its own label, so a ring can be told apart at a glance. Rune does not invent one."),
         Row::new(Kind::Edit(Field::SetupKey), "API key", if draft.key.is_empty() { "[ Set API key ↵ ]".into() } else { "••••••••  [ edit ↵ ]".into() }).help(hint),
         Row::new(Kind::ConnectModel, "Connect", "Connect →".into()).help("Check account access and save the connection. This contacts your endpoint; it does not prove every model or capability. Non-secret choices go to rune.toml; credentials stay in the vault."),
     ]);
@@ -1121,6 +1165,15 @@ fn connect_model(app: &mut App, driver: &mut Driver) {
         Some(draft.key.trim().to_string()),
         (!draft.model.is_empty()).then(|| draft.model.clone()),
     );
+    // Only the custom preset carries an answer: every other preset's wire is
+    // part of what that preset is.
+    let dialect = (draft.preset == "compatible").then(|| {
+        if draft.format == "anthropic" {
+            "anthropic".to_string()
+        } else {
+            "openai".to_string()
+        }
+    });
     send(
         app,
         driver,
@@ -1134,6 +1187,7 @@ fn connect_model(app: &mut App, driver: &mut Driver) {
             key_name,
             key,
             model,
+            dialect,
         },
     );
 }
@@ -1200,11 +1254,23 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
         .and_then(|m| m.context)
         .map(|n| format!("{} tokens", thousands(n)))
         .unwrap_or_else(|| "Not set".into());
-    let max_val = info
-        .as_ref()
-        .and_then(|m| m.max_output)
-        .map(|n| format!("{} tokens", thousands(n)))
-        .unwrap_or_else(|| "Not set (or unlimited)".into());
+    // The number a request carries, not the vendor's ceiling. The screen used
+    // to show the ceiling alone, so a 393k ceiling sat beside a 128k request
+    // and a 128k context reservation (owner, 2026-11-07). For the model in use
+    // the engine's own effective value is shown; for any other model the
+    // stored one stands in, with the ceiling named beside it.
+    let ceiling = info.as_ref().and_then(|m| m.max_output);
+    let sent = (provider == app.provider() && model == app.model())
+        .then(|| app.settings["max_output"].as_u64())
+        .flatten()
+        .or(ceiling);
+    let max_val = match sent {
+        Some(n) => match ceiling.filter(|c| *c > n) {
+            Some(c) => format!("{} tokens (ceiling {})", thousands(n), thousands(c)),
+            None => format!("{} tokens", thousands(n)),
+        },
+        None => "Rune default (20% of context, max 128k)".into(),
+    };
 
     let (in_val, out_val, cached_val, tier_summary, busy_summary) =
         if let Some(p) = info.as_ref().and_then(|m| m.price.as_ref()) {
@@ -1257,7 +1323,7 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
             "Max output tokens",
             max_val,
         )
-        .help("Maximum completion tokens generated in a single turn (leave empty to clear)"),
+        .help("The ceiling a request sends, and the room the context budget reserves for the answer: context window minus this number is what the history may use. Empty means Rune's default, 20% of the context window and never more than 128k. A provider that refuses the value makes Rune lower it to the limit the provider names."),
         Row::new(
             Kind::Edit(Field::ModelInputPrice {
                 provider: provider.into(),
@@ -1346,6 +1412,28 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
             })
             .unwrap_or_else(|| "Unknown / not applicable".into());
         rows.insert(5,Row::new(Kind::Edit(Field::ModelExtraRate{provider:provider.into(),model:model.into(),key}),label,value).help(if key.ends_with("utc_hour"){ "UTC hour from 0 to 23; start is inclusive and end is exclusive. Equal hours cover all day." }else{"Zero is free; empty is unknown. Rates are per million cache-creation tokens."}));
+    }
+    // What the numbers on this page mean, in the order the engine applies
+    // them. Every line here is read off `settings::charge` and `Price::cost`:
+    // the provider's own figure first, then these rates, then the two
+    // overrides, then cache writes (owner, 2026-11-07).
+    rows.push(
+        Row::new(Kind::Fact, "HOW A REQUEST IS PRICED", String::new()).help(
+            "The first line that applies decides the number. A cost the provider reports is used as it stands, 0 included — which is what a request a plan covers is really billed. Otherwise the rates above are applied to the usage the provider reported, in the order listed below. A request that was priced once is never re-priced.",
+        ),
+    );
+    for (step, value) in [
+        ("1. Provider's own cost", "used exactly as reported"),
+        (
+            "2. Input · cached · output",
+            "the three rates above, per million",
+        ),
+        ("3. Peak hours", "only when both UTC hours are set"),
+        ("4. Context tier", "only above its threshold"),
+        ("5. Cache writes", "5m / 1h / other, when set"),
+        ("Already priced", "kept, never recalculated"),
+    ] {
+        rows.push(Row::new(Kind::Fact, step, value.into()));
     }
     rows
 }
@@ -2650,9 +2738,9 @@ fn runtime_rows(app: &App) -> Vec<Row> {
             "Past it the series restarts",
         ),
         (
-            "retry.credit_cooldown",
-            "Credit cooldown",
-            "Key cooldown after insufficient balance",
+            "retry.attempts_per_key",
+            "Attempts per key",
+            "How many tries one key gets before the ring moves on",
         ),
     ] {
         if let Some(row) = tool_config_row(app, key, label, note) {
@@ -5786,13 +5874,50 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             .as_ref()
             .map(|p| p.key_name.clone())
             .unwrap_or_else(|| "Primary".into()),
+        Field::SetupFormat => {
+            choices = FORMAT_CHOICES.iter().map(|c| (*c).to_string()).collect();
+            let current = app
+                .preferences
+                .setup
+                .as_ref()
+                .map(|p| p.format.clone())
+                .unwrap_or_else(|| "openai".into());
+            FORMAT_CHOICES
+                .iter()
+                .find(|c| format_key(c) == current)
+                .map(|c| (*c).to_string())
+                .unwrap_or_else(|| FORMAT_CHOICES[0].to_string())
+        }
         Field::SetupKey => app
             .preferences
             .setup
             .as_ref()
             .map(|p| p.key.clone())
             .unwrap_or_default(),
-        Field::Key(_) | Field::KeyValue { .. } | Field::RemoveKey(..) => String::new(),
+        Field::RemoveKey(..) => {
+            // A destructive choice is made on buttons, never by pressing Enter
+            // on a plain line (owner, 2026-11-07).
+            choices = vec![
+                "Keep key".to_string(),
+                "Rename key".to_string(),
+                "Remove key".to_string(),
+            ];
+            "Keep key".to_string()
+        }
+        Field::RenameKey(name, position) => app.providers["providers"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|p| p["name"].as_str() == Some(name))
+            .and_then(|p| p["keys_list"].as_array())
+            .and_then(|list| {
+                list.iter()
+                    .find(|k| k["position"].as_u64() == Some(*position as u64))
+                    .and_then(|k| k["name"].as_str())
+                    .map(String::from)
+            })
+            .unwrap_or_default(),
+        Field::Key(_) | Field::KeyValue { .. } => String::new(),
         Field::NewCredentialStore => String::new(),
         Field::RemoveService(_) => String::new(),
         Field::BaseUrl(name) => {
@@ -5988,6 +6113,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
         id: editor_id,
         title: match &field {
             Field::SetupName => "Connection name".into(),
+            Field::SetupFormat => "API format / Custom provider".into(),
             Field::SetupKeyName => format!(
                 "Key name / {}",
                 app.preferences
@@ -6013,6 +6139,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             Field::KeyValue { name, key_name } => format!("API key / {name} ({key_name})"),
             Field::Timeout(name) => format!("Request timeout / {name}"),
             Field::RemoveKey(name, _) => format!("Remove {} from {name}?", row.label),
+            Field::RenameKey(name, _) => format!("Rename key / {name}"),
             Field::RemoveService(name) => format!("Remove {name}? Its keys stay."),
             Field::NewCredentialStore => {
                 "Set the old credential store aside and start a new one? Every key is added again."
@@ -6518,12 +6645,40 @@ fn save_editor(app: &mut App, d: &mut Driver) {
             );
         }
         Field::RemoveKey(name, position) => {
+            app.preferences.editor = None;
+            if text.trim() == "Rename key" {
+                edit_now(app, Field::RenameKey(name, position), "Key name", "");
+                return;
+            }
+            if text.trim() != "Remove key" {
+                return;
+            }
             send(
                 app,
                 d,
                 Operation::Registry("API key removed.".into()),
                 "Removing API key…",
                 |id| Command::ProviderDropKey { id, name, position },
+            );
+        }
+        Field::RenameKey(name, position) => {
+            let key_name = text.trim().to_string();
+            if key_name.is_empty() {
+                notice(app, "A key name cannot be empty.", Tone::Error);
+                return;
+            }
+            app.preferences.editor = None;
+            send(
+                app,
+                d,
+                Operation::Registry("Key renamed.".into()),
+                "Renaming key...",
+                |id| Command::ProviderRenameKey {
+                    id,
+                    name,
+                    position,
+                    key_name,
+                },
             );
         }
         Field::NewCredentialStore => {
@@ -6653,12 +6808,23 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                 connect_service(app, d);
             }
         }
+        Field::SetupFormat => {
+            if let Some(p) = app.preferences.setup.as_mut() {
+                p.format = format_key(&text).to_string();
+            }
+            app.preferences.editor = None;
+        }
         Field::SetupKeyName => {
-            let key_name = if text.trim().is_empty() {
-                "Primary".to_string()
-            } else {
-                text.trim().to_string()
-            };
+            let name = text.trim();
+            if name.is_empty() {
+                notice(
+                    app,
+                    "Give this key a name — it is how you tell the keys apart.",
+                    Tone::Error,
+                );
+                return;
+            }
+            let key_name = name.to_string();
             if let Some(p) = app.preferences.setup.as_mut() {
                 p.key_name = key_name;
             }
@@ -7672,7 +7838,7 @@ mod tests {
                 ("retry.max_attempts", "5"),
                 ("retry.initial_delay", "3s"),
                 ("retry.max_delay", "1m"),
-                ("retry.credit_cooldown", "15m"),
+                ("retry.attempts_per_key", "10"),
             ]
             .map(|(k, v)| (k.to_string(), v.to_string()))
         );
@@ -10612,7 +10778,7 @@ mod tests {
             "retry.max_attempts",
             "retry.initial_delay",
             "retry.max_delay",
-            "retry.credit_cooldown",
+            "retry.attempts_per_key",
             "network.stream_idle_timeout",
             "network.connect_timeout",
             "network.probe_timeout",
@@ -10661,7 +10827,7 @@ mod tests {
         assert!(keys.contains(&"retry.max_attempts"));
         assert!(keys.contains(&"retry.initial_delay"));
         assert!(keys.contains(&"retry.max_delay"));
-        assert!(keys.contains(&"retry.credit_cooldown"));
+        assert!(keys.contains(&"retry.attempts_per_key"));
         assert!(keys.contains(&"network.stream_idle_timeout"));
         for key in [
             "terminal.command_timeout",

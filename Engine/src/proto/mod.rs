@@ -519,6 +519,11 @@ pub enum Command {
         /// Model to probe with, when the preset lists none.
         #[serde(default)]
         model: Option<String>,
+        /// `compatible` only: which wire this endpoint speaks. `anthropic`
+        /// means the Messages API on the same address with an `x-api-key`
+        /// header; anything else (or absent) is the OpenAI-shaped door.
+        #[serde(default)]
+        dialect: Option<String>,
     },
 
     #[serde(rename = "provider.remove")]
@@ -574,6 +579,16 @@ pub enum Command {
         id: u64,
         name: String,
         position: usize,
+    },
+
+    /// Give one key of a connection a new label, keeping its value.
+    #[serde(rename = "provider.rename_key")]
+    ProviderRenameKey {
+        #[serde(default)]
+        id: u64,
+        name: String,
+        position: usize,
+        key_name: String,
     },
 
     /// Set a credential store that cannot be opened aside, with its master
@@ -838,6 +853,7 @@ impl Command {
             | Command::ProviderDryRun { id, .. }
             | Command::ProviderKeys { id, .. }
             | Command::ProviderDropKey { id, .. }
+            | Command::ProviderRenameKey { id, .. }
             | Command::CredentialsNew { id }
             | Command::ProviderDropModel { id, .. }
             | Command::ProviderConfigureModel { id, .. }
@@ -1242,9 +1258,16 @@ pub enum Event {
 
     /// The provider call was refused or never landed, and is being opened again.
     ///
-    /// Sent so a wait is visible. `rotated` says the next attempt uses a
-    /// different API key rather than the same one after a pause; `wait_ms` is
-    /// zero in that case, because a fresh key has nothing to wait out.
+    /// Two budgets are told apart, because they answer different questions.
+    /// `attempt`/`per_key` are the attempts spent on the key now in use against
+    /// its own allowance (`retry.attempts_per_key`); `total`/`of` are every
+    /// attempt in this call against the global allowance
+    /// (`retry.max_attempts`). `key`/`keys` and `label` say which key that is.
+    /// A single-key ring shows only the global pair.
+    ///
+    /// `rotated` says the next attempt uses a different key rather than the
+    /// same one after a pause; `wait_ms` is zero in that case, because a fresh
+    /// key has nothing to wait out.
     #[serde(rename = "retrying")]
     Retrying {
         session: i64,
@@ -1253,12 +1276,39 @@ pub enum Event {
         wait_ms: u64,
         rotated: bool,
         reason: String,
+        /// The allowance one key gets before the ring moves on.
+        #[serde(default)]
+        per_key: u32,
+        /// 1-based place of the key the next attempt uses, and the ring size.
+        #[serde(default)]
+        key: u32,
+        #[serde(default)]
+        keys: u32,
+        /// The key's own label, when it has one.
+        #[serde(default)]
+        label: String,
+        /// Every attempt made in this call so far, against the global budget.
+        #[serde(default)]
+        total: u32,
     },
 
     /// A summary request in progress, including manual work between turns.
     /// It is session state, not a conversation row or an inference turn.
+    ///
+    /// `batch` counts the summaries written so far in this compaction and
+    /// `remaining` how many source fragments are still unread. A total is not
+    /// invented: the batches are packed as the carry-forward summary grows, so
+    /// only what has actually been done and what is left are facts.
     #[serde(rename = "compacting")]
-    Compacting { session: i64, active: bool, at: i64 },
+    Compacting {
+        session: i64,
+        active: bool,
+        at: i64,
+        #[serde(default)]
+        batch: u32,
+        #[serde(default)]
+        remaining: u32,
+    },
 
     /// History was summarised to keep the conversation sendable. Nothing was
     /// deleted — this says what the *model* will see from now on, so a frontend

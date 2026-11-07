@@ -296,6 +296,15 @@ pub enum Chunk {
         /// The failure as it arrived, one line, beside the short `reason`: the
         /// log line keeps what actually failed, never the category alone.
         error: String,
+        /// The allowance one key gets before the ring moves on.
+        per_key: u32,
+        /// Which key the next attempt uses (1-based), and how many the ring holds.
+        key: u32,
+        keys: u32,
+        /// That key's own label, when it has one.
+        label: String,
+        /// Every attempt made in this call so far.
+        total: u32,
     },
     /// Everything streamed since the last attempt began is void: that attempt
     /// failed and the next one starts over. A consumer drops the partial text,

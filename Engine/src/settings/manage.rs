@@ -40,15 +40,19 @@ pub fn execute(settings: &Shared, command: crate::Command) -> Result<Value> {
             key_name,
             key,
             model,
+            dialect,
             ..
-        } => add(
+        } => add_with_format(
             settings,
-            &name,
-            preset.as_deref(),
-            base_url.as_deref(),
-            key_name.as_deref(),
-            key.as_deref(),
-            model.as_deref(),
+            NewProvider {
+                name: &name,
+                preset: preset.as_deref(),
+                base_url: base_url.as_deref(),
+                key_name: key_name.as_deref(),
+                key: key.as_deref(),
+                model: model.as_deref(),
+                dialect: dialect.as_deref(),
+            },
         )?,
         Command::ProviderModels { name, .. } => models(settings, &name, None)?,
         Command::ProviderTest { name, model, .. } => test(settings, &name, model.as_deref())?,
@@ -61,6 +65,12 @@ pub fn execute(settings: &Shared, command: crate::Command) -> Result<Value> {
         Command::ProviderRemove { name, .. } => remove(settings, &name)?,
         Command::ProviderTimeout { name, seconds, .. } => set_timeout(settings, &name, seconds)?,
         Command::ProviderDropKey { name, position, .. } => drop_key(settings, &name, position)?,
+        Command::ProviderRenameKey {
+            name,
+            position,
+            key_name,
+            ..
+        } => rename_key(settings, &name, position, &key_name)?,
         Command::CredentialsNew { .. } => new_credential_store(settings)?,
         Command::ProviderDropModel {
             provider, model, ..
@@ -157,11 +167,11 @@ pub fn list(settings: &Shared) -> Value {
             // How big the ring is and how much of it is usable, so a rotation is
             // visible on the screen instead of only through `-provider keys`.
             // Counts only: the values never leave `secrets`.
-            let (keys, ready) = p
+            let keys = p
                 .secret
                 .as_deref()
-                .map(|n| s.secrets.health(n))
-                .unwrap_or((0, 0));
+                .map(|n| s.secrets.ring(n).len())
+                .unwrap_or(0);
             let keys_list = p
                 .secret
                 .as_deref()
@@ -181,7 +191,6 @@ pub fn list(settings: &Shared) -> Value {
                 "key_state": p.secret.as_deref().map_or("none", |n| s.secrets.key_state(n).code()),
                 "key_note": p.secret.as_deref().map(|n| s.secrets.key_state(n).note(n)),
                 "keys": keys,
-                "ready": ready,
                 "keys_list": keys_list,
                 "default": s.providers.default.as_deref() == Some(p.name.as_str()),
             })
@@ -199,6 +208,7 @@ pub fn list(settings: &Shared) -> Value {
                 let built = p.build("");
                 json!({
                     "name": p.name,
+                    "title": super::providers::preset_title(p.name),
                     "key_hint": p.key_hint,
                     "needs_key": built.secret.is_some(),
                     "base_url": built.base_url,
@@ -250,6 +260,25 @@ pub fn new_credential_store(settings: &Shared) -> Result<Value> {
 ///
 /// `preset_name` picks a known endpoint; `base_url` overrides or replaces it for
 /// anything OpenAI-compatible that Rune has never heard of.
+/// The wire a custom endpoint was told it speaks, applied to the connection its
+/// preset built.
+///
+/// Only the custom preset can be told: it is the one whose wire cannot be read
+/// off its name, because it is whatever the endpoint speaks. Anthropic's door
+/// authenticates with `x-api-key`, never `Bearer` — the wrong header reads as a
+/// bad key (the Anthropic preset's own note).
+fn apply_dialect(c: &mut super::providers::ProviderConfig, preset: &str, dialect: Option<&str>) {
+    if preset != "compatible" || !dialect.is_some_and(|d| d.eq_ignore_ascii_case("anthropic")) {
+        return;
+    }
+    c.dialect = super::providers::Dialect::Anthropic;
+    c.auth = super::providers::Auth {
+        header: "x-api-key".into(),
+        prefix: String::new(),
+    };
+}
+
+/// Add a connection with the wire its preset already knows.
 pub fn add(
     settings: &Shared,
     name: &str,
@@ -259,6 +288,45 @@ pub fn add(
     key: Option<&str>,
     model: Option<&str>,
 ) -> Result<Value> {
+    add_with_format(
+        settings,
+        NewProvider {
+            name,
+            preset: preset_name,
+            base_url,
+            key_name,
+            key,
+            model,
+            dialect: None,
+        },
+    )
+}
+
+/// Everything one new connection is built from, in one value: the positional
+/// form grew an eighth argument the moment a custom endpoint's wire joined it.
+pub struct NewProvider<'a> {
+    pub name: &'a str,
+    pub preset: Option<&'a str>,
+    pub base_url: Option<&'a str>,
+    pub key_name: Option<&'a str>,
+    pub key: Option<&'a str>,
+    pub model: Option<&'a str>,
+    /// `compatible` only: which wire the endpoint speaks.
+    pub dialect: Option<&'a str>,
+}
+
+/// [`add`], with the wire a custom endpoint speaks. Only the custom preset
+/// asks; every other preset carries its own.
+pub fn add_with_format(settings: &Shared, provider: NewProvider<'_>) -> Result<Value> {
+    let NewProvider {
+        name,
+        preset: preset_name,
+        base_url,
+        key_name,
+        key,
+        model,
+        dialect,
+    } = provider;
     let name = name.trim();
     if name.is_empty() {
         return Err(Error::invalid("a provider needs a name"));
@@ -283,6 +351,7 @@ pub fn add(
                 )));
             }
             let mut c = p.build(key);
+            apply_dialect(&mut c, chosen, dialect);
             c.name = name.to_string();
             c.secret = c.secret.map(|_| name.to_string());
             c
@@ -518,7 +587,7 @@ pub fn set_timeout(settings: &Shared, name: &str, seconds: Option<u64>) -> Resul
 pub fn keys(settings: &Shared, name: &str) -> Result<Value> {
     let s = panic::lock(settings);
     let state = s.secrets.key_state(name);
-    let (total, ready) = s.secrets.health(name);
+    let total = s.secrets.ring(name).len();
     if total == 0 {
         return Err(match state {
             KeyState::Unavailable(_) => Error::invalid(state.note(name)),
@@ -531,7 +600,16 @@ pub fn keys(settings: &Shared, name: &str) -> Result<Value> {
         .into_iter()
         .map(|k| json!({ "position": k.position, "name": k.name, "masked": k.preview }))
         .collect();
-    Ok(json!({ "name": name, "keys": listed, "total": total, "ready": ready }))
+    Ok(json!({ "name": name, "keys": listed, "total": total }))
+}
+
+/// Give one key a new label, keeping its value exactly.
+pub fn rename_key(settings: &Shared, name: &str, position: usize, key_name: &str) -> Result<Value> {
+    let mut s = panic::lock(settings);
+    if !s.secrets.rename_at(name, position, key_name)? {
+        return Err(Error::NotFound(format!("key {position} of {name}")));
+    }
+    Ok(json!({ "name": name, "position": position, "key_name": key_name.trim() }))
 }
 
 /// Remove one key by the position [`keys`] printed, counting from 1.
@@ -1251,43 +1329,71 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
         efforts,
         supported_parameters,
         price: per_million(row),
-        modalities: row
-            .pointer("/architecture/input_modalities")
-            .or_else(|| row.get("input_modalities"))
-            .and_then(|v| v.as_array())
-            .map(|list| {
-                list.iter()
-                    .filter_map(|m| m.as_str())
-                    .map(String::from)
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                if !row.get("capabilities").is_some_and(Value::is_object) {
-                    return Vec::new();
-                }
-                let mut inputs = vec!["text".into()];
-                let caps = &row["capabilities"];
-                if caps["image_input"]["supported"].as_bool() == Some(true)
-                    || caps["vision"].as_bool() == Some(true)
-                {
-                    inputs.push("image".into());
-                }
-                if caps["pdf_input"]["supported"].as_bool() == Some(true)
-                    || caps["pdf"].as_bool() == Some(true)
-                {
-                    inputs.push("file".into());
-                }
-                if caps["audioInput"].as_bool() == Some(true) {
-                    inputs.push("audio".into());
-                }
-                if caps["videoInput"].as_bool() == Some(true) {
-                    inputs.push("video".into());
-                }
-                inputs
-            }),
+        modalities: modalities_of(row),
         ..Default::default()
     };
     Some(model)
+}
+
+/// What a catalogue row says a model may be shown.
+///
+/// Three shapes are read, because three are published: OpenRouter's
+/// `architecture.input_modalities`, a flat `input_modalities`, and the
+/// capability object a few gateways send. An OpenAI-compatible endpoint that
+/// publishes none of them still names the same capability as a parameter it
+/// accepts — `"vision"` inside `supported_parameters` — and reading it only
+/// from the other three is what left an image-capable model refusing every
+/// picture while 9router, whose catalogue carries real modalities, worked
+/// (owner, 2026-11-07).
+///
+/// Absent evidence stays absent: a row that says nothing yields no list, which
+/// [`crate::media::Attachment::inline_reason`] reports as "support is not
+/// published" rather than as a refusal the model never stated.
+fn modalities_of(row: &Value) -> Vec<String> {
+    if let Some(list) = row
+        .pointer("/architecture/input_modalities")
+        .or_else(|| row.get("input_modalities"))
+        .and_then(Value::as_array)
+    {
+        return list
+            .iter()
+            .filter_map(|m| m.as_str())
+            .map(String::from)
+            .collect();
+    }
+    if row.get("capabilities").is_some_and(Value::is_object) {
+        let caps = &row["capabilities"];
+        let mut inputs = vec!["text".to_string()];
+        if caps["image_input"]["supported"].as_bool() == Some(true)
+            || caps["vision"].as_bool() == Some(true)
+        {
+            inputs.push("image".into());
+        }
+        if caps["pdf_input"]["supported"].as_bool() == Some(true)
+            || caps["pdf"].as_bool() == Some(true)
+        {
+            inputs.push("file".into());
+        }
+        if caps["audioInput"].as_bool() == Some(true) {
+            inputs.push("audio".into());
+        }
+        if caps["videoInput"].as_bool() == Some(true) {
+            inputs.push("video".into());
+        }
+        return inputs;
+    }
+    // A flat OpenAI-shaped catalogue states capability only through the
+    // parameters it accepts. Only a named input capability is lifted out;
+    // everything else about the model stays exactly what the row said.
+    let params: &[Value] = row
+        .get("supported_parameters")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if params.iter().any(|p| p.as_str() == Some("vision")) {
+        return vec!["text".to_string(), "image".to_string()];
+    }
+    Vec::new()
 }
 
 /// Prices, converted from per-token to per-million.
@@ -1621,6 +1727,11 @@ pub fn describe(settings: &Shared, current: &ModelSettings, catalogue: bool) -> 
             model.cloned().into_iter().collect::<Vec<_>>()
         },
         "max_output_ceiling": model.and_then(|m| m.max_output),
+        // The number a request will actually send, beside the vendor's own
+        // ceiling. The two used to be one field on screen and two numbers in
+        // the engine, which is what made a 393k ceiling look like a 393k
+        // reservation while the request carried 128k (owner, 2026-11-07).
+        "max_output": max_output,
         "context": raw_context,
         "input_limit":input_limit,
         "context_usable": usable_context,
@@ -1785,6 +1896,76 @@ mod tests {
 
     /// Whether a preset needs a key is what it builds, not whether its keys
     /// have a known prefix; an account address is asked for, never invented.
+    /// An OpenAI-compatible catalogue that states capability only as an
+    /// accepted parameter still says what the model may be shown (owner,
+    /// 2026-11-07: DeepRelay and TokenHarbor refused every image while
+    /// 9router, whose catalogue carries real modalities, worked).
+    #[test]
+    fn a_flat_catalogue_publishes_vision_as_an_input_modality() {
+        let flat = serde_json::json!({
+            "id": "deeprelay/deepseek-v4.1-flash",
+            "supported_parameters": ["model", "messages", "tools", "vision"]
+        });
+        let model = catalogue_entry(&flat).expect("a row builds a model");
+        assert!(model.accepts("image"), "{:?}", model.modalities);
+
+        let silent = serde_json::json!({"id": "plain", "supported_parameters": ["model"]});
+        let model = catalogue_entry(&silent).unwrap();
+        assert!(
+            model.modalities.is_empty(),
+            "a row that says nothing must not claim anything"
+        );
+
+        let rich = serde_json::json!({
+            "id": "rich",
+            "architecture": {"input_modalities": ["text", "image"]}
+        });
+        let model = catalogue_entry(&rich).unwrap();
+        assert_eq!(
+            model.modalities,
+            vec!["text".to_string(), "image".to_string()]
+        );
+    }
+
+    /// The custom preset is the one whose wire nobody can infer; the answer
+    /// from the form must reach the stored connection, header and all
+    /// (owner, 2026-11-07).
+    #[test]
+    fn a_custom_provider_takes_the_wire_it_was_told() {
+        use crate::settings::providers::{preset, Dialect};
+
+        // The wire is applied to the connection the preset builds; the add
+        // itself probes the endpoint, which is a network fact this test has no
+        // business inventing.
+        let mut cfg = preset("compatible").unwrap().build("sk-x");
+        apply_dialect(&mut cfg, "compatible", Some("anthropic"));
+        assert_eq!(cfg.dialect, Dialect::Anthropic);
+        assert_eq!(cfg.auth.header, "x-api-key");
+        assert_eq!(cfg.auth.prefix, "");
+
+        let mut cfg = preset("compatible").unwrap().build("sk-y");
+        apply_dialect(&mut cfg, "compatible", None);
+        assert_eq!(cfg.dialect, Dialect::OpenAi);
+        assert_eq!(cfg.auth.header, "Authorization");
+        assert_eq!(cfg.auth.prefix, "Bearer ");
+
+        // A preset that knows its own wire is never overruled by the answer.
+        let mut cfg = preset("anthropic").unwrap().build("sk-ant-x");
+        apply_dialect(&mut cfg, "anthropic", Some("openai"));
+        assert_eq!(cfg.dialect, Dialect::Anthropic);
+    }
+
+    /// The preset kept its id for every stored file, but the screen no longer
+    /// shows a word nobody can act on.
+    #[test]
+    fn the_custom_preset_is_named_in_the_screen() {
+        assert_eq!(
+            crate::settings::providers::preset_title("compatible"),
+            "Custom provider"
+        );
+        assert_eq!(crate::settings::providers::preset_title("mimo"), "mimo");
+    }
+
     #[test]
     fn the_preset_list_says_what_each_preset_needs() {
         let l = list(&shared());

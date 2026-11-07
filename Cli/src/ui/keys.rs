@@ -3179,6 +3179,11 @@ mod tests {
             wait_ms: 9000,
             rotated: false,
             reason: "Rate limited".into(),
+            per_key: 10,
+            key: 1,
+            keys: 1,
+            label: String::new(),
+            total: 1,
         });
         app.on_key(Key::Esc, &mut driver);
         assert_eq!(

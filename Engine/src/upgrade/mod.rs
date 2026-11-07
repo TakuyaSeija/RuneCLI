@@ -63,6 +63,7 @@ mod v25;
 mod v26;
 mod v27;
 mod v28;
+mod v29;
 mod v3;
 mod v4;
 mod v5;
@@ -72,7 +73,7 @@ mod v8;
 mod v9;
 
 /// The home format this build reads.
-pub const VERSION: u32 = 28;
+pub const VERSION: u32 = 29;
 
 const MARKER: &str = "version.json";
 const LOCK: &str = "run/Upgrade.lock";
@@ -302,6 +303,7 @@ fn run_step(
         26 => v26::apply(settings, backup, plan),
         27 => v27::apply(settings, backup, plan),
         28 => v28::apply(settings, backup, plan),
+        29 => v29::apply(settings, backup, plan),
         _ => Err(Error::Internal(format!(
             "no upgrade step to version {next}"
         ))),
@@ -391,8 +393,8 @@ fn rewrite_configuration(
 /// that only carries one along is not refused for it — nor is a home asked
 /// `-upgrade-check` before the steps that put it right have run.
 fn validate(text: &str) -> Result<()> {
-    let text = &v28::config(&v27::config(&v25::config(&v19::config(&v18::seed(
-        &v17::retire(&v14::retire(&v11::retire(text)?)?)?,
+    let text = &v29::config(&v28::config(&v27::config(&v25::config(&v19::config(
+        &v18::seed(&v17::retire(&v14::retire(&v11::retire(text)?)?)?)?,
     )?)?)?)?)?;
     let value: serde_json::Value = toml_edit::de::from_str(text)
         .map_err(|e| Error::invalid(format!("{}: {e}", crate::settings::configuration::FILE)))?;

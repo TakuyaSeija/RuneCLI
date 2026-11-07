@@ -3498,11 +3498,17 @@ impl App {
                             tool.shell = shell;
                         }
                         tool.absorb(&delta);
+                        // The first characters of a command are worth showing
+                        // at once; the model's sentence alone is not a call.
+                        if !steps::commands(tool).is_empty() {
+                            tool.hidden = false;
+                        }
                     }
                     None => {
                         let mut tool = Tool::new(id, name, String::new());
                         tool.shell = shell;
                         tool.absorb(&delta);
+                        tool.hidden = steps::commands(&tool).is_empty();
                         self.push_block(Block::of(tool));
                     }
                 }
@@ -3519,6 +3525,7 @@ impl App {
                 self.label = steps::label(&name).to_string();
                 match self.tool_by_id(&id) {
                     Some(tool) => {
+                        tool.hidden = false;
                         tool.action = action;
                         tool.settle(&args);
                         // The engine's clock: the timer reads the same in every window.
@@ -3690,20 +3697,36 @@ impl App {
                 wait_ms,
                 rotated,
                 reason,
+                per_key,
+                key,
+                keys,
+                label,
+                total,
                 ..
             } => {
-                let secs = wait_ms.div_ceil(1_000).max(1);
-                let text = if rotated {
-                    format!("{reason} — trying the next key ({attempt} of {of})")
-                } else if wait_ms == 0 {
-                    format!("{reason} — resuming ({attempt} of {of})")
-                } else {
-                    format!("{reason} — retrying in {secs}s ({attempt} of {of})")
-                };
-                if wait_ms > 0 {
-                    self.set_retry_status(Some(text));
-                } else {
-                    self.set_retry_status(None);
+                // One line, every number labelled. The old one put the wait's
+                // seconds and the attempt count in the same sentence with no
+                // labels, so 3/6/9 and 2/4/5 read as one jumping series
+                // (owner, 2026-11-07).
+                let text = retry_line(
+                    &reason,
+                    RetryCounts {
+                        attempt,
+                        per_key,
+                        key,
+                        keys,
+                        label: &label,
+                        total,
+                        of,
+                        wait_ms,
+                    },
+                );
+                // A wait and a key change are both said where the person is
+                // already looking; a key change also leaves a line in the
+                // transcript, because it explains why the same request is
+                // suddenly served by another account.
+                self.set_retry_status(Some(text.clone()));
+                if rotated {
                     self.note(text);
                 }
             }
@@ -3719,8 +3742,23 @@ impl App {
                     .map(|c| serde_json::to_value(c).unwrap_or(Value::Null))
                     .collect();
             }
-            Event::Compacting { active, at, .. } => {
+            Event::Compacting {
+                active,
+                at,
+                batch,
+                remaining,
+                ..
+            } => {
                 self.compacting = active.then(|| Self::instant_at(at));
+                if active && batch > 0 {
+                    // A batched summary can run for minutes; the count is the
+                    // difference between "working" and "hung" (owner,
+                    // 2026-11-07).
+                    self.set_retry_status(Some(format!(
+                        "Compacting · batch {batch} · {remaining} source{} left",
+                        if remaining == 1 { "" } else { "s" }
+                    )));
+                }
                 if !active {
                     self.retry_status = None;
                 }
@@ -4954,9 +4992,9 @@ mod animation_tests {
     }
 
     #[test]
-    fn retry_backoff_owns_footer_but_resume_uses_transient_lifetime() {
+    fn retry_status_names_the_attempt_and_a_key_change_stays_visible() {
         let mut app = App::for_test();
-        for attempt in 1..=5 {
+        for attempt in 1..=5u32 {
             app.on_event(Event::Retrying {
                 session: app.session.unwrap(),
                 attempt,
@@ -4964,39 +5002,41 @@ mod animation_tests {
                 wait_ms: attempt as u64 * 3000,
                 rotated: false,
                 reason: "Rate limited".into(),
+                per_key: 10,
+                key: 1,
+                keys: 1,
+                label: String::new(),
+                total: attempt,
             });
-            app.status_at = Some(Instant::now() - Duration::from_secs(30));
-            app.tick();
-            assert!(app
-                .retry_status
-                .as_ref()
-                .unwrap()
-                .contains(&format!("{attempt} of 5")));
-            app.on_event(Event::Retrying {
-                session: app.session.unwrap(),
-                attempt,
-                of: 5,
-                wait_ms: 0,
-                rotated: false,
-                reason: "Rate limited".into(),
-            });
-            assert!(app.retry_status.is_none());
-            assert!(app.status.as_ref().unwrap().contains("resuming"));
-            app.status_at = Some(Instant::now() - Duration::from_secs(30));
-            app.tick();
-            assert!(
-                app.status.is_none(),
-                "API calling must not pin retry indefinitely"
-            );
+            let line = app.retry_status.clone().unwrap();
+            // One key: the global count alone, with the wait labelled.
+            assert!(line.contains(&format!("attempt {attempt} of 5")), "{line}");
+            assert!(line.contains("retrying in"), "{line}");
         }
+        // A key change is said on the same line, with both counts labelled,
+        // and it leaves a line in the transcript as well.
         app.on_event(Event::Retrying {
             session: app.session.unwrap(),
             attempt: 1,
             of: 5,
-            wait_ms: 9000,
-            rotated: false,
+            wait_ms: 0,
+            rotated: true,
             reason: "Rate limited".into(),
+            per_key: 10,
+            key: 2,
+            keys: 2,
+            label: "Backup".into(),
+            total: 5,
         });
+        let line = app.retry_status.clone().unwrap();
+        assert!(line.contains("Backup"), "{line}");
+        assert!(line.contains("attempt 1 of 10"), "{line}");
+        assert!(line.contains("5/5"), "{line}");
+        assert!(
+            !line.contains("retry in"),
+            "a fresh key has no wait: {line}"
+        );
+
         app.on_event(Event::Done {
             session: app.session.unwrap(),
             turn: 1,
@@ -5377,6 +5417,119 @@ mod history_tests {
             })
             .collect();
         assert_eq!(thinking, vec!["Thinking part one.. and three"]);
+    }
+}
+
+/// The numbers one retry line carries, already separated by meaning.
+struct RetryCounts<'a> {
+    attempt: u32,
+    per_key: u32,
+    key: u32,
+    keys: u32,
+    label: &'a str,
+    total: u32,
+    of: u32,
+    wait_ms: u64,
+}
+
+/// The one line a retry is shown with.
+///
+/// Two budgets are said apart because they answer different questions, and a
+/// single-key ring says only the one that exists for it: `attempt 21 of
+/// 100000`. A ring of several keys names the key in use, its own attempts and
+/// the global count: `Key B · attempt 3 of 10 · 21/100000`. The wait, when
+/// there is one, is seconds and is labelled as such — the old sentence put it
+/// beside the attempt count with no label, and 3/6/9 read as a jumping attempt
+/// number (owner, 2026-11-07).
+fn retry_line(reason: &str, c: RetryCounts<'_>) -> String {
+    let mut out = String::from(reason);
+    if c.keys > 1 {
+        let who = if c.label.is_empty() {
+            format!("Key {}", c.key)
+        } else {
+            c.label.to_string()
+        };
+        out.push_str(&format!(
+            " — {who} · attempt {} of {} · {}/{}",
+            c.attempt, c.per_key, c.total, c.of
+        ));
+    } else {
+        out.push_str(&format!(" — attempt {} of {}", c.total, c.of));
+    }
+    if c.wait_ms > 0 {
+        out.push_str(&format!(
+            " · retrying in {}s",
+            c.wait_ms.div_ceil(1_000).max(1)
+        ));
+    }
+    out
+}
+
+#[cfg(test)]
+mod retry_line_tests {
+    use super::*;
+
+    #[test]
+    fn a_single_key_says_the_global_count_alone() {
+        let line = retry_line(
+            "Rate limited (HTTP 429)",
+            RetryCounts {
+                attempt: 4,
+                per_key: 10,
+                key: 1,
+                keys: 1,
+                label: "Primary",
+                total: 21,
+                of: 100000,
+                wait_ms: 6000,
+            },
+        );
+        assert_eq!(
+            line,
+            "Rate limited (HTTP 429) — attempt 21 of 100000 · retrying in 6s"
+        );
+    }
+
+    #[test]
+    fn a_ring_names_the_key_and_both_counts() {
+        let line = retry_line(
+            "Rate limited (HTTP 429)",
+            RetryCounts {
+                attempt: 3,
+                per_key: 10,
+                key: 2,
+                keys: 2,
+                label: "Backup",
+                total: 21,
+                of: 100000,
+                wait_ms: 0,
+            },
+        );
+        assert_eq!(
+            line,
+            "Rate limited (HTTP 429) — Backup · attempt 3 of 10 · 21/100000"
+        );
+    }
+
+    #[test]
+    fn an_unnamed_key_is_named_by_its_place() {
+        let line = retry_line(
+            "Server error (HTTP 503)",
+            RetryCounts {
+                attempt: 1,
+                per_key: 10,
+                key: 2,
+                keys: 3,
+                label: "",
+                total: 11,
+                of: 100000,
+                wait_ms: 0,
+            },
+        );
+        assert_eq!(
+            line,
+            "Server error (HTTP 503) — Key 2 · attempt 1 of 10 · 11/100000"
+        );
     }
 }
 

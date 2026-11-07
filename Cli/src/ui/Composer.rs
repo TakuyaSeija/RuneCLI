@@ -657,6 +657,8 @@ mod tests {
             session,
             active: true,
             at: 1,
+            batch: 0,
+            remaining: 0,
         });
         assert!(!app.busy, "a summary is not an inference turn");
         assert!(app.working());
@@ -670,6 +672,8 @@ mod tests {
             session,
             active: false,
             at: 1,
+            batch: 0,
+            remaining: 0,
         });
         assert!(!app.working());
         d.shutdown();

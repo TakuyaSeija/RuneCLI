@@ -412,10 +412,10 @@
    "default": "1m",
    "kind": "Duration"
   },
-  "retry.credit_cooldown": {
+  "retry.attempts_per_key": {
    "document": "runtime/retry.md",
-   "default": "15m",
-   "kind": "Duration"
+   "default": 10,
+   "kind": "Count(1,1000000)"
   },
   "web_search.provider": {
    "document": "tools/web-search.md",
@@ -806,8 +806,10 @@
    "KeyValue",
    "Timeout",
    "SetupKeyName",
+   "SetupFormat",
    "SetupKey",
    "RemoveKey",
+   "RenameKey",
    "ModelContext",
    "ModelMaxOutput",
    "ModelInputPrice",

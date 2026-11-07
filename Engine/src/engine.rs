@@ -312,6 +312,7 @@ impl Engine {
                 | Command::ProviderRemove { .. }
                 | Command::ProviderTimeout { .. }
                 | Command::ProviderDropKey { .. }
+                | Command::ProviderRenameKey { .. }
                 | Command::CredentialsNew { .. }
                 | Command::ProviderDropModel { .. }
                 | Command::ProviderDefault { .. }
@@ -337,6 +338,15 @@ impl Engine {
             let settings = Arc::clone(&self.settings);
             let events = self.rt.events.clone();
             let serial = Arc::clone(&self.provider_work);
+            // Every open window hears about the change, not only the one that
+            // asked: a key added in one window is a key the other windows'
+            // key rings must show, and the owner's rule is that this is live
+            // without a relaunch (2026-11-07).
+            let windows: Vec<(i64, crate::settings::ModelSettings)> = self
+                .sessions
+                .iter()
+                .map(|(id, s)| (*id, s.state.settings()))
+                .collect();
             self.catalogues.push(std::thread::spawn(move || {
                 let _guard = panic::lock(&serial);
                 let result = panic::catch("provider operation", || {
@@ -345,6 +355,15 @@ impl Engine {
                     crate::settings::manage::execute(&settings, cmd)
                 })
                 .and_then(|r| r);
+                if result.is_ok() {
+                    for (session, current) in windows {
+                        let desc = crate::settings::manage::describe(&settings, &current, false);
+                        let _ = events.send(crate::proto::Event::Settings {
+                            session,
+                            settings: desc,
+                        });
+                    }
+                }
                 Self::ack(&events, id, result.map(Some));
             }));
             return true;
@@ -1320,6 +1339,7 @@ impl Engine {
             | Command::ProviderRemove { .. }
             | Command::ProviderTimeout { .. }
             | Command::ProviderDropKey { .. }
+            | Command::ProviderRenameKey { .. }
             | Command::CredentialsNew { .. }
             | Command::ProviderDropModel { .. }
             | Command::ProviderDefault { .. }
@@ -2214,7 +2234,7 @@ impl Engine {
     pub fn shutdown(&mut self) {
         for s in self.sessions.values() {
             s.state.files.stop();
-            s.state.request_cancel();
+            s.state.request_cancel_because("Rune shutting down");
         }
         self.broker.clear();
         for (_, handle) in self.running.drain() {
