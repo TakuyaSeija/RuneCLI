@@ -179,6 +179,23 @@
     "and": "dan"
   },
   "notes": {
+    "0.12.0": {
+      "title": "Retry yang menjelaskan dirinya, dan ringkasan yang bisa dilanjutkan",
+      "paragraphs": [
+        "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan lebih dulu dan menyimpan yang sudah ditulis, dan endpoint custom diberi tahu formatnya, bukan ditebak dari alamatnya."
+      ],
+      "points": [
+        "Retry memberi tiap key jatah sendiri (`retry.attempts_per_key`, bawaan sepuluh) di samping jatah seluruh panggilan (`retry.max_attempts`). Key yang jatahnya habis langsung menyerahkan giliran tanpa jeda, dan ring berputar sampai jatah global habis.",
+        "Baris status menyebut key dan kedua hitungan, misalnya `Key A · attempt 3 of 10 · 21/100000`, dan pergantian key juga tercatat di transkrip.",
+        "Compaction mengirim satu permintaan ringkasan lebih dulu, beralih ke model aktif bila jendelanya lebih besar, dan memecah hanya ketika provider menolak ukurannya.",
+        "Ringkasan berbatch melaporkan `batch N · M sources left`, menyimpan carry yang bisa dilanjutkan setelah tiap batch, dan mencatat siapa yang membatalkannya.",
+        "Koneksi custom bisa diberi tahu apakah ia berbicara format OpenAI atau Anthropic, dan tampil sebagai `Custom provider`.",
+        "Dukungan gambar yang hanya tercantum sebagai parameter yang diterima kini dibaca, sehingga endpoint tersebut menerima gambar.",
+        "Batas output yang dikirim adalah angka yang disisihkan anggaran konteks, dan provider yang menolaknya menurunkannya untuk semua peran, bukan hanya ringkasan.",
+        "Langkah yang argumennya masih datang tidak lagi digambar sebagai kotak kosong, dan action yang rusak tidak pernah menjadi judulnya.",
+        "Layar harga menyatakan bagaimana biaya dihitung dan mana yang diutamakan, termasuk biaya yang dilaporkan provider sebagai nol."
+      ]
+    },
     "0.7.8": {
       "title": "Linux di semua distribusi, dan perbaikan terminal di tepinya",
       "paragraphs": [

@@ -179,6 +179,23 @@
     "and": "e"
   },
   "notes": {
+    "0.12.0": {
+      "title": "Uma nova tentativa que se explica, e um resumo que continua",
+      "paragraphs": [
+        "Um limite de taxa transformava uma requisição numa sequência de números ilegíveis, e o resumo de uma sessão longa podia durar minutos e depois perder o trabalho ao ser cancelado. Agora a nova tentativa carrega duas cotas separadas e nomeia a chave que as gasta, a compactação pede um único resumo primeiro e guarda o que já escreveu, e um endpoint próprio recebe o formato que fala em vez de ser adivinhado pelo endereço."
+      ],
+      "points": [
+        "A nova tentativa dá a cada chave a sua própria cota (`retry.attempts_per_key`, dez por padrão) ao lado da cota da chamada inteira (`retry.max_attempts`). Uma chave esgotada passa a vez sem espera, e o anel recomeça até a cota global acabar.",
+        "A linha de status nomeia a chave e as duas contagens, por exemplo `Key A · attempt 3 of 10 · 21/100000`, e a troca de chave também fica no histórico.",
+        "A compactação envia um único pedido de resumo primeiro, recorre ao modelo ativo quando a janela dele é maior e só divide quando o provedor recusa o tamanho.",
+        "Um resumo em lotes informa `batch N · M sources left`, grava um avanço retomável após cada lote e registra quem o cancelou.",
+        "Uma conexão própria pode ser declarada OpenAI ou Anthropic e aparece como `Custom provider`.",
+        "O suporte a imagens publicado apenas como parâmetro aceito agora é lido, então esses endpoints aceitam imagens.",
+        "O teto de saída enviado é o número que o orçamento de contexto reserva, e um provedor que o recusa o abaixa para todos os papéis, não só para resumos.",
+        "Um passo cujos argumentos ainda estão chegando não é mais desenhado como caixa vazia, e uma ação degenerada nunca vira o seu título.",
+        "As telas de preço explicam como um custo é calculado e o que tem prioridade, inclusive um custo que o provedor informa como zero."
+      ]
+    },
     "0.7.8": {
       "title": "Linux em qualquer distribuição, e as bordas do terminal",
       "paragraphs": [

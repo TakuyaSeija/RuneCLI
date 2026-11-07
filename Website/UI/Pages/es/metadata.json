@@ -179,6 +179,23 @@
     "and": "y"
   },
   "notes": {
+    "0.12.0": {
+      "title": "Un reintento que se explica, y un resumen que se reanuda",
+      "paragraphs": [
+        "Un límite de tasa convertía una petición en una serie de números ilegibles, y el resumen de una sesión larga podía tardar minutos y luego perder su trabajo al cancelarse. Ahora el reintento lleva dos cupos separados y nombra la clave que los gasta, la compactación pide un solo resumen primero y guarda lo que ya escribió, y a un endpoint propio se le dice qué protocolo habla en vez de adivinarlo por su dirección."
+      ],
+      "points": [
+        "El reintento da a cada clave su propio cupo (`retry.attempts_per_key`, diez por defecto) junto al cupo de toda la llamada (`retry.max_attempts`). Una clave agotada cede el turno sin espera, y el anillo vuelve a empezar hasta agotar el cupo global.",
+        "La línea de estado nombra la clave y ambos recuentos, por ejemplo `Key A · attempt 3 of 10 · 21/100000`, y un cambio de clave también queda en el historial.",
+        "La compactación envía primero una sola petición de resumen, recurre al modelo activo cuando su ventana es mayor y solo divide cuando el proveedor rechaza el tamaño.",
+        "Un resumen por lotes informa `batch N · M sources left`, guarda un avance reanudable tras cada lote y registra quién lo canceló.",
+        "Una conexión propia puede declararse OpenAI o Anthropic y aparece como `Custom provider`.",
+        "El soporte de imágenes publicado solo como parámetro aceptado ahora se lee, así que esos endpoints aceptan imágenes.",
+        "El techo de salida que envía una petición es el número que reserva el presupuesto de contexto, y un proveedor que lo rechaza lo baja para todos los papeles, no solo para los resúmenes.",
+        "Un paso cuyos argumentos aún llegan ya no se dibuja como una caja vacía, y una acción degenerada nunca se convierte en su título.",
+        "Las pantallas de precios explican cómo se calcula un coste y qué tiene prioridad, incluido un coste que el proveedor informa como cero."
+      ]
+    },
     "0.7.8": {
       "title": "Linux en cualquier distribución, y los bordes del terminal",
       "paragraphs": [

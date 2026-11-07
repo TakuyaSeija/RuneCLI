@@ -130,7 +130,7 @@ func TestDocumentedCommandsAndSelectedDefaultsMatchApplication(t *testing.T) {
 		defaults[m[1]] = value
 	}
 	for _, item := range []struct{ key, value, file, phrase string }{
-		{"retry.credit_cooldown", `"15m"`, "Runtime", "15m"},
+		{"retry.attempts_per_key", "10", "Runtime", "10 attempts"},
 		{"network.connect_timeout", `"10s"`, "Runtime", "10 seconds"},
 		{"inspect_file.max_file_size", `"16MiB"`, "Tools", "16 MiB"},
 		{"terminal.max_background_log_size", `"100MiB"`, "Terminal", "100 MiB"},

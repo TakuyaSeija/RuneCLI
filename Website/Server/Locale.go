@@ -102,18 +102,6 @@ type localeText struct {
 // localeTextPages are the non-documentation pages a translation titles.
 var localeTextPages = []string{"", "changelog", "license", "notfound"}
 
-// A changelog line is one sentence a reader scans; these ceilings keep a note
-// a note and not an article. A paragraph says what changed and why, so it is
-// allowed four times the length of one point. These are lengths of text, not
-// token guesses.
-const (
-	maxNoteTitle  = 120
-	maxNotePoint  = 300
-	maxNotePara   = 700
-	maxNoteParas  = 4
-	maxNotePoints = 8
-)
-
 // englishNotes is the changelog's source of words: version -> layered change.
 var englishNotes = map[string]releaseNote{}
 
@@ -134,25 +122,23 @@ func loadChangelogNotes() error {
 }
 
 // check holds one note to the layered shape: a title, at least one paragraph,
-// and lines that are neither empty nor longer than a reader scans.
+// and no empty line. How long a line is belongs to the writer, not to a
+// ceiling in code (owner, 2026-11-08).
 func (n releaseNote) check(where string) error {
-	if strings.TrimSpace(n.Title) == "" || len(n.Title) > maxNoteTitle {
-		return fmt.Errorf("%s: the title is empty or too long", where)
+	if strings.TrimSpace(n.Title) == "" {
+		return fmt.Errorf("%s: the title is empty", where)
 	}
-	if len(n.Paragraphs) == 0 || len(n.Paragraphs) > maxNoteParas {
-		return fmt.Errorf("%s: %d paragraphs, want 1-%d", where, len(n.Paragraphs), maxNoteParas)
-	}
-	if len(n.Points) > maxNotePoints {
-		return fmt.Errorf("%s: %d points, at most %d", where, len(n.Points), maxNotePoints)
+	if len(n.Paragraphs) == 0 {
+		return fmt.Errorf("%s: no paragraph says what changed", where)
 	}
 	for i, p := range n.Paragraphs {
-		if strings.TrimSpace(p) == "" || len(p) > maxNotePara {
-			return fmt.Errorf("%s: paragraph %d is empty or too long", where, i)
+		if strings.TrimSpace(p) == "" {
+			return fmt.Errorf("%s: paragraph %d is empty", where, i)
 		}
 	}
 	for i, p := range n.Points {
-		if strings.TrimSpace(p) == "" || len(p) > maxNotePoint {
-			return fmt.Errorf("%s: point %d is empty or too long", where, i)
+		if strings.TrimSpace(p) == "" {
+			return fmt.Errorf("%s: point %d is empty", where, i)
 		}
 	}
 	return nil

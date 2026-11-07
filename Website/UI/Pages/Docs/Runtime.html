@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Retries after the first attempt: up to six attempts in total. Zero disables retries.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Base step: waits increase 3, 6, 9… seconds.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>A next wait beyond this restarts the sequence at the base step. It is not exponential backoff.</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>How long an out-of-credit key rests before becoming eligible again. It does not buy credit.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>How many attempts one key gets before the next key in its ring is used — 10 attempts by default. A spent key hands over at once, and the ring starts over once every key has spent its allowance.</td></tr>
 </tbody></table></div>
 <p>Not every failure is retried. Retrying cannot fix a wrong credential, unsupported control or incorrect endpoint. Very high counts can prolong a failure and add charges; read the classified error in logs first.</p>
 <h2 id="network">Network waits</h2>

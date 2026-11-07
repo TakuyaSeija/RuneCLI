@@ -179,6 +179,23 @@
     "and": "et"
   },
   "notes": {
+    "0.12.0": {
+      "title": "Un nouvel essai qui s'explique, et un résumé qui reprend",
+      "paragraphs": [
+        "Une limite de débit transformait une requête en une suite de nombres illisibles, et le résumé d'une longue session pouvait durer des minutes puis perdre son travail à l'annulation. Désormais le nouvel essai porte deux quotas distincts et nomme la clé qui les dépense, la compaction demande d'abord un seul résumé et conserve ce qu'elle a déjà écrit, et un point d'accès personnalisé reçoit son protocole au lieu d'être deviné d'après son adresse."
+      ],
+      "points": [
+        "Le nouvel essai donne à chaque clé son propre quota (`retry.attempts_per_key`, dix par défaut) à côté du quota de l'appel entier (`retry.max_attempts`). Une clé épuisée passe la main sans attente, et l'anneau repart jusqu'à épuisement du quota global.",
+        "La ligne d'état nomme la clé et les deux compteurs, par exemple `Key A · attempt 3 of 10 · 21/100000`, et un changement de clé laisse aussi une ligne dans le fil.",
+        "La compaction envoie d'abord une seule requête de résumé, se rabat sur le modèle actif quand sa fenêtre est plus grande, et ne découpe que si le fournisseur refuse la taille.",
+        "Un résumé par lots annonce `batch N · M sources left`, écrit une reprise après chaque lot et note qui l'a annulé.",
+        "Une connexion personnalisée peut être déclarée OpenAI ou Anthropic et s'affiche comme `Custom provider`.",
+        "La prise en charge des images publiée seulement comme paramètre accepté est lue, donc ces points d'accès acceptent les images.",
+        "Le plafond de sortie envoyé est le nombre que réserve le budget de contexte, et un fournisseur qui le refuse l'abaisse pour tous les rôles, pas seulement les résumés.",
+        "Une étape dont les arguments arrivent encore n'est plus dessinée comme une boîte vide, et une action dégénérée ne devient jamais son titre.",
+        "Les écrans de tarifs expliquent comment un coût est calculé et ce qui passe en premier, y compris un coût que le fournisseur annonce à zéro."
+      ]
+    },
     "0.7.8": {
       "title": "Linux sur toutes les distributions, et les bords du terminal",
       "paragraphs": [

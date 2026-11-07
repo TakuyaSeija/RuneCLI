@@ -1,4 +1,21 @@
 {
+  "0.12.0": {
+    "title": "A retry that explains itself, and a summary that resumes",
+    "paragraphs": [
+      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and a custom endpoint is told which wire it speaks instead of being guessed from its address."
+    ],
+    "points": [
+      "Retrying gives each key its own allowance (`retry.attempts_per_key`, ten by default) beside the whole call's budget (`retry.max_attempts`). A spent key hands over at once, and the ring wraps until the global allowance is gone.",
+      "The status line names the key and both counts, for example `Key A · attempt 3 of 10 · 21/100000`, and a key change also leaves a line in the transcript.",
+      "Compaction sends one summary request first, falls back to the active model when its window is larger, and splits only when the provider itself rejects the size.",
+      "A batched summary reports `batch N · M sources left`, writes a resumable carry after every batch, and records who cancelled it.",
+      "A custom connection can be told whether it speaks the OpenAI or the Anthropic wire, and is listed as `Custom provider`.",
+      "Image support published only as an accepted parameter is read, so those endpoints accept pictures.",
+      "The output ceiling a request sends is the number the context budget reserves, and a provider that refuses it lowers it for every role, not only summaries.",
+      "A step whose arguments are still arriving is no longer drawn as an empty box, and a degenerate action never becomes its heading.",
+      "Pricing screens state how a request is priced and what takes priority, including a cost a provider reports as zero."
+    ]
+  },
   "0.7.8": {
     "title": "Linux on every distribution, and terminal fixes at the edges",
     "paragraphs": [
