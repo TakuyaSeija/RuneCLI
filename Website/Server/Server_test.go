@@ -715,7 +715,7 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 		for shape, want := range shapes {
 			resign(f, want)
 			out, dir, err := run(shell)
-			if err != nil || !strings.Contains(out, "signature verified") {
+			if err != nil || !strings.Contains(strings.ToLower(out), "signature verified") {
 				t.Fatalf("%s (%s signature): install failed: %v\n%s", shell, shape, err, out)
 			}
 			got, err := exec.Command(filepath.Join(dir, "rune.exe"), "--version").Output()
@@ -751,7 +751,7 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 	g.crlf(t, "0.9.0")
 	ts, _ = installerServer(t, g.dir)
 	for _, shell := range shells {
-		if out, dir, err := run(shell); err != nil || !strings.Contains(out, "signature verified") {
+		if out, dir, err := run(shell); err != nil || !strings.Contains(strings.ToLower(out), "signature verified") {
 			t.Fatalf("%s: CRLF checksum list refused: %v\n%s", shell, err, out)
 		} else if got, err := exec.Command(filepath.Join(dir, "rune.exe"), "--version").Output(); err != nil || strings.TrimSpace(string(got)) != "rune 0.9.0" {
 			t.Fatalf("%s: program from a CRLF list says %q (%v)", shell, got, err)
