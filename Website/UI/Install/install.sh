@@ -530,13 +530,15 @@ finish() {
 # ---------------------------------------------------------------------------
 # The install itself
 # ---------------------------------------------------------------------------
+# Never exit from here. zsh runs an EXIT trap after an explicit exit with $? set
+# to 0, so "the folder is not on PATH yet" (3) became a reported success, and the
+# window was told it was ready while rune could not be found at all. Letting the
+# shell keep its own status is what dash, bash, ash and zsh all honour.
 cleanup() {
-	st=$?
 	[ "$tty" -eq 0 ] || printf '%s' "$curs_on"
 	[ -z "$bgpid" ] || kill "$bgpid" 2>/dev/null || :
 	[ -z "$newbin" ] || rm -f "$newbin"
 	rm -rf "$tmp"
-	exit "$st"
 }
 
 abort() {
@@ -548,7 +550,9 @@ abort() {
 install_rune() {
 	set -eu
 	umask 022
-	set +m 2>/dev/null || :
+	# No "set +m" here: posh refuses it, and under set -e that killed the whole
+	# run silently. Job control is already off in a non-interactive shell, which
+	# is every way this installer is started.
 
 	[ -n "$SIGNING_KEY" ] && [ -n "$LATEST" ] || fail "no release has been published yet - see $ORIGIN$BASE/"
 	[ "$(id -u)" -ne 0 ] || fail "run this as your normal user, not root: RuneAgent installs into your home folder"
