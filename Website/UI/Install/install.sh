@@ -1,5 +1,5 @@
 #!/bin/sh
-# RuneAgent installer for Linux and macOS — Atoryn Studio
+# RuneAgent installer for Linux and macOS - Atoryn Studio
 #
 #   curl -fsSL {{.Origin}}{{.Base}}/install.sh | sh
 #   . <(curl -fsSL {{.Origin}}{{.Base}}/install.sh)     # bash and zsh: ready here
@@ -38,7 +38,7 @@ SIGNING_KEY=''
 # the same everywhere. NO_COLOR and a dumb terminal switch it off.
 esc=$(printf '\033')
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
-	bold="$esc[1m" dim="$esc[2m" red="$esc[31m" green="$esc[32m" yellow="$esc[33m" cyan="$esc[36m" off="$esc[0m"
+	bold="${esc}[1m" dim="${esc}[2m" red="${esc}[31m" green="${esc}[32m" yellow="${esc}[33m" cyan="${esc}[36m" off="${esc}[0m"
 else
 	bold='' dim='' red='' green='' yellow='' cyan='' off=''
 fi
@@ -154,7 +154,8 @@ finish() {
 	say "add the same line to your shell profile yourself, this installer never edits it."
 	say ""
 	say "Next time, install as a source and this step disappears:"
-	say "  . <(curl -fsSL $ORIGIN$BASE/install.sh)"
+	say "  bash, zsh:  . <(curl -fsSL $ORIGIN$BASE/install.sh)"
+	say "  any shell:  curl -fsSL $ORIGIN$BASE/install.sh -o rune-install.sh && . ./rune-install.sh"
 	return 0
 }
 
@@ -162,7 +163,7 @@ install_rune() {
 	set -eu
 	umask 022
 
-	[ -n "$SIGNING_KEY" ] && [ -n "$LATEST" ] || fail "no release has been published yet — see $ORIGIN$BASE/"
+	[ -n "$SIGNING_KEY" ] && [ -n "$LATEST" ] || fail "no release has been published yet - see $ORIGIN$BASE/"
 	[ "$(id -u)" -ne 0 ] || fail "run this as your normal user, not root: RuneAgent installs into your home folder"
 	case "$(uname -s)" in
 	Linux) system=linux name_system=Linux ;;
@@ -231,7 +232,7 @@ install_rune() {
 	#    over SHA-256, which OpenSSL and the LibreSSL of macOS both check).
 	openssl dgst -sha256 -verify "$tmp/signing-key.pem" -signature "$tmp/SHA256SUMS.sig" \
 		"$tmp/SHA256SUMS" >/dev/null 2>&1 ||
-		fail "SIGNATURE CHECK FAILED for $version — nothing was installed. Do not use these files."
+		fail "SIGNATURE CHECK FAILED for $version - nothing was installed. Do not use these files."
 	step "signature verified (key $KEY_FINGERPRINT)"
 
 	# 2. The archive must be in that signed list with exactly that hash.
@@ -240,7 +241,7 @@ install_rune() {
 	note "downloading $name"
 	fetch_archive "$url/$name" "$tmp/$name"
 	actual=$(sha256_of "$tmp/$name")
-	[ "$actual" = "$expected" ] || fail "CHECKSUM MISMATCH for $name — nothing was installed. Do not use this file."
+	[ "$actual" = "$expected" ] || fail "CHECKSUM MISMATCH for $name - nothing was installed. Do not use this file."
 	step "checksum verified"
 
 	# 3. The archive holds only plain files with plain names.
@@ -272,15 +273,27 @@ install_rune() {
 	finish "$dir"
 }
 
-# Sourced or executed? bash and zsh know; a POSIX shell has no reliable way, and
-# `. <(...)` needs bash or zsh anyway, so there the installer simply behaves as
-# executed and names the one line instead.
+# Sourced or executed? bash and zsh report it directly. A POSIX shell (dash,
+# ash, ksh, mksh) has no such marker: it is sourced when an interactive shell
+# reads this text from its terminal, which `$-` (the `i` flag) and a terminal on
+# stdin both tell us. A pipe (curl | sh) has no terminal on stdin, `sh
+# install.sh` has no `i` and finds this very file in $0, and a non-interactive
+# script that sources us cannot pass anything on anyway: none of those three is
+# mistaken for a source.
 sourced=0
 if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]:-$0}" != "$0" ]; then
 	sourced=1
 elif [ -n "${ZSH_VERSION:-}" ]; then
 	case "${ZSH_EVAL_CONTEXT:-}" in
 	*:file*) sourced=1 ;;
+	esac
+else
+	own=0
+	if [ -f "$0" ] && grep -q "installer for Linux and macOS" "$0" 2>/dev/null; then
+		own=1
+	fi
+	case "$-" in
+	*i*) [ -t 0 ] && [ "$own" -eq 0 ] && sourced=1 ;;
 	esac
 fi
 
@@ -294,9 +307,19 @@ main() {
 		if ! on_path "$dir"; then
 			PATH="$dir:$PATH"
 			export PATH
-			step "added $dir to PATH in this window"
 		fi
-		ready
+		case "$-" in
+		*i*) # an interactive shell read this file: that window is ready
+			step "added $dir to PATH in this window"
+			ready
+			;;
+		*) # a script sourced it: the script has the folder, the person's own
+			# shell does not, and saying otherwise would be a lie
+			step "added $dir to PATH for the script that sourced this installer"
+			say "Your own shell still needs the one line:"
+			say "  export PATH=\"$dir:\$PATH\""
+			;;
+		esac
 		return 0
 	fi
 	# Executed: still a subshell, so no shell that sourced this file can be

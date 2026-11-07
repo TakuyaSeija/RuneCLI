@@ -461,10 +461,41 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 		return string(out), filepath.Join(home, "bin")
 	}
 
-	// Sourced: the same window can run rune at once.
+	// Sourced by a script: the script gets the folder, the person's own shell
+	// does not, and the installer says exactly that instead of "Ready".
 	out, dir := run(t, bash, ". ./install.sh\ncommand -v rune\nrune --version\n")
-	if !strings.Contains(out, dir+"/rune") || !strings.Contains(out, "rune 0.9.0") || !strings.Contains(out, "Ready.") {
-		t.Fatalf("sourced run did not finish in the same window:\n%s", out)
+	if !strings.Contains(out, dir+"/rune") || !strings.Contains(out, "rune 0.9.0") {
+		t.Fatalf("a script that sourced the installer did not get rune:\n%s", out)
+	}
+	if !strings.Contains(out, "for the script that sourced") || strings.Contains(out, "Ready.") {
+		t.Fatalf("a script-sourced run claims the person's shell is ready:\n%s", out)
+	}
+
+	// An interactive shell that sources it is ready in that same window.
+	if _, err := exec.LookPath("script"); err == nil {
+		home := t.TempDir()
+		bin := filepath.Join(home, "bin")
+		pkg := filepath.Join(home, "pkg")
+		if err := os.MkdirAll(pkg, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(pkg, "install.sh"), []byte(script), 0o644)
+		os.WriteFile(filepath.Join(home, ".bashrc"), nil, 0o644)
+		cmd := exec.Command("script", "-qc", "bash -i", "/dev/null")
+		cmd.Dir = pkg
+		env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + bin, "TERM=dumb"}
+		if runtime.GOOS == "linux" {
+			env = append(env, "RUNE_LIBC=gnu")
+		}
+		cmd.Env = env
+		cmd.Stdin = strings.NewReader(". ./install.sh\ncommand -v rune\nexit\n")
+		pty, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("interactive run failed: %v\n%s", err, pty)
+		}
+		if !strings.Contains(string(pty), bin+"/rune") || !strings.Contains(string(pty), "Ready.") {
+			t.Fatalf("an interactive shell that sourced the installer is not ready:\n%s", pty)
+		}
 	}
 
 	// Piped: no claim of readiness, the one line instead.

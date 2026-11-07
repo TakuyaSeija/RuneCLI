@@ -1,5 +1,5 @@
 #!/bin/sh
-# RuneAgent offline installer for Linux and macOS — Atoryn Studio
+# RuneAgent offline installer for Linux and macOS - Atoryn Studio
 #
 #   sh ./install.sh          run it from inside the unpacked package
 #   . ./install.sh           bash and zsh: also ready in this window
@@ -11,7 +11,7 @@
 # nothing changed.
 #
 # What the checksum proves, honestly: the files belong together and match the
-# package you hold. It does not prove who built the package — that comes from
+# package you hold. It does not prove who built the package - that comes from
 # where you got it. The published package's own sha256 is listed in Atoryn's
 # signed release, and that list can be verified against the release key.
 #
@@ -29,7 +29,7 @@
 # plain lines. Escapes are written out, so this file stays ASCII.
 esc=$(printf '\033')
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
-	bold="$esc[1m" dim="$esc[2m" red="$esc[31m" green="$esc[32m" yellow="$esc[33m" cyan="$esc[36m" off="$esc[0m"
+	bold="${esc}[1m" dim="${esc}[2m" red="${esc}[31m" green="${esc}[32m" yellow="${esc}[33m" cyan="${esc}[36m" off="${esc}[0m"
 else
 	bold='' dim='' red='' green='' yellow='' cyan='' off=''
 fi
@@ -153,8 +153,8 @@ install_rune() {
 	Linux | Darwin) ;;
 	*) fail "this package is for Linux and macOS; on Windows use the package's install.ps1" ;;
 	esac
-	[ -f "$package/rune" ] || fail "this folder holds no rune binary — unpack the whole package first, and run the installer from inside it"
-	[ -f "$package/SHA256SUMS" ] || fail "this folder holds no SHA256SUMS — unpack the whole package first"
+	[ -f "$package/rune" ] || fail "this folder holds no rune binary - unpack the whole package first, and run the installer from inside it"
+	[ -f "$package/SHA256SUMS" ] || fail "this folder holds no SHA256SUMS - unpack the whole package first"
 
 	printf '%sRuneAgent offline package%s\n' "$bold" "$off"
 	note "checking every file against the package checksums"
@@ -179,7 +179,7 @@ install_rune() {
 		[ -f "$package/$name" ] || fail "missing from the package: $name"
 		actual=$(sha256_of "$package/$name")
 		[ "$actual" = "$hash" ] ||
-			fail "CHECKSUM MISMATCH for $name — nothing was installed. Do not use this package."
+			fail "CHECKSUM MISMATCH for $name - nothing was installed. Do not use this package."
 	done <"$package/SHA256SUMS"
 	[ "$checked" = 1 ] || fail "the checksum list does not cover the rune binary"
 	step "every file matches the package checksums"
@@ -209,15 +209,26 @@ install_rune() {
 	finish "$dir"
 }
 
-# Sourced or executed? bash and zsh know; a POSIX shell has no reliable way, and
-# sourcing the installer is only offered for bash and zsh, so there it behaves
-# as executed and names the one line instead.
+# Sourced or executed? bash and zsh report it directly. A POSIX shell (dash,
+# ash, ksh, mksh) has no such marker: it is sourced when an interactive shell
+# reads this text from its terminal, which `$-` (the `i` flag) and a terminal on
+# stdin both tell us. A pipe has no terminal on stdin, `sh install.sh` has no `i`
+# and finds this very file in $0, and a non-interactive script that sources us
+# cannot pass anything on anyway: none of those three is mistaken for a source.
 sourced=0
 if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]:-$0}" != "$0" ]; then
 	sourced=1
 elif [ -n "${ZSH_VERSION:-}" ]; then
 	case "${ZSH_EVAL_CONTEXT:-}" in
 	*:file*) sourced=1 ;;
+	esac
+else
+	own=0
+	if [ -f "$0" ] && grep -q "installer for Linux and macOS" "$0" 2>/dev/null; then
+		own=1
+	fi
+	case "$-" in
+	*i*) [ -t 0 ] && [ "$own" -eq 0 ] && sourced=1 ;;
 	esac
 fi
 
@@ -231,9 +242,19 @@ main() {
 		if ! on_path "$dir"; then
 			PATH="$dir:$PATH"
 			export PATH
-			step "added $dir to PATH in this window"
 		fi
-		ready
+		case "$-" in
+		*i*) # an interactive shell read this file: that window is ready
+			step "added $dir to PATH in this window"
+			ready
+			;;
+		*) # a script sourced it: the script has the folder, the person's own
+			# shell does not, and saying otherwise would be a lie
+			step "added $dir to PATH for the script that sourced this installer"
+			say "Your own shell still needs the one line:"
+			say "  export PATH=\"$dir:\$PATH\""
+			;;
+		esac
 		return 0
 	fi
 	# Executed: still a subshell, so no shell that sourced this file can be
