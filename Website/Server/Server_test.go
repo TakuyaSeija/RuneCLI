@@ -411,6 +411,80 @@ func TestWindowsInstallerCarriesTheReleaseKey(t *testing.T) {
 	}
 }
 
+// The installer finishes the job in the window that ran it, without editing a
+// profile: sourcing it (bash and zsh) adds the install folder to that shell's
+// PATH so `rune` runs at once, the piped form says so plainly and prints the one
+// line instead of claiming to be ready, and a failing run never closes the shell
+// that sourced it (dash and ash report no sourcing, so the work runs in a
+// subshell and its status is handed back).
+func TestInstallerFinishesInTheSameWindow(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("install.sh runs on Linux and macOS")
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is needed for the sourced form")
+	}
+	if _, err := exec.LookPath("openssl"); err != nil {
+		t.Skip("openssl not available")
+	}
+	f := newDownloads(t)
+	f.publishArchives(t, "0.9.0", map[string][]byte{unixArchive("0.9.0"): tarball(t, fakeRune("0.9.0"))})
+	ts, host := installerServer(t, f.dir)
+	script := get(t, ts.Config.Handler, "GET", "/Studio/install.sh", func(r *http.Request) { r.Host = host }).Body.String()
+
+	// run puts the served installer beside a driver script in a fresh home and
+	// runs the driver with the given shell; nothing here touches the real home.
+	run := func(t *testing.T, shell, driver string, extra ...string) (string, string) {
+		t.Helper()
+		home := t.TempDir()
+		dir := filepath.Join(home, "pkg")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(dir, "install.sh"), []byte(script), 0o644)
+		os.WriteFile(filepath.Join(dir, "driver.sh"), []byte(driver), 0o644)
+		cmd := exec.Command(shell, "driver.sh")
+		cmd.Dir = dir
+		// A PATH without any writable folder keeps the run deterministic: the
+		// installer cannot link into /usr/local/bin here, so the piped form must
+		// print its one line instead of finding another rune.
+		env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + filepath.Join(home, "bin")}
+		if runtime.GOOS == "linux" {
+			env = append(env, "RUNE_LIBC=gnu")
+		}
+		cmd.Env = append(env, extra...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s driver failed: %v\n%s", shell, err, out)
+		}
+		return string(out), filepath.Join(home, "bin")
+	}
+
+	// Sourced: the same window can run rune at once.
+	out, dir := run(t, bash, ". ./install.sh\ncommand -v rune\nrune --version\n")
+	if !strings.Contains(out, dir+"/rune") || !strings.Contains(out, "rune 0.9.0") || !strings.Contains(out, "Ready.") {
+		t.Fatalf("sourced run did not finish in the same window:\n%s", out)
+	}
+
+	// Piped: no claim of readiness, the one line instead.
+	out, _ = run(t, bash, "sh ./install.sh > piped.txt 2>&1\ncat piped.txt\ncommand -v rune || echo none\n")
+	if strings.Contains(out, "Ready.") {
+		t.Fatalf("the piped form claims the window is ready:\n%s", out)
+	}
+	if !strings.Contains(out, `export PATH=`) || !strings.Contains(out, ". <(curl") {
+		t.Fatalf("the piped form does not name the one line:\n%s", out)
+	}
+
+	// A failure in a sourced run leaves the calling shell alive.
+	for _, shell := range []string{"sh", "bash"} {
+		out, _ = run(t, shell, "RUNE_VERSION=9.9.9 . ./install.sh\necho shell-alive\n")
+		if !strings.Contains(out, "shell-alive") {
+			t.Fatalf("%s closed the shell after a failed sourced run:\n%s", shell, out)
+		}
+	}
+}
+
 // crlf rewrites a release's checksum list with CRLF line ends, as a list
 // saved on Windows has them, and signs those bytes again.
 func (f *releaseFixture) crlf(t *testing.T, version string) {

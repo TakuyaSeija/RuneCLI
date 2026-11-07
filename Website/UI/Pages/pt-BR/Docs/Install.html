@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (ou <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>O instalador nunca edita o perfil do seu shell nem o seu PATH. Se a pasta não estiver no seu PATH, ele avisa. <a href="{{url "docs/verification"}}">Verificação de versões</a> explica o que a assinatura comprova (e o que não comprova) e como conferir um download manualmente.</p>
+<p>O instalador nunca edita o perfil do seu shell nem o seu PATH. Se essa pasta não estiver no seu PATH, ele vincula o Rune em uma que esteja e avisa; quando não consegue, imprime a linha que permite executá-lo na janela que você já tem aberta. <a href="{{url "docs/verification"}}">Verificação de versões</a> explica o que a assinatura comprova (e o que não comprova) e como conferir um download manualmente.</p>
 <p>Os comandos de instalação baixam os arquivos com <code>curl</code> e PowerShell, que não marcam o programa como vindo da internet. Já um pacote baixado pelo navegador recebe essa marcação. No macOS, o Gatekeeper se recusa a abrir essa cópia do <code>rune</code>; após verificar o pacote, remova a marcação com <code>xattr -d com.apple.quarantine rune</code>. No Windows, o SmartScreen pode exibir um aviso quando o programa é aberto pelo Explorador de Arquivos.</p>
 
 <h2 id="installer-options">Opções do instalador</h2>

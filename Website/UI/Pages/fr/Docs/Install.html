@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (ou <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>Il ne modifie jamais votre profil shell ni votre variable PATH. Si le dossier ne figure pas dans votre PATH, il vous l’indique. La page <a href="{{url "docs/verification"}}">Vérification des versions</a> explique ce que la signature prouve ou non, et comment vérifier un téléchargement manuellement.</p>
+<p>Il ne modifie jamais votre profil shell ni votre variable PATH. Si ce dossier ne figure pas dans votre PATH, il lie Rune dans un dossier qui y figure et vous l’indique ; s’il ne peut pas, il affiche la ligne qui permet de l’exécuter dans la fenêtre déjà ouverte. La page <a href="{{url "docs/verification"}}">Vérification des versions</a> explique ce que la signature prouve ou non, et comment vérifier un téléchargement manuellement.</p>
 <p>Les commandes d’installation téléchargent les fichiers avec <code>curl</code> et PowerShell, qui ne marquent pas le programme comme provenant d’Internet. En revanche, une archive téléchargée depuis un navigateur reçoit ce marquage. Sur macOS, Gatekeeper refuse alors de lancer cette copie de <code>rune</code> ; après avoir vérifié l’archive, retirez l’attribut de quarantaine avec <code>xattr -d com.apple.quarantine rune</code>. Sur Windows, SmartScreen peut afficher un avertissement lorsqu’un tel programme est ouvert depuis l’Explorateur de fichiers.</p>
 
 <h2 id="installer-options">Options de l’installateur</h2>

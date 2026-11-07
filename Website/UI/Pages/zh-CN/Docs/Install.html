@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code>（或 <code>$XDG_DATA_HOME/runeagent</code>）</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>安装脚本绝不会修改你的 shell 配置文件或 PATH。如果安装目录不在 PATH 中，脚本会明确提示。<a href="{{url "docs/verification"}}">发布校验</a>详细说明了数字签名能证明什么、不能证明什么，以及如何手动校验下载包。</p>
+<p>安装脚本绝不会修改你的 shell 配置文件或 PATH。如果安装目录不在 PATH 中,脚本会把 Rune 链接到一个已在 PATH 中的文件夹并说明这一点;若无法做到,则打印一行命令,让你当前窗口立即可以运行它。<a href="{{url "docs/verification"}}">发布校验</a>详细说明了数字签名能证明什么、不能证明什么，以及如何手动校验下载包。</p>
 <p>安装命令通过 <code>curl</code> 和 PowerShell 下载文件，不会给程序打上“来自互联网”的隔离标记。但如果你通过浏览器手动下载归档包，系统会附加该标记：在 macOS 上，Gatekeeper 会因此拒绝启动该 <code>rune</code> 副本，请在完成归档校验后运行 <code>xattr -d com.apple.quarantine rune</code> 移除标记；在 Windows 上，从文件资源管理器打开此类程序时 SmartScreen 可能会弹出警告。</p>
 
 <h2 id="installer-options">安装脚本选项</h2>

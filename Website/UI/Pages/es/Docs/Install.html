@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (o <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>Nunca modifica tu perfil de shell ni tu variable PATH. Si la carpeta no está en tu PATH, te lo indica. En <a href="{{url "docs/verification"}}">Verificación de versiones</a> se explica qué demuestra y qué no demuestra la firma, así como la forma de comprobar una descarga manualmente.</p>
+<p>Nunca modifica tu perfil de shell ni tu variable PATH. Si esa carpeta no está en tu PATH, enlaza Rune en una que sí lo esté y lo indica; si no puede, imprime la línea que permite ejecutarlo en la ventana que ya tienes abierta. En <a href="{{url "docs/verification"}}">Verificación de versiones</a> se explica qué demuestra y qué no demuestra la firma, así como la forma de comprobar una descarga manualmente.</p>
 <p>Los comandos de instalación descargan los archivos con <code>curl</code> y PowerShell, que no marcan el programa como procedente de internet. En cambio, si descargas un paquete desde el navegador, sí queda marcado. En macOS, Gatekeeper se negará entonces a iniciar esa copia de <code>rune</code>; tras verificar el paquete, quita la marca con <code>xattr -d com.apple.quarantine rune</code>. En Windows, SmartScreen puede mostrar una advertencia al abrir un programa descargado así desde el Explorador de archivos.</p>
 
 <h2 id="installer-options">Opciones del instalador</h2>

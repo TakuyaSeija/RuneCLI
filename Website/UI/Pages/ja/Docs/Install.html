@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code>（または <code>$XDG_DATA_HOME/runeagent</code>）</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>インストーラがシェルの設定ファイルや PATH を勝手に書き換えることはありません。配置先フォルダが PATH に含まれていない場合は、その旨を案内します。署名によって何が証明され何が証明されないか、および手動でダウンロードを検証する手順については、<a href="{{url "docs/verification"}}">リリースの署名検証</a>をご覧ください。</p>
+<p>インストーラがシェルの設定ファイルや PATH を勝手に書き換えることはありません。配置先フォルダが PATH に含まれていない場合は、PATH にあるフォルダへ Rune をリンクしてその旨を伝え、それができない場合は、いま開いているウィンドウで実行できる1行を表示します。署名によって何が証明され何が証明されないか、および手動でダウンロードを検証する手順については、<a href="{{url "docs/verification"}}">リリースの署名検証</a>をご覧ください。</p>
 <p>インストールコマンドは <code>curl</code> や PowerShell を使用してダウンロードするため、プログラムにインターネット経由の隔離マークは付きません。一方、ブラウザでアーカイブをダウンロードした場合はマークが付きます。そのため macOS では Gatekeeper によって <code>rune</code> の起動がブロックされます。アーカイブを検証した後、<code>xattr -d com.apple.quarantine rune</code> で隔離属性を解除してください。Windows では、エクスプローラーから開いた際に SmartScreen の警告が表示されることがあります。</p>
 
 <h2 id="installer-options">インストーラのオプション</h2>

@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (or <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>It never edits your shell profile or your PATH. If the folder is not on your PATH, it says so. <a href="{{url "docs/verification"}}">Release verification</a> explains what the signature does and does not prove, and how to check a download by hand.</p>
+<p>It never edits your shell profile or your PATH. If that folder is not on your PATH, it links Rune into one that is and says so; when it cannot, it prints the single line that lets the window you already have run it. <a href="{{url "docs/verification"}}">Release verification</a> explains what the signature does and does not prove, and how to check a download by hand.</p>
 <p>The install commands download with <code>curl</code> and PowerShell, which do not mark the program as coming from the internet. An archive you download in a browser is marked. On macOS, Gatekeeper then refuses to start that copy of <code>rune</code>; after verifying the archive, remove the mark with <code>xattr -d com.apple.quarantine rune</code>. On Windows, SmartScreen can warn when such a program is opened from File Explorer.</p>
 
 <h2 id="installer-options">Installer options</h2>

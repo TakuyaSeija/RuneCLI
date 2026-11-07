@@ -23,7 +23,7 @@
 <tr><td>Linux وmacOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (أو <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>لا يعدّل برنامج التثبيت ملف إعداد الصدفة أو متغير PATH إطلاقاً. وإذا لم يكن المجلد مدرجاً في PATH، فسينبهك إلى ذلك. تشرح صفحة <a href="{{url "docs/verification"}}">التحقق من الإصدارات</a> ما الذي يثبته التوقيع الرقمي وما لا يثبته، وكيفية فحص التنزيل يدوياً.</p>
+<p>لا يعدّل برنامج التثبيت ملف إعداد الصدفة أو متغير PATH إطلاقاً. وإذا لم يكن المجلد مدرجاً في PATH، فسيربط Rune بمجلد موجود في PATH ويوضح ذلك؛ وإذا تعذّر عليه ذلك، فسيعرض سطراً واحداً يتيح تشغيله في النافذة المفتوحة لديك. تشرح صفحة <a href="{{url "docs/verification"}}">التحقق من الإصدارات</a> ما الذي يثبته التوقيع الرقمي وما لا يثبته، وكيفية فحص التنزيل يدوياً.</p>
 <p>تنزّل أوامر التثبيت الملفات باستخدام <code>curl</code> وPowerShell، وهما لا يسمان البرنامج بعلامة التنزيل من الإنترنت. أما الأرشيف الذي تنزّله عبر المتصفح فيحمل تلك العلامة. ولذلك يرفض Gatekeeper على macOS تشغيل تلك النسخة من <code>rune</code>؛ فبعد التحقق من الأرشيف، أزل العلامة بالأمر <code>xattr -d com.apple.quarantine rune</code>. وعلى Windows، قد يعرض SmartScreen تحذيراً عند فتح مثل هذا البرنامج من مستكشف الملفات (File Explorer).</p>
 
 <h2 id="installer-options">خيارات برنامج التثبيت</h2>

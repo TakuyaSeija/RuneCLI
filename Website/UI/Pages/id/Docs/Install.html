@@ -23,7 +23,7 @@
 <tr><td>Linux, macOS</td><td><code>~/.local/bin/rune</code></td><td><code>~/.local/share/runeagent</code> (atau <code>$XDG_DATA_HOME/runeagent</code>)</td></tr>
 <tr><td>Windows</td><td><code>%USERPROFILE%\.local\bin\rune.exe</code></td><td><code>%LOCALAPPDATA%\RuneAgent</code></td></tr>
 </tbody></table></div>
-<p>Pemasang tidak pernah mengedit profil shell atau PATH Anda. Jika folder tujuan belum ada di PATH Anda, pemasang akan memberi tahu Anda. Halaman <a href="{{url "docs/verification"}}">Verifikasi rilis</a> menjelaskan apa yang dibuktikan dan tidak dibuktikan oleh tanda tangan kriptografis, serta cara memeriksa unduhan secara manual.</p>
+<p>Pemasang tidak pernah mengedit profil shell atau PATH Anda. Jika folder tujuan belum ada di PATH Anda, ia menautkan Rune ke folder yang sudah ada di PATH dan memberitahukannya; bila tidak bisa, ia mencetak satu baris yang membuat jendela yang sedang Anda pakai bisa menjalankannya. Halaman <a href="{{url "docs/verification"}}">Verifikasi rilis</a> menjelaskan apa yang dibuktikan dan tidak dibuktikan oleh tanda tangan kriptografis, serta cara memeriksa unduhan secara manual.</p>
 <p>Perintah pemasangan mengunduh berkas menggunakan <code>curl</code> dan PowerShell, yang tidak menandai program sebagai unduhan internet. Sebaliknya, arsip yang Anda unduh lewat peramban web akan diberi tanda karantina. Di macOS, Gatekeeper akan menolak menjalankan salinan <code>rune</code> tersebut; setelah memverifikasi arsipnya, hapus tanda karantina dengan <code>xattr -d com.apple.quarantine rune</code>. Di Windows, SmartScreen dapat menampilkan peringatan saat program semacam itu dibuka dari File Explorer.</p>
 
 <h2 id="installer-options">Opsi pemasang</h2>

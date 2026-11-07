@@ -3,10 +3,15 @@
 #   irm {{.Origin}}{{.Base}}/install.ps1 | iex
 #
 # Installs the newest signed release of rune.exe for this machine into
-# %USERPROFILE%\.local\bin (Administrator not needed, no system change, PATH
-# left as it is). Every download is verified against the release signing key below
-# BEFORE anything is installed; any mismatch stops the installer with nothing
-# changed. Linux and macOS have their own installer: {{.Origin}}{{.Base}}/install.sh
+# %USERPROFILE%\.local\bin (Administrator not needed, no system change). Every
+# download is verified against the release signing key below BEFORE anything is
+# installed; any mismatch stops the installer with nothing changed.
+#
+# So that no setup step is left for you, it adds that folder to this window's
+# PATH at once and to your own user PATH in the registry, so new PowerShell
+# windows find rune too, and it says which of the two it did. It never edits a
+# shell profile. Linux and macOS have their own installer:
+# {{.Origin}}{{.Base}}/install.sh
 #
 # Options (environment, set first in the same PowerShell window):
 #   $env:RUNE_VERSION = 'X.Y.Z'      $env:RUNE_INSTALL_DIR = 'C:\absolute\folder'
@@ -31,6 +36,9 @@ $KeyY = {{psq .KeyY}}
 
 function Fail([string]$Message) { throw [System.InvalidOperationException]::new("rune installer: $Message") }
 function Say([string]$Message) { Write-Host $Message }
+function Step([string]$Message) { Write-Host '  ' -NoNewline; Write-Host 'ok' -ForegroundColor Green -NoNewline; Write-Host "  $Message" }
+function Note([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '--' -ForegroundColor DarkGray -NoNewline; Write-Host "  $Message" }
+function Warn([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '!' -ForegroundColor Yellow -NoNewline; Write-Host "   $Message" }
 
 function ConvertFrom-Hex([string]$Hex) {
     $bytes = New-Object byte[] ($Hex.Length / 2)
@@ -89,6 +97,35 @@ function Get-Download([string]$Url, [string]$Path) {
     }
 }
 
+# Add-RuneToPath dir: this window at once, and the person's own PATH so new
+# windows find rune without any further step. Says exactly what it changed.
+function Add-RuneToPath([string]$Dir) {
+    $inWindow = @($env:PATH -split ';' | Where-Object { $_ -and $_.TrimEnd('\') -ieq $Dir.TrimEnd('\') }).Count -gt 0
+    if (-not $inWindow) {
+        $env:PATH = "$env:PATH;$Dir"
+    }
+    $inUserPath = $false
+    try {
+        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+        $parts = if ([string]::IsNullOrEmpty($userPath)) { @() } else { $userPath -split ';' }
+        $inUserPath = @($parts | Where-Object { $_ -and $_.TrimEnd('\') -ieq $Dir.TrimEnd('\') }).Count -gt 0
+        if (-not $inUserPath) {
+            $newUserPath = if ([string]::IsNullOrEmpty($userPath)) { $Dir } else { "$userPath;$Dir" }
+            [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
+            $inUserPath = $true
+        }
+    } catch {
+        Warn "could not add $Dir to your user PATH; add it yourself in System settings, Environment variables"
+    }
+    if ($inWindow -and $inUserPath) {
+        Step "$Dir is already on your PATH"
+    } elseif ($inUserPath) {
+        Step "added $Dir to your PATH: this window and new windows"
+    } else {
+        Step "added $Dir to this window's PATH"
+    }
+}
+
 function Install-Rune {
     if ([string]::IsNullOrEmpty($KeyX) -or [string]::IsNullOrEmpty($Latest)) {
         Fail "no release has been published yet - see $Origin$Base/"
@@ -104,7 +141,7 @@ function Install-Rune {
     if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         # Nothing here needs Administrator. An elevated window still installs for the account it runs as;
         # Rune itself should be started from a normal terminal.
-        Say "Note: this PowerShell runs as Administrator. RuneAgent is installed for the account $env:USERNAME; start Rune itself from a normal terminal."
+        Warn "this PowerShell runs as Administrator; RuneAgent is installed for the account $env:USERNAME. Start Rune itself from a normal terminal."
     }
 
     # The machine's own processor, from the system's environment in the registry: a PowerShell that
@@ -142,7 +179,9 @@ function Install-Rune {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('rune-install-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
-        Say "RuneAgent $version for Windows $archName"
+        Write-Host ''
+        Write-Host "RuneAgent $version for Windows $archName" -ForegroundColor White
+        Note 'checking the signed release list'
         Get-Download "$url/SHA256SUMS" (Join-Path $tmp 'SHA256SUMS')
         Get-Download "$url/SHA256SUMS.sig" (Join-Path $tmp 'SHA256SUMS.sig')
 
@@ -154,7 +193,7 @@ function Install-Rune {
         if (-not $verified) {
             Fail "SIGNATURE CHECK FAILED for $version - nothing was installed. Do not use these files."
         }
-        Say "  signature verified (key $KeyFingerprint)"
+        Step "signature verified (key $KeyFingerprint)"
 
         # 2. The archive must be in that signed list with exactly that hash.
         $expected = $null
@@ -162,13 +201,14 @@ function Install-Rune {
             if ($line -match '^([0-9a-f]{64})  (\S+)$' -and $Matches[2] -eq $name) { $expected = $Matches[1] }
         }
         if (-not $expected) { Fail "no build for Windows $archName in release $version" }
+        Note "downloading $name"
         $archive = Join-Path $tmp $name
         Get-Download "$url/$name" $archive
         $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne $expected) {
             Fail "CHECKSUM MISMATCH for $name - nothing was installed. Do not use this file."
         }
-        Say '  checksum verified'
+        Step 'checksum verified'
 
         # 3. The archive holds only plain files with plain names.
         Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -212,29 +252,16 @@ function Install-Rune {
             $from = Join-Path $x $file
             if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination (Join-Path $docs $file) -Force }
         }
+        Step "installed $target ($version)"
+        Note "license and notices: $docs"
 
-        Say "Installed $target ($version). License and notices: $docs"
-        $onPath = @($env:PATH -split ';' | Where-Object { $_.TrimEnd('\') -ieq $dir.TrimEnd('\') }).Count -gt 0
-        if ($onPath) {
-            Say 'Start it in a project folder with: rune'
-        } else {
-            try {
-                $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-                $parts = if ([string]::IsNullOrEmpty($userPath)) { @() } else { $userPath -split ';' }
-                if (@($parts | Where-Object { $_.TrimEnd('\') -ieq $dir.TrimEnd('\') }).Count -eq 0) {
-                    $newUserPath = if ([string]::IsNullOrEmpty($userPath)) { $dir } else { "$userPath;$dir" }
-                    [Environment]::SetEnvironmentVariable('Path', $newUserPath, 'User')
-                    Say "  configured User PATH in Windows Registry"
-                }
-                $env:PATH = "$env:PATH;$dir"
-                Say "Added $dir to your PATH. Start it with: rune"
-            } catch {
-                Say "$dir is not on your PATH. To add it for your account, run this once and open a new terminal:"
-                Say "  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$dir', 'User')"
-                Say "Or start it by its full path: & '$target'"
-            }
-        }
-        Say 'The first time Rune starts, it asks once for Administrator confirmation to set up the account it runs commands in.'
+        # 5. Nothing left to set up: this window can run rune now, and new windows will too.
+        Add-RuneToPath $dir
+        Write-Host ''
+        Write-Host 'Ready.' -ForegroundColor White -NoNewline
+        Write-Host ' Start it in a project folder with: '
+        Write-Host '  rune' -ForegroundColor Cyan
+        Write-Host 'The first time Rune starts, it asks once for Administrator confirmation to set up the account it runs commands in.'
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
     }

@@ -2,14 +2,20 @@
 # RuneAgent installer for Linux and macOS — Atoryn Studio
 #
 #   curl -fsSL {{.Origin}}{{.Base}}/install.sh | sh
+#   . <(curl -fsSL {{.Origin}}{{.Base}}/install.sh)     # bash and zsh: ready here
 #
 # Installs the newest signed release of `rune` for this machine into
 # ~/.local/bin (no root, no system change). Every download is verified
 # against the release signing key below BEFORE anything is installed; any
-# mismatch stops the installer with nothing changed. It never edits a
-# shell profile or PATH: when ~/.local/bin is not on PATH it links the
-# binary into a writable folder that already is, so this session can run
-# it at once. Windows has its own installer: {{.Origin}}{{.Base}}/install.ps1
+# mismatch stops the installer with nothing changed.
+#
+# It never edits a shell profile or PATH. To let the window you already
+# have run `rune` at once it links the binary into a folder that is
+# already on PATH, or, when it cannot, names the single line that
+# finishes the job. Run it as a source (the second form above) and it
+# adds the folder to that window itself.
+#
+# Windows has its own installer: {{.Origin}}{{.Base}}/install.ps1
 #
 # Options (environment): RUNE_VERSION=X.Y.Z  RUNE_INSTALL_DIR=/abs/dir
 #                        RUNE_LIBC=gnu|musl (Linux only)
@@ -27,8 +33,21 @@ SIGNING_KEY={{shq .KeyPEM}}
 SIGNING_KEY=''
 {{- end}}
 
+# Colour is for a person reading a terminal; a pipe, a log or a test gets plain
+# lines. Written as escapes, so this file stays ASCII and both installers read
+# the same everywhere. NO_COLOR and a dumb terminal switch it off.
+esc=$(printf '\033')
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ] && [ "${TERM:-}" != dumb ]; then
+	bold="$esc[1m" dim="$esc[2m" red="$esc[31m" green="$esc[32m" yellow="$esc[33m" cyan="$esc[36m" off="$esc[0m"
+else
+	bold='' dim='' red='' green='' yellow='' cyan='' off=''
+fi
+
 say() { printf '%s\n' "$*"; }
-fail() { printf 'rune installer: %s\n' "$*" >&2; exit 1; }
+step() { printf '  %sok%s  %s\n' "$green" "$off" "$*"; }
+note() { printf '  %s--%s  %s\n' "$dim" "$off" "$*"; }
+warn() { printf '  %s!%s   %s\n' "$yellow" "$off" "$*"; }
+fail() { printf '%srune installer:%s %s\n' "$red" "$off" "$*" >&2; exit 1; }
 
 fetch() { # url dest
 	case "$ORIGIN" in
@@ -58,7 +77,88 @@ sha256_of() {
 	fi
 }
 
-main() {
+install_dir() { printf '%s' "${RUNE_INSTALL_DIR:-$HOME/.local/bin}"; }
+
+on_path() { # dir
+	case ":$PATH:" in
+	*":$1:"*) return 0 ;;
+	*) return 1 ;;
+	esac
+}
+
+# try_link dir name install-dir: point dir/name at the installed binary. Only a
+# folder that is already on PATH helps this window, the link never replaces a
+# regular file, and an older link of ours is refreshed.
+try_link() {
+	[ -n "$1" ] || return 1
+	case "$1" in /*) ;; *) return 1 ;; esac
+	[ "$1" != "$3" ] || return 1
+	[ -d "$1" ] && [ -w "$1" ] || return 1
+	on_path "$1" || return 1
+	[ ! -e "$1/$2" ] || [ -L "$1/$2" ] || return 1
+	ln -sf "$3/$2" "$1/$2" 2>/dev/null || return 1
+	return 0
+}
+
+# link_dir name install-dir: a folder to link into, or nothing. The system bin
+# (where an administrator account may write, as on macOS), the Homebrew bin and
+# the person's own ~/bin come first; only then any other folder on PATH, so Rune
+# never lands in another tool's folder while a fitting one is free.
+link_dir() {
+	for candidate in /usr/local/bin /opt/homebrew/bin "$HOME/bin"; do
+		try_link "$candidate" "$1" "$2" && { printf '%s' "$candidate"; return 0; }
+	done
+	rest=$PATH
+	while [ -n "$rest" ]; do
+		case "$rest" in
+		*:*)
+			candidate=${rest%%:*}
+			rest=${rest#*:}
+			;;
+		*)
+			candidate=$rest
+			rest=
+			;;
+		esac
+		while [ "${candidate%/}" != "$candidate" ]; do candidate=${candidate%/}; done
+		try_link "$candidate" "$1" "$2" && { printf '%s' "$candidate"; return 0; }
+	done
+	printf '%s' ''
+}
+
+ready() {
+	printf '\n%sReady.%s Start it in a project folder with: %s%srune%s\n' "$bold" "$off" "$bold" "$cyan" "$off"
+}
+
+# finish dir: say how this window starts rune, and never edit a profile.
+finish() {
+	if on_path "$1"; then
+		ready
+		return 0
+	fi
+	linked=$(link_dir rune "$1")
+	if [ -n "$linked" ]; then
+		step "linked as $linked/rune, so this window can run it"
+		ready
+		return 0
+	fi
+	# Sourced: main adds the folder to the calling shell right after this.
+	[ "$sourced" -eq 0 ] || return 0
+	warn "$1 is not on your PATH, so this window cannot run rune on its own yet."
+	say ""
+	printf '%sFinish in this window, no new terminal needed:%s\n' "$bold" "$off"
+	say "  export PATH=\"$1:\$PATH\""
+	say "  rune --version"
+	say ""
+	say "A terminal you open later finds rune on its own once that folder is on your PATH:"
+	say "add the same line to your shell profile yourself, this installer never edits it."
+	say ""
+	say "Next time, install as a source and this step disappears:"
+	say "  . <(curl -fsSL $ORIGIN$BASE/install.sh)"
+	return 0
+}
+
+install_rune() {
 	set -eu
 	umask 022
 
@@ -107,7 +207,7 @@ main() {
 	printf '%s' "$version" | grep -Eq '^(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})\.(0|[1-9][0-9]{0,3})$' ||
 		fail "RUNE_VERSION must look like 1.2.3"
 
-	dir=${RUNE_INSTALL_DIR:-$HOME/.local/bin}
+	dir=$(install_dir)
 	case "$dir" in /*) ;; *) fail "RUNE_INSTALL_DIR must be an absolute path" ;; esac
 
 	if [ "$system" = macos ]; then
@@ -121,7 +221,8 @@ main() {
 	trap 'rm -rf "$tmp"' EXIT
 	trap 'exit 130' INT TERM
 
-	say "RuneAgent $version for $name_system $name_arch"
+	printf '%sRuneAgent %s for %s %s%s\n' "$bold" "$version" "$name_system" "$name_arch" "$off"
+	note "checking the signed release list"
 	fetch "$url/SHA256SUMS" "$tmp/SHA256SUMS"
 	fetch "$url/SHA256SUMS.sig" "$tmp/SHA256SUMS.sig"
 	printf '%s\n' "$SIGNING_KEY" >"$tmp/signing-key.pem"
@@ -131,16 +232,16 @@ main() {
 	openssl dgst -sha256 -verify "$tmp/signing-key.pem" -signature "$tmp/SHA256SUMS.sig" \
 		"$tmp/SHA256SUMS" >/dev/null 2>&1 ||
 		fail "SIGNATURE CHECK FAILED for $version — nothing was installed. Do not use these files."
-	say "  signature verified (key $KEY_FINGERPRINT)"
+	step "signature verified (key $KEY_FINGERPRINT)"
 
 	# 2. The archive must be in that signed list with exactly that hash.
 	expected=$(tr -d '\r' <"$tmp/SHA256SUMS" | awk -v n="$name" '$2 == n { print $1 }')
 	[ -n "$expected" ] || fail "no build for $name_system $name_arch in release $version"
-	say "  downloading $name..."
+	note "downloading $name"
 	fetch_archive "$url/$name" "$tmp/$name"
 	actual=$(sha256_of "$tmp/$name")
 	[ "$actual" = "$expected" ] || fail "CHECKSUM MISMATCH for $name — nothing was installed. Do not use this file."
-	say "  checksum verified"
+	step "checksum verified"
 
 	# 3. The archive holds only plain files with plain names.
 	tar -tzf "$tmp/$name" >"$tmp/list" || fail "the archive is damaged"
@@ -165,56 +266,42 @@ main() {
 	for f in LICENSE.txt THIRD-PARTY-NOTICES.txt; do
 		[ ! -f "$tmp/x/$f" ] || cp "$tmp/x/$f" "$docs/$f"
 	done
+	step "installed $dir/rune ($version)"
+	note "license and notices: $docs"
 
-	say "Installed $dir/rune ($version). License and notices: $docs"
-	case ":$PATH:" in
-	*":$dir:"*)
-		say "Start it with: rune"
-		;;
-	*)
-		# A piped script runs in a child process, so it cannot change the
-		# PATH of the shell that launched it, and it must never edit a
-		# shell profile (docs/website.md): the only way this session can
-		# run `rune` at once is through a folder already on PATH — the way
-		# a global package bin works. When the install folder is not on
-		# PATH, link the binary into the first writable folder that is, so
-		# no source, no export and no new terminal is needed. An existing
-		# regular file is never overwritten; a previous link is refreshed.
-		link_dir=""
-		rest=$PATH
-		while [ -n "$rest" ]; do
-			case "$rest" in
-			*:*)
-				candidate=${rest%%:*}
-				rest=${rest#*:}
-				;;
-			*)
-				candidate=$rest
-				rest=
-				;;
-			esac
-			while [ "${candidate%/}" != "$candidate" ]; do candidate=${candidate%/}; done
-			[ -n "$candidate" ] || continue
-			case "$candidate" in /*) ;; *) continue;; esac
-			if [ -d "$candidate" ] && [ -w "$candidate" ] && [ "$candidate" != "$dir" ]; then
-				if [ ! -e "$candidate/rune" ] || [ -L "$candidate/rune" ]; then
-					if ln -sf "$dir/rune" "$candidate/rune" 2>/dev/null; then
-						link_dir=$candidate
-						break
-					fi
-				fi
-			fi
-		done
-		if [ -n "$link_dir" ]; then
-			say "Also linked as $link_dir/rune, so this session can run: rune --version"
-		else
-			say "$dir is not on your PATH, so rune cannot start yet. Run it by its full path:"
-			say "  $dir/rune --version"
-			say "or add the folder for this session only:"
-			say "  export PATH=\"$dir:\$PATH\""
-		fi
-		;;
-	esac
+	finish "$dir"
 }
 
+# Sourced or executed? bash and zsh know; a POSIX shell has no reliable way, and
+# `. <(...)` needs bash or zsh anyway, so there the installer simply behaves as
+# executed and names the one line instead.
+sourced=0
+if [ -n "${BASH_SOURCE:-}" ] && [ "${BASH_SOURCE[0]:-$0}" != "$0" ]; then
+	sourced=1
+elif [ -n "${ZSH_VERSION:-}" ]; then
+	case "${ZSH_EVAL_CONTEXT:-}" in
+	*:file*) sourced=1 ;;
+	esac
+fi
+
+main() {
+	# Sourced (". install.sh")? The work runs in a subshell, so no option, umask,
+	# trap or failed step can reach the calling shell, and the folder is added to
+	# that shell's PATH afterwards: the window that ran the installer is ready.
+	if [ "$sourced" = 1 ]; then
+		dir=$(install_dir)
+		( install_rune ) || return 1
+		if ! on_path "$dir"; then
+			PATH="$dir:$PATH"
+			export PATH
+			step "added $dir to PATH in this window"
+		fi
+		ready
+		return 0
+	fi
+	# Executed: still a subshell, so no shell that sourced this file can be
+	# closed by a failure, while the exit status reaches the caller unchanged.
+	( install_rune )
+	return $?
+}
 main "$@"

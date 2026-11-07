@@ -20,10 +20,22 @@ Install
       powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 The installer puts `rune` in ~/.local/bin (%USERPROFILE%\.local\bin on Windows),
-needs no administrator rights, changes nothing outside your home folder, and
-leaves your PATH alone. It prints where it installed; when that folder is not on your PATH it links rune
-into a folder that is, or prints the one line that adds it. It never edits your
-shell profile or PATH. To choose another folder:
+needs no administrator rights, and changes nothing outside your home folder.
+
+  Linux and macOS   It never edits a shell profile or PATH. When that folder is
+                    already on your PATH, rune works at once. When it is not, the
+                    installer links rune into a folder that is on PATH (the system
+                    bin, the Homebrew bin or your own ~/bin, and only then any
+                    other writable folder), or prints the single line that makes
+                    the window you already have run it. Running the installer as
+                    a source, `. ./install.sh`, adds the folder to that window
+                    itself.
+  Windows           It adds the folder to this window's PATH at once and to your
+                    own user PATH in the registry, so new PowerShell windows find
+                    `rune` with no further step, and says which it did. It never
+                    edits a shell profile.
+
+To choose another folder:
 
   Linux and macOS     RUNE_INSTALL_DIR=/absolute/folder sh ./install.sh
   Windows             $env:RUNE_INSTALL_DIR = 'C:\absolute\folder'  (set it first)
