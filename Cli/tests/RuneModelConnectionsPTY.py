@@ -106,7 +106,7 @@ def main():
         live.until(lambda: window.shows("Add connection"), "Connections again", window)
         click_text(window, "Add connection")
         live.until(lambda: window.shows("MODEL PROVIDERS"), "model providers again", window)
-        select(window, "compatible")
+        select(window, "Custom provider")
         window.send(b"\r")
         # Shown on the address it needs; Enter opens it.
         live.until(lambda: window.shows("NOT CONNECTED YET"), "custom form", window)

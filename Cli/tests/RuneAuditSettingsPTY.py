@@ -50,7 +50,7 @@ def main():
         live.until(lambda: a.shows("Color theme"), "Appearance", a)
         assert "Preview Start" not in a.screen.text() and "LRU cache" not in a.screen.text()
         click_text(a, "Runtime")
-        live.until(lambda: a.shows("Credit cooldown"), "Runtime", a)
+        live.until(lambda: a.shows("Attempts per key"), "Runtime", a)
         for wrong in ["Command deadline", "Command timeout", "Permission timeout", "Question timeout"]:
             assert wrong not in a.screen.text(), a.screen.text()
         click_text(a, "Tools")

@@ -191,6 +191,7 @@ def gateway(a, router):
     a.type(router)
     a.send(b"\r")
     live.until(lambda: a.shows("Key name / 9router"), "key label", a)
+    a.type("Main")
     a.send(b"\r")
     live.until(lambda: a.shows("API key / 9router"), "optional key", a)
     a.send(b"\r")

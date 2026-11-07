@@ -84,3 +84,43 @@ rule for a site release, not a dry-run limitation.
 
 `../Tools/DeployDryRunTest.sh` runs every sub-command dry and fails if any file,
 symlink, unit, port or listener changed.
+
+## Release order (owner, 2026-11-08: absolute)
+
+No version is raised, no release is built, no binary is installed and nothing
+is published while any platform is unproven. A failed job never raises the
+version: the same unreleased version is corrected and pushed again, because a
+version names what was published, not what was attempted.
+
+1. Fully green quality gate: `cargo fmt --all -- --check`,
+   `cargo clippy --workspace --all-targets -- -D warnings`,
+   `cargo test --workspace --no-fail-fast`, and `go test ./...` in `Website/`.
+2. Push `crossplatform` with `[ci macos]`, the version untouched, and wait
+   until every job of `studio-ci.yml` is green for that commit: the Rust gate,
+   Linux gnu/musl on x86_64 and arm64, macOS Apple Silicon and Intel, Windows
+   x64 and arm64, the PTY fixtures and the website tests.
+3. Bump the version in `[workspace.package]` of the root `Cargo.toml` — the
+   only place the version lives — and let `Cargo.lock` follow it.
+4. `scripts/build_linux_release.sh gnu`, then `scripts/smoke_linux_release.sh
+   <build> gnu` passes on every distribution it tries.
+5. `python3 scripts/upgrade_dry_run.py --bin <build>` prints only PASS
+   (a credential-free copy of the live home plus homes written by every old
+   binary in RuneBackups); review each `rune.toml` diff.
+6. Back up to `~/.local/share/RuneBackups/<Label>-<timestamp>/`: the old
+   binary, plus a SQLite snapshot when the change touches the store
+   (`sqlite3 ... ".backup"`, never `cp` — the DB is in WAL mode).
+7. Atomic install: copy the new build to `~/.local/bin/rune.new`, then `mv -f`
+   onto `rune` (same filesystem). Running windows and hosts take the new build
+   over when idle; never force-kill a live host or session.
+8. Push the bump with `[ci macos]` and wait for that commit's run to be fully
+   green; publish only from that run with
+   `Ops/Release/PublishRune.sh --ci-run <run-id>`.
+9. Write the release's changelog entry: a title, a paragraph saying what
+   changed and why, then short detail lines, in all ten languages.
+
+Why the order is fixed: on 2026-11-08 a release was built and installed before
+CI had proved the platforms, and the first push failed on the website tests —
+the site lives in this repository and its tests read
+`Engine/src/settings/Configuration.rs`, so a source-only commit left the two
+out of step. Proof first removes that class of surprise and keeps the feedback
+loop short.
