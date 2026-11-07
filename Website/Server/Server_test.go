@@ -471,31 +471,32 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 		t.Fatalf("a script-sourced run claims the person's shell is ready:\n%s", out)
 	}
 
-	// An interactive shell that sources it is ready in that same window.
-	if _, err := exec.LookPath("script"); err == nil {
-		home := t.TempDir()
-		bin := filepath.Join(home, "bin")
-		pkg := filepath.Join(home, "pkg")
-		if err := os.MkdirAll(pkg, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		os.WriteFile(filepath.Join(pkg, "install.sh"), []byte(script), 0o644)
-		os.WriteFile(filepath.Join(home, ".bashrc"), nil, 0o644)
-		cmd := exec.Command("script", scriptArgs()...)
-		cmd.Dir = pkg
-		env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + bin, "TERM=dumb"}
-		if runtime.GOOS == "linux" {
-			env = append(env, "RUNE_LIBC=gnu")
-		}
-		cmd.Env = env
-		cmd.Stdin = strings.NewReader(". ./install.sh\ncommand -v rune\nexit\n")
-		pty, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("interactive run failed: %v\n%s", err, pty)
-		}
-		if !strings.Contains(string(pty), bin+"/rune") || !strings.Contains(string(pty), "Ready.") {
-			t.Fatalf("an interactive shell that sourced the installer is not ready:\n%s", pty)
-		}
+	// An interactive shell that sources it is ready in that same window. bash
+	// keeps its interactive flag in $- even under -c, so this needs no terminal
+	// and no typed-ahead input (macOS discards input typed before its shell has
+	// reached its prompt, which is what made the first version of this test fail
+	// there).
+	home := t.TempDir()
+	bin := filepath.Join(home, "bin")
+	pkg := filepath.Join(home, "pkg")
+	if err := os.MkdirAll(pkg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(pkg, "install.sh"), []byte(script), 0o644)
+	interactive := exec.Command(bash, "-i", "-c", ". ./install.sh\ncommand -v rune\n")
+	interactive.Dir = pkg
+	env := []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + bin, "TERM=dumb"}
+	if runtime.GOOS == "linux" {
+		env = append(env, "RUNE_LIBC=gnu")
+	}
+	interactive.Env = env
+	iout, err := interactive.CombinedOutput()
+	if err != nil {
+		t.Fatalf("interactive run failed: %v\n%s", err, iout)
+	}
+	if !strings.Contains(string(iout), bin+"/rune") || !strings.Contains(string(iout), "in this window") ||
+		!strings.Contains(string(iout), "Ready.") {
+		t.Fatalf("an interactive shell that sourced the installer is not ready:\n%s", iout)
 	}
 
 	// Piped: no claim of readiness, the one line instead.
@@ -514,16 +515,6 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 			t.Fatalf("%s closed the shell after a failed sourced run:\n%s", shell, out)
 		}
 	}
-}
-
-// scriptArgs runs an interactive shell under a fresh terminal: util-linux takes
-// the command with -c, while the BSD script of macOS takes it as arguments after
-// the typescript file and has no -c.
-func scriptArgs() []string {
-	if runtime.GOOS == "darwin" {
-		return []string{"-q", "/dev/null", "bash", "-i"}
-	}
-	return []string{"-qc", "bash -i", "/dev/null"}
 }
 
 // crlf rewrites a release's checksum list with CRLF line ends, as a list
