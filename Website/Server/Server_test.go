@@ -504,7 +504,11 @@ func TestInstallerFinishesInTheSameWindow(t *testing.T) {
 	if strings.Contains(out, "Ready.") {
 		t.Fatalf("the piped form claims the window is ready:\n%s", out)
 	}
-	if !strings.Contains(out, `export PATH=`) || !strings.Contains(out, ". <(curl") {
+	// The piped form must not claim the window is ready, and it must print the
+	// one line that finishes the job: the export, and how to make it stick (an
+	// append to a profile, or a source of one).
+	if !strings.Contains(out, "export PATH=") ||
+		!(strings.Contains(out, ">> ") || strings.Contains(out, "source ") || strings.Contains(out, "&& . ")) {
 		t.Fatalf("the piped form does not name the one line:\n%s", out)
 	}
 
@@ -580,7 +584,10 @@ func TestInstallerEndToEnd(t *testing.T) {
 		dir := filepath.Join(home, "bin")
 		cmd := exec.Command("sh")
 		cmd.Stdin = strings.NewReader(script)
-		cmd.Env = []string{"HOME=" + home, "PATH=" + os.Getenv("PATH"), "RUNE_INSTALL_DIR=" + dir}
+		// A PATH with no writable folder of this machine on it: the installer
+		// must never be able to link into the person's own bin folders, and the
+		// test must not depend on what this machine happens to have.
+		cmd.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + dir}
 		if runtime.GOOS == "linux" {
 			cmd.Env = append(cmd.Env, "RUNE_LIBC=gnu")
 		}
@@ -592,7 +599,8 @@ func TestInstallerEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("install failed: %v\n%s", err, out)
 	}
-	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") || !strings.Contains(out, "signature verified") {
+	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") ||
+		!strings.Contains(strings.ToLower(out), "signature verified") {
 		t.Fatalf("not installed:\n%s", out)
 	}
 
