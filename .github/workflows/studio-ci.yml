@@ -657,7 +657,7 @@ jobs:
   # push, and no secret, token or write permission is involved.
   installer-live:
     name: Published installer (${{ matrix.os }})
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ci live]')
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -694,6 +694,19 @@ jobs:
             command -v rune || { echo "claimed ready, but rune is not on PATH"; cat "$out"; exit 1; }
             echo "::notice::ready in the same window: $(command -v rune)"
           fi
+
+          # The case a normal Mac (admin group owns /usr/local/bin) or a Homebrew
+          # machine has: a writable folder already on PATH, so the installer can
+          # leave the command ready in this very window.
+          home2="$RUNNER_TEMP/home2"
+          mkdir -p "$home2/bin"
+          out2="$RUNNER_TEMP/out2.txt"
+          env -i HOME="$home2" PATH="$home2/bin:/usr/bin:/bin" TERM=dumb sh "$RUNNER_TEMP/install.sh" >"$out2" 2>&1 ||
+            { cat "$out2"; exit 1; }
+          grep -q 'Ready\.' "$out2" || { echo "a writable PATH folder did not make it ready"; cat "$out2"; exit 1; }
+          env -i HOME="$home2" PATH="$home2/bin:/usr/bin:/bin" sh -c 'command -v rune' | grep -qx "$home2/bin/rune" ||
+            { echo "rune is not resolvable through the folder already on PATH"; cat "$out2"; exit 1; }
+          echo "::notice::linked into a writable folder on PATH and resolvable in the same window"
 
       - name: Install rune and start it (Windows)
         if: matrix.kind == 'windows'
