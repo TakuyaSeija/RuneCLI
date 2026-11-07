@@ -10,13 +10,19 @@
 #
 # What the checksum proves, honestly: the files belong together and match the
 # package you hold. It does not prove who built it - that comes from where you
-# got the package. The published package's own sha256 is listed in Atoryn's
-# signed release, and that list can be verified against the release key.
+# got the package.
 #
 # So that no setup step is left for you, it adds that folder to this window's
 # PATH at once and to your own user PATH in the registry, so new PowerShell
 # windows find rune too, and it says which of the two it did. It never edits a
 # shell profile.
+#
+# The screen follows the same language as the Linux and macOS installer: one
+# quiet header line, green for a finished step, yellow for a warning, red for a
+# failure, one accent colour for work in progress, and the single command you
+# have to type set in bold between two thin rules, as the last line on screen.
+# This file stays ASCII: the glyphs are code points, chosen only when the console
+# is UTF-8, so a plain console reads them as ok / -- / ! instead.
 #
 # Options (environment, set first in the same window): $env:RUNE_INSTALL_DIR
 #
@@ -28,11 +34,77 @@ Set-StrictMode -Version 2
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-function Fail([string]$Message) { throw [System.InvalidOperationException]::new("rune offline installer: $Message") }
-function Say([string]$Message) { Write-Host $Message }
-function Step([string]$Message) { Write-Host '  ' -NoNewline; Write-Host 'ok' -ForegroundColor Green -NoNewline; Write-Host "  $Message" }
-function Note([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '--' -ForegroundColor DarkGray -NoNewline; Write-Host "  $Message" }
-function Warn([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '!' -ForegroundColor Yellow -NoNewline; Write-Host "   $Message" }
+# ---------------------------------------------------------------------------
+# Terminal: colour and glyphs
+# ---------------------------------------------------------------------------
+$script:Color = -not $env:NO_COLOR
+$script:Utf = $false
+try { if ([Console]::OutputEncoding.CodePage -eq 65001) { $script:Utf = $true } } catch { }
+
+if ($script:Utf) {
+    $Gok = [string][char]0x2713 + '  '      # check mark
+    $Gnote = [string][char]0x2022 + '  '    # bullet
+    $Gbad = [string][char]0x2717 + '  '     # ballot x
+    $Gwarn = '!  '
+    $Grule = [string][char]0x2500           # box drawing horizontal
+    $Gdot = [string][char]0x00B7            # middle dot
+    $Ind = '     '
+} else {
+    $Gok = 'ok  '
+    $Gnote = '--  '
+    $Gbad = 'x   '
+    $Gwarn = '!   '
+    $Grule = '-'
+    $Gdot = '-'
+    $Ind = '      '
+}
+
+function Out([string]$Text, [string]$Ink) {
+    if ($script:Color -and $Ink) { Write-Host $Text -ForegroundColor $Ink } else { Write-Host $Text }
+}
+function Step([string]$Message) { Out ('  ' + $Gok + $Message) 'Green' }
+function Note([string]$Message) { Out ('  ' + $Gnote + $Message) 'DarkGray' }
+function Warn([string]$Message) { Out ('  ' + $Gwarn + $Message) 'Yellow' }
+function Fail([string]$Message) {
+    Out ('  ' + $Gbad + 'rune offline installer: ' + $Message) 'Red'
+    throw [System.InvalidOperationException]::new('rune offline installer: ' + $Message)
+}
+
+# One quiet header line, the same one every installer prints.
+function Header([string]$Version, [string]$Platform) {
+    Write-Host ''
+    if ($script:Color) {
+        Write-Host '  ' -NoNewline
+        Write-Host ('RuneAgent ' + $Version) -ForegroundColor White -NoNewline
+        Write-Host ('  ' + $Gdot + '  ' + $Platform + '  ' + $Gdot + '  Atoryn Studio') -ForegroundColor DarkGray
+    } else {
+        Write-Host ('  RuneAgent ' + $Version + '  ' + $Gdot + '  ' + $Platform + '  ' + $Gdot + '  Atoryn Studio')
+    }
+    Write-Host ''
+}
+
+# The one thing to type: bold between two thin rules, no background, and always
+# the last line on its screen.
+function CmdLine([string]$Command) {
+    Write-Host ''
+    if (-not $script:Color) { Write-Host ('  ' + $Command); return }
+    $rule = $Grule * $Command.Length
+    Out ('  ' + $rule) 'DarkGray'
+    Write-Host '  ' -NoNewline
+    Write-Host $Command -ForegroundColor White
+    Out ('  ' + $rule) 'DarkGray'
+}
+
+function Ready([string]$Version) {
+    Write-Host ''
+    if (-not $script:Color) {
+        Write-Host 'Ready. Start it in a project folder with: rune'
+        return
+    }
+    Write-Host ('  RuneAgent ' + $Version + ' is ready. Start it in a project folder:')
+    CmdLine 'rune'
+    Write-Host ''
+}
 
 # Add-RuneToPath dir: this window at once, and the person's own PATH so new
 # windows find rune without any further step. Says exactly what it changed.
@@ -57,9 +129,9 @@ function Add-RuneToPath([string]$Dir) {
     if ($inWindow -and $inUserPath) {
         Step "$Dir is already on your PATH"
     } elseif ($inUserPath) {
-        Step "added $Dir to your PATH: this window and new windows"
+        Step "Added $Dir to your PATH  (this window and new windows)"
     } else {
-        Step "added $Dir to this window's PATH"
+        Step "Added $Dir to this window's PATH"
     }
 }
 
@@ -71,11 +143,12 @@ function Install-Rune {
     if (-not (Test-Path -LiteralPath $program -PathType Leaf)) { Fail 'this folder holds no rune.exe - unpack the whole package first' }
     if (-not (Test-Path -LiteralPath $sums -PathType Leaf)) { Fail 'this folder holds no SHA256SUMS - unpack the whole package first' }
 
-    Write-Host ''
-    Write-Host 'RuneAgent offline package' -ForegroundColor White
-    Note 'checking every file against the package checksums'
+    $dir = $env:RUNE_INSTALL_DIR
+    if (-not $dir) { $dir = Join-Path $env:USERPROFILE '.local\bin' }
+    if (-not [System.IO.Path]::IsPathRooted($dir)) { Fail 'RUNE_INSTALL_DIR must be an absolute path' }
 
     # 1. Every listed file must match its hash, and the list must cover rune.exe.
+    Note 'Checking every file against the package checksums'
     $allowed = @('rune.exe', 'install.ps1', 'INSTALL.txt', 'LICENSE.txt', 'THIRD-PARTY-NOTICES.txt')
     $coversProgram = $false
     foreach ($line in [System.IO.File]::ReadAllLines($sums)) {
@@ -93,26 +166,27 @@ function Install-Rune {
         if ($name -eq 'rune.exe') { $coversProgram = $true }
     }
     if (-not $coversProgram) { Fail 'the checksum list does not cover rune.exe' }
-    Step 'every file matches the package checksums'
 
     # 2. The binary must run here and say what it is.
-    $version = (& $program --version 2>$null | Select-Object -First 1)
-    if (-not $version) { Fail 'the rune.exe in this package does not run on this system' }
-    Step "$version (offline package)"
+    $reported = ''
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $reported = (& $program --version 2>$null | Out-String).Trim() } catch { $reported = '' } finally { $ErrorActionPreference = $previous }
+    if ($reported -notmatch '^rune (\d+\.\d+\.\d+)') { Fail 'the rune.exe in this package does not run on this system' }
+    $version = $Matches[1]
 
-    $dir = $env:RUNE_INSTALL_DIR
-    if (-not $dir) { $dir = Join-Path $env:USERPROFILE '.local\bin' }
-    if (-not [System.IO.Path]::IsPathRooted($dir)) { Fail 'RUNE_INSTALL_DIR must be an absolute path' }
-    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Header $version 'Windows (offline package)'
+    Step 'Package checksums verified  (SHA-256)'
 
     # 3. Install. A running rune.exe cannot be replaced, but it can be renamed first.
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
     $target = Join-Path $dir 'rune.exe'
     if (Test-Path -LiteralPath $target) {
         $aside = Join-Path $dir ("rune.old." + [guid]::NewGuid().ToString('N'))
         try { Move-Item -LiteralPath $target -Destination $aside -Force } catch { Fail 'a running rune.exe could not be moved aside; close Rune and try again' }
     }
     Copy-Item -LiteralPath $program -Destination $target -Force
-    Step "installed $target ($version)"
+    Step "Installed $target"
 
     $docs = Join-Path $env:LOCALAPPDATA 'RuneAgent'
     New-Item -ItemType Directory -Path $docs -Force | Out-Null
@@ -120,22 +194,21 @@ function Install-Rune {
         $from = Join-Path $package $file
         if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination (Join-Path $docs $file) -Force }
     }
-    Note "license and notices: $docs"
-    Note "keep this package's folder if you want to install it again later"
+    Note "License and notices: $docs"
+    Note "Keep this package's folder if you want to install it again later."
 
     # 4. Nothing left to set up: this window can run rune now, and new windows will too.
     Add-RuneToPath $dir
-    Write-Host ''
-    Write-Host 'Ready.' -ForegroundColor White -NoNewline
-    Write-Host ' Start it in a project folder with: '
-    Write-Host '  rune' -ForegroundColor Cyan
+    Ready $version
 }
 
 try {
     Install-Rune
     $global:LASTEXITCODE = 0
 } catch {
-    Write-Host $_.Exception.Message -ForegroundColor Red
+    if (-not $_.Exception.Message.StartsWith('rune offline installer: ')) {
+        Out ('  ' + $Gbad + $_.Exception.Message) 'Red'
+    }
     $global:LASTEXITCODE = 1
 }
 }

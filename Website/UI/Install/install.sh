@@ -41,6 +41,13 @@ SIGNING_KEY=''
 # ---------------------------------------------------------------------------
 # Terminal: colour, glyphs, animation
 #
+# One accent colour (terracotta) means "work in progress": the spinner and the
+# download bar, solid, never a gradient. Green is only ever a finished step,
+# yellow only a warning, red only a failure. Anything the person has to TYPE is
+# set in bold between two thin rules (see cmdline), with no background, so it
+# cannot be mistaken for selected text. It is the only such line on its screen
+# and always the LAST thing printed there, because that is where people look.
+#
 # Glyphs are written as octal escapes, so this file stays ASCII and both
 # installers read the same everywhere. A terminal that is not UTF-8 gets plain
 # ASCII glyphs; a pipe, a log or a dumb terminal gets no colour and no redraws.
@@ -56,30 +63,27 @@ if [ "$tty" -eq 1 ]; then
 fi
 
 esc=$(printf '\033')
-bold='' dim='' red='' green='' yellow='' cyan='' off=''
+bold='' dim='' red='' green='' yellow='' acc='' off=''
 clr='' curs_off='' curs_on=''
-r0='' r1='' r2='' r3='' r4='' l1='' l2='' l3='' l4='' l5=''
 if [ "$tty" -eq 1 ]; then
 	clr="${esc}[K" curs_off="${esc}[?25l" curs_on="${esc}[?25h"
+	# Bold, dim and reverse are attributes, not colour: NO_COLOR keeps them.
+	bold="${esc}[1m" dim="${esc}[2m" off="${esc}[0m"
+	acc=$bold
 	if [ -z "${NO_COLOR:-}" ]; then
-		bold="${esc}[1m" dim="${esc}[2m" red="${esc}[31m" green="${esc}[32m" yellow="${esc}[33m" cyan="${esc}[36m" off="${esc}[0m"
+		red="${esc}[31m" green="${esc}[32m" yellow="${esc}[33m"
 		case "${COLORTERM:-}${TERM:-}" in
 		*truecolor* | *24bit* | *256color*)
-			# blue -> cyan ramp for the download bar, cyan -> violet for the logo
-			r0="${esc}[38;5;27m" r1="${esc}[38;5;33m" r2="${esc}[38;5;39m" r3="${esc}[38;5;45m" r4="${esc}[38;5;51m"
-			l1="${esc}[38;5;51m" l2="${esc}[38;5;45m" l3="${esc}[38;5;39m" l4="${esc}[38;5;63m" l5="${esc}[38;5;99m"
-			;;
-		*)
-			r0=$cyan r1=$cyan r2=$cyan r3=$cyan r4=$cyan
-			l1=$cyan l2=$cyan l3=$cyan l4=$cyan l5=$cyan
+			# terracotta (#d7875f)
+			acc="${esc}[38;5;173m"
 			;;
 		esac
 	fi
 fi
 
 # Fractional sleeps drive the animation; without them it runs at one frame a second.
-tick=1 fine=0
-if [ "$tty" -eq 1 ] && sleep 0.01 2>/dev/null; then tick=0.1 fine=1; fi
+tick=1
+if [ "$tty" -eq 1 ] && sleep 0.01 2>/dev/null; then tick=0.1; fi
 
 f0='' f1='' f2='' f3='' f4='' f5='' f6='' f7='' f8='' f9='' nframes=4
 if [ "$utf" -eq 1 ]; then
@@ -90,10 +94,8 @@ if [ "$utf" -eq 1 ]; then
 	g_sp='  ' ind='     '
 	g_fill=$(printf '\342\224\201')
 	g_empty=$(printf '\342\224\200')
+	g_rule=$g_empty
 	g_dot=$(printf '\302\267')
-	bx_tl=$(printf '\342\225\255') bx_tr=$(printf '\342\225\256')
-	bx_bl=$(printf '\342\225\260') bx_br=$(printf '\342\225\257')
-	bx_h=$(printf '\342\224\200') bx_v=$(printf '\342\224\202')
 	f0=$(printf '\342\240\213') f1=$(printf '\342\240\231') f2=$(printf '\342\240\271')
 	f3=$(printf '\342\240\270') f4=$(printf '\342\240\274') f5=$(printf '\342\240\264')
 	f6=$(printf '\342\240\246') f7=$(printf '\342\240\247') f8=$(printf '\342\240\207')
@@ -102,8 +104,7 @@ if [ "$utf" -eq 1 ]; then
 else
 	g_ok='ok  ' g_note='--  ' g_warn='!   ' g_bad='x   '
 	g_sp='   ' ind='      '
-	g_fill='#' g_empty='.' g_dot='-'
-	bx_tl='+' bx_tr='+' bx_bl='+' bx_br='+' bx_h='-' bx_v='|'
+	g_fill='#' g_empty='.' g_dot='-' g_rule='-'
 	f0='|' f1='/' f2='-' f3='\'
 fi
 
@@ -220,19 +221,13 @@ pick_frame() { # index: sets $fr
 	esac
 }
 
-make_bar() { # filled width: sets $bar, a gradient fill followed by a dim remainder
-	bar='' bi=0
-	while [ "$bi" -lt "$1" ]; do
-		case $((bi * 5 / $2)) in 0) bc=$r0 ;; 1) bc=$r1 ;; 2) bc=$r2 ;; 3) bc=$r3 ;; *) bc=$r4 ;; esac
-		bar="$bar$bc$g_fill"
-		bi=$((bi + 1))
-	done
-	bar="$bar$off$dim"
+make_bar() { # filled width: sets $bar, a solid accent fill followed by a dim track
+	bfill='' bempty='' bi=0
 	while [ "$bi" -lt "$2" ]; do
-		bar="$bar$g_empty"
+		if [ "$bi" -lt "$1" ]; then bfill="$bfill$g_fill"; else bempty="$bempty$g_empty"; fi
 		bi=$((bi + 1))
 	done
-	bar="$bar$off"
+	bar="$acc$bfill$off$dim$bempty$off"
 }
 
 # A job in the background leaves its exit status in $tmp/rc when it is done. The
@@ -260,7 +255,7 @@ spin() { # message: animate until the background job is done
 	printf '%s' "$curs_off"
 	while [ ! -f "$tmp/rc" ]; do
 		pick_frame "$sn"
-		printf '\r  %s%s%s%s%s%s' "$cyan" "$fr" "$g_sp" "$off" "$1" "$clr"
+		printf '\r  %s%s%s%s%s%s' "$acc" "$fr" "$g_sp" "$off" "$1" "$clr"
 		sn=$((sn + 1))
 		sleep "$tick"
 	done
@@ -299,13 +294,14 @@ download() { # url dest label: a live bar in a terminal; returns the transfer's 
 		got=$(file_size "$2")
 		elapsed=$(($(date +%s) - began))
 		pick_frame "$n"
-		printf '\r  %s%s%s%sDownloading  ' "$cyan" "$fr" "$g_sp" "$off"
+		printf '\r  %s%s%s%sDownloading  ' "$acc" "$fr" "$g_sp" "$off"
 		if [ "$total" -gt 0 ]; then
 			pct=$((got * 100 / total))
 			[ "$pct" -le 100 ] || pct=100
 			make_bar $((pct * barw / 100)) "$barw"
-			printf '%s %3d%%  ' "$bar" "$pct"
+			printf '%s %s%3d%%%s  %s' "$bar" "$bold" "$pct" "$off" "$dim"
 			human "$total"
+			printf '%s' "$off"
 		else
 			human "$got"
 		fi
@@ -327,71 +323,58 @@ download() { # url dest label: a live bar in a terminal; returns the transfer's 
 }
 
 # ---------------------------------------------------------------------------
-# Screens: banner, boxes, PATH help
+# Screens: header, command block, PATH help
 # ---------------------------------------------------------------------------
-banner() { # version platform
+header() { # version platform: one quiet line, no logo
 	if [ "$tty" -eq 0 ]; then
 		printf 'RuneAgent %s for %s\n' "$1" "$2"
 		return 0
 	fi
 	say ""
-	bn=0
-	while IFS= read -r brow; do
-		bn=$((bn + 1))
-		case $bn in 1) bc=$l1 ;; 2) bc=$l2 ;; 3) bc=$l3 ;; 4) bc=$l4 ;; *) bc=$l5 ;; esac
-		printf '  %s%s%s%s\n' "$bold" "$bc" "$brow" "$off"
-		[ "$fine" -eq 0 ] || sleep 0.05
-	done <<'LOGO'
- ____
-|  _ \ _   _ _ __   ___
-| |_) | | | | '_ \ / _ \
-|  _ <| |_| | | | |  __/
-|_| \_\\__,_|_| |_|\___|
-LOGO
-	printf '  %sAtoryn Studio  %s  %s%sRuneAgent %s%s  %s%s%s  %s\n\n' \
-		"$dim" "$g_dot" "$off" "$bold" "$1" "$off" "$dim" "$g_dot" "$off" "$2"
+	printf '  %sRuneAgent %s%s  %s%s  %s  %s  Atoryn Studio%s\n\n' \
+		"$bold" "$1" "$off" "$dim" "$g_dot" "$2" "$g_dot" "$off"
 }
 
-box() { # colour row...: a framed block; a row is "style:text" (t title, c command, d dim, n plain)
-	bcol=$1
-	shift
-	bw=0
-	for brow in "$@"; do
-		btext=${brow#*:}
-		[ "${#btext}" -le "$bw" ] || bw=${#btext}
+rep() { # string count: print string count times
+	rn=$2
+	while [ "$rn" -gt 0 ]; do
+		printf '%s' "$1"
+		rn=$((rn - 1))
 	done
-	printf '  %s%s' "$bcol" "$bx_tl"
-	rep "$bx_h" $((bw + 4))
-	printf '%s%s\n' "$bx_tr" "$off"
-	for brow in "$@"; do
-		bkind=${brow%%:*}
-		btext=${brow#*:}
-		case "$bkind" in
-		t) bst="$bold$bcol" ;;
-		c) bst="$bold$cyan" ;;
-		d) bst=$dim ;;
-		*) bst='' ;;
-		esac
-		printf '  %s%s%s  %s%s%s' "$bcol" "$bx_v" "$off" "$bst" "$btext" "$off"
-		rep ' ' $((bw - ${#btext}))
-		printf '  %s%s%s\n' "$bcol" "$bx_v" "$off"
-	done
-	printf '  %s%s' "$bcol" "$bx_bl"
-	rep "$bx_h" $((bw + 4))
-	printf '%s%s\n' "$bx_br" "$off"
 }
 
-ready_box() { # version
+# cmdline text: the one thing to type. Bold in the normal text colour between two
+# thin rules, with no background and no prompt character or bar, so it never looks
+# selected and selecting the line and pasting it runs as it is. The rules are as
+# wide as the command (never wider than the window); the line sits on the glyph
+# column so it still fits in an 80-column window.
+cmdline() {
+	if [ "$tty" -eq 0 ]; then
+		printf '\n%s%s\n' "$ind" "$1"
+		return 0
+	fi
+	cl_cols=${COLUMNS:-}
+	case "$cl_cols" in '' | *[!0-9]*) cl_cols=$(tput cols 2>/dev/null || echo 80) ;; esac
+	case "$cl_cols" in '' | *[!0-9]*) cl_cols=80 ;; esac
+	cl_w=${#1}
+	[ "$cl_w" -le $((cl_cols - 4)) ] || cl_w=$((cl_cols - 4))
+	printf '  %s' "$dim"
+	rep "$g_rule" "$cl_w"
+	printf '%s\n  %s%s%s\n  %s' "$off" "$bold" "$1" "$off" "$dim"
+	rep "$g_rule" "$cl_w"
+	printf '%s\n' "$off"
+}
+
+ready() { # version: ends with the command to type, as the last line
 	if [ "$tty" -eq 0 ]; then
 		printf '\nReady. Start it in a project folder with: rune\n'
 		return 0
 	fi
 	say ""
-	box "$green" "t:RuneAgent $1 is ready" "n:" "n:Start it in a project folder:" "c:    rune"
+	printf '  RuneAgent %s is ready. Start it in a project folder:\n' "$1"
+	cmdline rune
 	say ""
 }
-
-cmdline() { printf '%s  %s%s%s%s\n' "$ind" "$bold" "$cyan" "$1" "$off"; }
 
 mentioned() { # dir file...: the first file that already names dir on an uncommented line
 	case "$1" in
@@ -412,6 +395,11 @@ mentioned() { # dir file...: the first file that already names dir on an uncomme
 # path_help dir mode: tell the person how to get the folder onto PATH, and never
 # touch a profile. mode "none": this window cannot run rune yet. mode "window":
 # this window already can, only terminals opened later may miss the folder.
+#
+# Every screen here follows one order: what is wrong, what to do, and then the
+# single command, last. There is deliberately no second, shorter command (an
+# "only for this window" export): the one command below already refreshes this
+# terminal, and a lookalike line under it is the one people copy by mistake.
 path_help() {
 	ph_dir=$1
 	ph_show=$(tilde "$ph_dir")
@@ -444,10 +432,11 @@ path_help() {
 
 	if [ "$2" = window ]; then
 		[ -z "$ph_found" ] || return 0
-		note "New terminals will not find rune yet: no export for $ph_show in ${ph_where:-your fish setup}."
-		printf '%sRun this once to add it:\n' "$ind"
-		cmdline "$ph_add"
 		say ""
+		note "New terminals will not find rune yet."
+		printf '%sNo export for %s was found in %s.\n\n' "$ind" "$ph_show" "${ph_where:-your fish setup}"
+		printf '%sRun the line below once to keep it:\n' "$ind"
+		cmdline "$ph_add"
 		return 0
 	fi
 
@@ -455,20 +444,20 @@ path_help() {
 	warn "$ph_show is not on your PATH, so ${bold}rune${off} is not found yet."
 	if [ -n "$ph_found" ]; then
 		ph_file=$(tilde "$ph_found")
-		printf '%s%s already adds it; this terminal only needs a refresh:\n' "$ind" "$ph_file"
+		printf '%s%s already adds it; this terminal only needs a refresh.\n\n' "$ind" "$ph_file"
+		printf '%sRun the line below once, then start RuneAgent by\n' "$ind"
+		printf '%styping %srune%s.\n' "$ind" "$bold" "$off"
 		cmdline "$ph_src $ph_file"
 	elif [ "$ph_fish" -eq 1 ]; then
-		printf '%sNo export for it was found. Run this once (works at once, stays):\n' "$ind"
+		printf '%sNo export for it was found.\n\n' "$ind"
+		printf '%sRun the line below once. It works at once and stays, so\n' "$ind"
+		printf '%syou can then start RuneAgent by typing %srune%s.\n' "$ind" "$bold" "$off"
 		cmdline "$ph_add"
 	else
-		printf '%sNo export for it was found in %s.\n' "$ind" "$ph_where"
-		printf '%sRun this once: it adds the export and refreshes this terminal:\n' "$ind"
+		printf '%sNo export for it was found in %s.\n\n' "$ind" "$ph_where"
+		printf '%sRun the line below once. It adds the export and refreshes\n' "$ind"
+		printf '%sthis terminal, then you can start RuneAgent by typing %srune%s.\n' "$ind" "$bold" "$off"
 		cmdline "$ph_add && $ph_src $ph_where"
-	fi
-	say ""
-	printf '%sThen start it with:  %s%srune%s\n' "$ind" "$bold" "$cyan" "$off"
-	if [ -z "$ph_found" ] && [ "$ph_fish" -eq 0 ]; then
-		printf '%s%sOnly for this window:  %s%s\n' "$ind" "$dim" "$ph_export" "$off"
 	fi
 	say ""
 }
@@ -614,7 +603,7 @@ install_rune() {
 	trap cleanup EXIT
 	trap abort INT TERM
 
-	banner "$version" "$name_system $name_arch"
+	header "$version" "$name_system $name_arch"
 
 	task "Fetching signed release list" fetch_list "$url" ||
 		fail "download failed: $url/SHA256SUMS"
@@ -703,7 +692,7 @@ main() {
 	ver=${RUNE_VERSION:-$LATEST}
 
 	if [ "$rc" -eq 0 ]; then
-		ready_box "$ver"
+		ready "$ver"
 		return 0
 	fi
 
@@ -713,8 +702,9 @@ main() {
 		case "$-" in
 		*i*) # an interactive shell read this file: that window is ready
 			step "Added $(tilde "$dir") to PATH in this window"
-			ready_box "$ver"
+			# the optional "keep it" line first, so the last thing printed is the command to start rune
 			path_help "$dir" window
+			ready "$ver"
 			;;
 		*) # a script sourced it: the script has the folder, the person's own
 			# shell does not, and saying otherwise would be a lie

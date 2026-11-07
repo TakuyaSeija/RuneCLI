@@ -10,8 +10,16 @@
 # So that no setup step is left for you, it adds that folder to this window's
 # PATH at once and to your own user PATH in the registry, so new PowerShell
 # windows find rune too, and it says which of the two it did. It never edits a
-# shell profile. Linux and macOS have their own installer:
-# {{.Origin}}{{.Base}}/install.sh
+# shell profile.
+#
+# The screen follows the same language as the Linux and macOS installer: one
+# quiet header line, green for a finished step, yellow for a warning, red for a
+# failure, one accent colour for work in progress, and the single command you
+# have to type set in bold between two thin rules, as the last line on screen.
+# This file stays ASCII: the glyphs are code points, chosen only when the console
+# is UTF-8, so a plain console reads them as ok / -- / ! instead.
+#
+# Linux and macOS have their own installer: {{.Origin}}{{.Base}}/install.sh
 #
 # Options (environment, set first in the same PowerShell window):
 #   $env:RUNE_VERSION = 'X.Y.Z'      $env:RUNE_INSTALL_DIR = 'C:\absolute\folder'
@@ -34,11 +42,77 @@ $KeyFingerprint = {{psq .Fingerprint}}
 $KeyX = {{psq .KeyX}}
 $KeyY = {{psq .KeyY}}
 
-function Fail([string]$Message) { throw [System.InvalidOperationException]::new("rune installer: $Message") }
-function Say([string]$Message) { Write-Host $Message }
-function Step([string]$Message) { Write-Host '  ' -NoNewline; Write-Host 'ok' -ForegroundColor Green -NoNewline; Write-Host "  $Message" }
-function Note([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '--' -ForegroundColor DarkGray -NoNewline; Write-Host "  $Message" }
-function Warn([string]$Message) { Write-Host '  ' -NoNewline; Write-Host '!' -ForegroundColor Yellow -NoNewline; Write-Host "   $Message" }
+# ---------------------------------------------------------------------------
+# Terminal: colour and glyphs
+# ---------------------------------------------------------------------------
+$script:Color = -not $env:NO_COLOR
+$script:Utf = $false
+try { if ([Console]::OutputEncoding.CodePage -eq 65001) { $script:Utf = $true } } catch { }
+
+if ($script:Utf) {
+    $Gok = [string][char]0x2713 + '  '      # check mark
+    $Gnote = [string][char]0x2022 + '  '    # bullet
+    $Gbad = [string][char]0x2717 + '  '     # ballot x
+    $Gwarn = '!  '
+    $Grule = [string][char]0x2500           # box drawing horizontal
+    $Gdot = [string][char]0x00B7            # middle dot
+    $Ind = '     '
+} else {
+    $Gok = 'ok  '
+    $Gnote = '--  '
+    $Gbad = 'x   '
+    $Gwarn = '!   '
+    $Grule = '-'
+    $Gdot = '-'
+    $Ind = '      '
+}
+
+function Out([string]$Text, [string]$Ink) {
+    if ($script:Color -and $Ink) { Write-Host $Text -ForegroundColor $Ink } else { Write-Host $Text }
+}
+function Step([string]$Message) { Out ('  ' + $Gok + $Message) 'Green' }
+function Note([string]$Message) { Out ('  ' + $Gnote + $Message) 'DarkGray' }
+function Warn([string]$Message) { Out ('  ' + $Gwarn + $Message) 'Yellow' }
+function Fail([string]$Message) {
+    Out ('  ' + $Gbad + 'rune installer: ' + $Message) 'Red'
+    throw [System.InvalidOperationException]::new('rune installer: ' + $Message)
+}
+
+# One quiet header line, the same one every installer prints.
+function Header([string]$Version, [string]$Platform) {
+    Write-Host ''
+    if ($script:Color) {
+        Write-Host '  ' -NoNewline
+        Write-Host ('RuneAgent ' + $Version) -ForegroundColor White -NoNewline
+        Write-Host ('  ' + $Gdot + '  ' + $Platform + '  ' + $Gdot + '  Atoryn Studio') -ForegroundColor DarkGray
+    } else {
+        Write-Host ('  RuneAgent ' + $Version + '  ' + $Gdot + '  ' + $Platform + '  ' + $Gdot + '  Atoryn Studio')
+    }
+    Write-Host ''
+}
+
+# The one thing to type: bold between two thin rules, no background, and always
+# the last line on its screen.
+function CmdLine([string]$Command) {
+    Write-Host ''
+    if (-not $script:Color) { Write-Host ('  ' + $Command); return }
+    $rule = $Grule * $Command.Length
+    Out ('  ' + $rule) 'DarkGray'
+    Write-Host '  ' -NoNewline
+    Write-Host $Command -ForegroundColor White
+    Out ('  ' + $rule) 'DarkGray'
+}
+
+function Ready([string]$Version) {
+    Write-Host ''
+    if (-not $script:Color) {
+        Write-Host 'Ready. Start it in a project folder with: rune'
+        return
+    }
+    Write-Host ('  RuneAgent ' + $Version + ' is ready. Start it in a project folder:')
+    CmdLine 'rune'
+    Write-Host ''
+}
 
 function ConvertFrom-Hex([string]$Hex) {
     $bytes = New-Object byte[] ($Hex.Length / 2)
@@ -120,9 +194,9 @@ function Add-RuneToPath([string]$Dir) {
     if ($inWindow -and $inUserPath) {
         Step "$Dir is already on your PATH"
     } elseif ($inUserPath) {
-        Step "added $Dir to your PATH: this window and new windows"
+        Step "Added $Dir to your PATH  (this window and new windows)"
     } else {
-        Step "added $Dir to this window's PATH"
+        Step "Added $Dir to this window's PATH"
     }
 }
 
@@ -179,9 +253,8 @@ function Install-Rune {
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ('rune-install-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tmp | Out-Null
     try {
-        Write-Host ''
-        Write-Host "RuneAgent $version for Windows $archName" -ForegroundColor White
-        Note 'checking the signed release list'
+        Header $version "Windows $archName"
+        Note 'Fetching signed release list'
         Get-Download "$url/SHA256SUMS" (Join-Path $tmp 'SHA256SUMS')
         Get-Download "$url/SHA256SUMS.sig" (Join-Path $tmp 'SHA256SUMS.sig')
 
@@ -193,7 +266,7 @@ function Install-Rune {
         if (-not $verified) {
             Fail "SIGNATURE CHECK FAILED for $version - nothing was installed. Do not use these files."
         }
-        Step "signature verified (key $KeyFingerprint)"
+        Step "Signature verified  (key $KeyFingerprint)"
 
         # 2. The archive must be in that signed list with exactly that hash.
         $expected = $null
@@ -201,14 +274,14 @@ function Install-Rune {
             if ($line -match '^([0-9a-f]{64})  (\S+)$' -and $Matches[2] -eq $name) { $expected = $Matches[1] }
         }
         if (-not $expected) { Fail "no build for Windows $archName in release $version" }
-        Note "downloading $name"
+        Note "Downloading $name"
         $archive = Join-Path $tmp $name
         Get-Download "$url/$name" $archive
         $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($actual -ne $expected) {
             Fail "CHECKSUM MISMATCH for $name - nothing was installed. Do not use this file."
         }
-        Step 'checksum verified'
+        Step "Checksum verified  (SHA-256)"
 
         # 3. The archive holds only plain files with plain names.
         Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -252,15 +325,11 @@ function Install-Rune {
             $from = Join-Path $x $file
             if (Test-Path -LiteralPath $from) { Copy-Item -LiteralPath $from -Destination (Join-Path $docs $file) -Force }
         }
-        Step "installed $target ($version)"
-        Note "license and notices: $docs"
+        Step "Installed $target"
 
         # 5. Nothing left to set up: this window can run rune now, and new windows will too.
         Add-RuneToPath $dir
-        Write-Host ''
-        Write-Host 'Ready.' -ForegroundColor White -NoNewline
-        Write-Host ' Start it in a project folder with: '
-        Write-Host '  rune' -ForegroundColor Cyan
+        Ready $version
         Write-Host 'The first time Rune starts, it asks once for Administrator confirmation to set up the account it runs commands in.'
     } finally {
         Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -271,7 +340,10 @@ try {
     Install-Rune
     $global:LASTEXITCODE = 0
 } catch {
-    Write-Host $_.Exception.Message -ForegroundColor Red
+    # Fail already printed its own red line; anything else is shown here, once.
+    if (-not $_.Exception.Message.StartsWith('rune installer: ')) {
+        Out ('  ' + $Gbad + $_.Exception.Message) 'Red'
+    }
     $global:LASTEXITCODE = 1
 }
 }
