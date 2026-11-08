@@ -1079,6 +1079,10 @@ fn vendor_row(api: &str, row: &mut Value) {
     }
 }
 
+pub fn catalogue_entry_for_test(row: &Value) -> Option<ModelInfo> {
+    catalogue_entry(row)
+}
+
 fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
     let id = row.get("id")?.as_str()?.to_string();
     let supported_parameters: Vec<String> = row

@@ -16106,3 +16106,654 @@ fn an_id_the_session_never_had_is_not_found() {
     assert!(said.contains("one background task's id"), "{said}");
     assert!(!said.contains("`all`"), "{said}");
 }
+
+/// Owner, 2026-11-08: the two allowances over a real socket. Ten 429s for the
+/// first key, then an answer from the second, and the handover waits for
+/// nothing. The provider is a plain TCP server, so the whole path is real:
+/// HTTP, SSE, the vault ring and the retry loop.
+#[test]
+fn a_rate_limited_key_hands_over_to_the_next_over_a_real_socket() {
+    use std::io::{Read, Write};
+
+    let base = temp("http-key-rotation");
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let data = base.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    std::thread::spawn(move || {
+        for n in 0..40 {
+            let Ok((mut socket, _)) = listener.accept() else {
+                return;
+            };
+            let mut buf = [0u8; 8192];
+            let read = socket.read(&mut buf).unwrap_or(0);
+            let head = String::from_utf8_lossy(&buf[..read]).to_string();
+            let auth = head
+                .lines()
+                .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            log.lock().unwrap().push(auth);
+            let (status, ctype, payload) = if n < 10 {
+                (
+                    "429 Too Many Requests",
+                    "application/json",
+                    "{\"error\":{\"message\":\"slow down\"}}".to_string(),
+                )
+            } else {
+                (
+                    "200 OK",
+                    "text/event-stream",
+                    "data: {\"choices\":[{\"delta\":{\"content\":\"served by the second key\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                )
+            };
+            let _ = write!(
+                socket,
+                "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+        }
+    });
+
+    let mut provider = runeengine::settings::providers::preset("openrouter")
+        .unwrap()
+        .build("");
+    provider.secret = Some("ring".into());
+    provider.base_url = format!("http://{address}");
+    provider.models = vec![runeengine::settings::providers::ModelInfo::named(
+        "X", false,
+    )];
+    for model in &mut provider.models {
+        model.fetched_at = Some(runeengine::store::now_ms());
+        model.source_url = Some(provider.base_url.clone());
+    }
+    let name = provider.name.clone();
+    configure_providers(&data, json!({ "list": [provider] }));
+    {
+        let mut secrets = runeengine::settings::Secrets::load(&data).unwrap();
+        secrets.append("ring", "first-key-000001").unwrap();
+        secrets.append("ring", "second-key-000002").unwrap();
+    }
+    for (key, value) in [
+        ("retry.initial_delay", json!("1ms")),
+        ("retry.max_delay", json!("2ms")),
+        ("retry.attempts_per_key", json!(10)),
+        ("retry.max_attempts", json!(20)),
+    ] {
+        runeengine::settings::configuration::Configuration::edit(
+            &data,
+            Some(key),
+            Some(value),
+            false,
+            None,
+        )
+        .unwrap();
+    }
+    let db_path = base.join("rune.db");
+    let shared = Arc::new(std::sync::Mutex::new(
+        runeengine::settings::Settings::load(&data, &db_path).unwrap(),
+    ));
+    let live = Arc::new(runeengine::provider::live::Live::new(shared.clone()));
+    let cfg = Config {
+        db_path: db_path.clone(),
+        data_dir: data,
+        provider: live,
+        settings: shared,
+        read_only: false,
+    };
+    let (mut engine, events) = Engine::start(cfg).unwrap();
+    let session = engine.open(project.to_str().unwrap()).unwrap().id();
+    let mut h = Harness {
+        engine,
+        events,
+        project,
+        session,
+        db_path,
+        _cleanup: Cleanup(base.clone()),
+    };
+    h.engine.handle(Command::SettingsSelect {
+        id: 940,
+        session,
+        provider: name,
+        model: "X".into(),
+        custom: true,
+    });
+    wait_for_ack(&h.events, 940);
+    let started = std::time::Instant::now();
+    h.engine.handle(Command::Prompt {
+        id: 941,
+        session,
+        text: "hello".into(),
+        attach: vec![],
+    });
+    loop {
+        match h
+            .events
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .unwrap()
+        {
+            Event::Done { .. } => break,
+            Event::Ack {
+                id: 941,
+                ok: false,
+                error,
+                ..
+            } => panic!("{error:?}"),
+            _ => {}
+        }
+    }
+    let auths = seen.lock().unwrap().clone();
+    assert!(
+        auths.len() >= 11,
+        "ten attempts on the first key, then the second: {auths:?}"
+    );
+    assert_ne!(
+        auths[0], auths[10],
+        "the eleventh request must be the other key: {auths:?}"
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "a key change waits for nothing: {:?}",
+        started.elapsed()
+    );
+}
+
+/// Owner, 2026-11-08: the custom endpoint's wire is what the person chose, and
+/// it is visible on the socket: `POST /v1/messages` with `x-api-key`, never
+/// `Authorization: Bearer`.
+#[test]
+fn a_custom_provider_speaks_the_anthropic_wire_over_a_real_socket() {
+    use std::io::{BufRead, BufReader, Read, Write};
+
+    let base = temp("http-anthropic-wire");
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let data = base.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    std::thread::spawn(move || {
+        for _ in 0..4 {
+            let Ok((mut socket, _)) = listener.accept() else {
+                return;
+            };
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap_or(0);
+                }
+                if line == "\r\n" {
+                    break;
+                }
+                request.push_str(&line);
+            }
+            let mut sent = vec![0; length];
+            let _ = reader.read_exact(&mut sent);
+            request.push_str(&String::from_utf8_lossy(&sent));
+            log.lock().unwrap().push(request);
+            let payload = "{\"error\":{\"message\":\"stop here\"}}";
+            let _ = write!(
+                socket,
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+        }
+    });
+
+    let mut provider = runeengine::settings::providers::preset("compatible")
+        .unwrap()
+        .build("k");
+    provider.secret = Some("my-key".into());
+    provider.dialect = runeengine::settings::providers::Dialect::Anthropic;
+    provider.auth = runeengine::settings::providers::Auth {
+        header: "x-api-key".into(),
+        prefix: String::new(),
+    };
+    provider.base_url = format!("http://{address}/v1");
+    provider.models = vec![runeengine::settings::providers::ModelInfo::named(
+        "X", false,
+    )];
+    for model in &mut provider.models {
+        model.fetched_at = Some(runeengine::store::now_ms());
+        model.source_url = Some(provider.base_url.clone());
+    }
+    let name = provider.name.clone();
+    configure_providers(&data, json!({ "list": [provider] }));
+    {
+        let mut secrets = runeengine::settings::Secrets::load(&data).unwrap();
+        secrets.append("my-key", "sk-ant-test-token-12345").unwrap();
+    }
+    runeengine::settings::configuration::Configuration::edit(
+        &data,
+        Some("retry.max_attempts"),
+        Some(json!(0)),
+        false,
+        None,
+    )
+    .unwrap();
+    let db_path = base.join("rune.db");
+    let shared = Arc::new(std::sync::Mutex::new(
+        runeengine::settings::Settings::load(&data, &db_path).unwrap(),
+    ));
+    let live = Arc::new(runeengine::provider::live::Live::new(shared.clone()));
+    let cfg = Config {
+        db_path: db_path.clone(),
+        data_dir: data,
+        provider: live,
+        settings: shared,
+        read_only: false,
+    };
+    let (mut engine, events) = Engine::start(cfg).unwrap();
+    let session = engine.open(project.to_str().unwrap()).unwrap().id();
+    let mut h = Harness {
+        engine,
+        events,
+        project,
+        session,
+        db_path,
+        _cleanup: Cleanup(base.clone()),
+    };
+    h.engine.handle(Command::SettingsSelect {
+        id: 950,
+        session,
+        provider: name,
+        model: "X".into(),
+        custom: true,
+    });
+    wait_for_ack(&h.events, 950);
+    h.engine.handle(Command::Prompt {
+        id: 951,
+        session,
+        text: "hello".into(),
+        attach: vec![],
+    });
+    loop {
+        if let Event::Done { .. } = h
+            .events
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .unwrap()
+        {
+            break;
+        }
+    }
+    let heads = seen.lock().unwrap().clone();
+    let head = heads.first().expect("the endpoint was spoken to");
+    assert!(head.starts_with("POST /v1/messages"), "{head}");
+    assert!(
+        head.to_ascii_lowercase()
+            .contains("x-api-key: sk-ant-test-token-12345"),
+        "{head}"
+    );
+    assert!(
+        !head.to_ascii_lowercase().contains("authorization:"),
+        "{head}"
+    );
+}
+
+/// Owner, 2026-11-08: a provider that names the output ceiling it accepts
+/// lowers the agent's own request, not only a summary's.
+#[test]
+fn a_provider_output_limit_lowers_the_agent_ceiling_over_a_real_socket() {
+    use std::io::{BufRead, BufReader, Read, Write};
+
+    let base = temp("http-output-limit");
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let data = base.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    let mut agent_attempts = 0;
+    std::thread::spawn(move || {
+        for _ in 0..6 {
+            let Ok((mut socket, _)) = listener.accept() else {
+                return;
+            };
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap_or(0);
+                }
+                if line == "\r\n" {
+                    break;
+                }
+                request.push_str(&line);
+            }
+            let mut sent = vec![0; length];
+            let _ = reader.read_exact(&mut sent);
+            request.push_str(&String::from_utf8_lossy(&sent));
+            log.lock().unwrap().push(request.clone());
+
+            let is_title = request.contains("You name a conversation");
+            let (status, ctype, payload) = if is_title {
+                (
+                    "200 OK",
+                    "text/event-stream",
+                    "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"set_title\",\"arguments\":\"{\\\"title\\\":\\\"Test\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                )
+            } else {
+                agent_attempts += 1;
+                if agent_attempts == 1 {
+                    (
+                        "400 Bad Request",
+                        "application/json",
+                        "{\"error\":{\"message\":\"max_tokens is too large\",\"param\":\"max_tokens\",\"max_value\":8192}}".to_string(),
+                    )
+                } else {
+                    (
+                        "200 OK",
+                        "text/event-stream",
+                        "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                    )
+                }
+            };
+            let _ = write!(
+                socket,
+                "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+        }
+    });
+
+    let mut provider = runeengine::settings::providers::preset("compatible")
+        .unwrap()
+        .build("k");
+    provider.secret = None;
+    provider.thinking = runeengine::settings::providers::Thinking::None;
+    provider.base_url = format!("http://{address}");
+    let mut model = runeengine::settings::providers::ModelInfo::named("X", false);
+    model.max_output = Some(32_000);
+    model.context = Some(200_000);
+    provider.models = vec![model];
+    for model in &mut provider.models {
+        model.fetched_at = Some(runeengine::store::now_ms());
+        model.source_url = Some(provider.base_url.clone());
+    }
+    let name = provider.name.clone();
+    configure_providers(&data, json!({ "list": [provider] }));
+    for (key, value) in [
+        ("retry.max_attempts", json!(2)),
+        ("retry.initial_delay", json!("1ms")),
+    ] {
+        runeengine::settings::configuration::Configuration::edit(
+            &data,
+            Some(key),
+            Some(value),
+            false,
+            None,
+        )
+        .unwrap();
+    }
+    let db_path = base.join("rune.db");
+    let shared = Arc::new(std::sync::Mutex::new(
+        runeengine::settings::Settings::load(&data, &db_path).unwrap(),
+    ));
+    let live = Arc::new(runeengine::provider::live::Live::new(shared.clone()));
+    let cfg = Config {
+        db_path: db_path.clone(),
+        data_dir: data,
+        provider: live,
+        settings: shared,
+        read_only: false,
+    };
+    let (mut engine, events) = Engine::start(cfg).unwrap();
+    let session = engine.open(project.to_str().unwrap()).unwrap().id();
+    let mut h = Harness {
+        engine,
+        events,
+        project,
+        session,
+        db_path,
+        _cleanup: Cleanup(base.clone()),
+    };
+    h.engine.handle(Command::SettingsSelect {
+        id: 960,
+        session,
+        provider: name,
+        model: "X".into(),
+        custom: true,
+    });
+    wait_for_ack(&h.events, 960);
+    h.engine.handle(Command::Prompt {
+        id: 961,
+        session,
+        text: "hello".into(),
+        attach: vec![],
+    });
+    loop {
+        if let Event::Done { .. } = h
+            .events
+            .recv_timeout(std::time::Duration::from_secs(60))
+            .unwrap()
+        {
+            break;
+        }
+    }
+    let bodies: Vec<String> = seen
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|b| !b.contains("You name a conversation"))
+        .cloned()
+        .collect();
+    assert!(
+        bodies.len() >= 2,
+        "the agent request was refused and repeated: {bodies:?}"
+    );
+    assert!(
+        !bodies[0].contains("8192"),
+        "the first request asks for more than the provider allows: {}",
+        bodies[0]
+    );
+    assert!(
+        bodies[1].contains("8192"),
+        "the second request uses the ceiling the provider named: {}",
+        bodies[1]
+    );
+}
+
+/// Owner, 2026-11-08: a provider whose catalogue advertises vision only inside
+/// `supported_parameters` (DeepRelay, TokenHarbor) sends image blocks over the
+/// real socket instead of rejecting the attachment as unsupported.
+#[test]
+fn an_image_reaches_a_catalogue_that_names_vision_only_as_a_parameter_over_a_real_socket() {
+    use std::io::{BufRead, BufReader, Read, Write};
+
+    let base = temp("http-image-vision");
+    let project = base.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let data = base.join("data");
+    std::fs::create_dir_all(&data).unwrap();
+
+    // A valid 1x1 transparent PNG file
+    let png_bytes = [
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f,
+        0x15, 0x63, 0x34, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00,
+        0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+    ];
+    std::fs::write(project.join("tiny.png"), png_bytes).unwrap();
+
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let log = Arc::clone(&seen);
+    std::thread::spawn(move || {
+        for _ in 0..4 {
+            let Ok((mut socket, _)) = listener.accept() else {
+                return;
+            };
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap_or(0);
+                }
+                if line == "\r\n" {
+                    break;
+                }
+                request.push_str(&line);
+            }
+            let mut sent = vec![0; length];
+            let _ = reader.read_exact(&mut sent);
+            request.push_str(&String::from_utf8_lossy(&sent));
+            log.lock().unwrap().push(request.clone());
+
+            let is_title = request.contains("You name a conversation");
+            let (status, ctype, payload) = if is_title {
+                (
+                    "200 OK",
+                    "text/event-stream",
+                    "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"set_title\",\"arguments\":\"{\\\"title\\\":\\\"Test\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                )
+            } else {
+                (
+                    "200 OK",
+                    "text/event-stream",
+                    "data: {\"choices\":[{\"delta\":{\"content\":\"I see the image\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                )
+            };
+            let _ = write!(
+                socket,
+                "HTTP/1.1 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+        }
+    });
+
+    let mut provider = runeengine::settings::providers::preset("compatible")
+        .unwrap()
+        .build("k");
+    provider.secret = None;
+    provider.base_url = format!("http://{address}");
+    // Simulate what DeepRelay/TokenHarbor publish: flat JSON with supported_parameters including vision
+    let raw_model = serde_json::json!({
+        "id": "deeprelay/deepseek-v4.1-flash",
+        "supported_parameters": ["model", "messages", "tools", "vision"],
+        "context_length": 1048576,
+        "max_completion_tokens": 128000
+    });
+    let model = runeengine::settings::manage::catalogue_entry_for_test(&raw_model)
+        .expect("model parsed from flat catalogue");
+    assert!(model.accepts("image"), "model must accept image modality");
+
+    provider.models = vec![model];
+    for m in &mut provider.models {
+        m.fetched_at = Some(runeengine::store::now_ms());
+        m.source_url = Some(provider.base_url.clone());
+    }
+    let name = provider.name.clone();
+    configure_providers(&data, json!({ "list": [provider] }));
+    runeengine::settings::configuration::Configuration::edit(
+        &data,
+        Some("retry.max_attempts"),
+        Some(json!(0)),
+        false,
+        None,
+    )
+    .unwrap();
+    let db_path = base.join("rune.db");
+    let shared = Arc::new(std::sync::Mutex::new(
+        runeengine::settings::Settings::load(&data, &db_path).unwrap(),
+    ));
+    let live = Arc::new(runeengine::provider::live::Live::new(shared.clone()));
+    let cfg = Config {
+        db_path: db_path.clone(),
+        data_dir: data,
+        provider: live,
+        settings: shared,
+        read_only: false,
+    };
+    let (mut engine, events) = Engine::start(cfg).unwrap();
+    let session = engine.open(project.to_str().unwrap()).unwrap().id();
+    let mut h = Harness {
+        engine,
+        events,
+        project: project.clone(),
+        session,
+        db_path,
+        _cleanup: Cleanup(base.clone()),
+    };
+    h.engine.handle(Command::SettingsSelect {
+        id: 970,
+        session,
+        provider: name,
+        model: "deeprelay/deepseek-v4.1-flash".into(),
+        custom: true,
+    });
+    wait_for_ack(&h.events, 970);
+    h.engine.handle(Command::Prompt {
+        id: 971,
+        session,
+        text: "look at this image".into(),
+        attach: vec![project.join("tiny.png").to_str().unwrap().into()],
+    });
+    let mut events_seen = Vec::new();
+    loop {
+        match h.events.recv_timeout(std::time::Duration::from_secs(10)) {
+            Ok(Event::PermissionRequest { req, .. }) => {
+                h.engine.handle(Command::PermissionReply {
+                    id: 99,
+                    req,
+                    decision: Decision::AllowOnce,
+                });
+            }
+            Ok(Event::Done { .. }) => break,
+            Ok(ev) => events_seen.push(format!("{ev:?}")),
+            Err(e) => {
+                let s = seen.lock().unwrap().clone();
+                panic!(
+                    "timed out waiting for Done; requests={s:?}; events={events_seen:?}; err={e:?}"
+                );
+            }
+        }
+    }
+    let bodies: Vec<String> = seen
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|b| !b.contains("You name a conversation"))
+        .cloned()
+        .collect();
+    assert!(!bodies.is_empty(), "agent request reached the server");
+    assert!(
+        bodies[0].contains("image_url"),
+        "the request must include an image_url block: {}",
+        bodies[0]
+    );
+    assert!(
+        bodies[0].contains("data:image/png;base64,"),
+        "the request must include the inline base64 image data: {}",
+        bodies[0]
+    );
+}
