@@ -2,26 +2,30 @@
   "0.12.0": {
     "title": "A retry that explains itself, a summary that resumes, and an install you can use at once",
     "paragraphs": [
-      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and a custom endpoint is told which wire it speaks instead of being guessed from its address. The installer now finishes the job in the window that ran it — no new terminal, no shell profile edited — and the values that keep Rune itself running are constants rather than settings."
+      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and custom endpoints explicitly select their wire format. Gateway vision support on OpenAI-compatible endpoints is recognized, zero-cost reports no longer freeze spend tracking, the installer runs directly in the current shell without editing profiles, and values that keep Rune itself running are constants rather than settings."
     ],
     "points": [
       "Retrying gives each key its own allowance (`retry.attempts_per_key`, ten by default) beside the whole call's budget (`retry.max_attempts`). A spent key hands over at once, and the ring wraps until the global allowance is gone.",
-      "The status line names the key and both counts, for example `Key A · attempt 3 of 10 · 21/100000`, and a key change also leaves a line in the transcript.",
-      "Compaction sends one summary request first, falls back to the active model when its window is larger, and splits only when the provider itself rejects the size.",
-      "A batched summary reports `batch N · M sources left`, writes a resumable carry after every batch, and records who cancelled it.",
-      "A custom connection can be told whether it speaks the OpenAI or the Anthropic wire, and is listed as `Custom provider`.",
-      "Image support published only as an accepted parameter is read, so those endpoints accept pictures.",
-      "The output ceiling a request sends is the number the context budget reserves, and a provider that refuses it lowers it for every role, not only summaries.",
-      "A step whose arguments are still arriving is no longer drawn as an empty box, and a degenerate action never becomes its heading.",
-      "Pricing screens state how a request is priced and what takes priority, including a cost a provider reports as zero.",
-      "Values that keep Rune itself running — the frame clock, the Escape window, the terminal size it drives, storage waits and the rest — are no longer settings: `-config set` refuses them, a file that still carries one is cleaned on upgrade, and the manual lists only what you can change. Every choice you already had in Settings or `rune.toml` is unchanged.",
-      "One step installs and runs: in bash, zsh and any POSIX shell the installer adds its folder to the calling shell's PATH, so `rune` starts in that same window; a piped script never claims Ready — it prints the single line that finishes the job.",
-      "No platform edits a shell profile. The binary is linked into a folder already on PATH, and Windows sets the running window's PATH and the user PATH in the registry, saying which it did.",
-      "The installer says what it changed and where it put the binary, reads the person's own shell setup before suggesting anything, and shows a live download bar with size, speed and time left.",
-      "One screen on every platform and shell: the same logo, steps and Ready box on Linux, macOS and Windows.",
-      "Two real shell bugs are gone: zsh turned a failed PATH check into a false ready through its EXIT trap, and posh died silently on a job-control line in a non-interactive shell.",
-      "The published installer is run on real macOS and Windows runners, and on three separate systems on demand, not only in a container on this machine.",
-      "A system notification now shows its `<system_notification>` tag, so Rune's own words are never mistaken for the task's, and the output a task left is drawn under a `Task_Output` heading instead of an XML block."
+      "The status line names the key and both counts, for example `Key A · attempt 3 of 10 · 21/100000`, and every key rotation records a line in the transcript.",
+      "Key rotation no longer uses a delayed cooldown (`retry.credit_cooldown` is retired in format 29); a spent key immediately yields to the next key without zero-wait rate-limit hammering, and newly added keys synchronize across concurrent windows without relaunching Rune.",
+      "Connection keys can be renamed directly in Settings (`Rename key`) without removing and re-entering their credentials.",
+      "Compaction sends one full summary request first to preserve conversation context, falling back to the active model when its window is larger, and splits into batches only if the provider rejects the payload size.",
+      "Batched compaction reports live progress (`batch N · M sources left`), saves a resumable carry after every completed batch so cancelled work is preserved, and logs the cancellation initiator.",
+      "The custom connection preset is renamed from `compatible` to `Custom provider`, and allows explicitly choosing the wire protocol: OpenAI-compatible (`/chat/completions` with Bearer token) or Anthropic-compatible (`/v1/messages` with `x-api-key`).",
+      "Endpoints that declare multimodal capabilities through `supported_parameters: [\"vision\"]` (such as DeepRelay, TokenHarbor, and custom OpenAI-compatible gateways) now have their vision support recognized in the model catalog instead of falsely reporting 'support is not published', allowing them to receive image attachments.",
+      "When an endpoint reports zero usage cost (such as plan-covered models on DeepRelay returning `usage.cost: 0`), configured model pricing in Settings is preserved rather than overwritten by zero, keeping spend tracking accurate across sessions.",
+      "Tool execution boxes are held back until arguments arrive rather than flashing an empty command box, and degenerate model text in tool action fields is filtered out so it never becomes the step's heading.",
+      "The requested output ceiling matches the tokens reserved by the context budget; if a provider rejects a request for exceeding its output limit (such as token-saving routers or DeepSeek endpoints), the ceiling is automatically lowered for subsequent requests across all roles.",
+      "Thirty-three internal runtime constants (`FIXED`) are separated from user settings: `-config set` and `reset` refuse them, older values in `rune.toml` are ignored and cleaned during upgrade to format 30 without touching comments, and the settings reference drops from 116 to 83 actionable settings.",
+      "Diagnostic transparency: `-config check` reports any ignored legacy constants carried in `rune.toml`, and `-config explain` clearly identifies fixed runtime constants.",
+      "A system notification displays its `<system_notification>` tag in the terminal UI to distinguish Rune's status from process data, task output is drawn under a clean `Task_Output` heading, and notification status rows no longer consume the 4-line output preview allowance.",
+      "One-step install and run in the active terminal: in bash, zsh, and POSIX shells, the installer adds its folder to the calling shell's PATH in sourced mode (`. <(curl ...)`), allowing `rune` to start in that same window without restarting the shell.",
+      "No platform edits a shell profile: the installer links the binary into an existing PATH folder (`/usr/local/bin`, `/opt/homebrew/bin`, `~/bin`), while Windows configures the active window's PATH and user registry PATH transparently.",
+      "The installer reports exactly what it changed and where it placed the binary, inspects existing shell configuration before suggesting setup lines, and displays a live download bar with size, transfer rate, and time remaining.",
+      "Unified installer interface across platforms: identical ASCII branding, status steps, and Ready boxes on Linux, macOS, and Windows.",
+      "Shell compatibility bug fixes: eliminated an EXIT trap return-code clobbering bug in zsh that generated false Ready reports, and removed non-interactive `set +m` calls that terminated posh shells.",
+      "Cross-platform installer proof: published installers are validated on real macOS and Windows runners, and across a multi-distribution container matrix.",
+      "Responsive website and documentation navigation: balanced mobile header with centered brand mark, mobile Docs and Install links relocated to the footer (1 row on ≥360px), changelog drawer restored for all languages, explicit `.prev` (left) and `.next` (right) article pagination, and a pinned sidebar version notice on desktop."
     ]
   },
   "0.7.8": {
