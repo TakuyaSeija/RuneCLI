@@ -180,9 +180,9 @@
   },
   "notes": {
     "0.12.0": {
-      "title": "Un nouvel essai qui s'explique, et un résumé qui reprend",
+      "title": "Un retry qui s’explique, un résumé qui reprend, et une installation utilisable aussitôt",
       "paragraphs": [
-        "Une limite de débit transformait une requête en une suite de nombres illisibles, et le résumé d'une longue session pouvait durer des minutes puis perdre son travail à l'annulation. Désormais le nouvel essai porte deux quotas distincts et nomme la clé qui les dépense, la compaction demande d'abord un seul résumé et conserve ce qu'elle a déjà écrit, et un point d'accès personnalisé reçoit son protocole au lieu d'être deviné d'après son adresse."
+        "Une limite de débit transformait une requête en une suite de nombres illisibles, et le résumé d'une longue session pouvait durer des minutes puis perdre son travail à l'annulation. Désormais le nouvel essai porte deux quotas distincts et nomme la clé qui les dépense, la compaction demande d'abord un seul résumé et conserve ce qu'elle a déjà écrit, et un point d'accès personnalisé reçoit son protocole au lieu d'être deviné d'après son adresse. L’installateur termine désormais son travail dans la fenêtre qui l’a lancé — pas de nouveau terminal, pas de profil de shell modifié — et les valeurs qui font fonctionner Rune lui-même sont des constantes et non des paramètres."
       ],
       "points": [
         "Le nouvel essai donne à chaque clé son propre quota (`retry.attempts_per_key`, dix par défaut) à côté du quota de l'appel entier (`retry.max_attempts`). Une clé épuisée passe la main sans attente, et l'anneau repart jusqu'à épuisement du quota global.",
@@ -193,7 +193,15 @@
         "La prise en charge des images publiée seulement comme paramètre accepté est lue, donc ces points d'accès acceptent les images.",
         "Le plafond de sortie envoyé est le nombre que réserve le budget de contexte, et un fournisseur qui le refuse l'abaisse pour tous les rôles, pas seulement les résumés.",
         "Une étape dont les arguments arrivent encore n'est plus dessinée comme une boîte vide, et une action dégénérée ne devient jamais son titre.",
-        "Les écrans de tarifs expliquent comment un coût est calculé et ce qui passe en premier, y compris un coût que le fournisseur annonce à zéro."
+        "Les écrans de tarifs expliquent comment un coût est calculé et ce qui passe en premier, y compris un coût que le fournisseur annonce à zéro.",
+        "Les valeurs qui font fonctionner Rune lui-même — la cadence d’affichage, la fenêtre Échap, la taille de terminal qu’il pilote, les attentes de stockage et autres — ne sont plus des paramètres : `-config set` les refuse, un fichier qui en contient encore est nettoyé lors de la mise à jour, et le manuel ne liste que ce que vous pouvez modifier. Tous les choix déjà présents dans Settings ou `rune.toml` restent identiques.",
+        "Installer et utiliser en une étape : dans bash, zsh et tout shell POSIX, l’installateur ajoute son dossier au PATH du shell appelant, donc `rune` démarre dans la même fenêtre ; un script passé par un pipe n’annonce jamais Ready — il affiche la seule ligne qui termine le travail.",
+        "Aucune plateforme ne modifie de profil de shell. Le binaire est lié dans un dossier déjà présent dans le PATH, et Windows règle le PATH de la fenêtre en cours et le PATH utilisateur dans le registre, en disant lequel.",
+        "L’installateur dit ce qu’il a changé et où il a placé le binaire, lit la configuration de shell de la personne avant de proposer quoi que ce soit, et affiche une barre de téléchargement vivante avec taille, vitesse et temps restant.",
+        "Un seul écran sur chaque plateforme et chaque shell : même logo, mêmes étapes, même encadré Ready sous Linux, macOS et Windows.",
+        "Deux vrais bugs de shell ont disparu : zsh transformait une vérification de PATH échouée en faux Ready via son trap EXIT, et posh mourait silencieusement sur une ligne de contrôle des tâches dans un shell non interactif.",
+        "L’installateur publié est exécuté sur de vrais runners macOS et Windows, et sur trois systèmes distincts à la demande, pas seulement dans un conteneur sur cette machine.",
+        "Une notification système affiche désormais sa balise `<system_notification>`, pour que les mots de Rune ne soient jamais pris pour ceux de la tâche, et la sortie laissée par une tâche s’affiche sous le titre `Task_Output` au lieu d’un bloc XML."
       ]
     },
     "0.7.8": {

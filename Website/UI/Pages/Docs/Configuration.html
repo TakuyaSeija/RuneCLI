@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">Location and scope</h2>
-<p>Global configuration is <code>rune.toml</code> in the selected Rune data home, normally <code>~/.rune/</code>. The <a href="{{url "docs/reference"}}">Settings reference</a> lists every key it can hold. <code>RUNE_HOME</code> selects a different home. A file named rune.toml inside a project is not automatically the settings file, and <code>-project</code> chooses a workspace rather than a settings home.</p>
+<p>Global configuration is <code>rune.toml</code> in the selected Rune data home, normally <code>~/.rune/</code>. The <a href="{{url "docs/reference"}}">Settings reference</a> lists every setting you can change: a row in Settings or a key in the file. <code>RUNE_HOME</code> selects a different home. A file named rune.toml inside a project is not automatically the settings file, and <code>-project</code> chooses a workspace rather than a settings home.</p>
 <p>Use <code>rune -config</code> to see the actual location. The file holds your saved choices; absent values inherit the current defaults. Its top-level <code>version = 1</code> describes the configuration format, not the application version. Do not change it to request an upgrade.</p>
 <h2 id="inspect">Inspect one thing at a time</h2>
 <dl class="ref">

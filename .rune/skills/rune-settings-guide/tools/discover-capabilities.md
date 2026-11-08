@@ -4,7 +4,6 @@ discover_capabilities finds available skills, external tools and resources. It i
 
 Global limits:
 - `discover_capabilities.max_output_chars`: factory 30000, 100–10000000. Settings → Tools → DISCOVER CAPABILITIES.
-- `discover_capabilities.page_size`: factory 12, 1–100. Advanced TOML default results per page.
 
 Change the row or `rune -config set <key> <value>` when requested. Reset with Use default/`rune -config reset <key>`; inspect using explain. Later calls use the limits.
 
@@ -17,4 +16,3 @@ These are factory values, not a claim about the current user's saved choices. In
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
 | `discover_capabilities.max_output_chars` | `30000` | Whole number 100–10000000 |
-| `discover_capabilities.page_size` | `12` | Whole number 1–100 |

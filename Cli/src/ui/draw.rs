@@ -1222,6 +1222,18 @@ fn rule_user(time: Option<&str>, width: usize) -> String {
 ///
 /// The name is `TEXT` and not the accent: a notification is something the program
 /// *told* the user, so it is read, not displayed.
+/// The heading a notification's carried output sits under: the model's
+/// `<process_output>` envelope, said in a person's words. Dim, so it marks the
+/// rows without competing with the box's own title.
+fn task_output_heading(width: usize) -> String {
+    let label = "Task_Output";
+    let rule = width.saturating_sub(ansi::width(label) + 2);
+    format!(
+        "{MUTED}{BOLD}{label}{RESET} {RULE}{}{RESET}",
+        "─".repeat(rule)
+    )
+}
+
 fn rule_system_notification(time: Option<&str>, width: usize) -> String {
     box_top(
         &format!("{TEXT}{BOLD}System_Notification{RESET}{}", rule_stamp(time)),
@@ -2142,22 +2154,28 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
             sink.blank();
             let text_wrap = inner.saturating_sub(4).max(8);
             sink.chrome(rule_system_notification(time.as_deref(), inner), Hit::None);
-            // Rune's own line, then the output the task left. The model reads
-            // one row with the tag around its first part; a person reads the
-            // same words with the tag taken off, folded at the same hard limit
-            // a message has — how long Rune's line happens to be never buys it
-            // rows (owner, 2026-11-03).
+            // Rune's own line with its tag shown, then the output the task
+            // left under its own heading (owner, 2026-11-08). The tag stays on
+            // screen so a person can see which words are Rune's; the output's
+            // `<process_output>` envelope becomes a heading instead, because a
+            // second tag inside the same box read as noise. Rune's line is
+            // folded at the same hard limit a message has — how long it happens
+            // to be never buys it rows (owner, 2026-11-03).
             let (line, body) = super::blocks::notification_parts(text);
-            let mut rows: Vec<String> = ansi::wrap(&line, text_wrap);
-            if !body.is_empty() {
-                rows.push(String::new());
-                for row in body.lines() {
-                    rows.extend(ansi::wrap(&ansi::tame(row), text_wrap));
-                }
-            }
-            let shown = rows.len().min(super::viewport::preview_rows(*open));
-            for row in &rows[..shown] {
+            for row in &ansi::wrap(&line, text_wrap) {
                 sink.boxed("", &format!("{TEXT}{row}{RESET}"), text_wrap, Hit::None);
+            }
+            let rows: Vec<String> = body
+                .lines()
+                .flat_map(|row| ansi::wrap(&ansi::tame(row), text_wrap))
+                .collect();
+            let shown = rows.len().min(super::viewport::preview_rows(*open));
+            if !rows.is_empty() {
+                sink.boxed("", "", text_wrap, Hit::None);
+                sink.chrome(boxed(&task_output_heading(text_wrap), text_wrap), Hit::None);
+                for row in &rows[..shown] {
+                    sink.boxed("", &format!("{TEXT}{row}{RESET}"), text_wrap, Hit::None);
+                }
             }
             let omitted = rows.len() - shown;
             if omitted > 0 {
@@ -7397,7 +7415,8 @@ mod tests {
     }
 
     /// A notification is Rune's, drawn in a closed box under its own header —
-    /// the line a person reads, without the tag the model reads it by.
+    /// the line a person reads, with the tag that marks whose words they are
+    /// (owner, 2026-11-08).
     #[test]
     fn system_notification_renders_as_a_closed_box_with_system_header() {
         let mut app = test_app();
@@ -7420,10 +7439,9 @@ mod tests {
             .iter()
             .any(|line| line.contains("bg_12345: Completed; PID 99; finished in 2s")));
         assert!(
-            !rows
-                .iter()
-                .any(|line| line.contains("system_notification>")),
-            "the tag is the model's, not the reader's"
+            rows.iter().any(|line| line
+                .contains("<system_notification>bg_12345: Completed; PID 99; finished in 2s; /work/bg_12345.txt")),
+            "Rune's row is drawn with its tag: {rows:?}"
         );
         let bottom = rows
             .iter()
@@ -7451,20 +7469,26 @@ mod tests {
             .map(|line| ansi::plain(line))
             .collect::<Vec<_>>();
         let body: Vec<&String> = closed.iter().filter(|line| line.starts_with('│')).collect();
+        // The tagged line, a blank row, the output's heading, four output rows,
+        // then the marker that says how many are cut (owner, 2026-11-08).
         assert_eq!(
             body.len(),
-            5,
-            "four rows, then the marker that says how many are cut: {closed:?}"
+            8,
+            "the line, a blank, the heading, four rows and the marker: {closed:?}"
         );
         assert!(
-            body[0].contains("bg_1a2b: Completed; PID 4321"),
-            "the line is the first row: {:?}",
+            body[0].contains("<system_notification>")
+                && body[0].contains("</system_notification>")
+                && body[0].contains("bg_1a2b: Completed; PID 4321"),
+            "the line is the first row, tag and words: {:?}",
             body[0]
         );
-        assert!(body[4].contains("lines cut"), "{:?}", body[4]);
-        assert!(!closed
-            .iter()
-            .any(|line| line.contains("system_notification>")));
+        assert!(body[2].contains("Task_Output"), "{:?}", body[2]);
+        assert!(
+            body[7].contains("2 lines cut"),
+            "the marker counts the rows the fold hides: {:?}",
+            body[7]
+        );
 
         if let Block::Notification { open, .. } = &mut app.blocks[0] {
             *open = true;
@@ -7485,10 +7509,12 @@ mod tests {
     }
 
     /// Today's notification carries its output in a `<process_output>` block,
-    /// the model's envelope for the process's words: a person reads the same
-    /// line and rows the earlier shape drew, never the envelope.
+    /// the model's envelope for the process's words. Rune's own tag is shown
+    /// (owner, 2026-11-08) and the output's envelope is drawn as a heading
+    /// instead, so a person sees which words are Rune's and which are the
+    /// process's.
     #[test]
-    fn a_notifications_output_block_is_drawn_as_its_rows_alone() {
+    fn a_notifications_tag_stays_and_its_output_block_gets_a_heading() {
         let mut app = test_app();
         app.blocks.push(Block::Notification {
             text: "<system_notification>bg_1a2b: Completed; PID 4321; finished in 14s; /work/bg_1a2b.txt</system_notification>\n<process_output>\nline one\nline two\n</process_output>".into(),
@@ -7501,18 +7527,25 @@ mod tests {
             .map(|line| ansi::plain(line))
             .collect::<Vec<_>>();
         let body: Vec<&String> = drawn.iter().filter(|line| line.starts_with('│')).collect();
-        assert_eq!(body.len(), 4, "the line, a blank row, two rows: {drawn:?}");
-        assert!(
-            body[0].contains("bg_1a2b: Completed; PID 4321"),
-            "{drawn:?}"
+        assert_eq!(
+            body.len(),
+            5,
+            "the tagged line, a blank row, the heading, two rows: {drawn:?}"
         );
         assert!(
-            body[2].contains("line one") && body[3].contains("line two"),
+            body[0].contains("<system_notification>")
+                && body[0].contains("</system_notification>")
+                && body[0].contains("bg_1a2b: Completed; PID 4321"),
+            "Rune's tag and words are on screen: {drawn:?}"
+        );
+        assert!(body[2].contains("Task_Output"), "{drawn:?}");
+        assert!(
+            body[3].contains("line one") && body[4].contains("line two"),
             "{drawn:?}"
         );
         assert!(
             !drawn.iter().any(|line| line.contains("process_output")),
-            "{drawn:?}"
+            "the output's envelope becomes a heading: {drawn:?}"
         );
     }
 

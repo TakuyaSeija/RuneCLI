@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">파일 위치 및 적용 범위</h2>
-<p>전역 구성 파일은 선택된 Rune 데이터 홈(일반적으로 <code>~/.rune/</code>) 아래의 <code>rune.toml</code>입니다. 이 파일에 지정할 수 있는 모든 키는 <a href="{{url "docs/reference"}}">설정 레퍼런스</a>에 나와 있습니다. <code>RUNE_HOME</code>을 사용하면 다른 데이터 홈을 선택할 수 있습니다. 프로젝트 폴더 안에 있는 <code>rune.toml</code>이라는 파일이 자동으로 전역 설정 파일이 되지는 않으며, <code>-project</code> 플래그는 설정 홈이 아니라 작업 공간을 지정합니다.</p>
+<p>전역 구성 파일은 선택된 Rune 데이터 홈(일반적으로 <code>~/.rune/</code>) 아래의 <code>rune.toml</code>입니다. 변경할 수 있는 모든 설정은 <a href="{{url "docs/reference"}}">설정 레퍼런스</a>에 나와 있습니다. Settings 화면의 행이나 파일의 키로 설정합니다. <code>RUNE_HOME</code>을 사용하면 다른 데이터 홈을 선택할 수 있습니다. 프로젝트 폴더 안에 있는 <code>rune.toml</code>이라는 파일이 자동으로 전역 설정 파일이 되지는 않으며, <code>-project</code> 플래그는 설정 홈이 아니라 작업 공간을 지정합니다.</p>
 <p>실제 설정 파일 위치는 <code>rune -config</code>로 확인하세요. 이 파일에는 사용자가 직접 저장한 선택 사항만 기록되며, 적혀 있지 않은 값은 현재 버전의 기본값을 상속받습니다. 최상단의 <code>version = 1</code>은 애플리케이션 버전이 아니라 구성 파일 형식 버전을 나타내므로, 업그레이드를 요청하려는 목적으로 이 숫자를 바꾸지 마세요.</p>
 <h2 id="inspect">한 번에 하나씩 확인하기</h2>
 <dl class="ref">

@@ -13,9 +13,7 @@
 <h2 id="advanced-options">Erweiterte Optionen</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>64 MiB Werkslimit für den Snapshot einer einzelnen geschützten Datei.</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>1 Sekunde Standardintervall zur Aktualisierung bereits verfolgter Dateien (einstellbar von 100 ms bis 1 Minute).</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>Standardmäßig drei umgebende Kontextzeilen im Diff (einstellbar von 0 bis 100).</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>Rechenbudget für den Diff-Vergleich, standardmäßig 1.000.000. Beeinflusst die Vergleichsstrategie bei großen Dateien, nicht jedoch den Dateizugriff oder die Anzahl zulässiger Änderungen.</dd></div>
 </dl>
 <p>Dies sind erweiterte Konfigurationsschlüssel ohne eigene Zeilen im interaktiven Einstellungsmenü. Prüfe eine Option mit <code>rune -config explain &lt;key&gt;</code> und setze sie mit <code>rune -config reset &lt;key&gt;</code> zurück.</p>
 {{end}}

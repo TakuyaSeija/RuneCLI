@@ -180,9 +180,9 @@
   },
   "notes": {
     "0.12.0": {
-      "title": "Ein Wiederholungsversuch, der sich erklärt, und eine Zusammenfassung, die fortsetzt",
+      "title": "Ein Retry, der sich erklärt, eine Zusammenfassung, die fortsetzt, und eine Installation, die sofort nutzbar ist",
       "paragraphs": [
-        "Ein Rate-Limit machte aus einer Anfrage eine Reihe unlesbarer Zahlen, und die Zusammenfassung einer langen Sitzung konnte Minuten laufen und ihre Arbeit beim Abbruch verlieren. Jetzt trägt der Wiederholungsversuch zwei getrennte Kontingente und nennt den Schlüssel, der sie verbraucht, die Kompaktierung fragt zuerst eine einzige Zusammenfassung an und behält, was sie schon geschrieben hat, und einem eigenen Endpunkt wird gesagt, welchen Draht er spricht, statt es aus seiner Adresse zu raten."
+        "Ein Rate-Limit machte aus einer Anfrage eine Reihe unlesbarer Zahlen, und die Zusammenfassung einer langen Sitzung konnte Minuten laufen und ihre Arbeit beim Abbruch verlieren. Jetzt trägt der Wiederholungsversuch zwei getrennte Kontingente und nennt den Schlüssel, der sie verbraucht, die Kompaktierung fragt zuerst eine einzige Zusammenfassung an und behält, was sie schon geschrieben hat, und einem eigenen Endpunkt wird gesagt, welchen Draht er spricht, statt es aus seiner Adresse zu raten. Der Installer erledigt die Arbeit jetzt im Fenster, das ihn gestartet hat — kein neues Terminal, kein bearbeitetes Shell-Profil — und die Werte, die Rune selbst am Laufen halten, sind Konstanten statt Einstellungen."
       ],
       "points": [
         "Der Wiederholungsversuch gibt jedem Schlüssel sein eigenes Kontingent (`retry.attempts_per_key`, standardmäßig zehn) neben dem Kontingent des ganzen Aufrufs (`retry.max_attempts`). Ein aufgebrauchter Schlüssel übergibt sofort, und der Ring beginnt von vorn, bis das globale Kontingent erschöpft ist.",
@@ -193,7 +193,15 @@
         "Bildunterstützung, die nur als akzeptierter Parameter veröffentlicht wird, wird gelesen; solche Endpunkte nehmen Bilder an.",
         "Die gesendete Ausgabegrenze ist die Zahl, die das Kontextbudget reserviert, und ein Anbieter, der sie ablehnt, senkt sie für jede Rolle, nicht nur für Zusammenfassungen.",
         "Ein Schritt, dessen Argumente noch eintreffen, wird nicht mehr als leere Box gezeichnet, und eine entartete Aktion wird nie seine Überschrift.",
-        "Die Preisbildschirme erklären, wie ein Preis berechnet wird und was Vorrang hat, auch einen Preis, den der Anbieter als null meldet."
+        "Die Preisbildschirme erklären, wie ein Preis berechnet wird und was Vorrang hat, auch einen Preis, den der Anbieter als null meldet.",
+        "Werte, die Rune selbst am Laufen halten — die Bildtaktung, das Escape-Fenster, die Terminalgröße, Speicher-Wartezeiten und Ähnliches — sind keine Einstellungen mehr: `-config set` lehnt sie ab, eine Datei, die noch einen davon enthält, wird beim Upgrade bereinigt, und das Handbuch listet nur, was du ändern kannst. Alle bisherigen Optionen unter Settings oder in `rune.toml` bleiben gleich.",
+        "Installieren und nutzen in einem Schritt: in bash, zsh und jeder POSIX-Shell legt der Installer seinen Ordner in den PATH der aufrufenden Shell, sodass `rune` im selben Fenster startet; ein gepiptes Skript behauptet nie „Ready“ — es druckt die eine Zeile, die den Rest erledigt.",
+        "Keine Plattform bearbeitet ein Shell-Profil. Die Binärdatei wird in einen Ordner verlinkt, der bereits im PATH liegt, und Windows setzt den PATH des laufenden Fensters und den Benutzer-PATH in der Registry und sagt, was es getan hat.",
+        "Der Installer sagt, was er geändert hat und wohin die Binärdatei kam, liest die eigene Shell-Einrichtung der Person, bevor er etwas vorschlägt, und zeigt einen lebenden Fortschrittsbalken mit Größe, Geschwindigkeit und Restzeit.",
+        "Ein Bildschirm auf jeder Plattform und in jeder Shell: dasselbe Logo, dieselben Schritte, dasselbe Ready-Feld unter Linux, macOS und Windows.",
+        "Zwei echte Shell-Fehler sind weg: zsh machte aus einer fehlgeschlagenen PATH-Prüfung über seinen EXIT-Trap ein falsches „ready“, und posh starb stumm an einer Job-Control-Zeile in einer nicht-interaktiven Shell.",
+        "Der veröffentlichte Installer läuft auf echten macOS- und Windows-Runnern und auf drei getrennten Systemen auf Anforderung, nicht nur in einem Container auf dieser Maschine.",
+        "Eine Systemmeldung zeigt jetzt ihr `<system_notification>`-Tag, damit Runes eigene Worte nie für die des Auftrags gehalten werden, und die Ausgabe eines Auftrags steht unter der Überschrift `Task_Output` statt in einem XML-Block."
       ]
     },
     "0.7.8": {

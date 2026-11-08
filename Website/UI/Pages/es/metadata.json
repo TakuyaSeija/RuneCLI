@@ -180,9 +180,9 @@
   },
   "notes": {
     "0.12.0": {
-      "title": "Un reintento que se explica, y un resumen que se reanuda",
+      "title": "Un reintento que se explica, un resumen que continúa y una instalación que se usa al instante",
       "paragraphs": [
-        "Un límite de tasa convertía una petición en una serie de números ilegibles, y el resumen de una sesión larga podía tardar minutos y luego perder su trabajo al cancelarse. Ahora el reintento lleva dos cupos separados y nombra la clave que los gasta, la compactación pide un solo resumen primero y guarda lo que ya escribió, y a un endpoint propio se le dice qué protocolo habla en vez de adivinarlo por su dirección."
+        "Un límite de tasa convertía una petición en una serie de números ilegibles, y el resumen de una sesión larga podía tardar minutos y luego perder su trabajo al cancelarse. Ahora el reintento lleva dos cupos separados y nombra la clave que los gasta, la compactación pide un solo resumen primero y guarda lo que ya escribió, y a un endpoint propio se le dice qué protocolo habla en vez de adivinarlo por su dirección. El instalador ahora termina el trabajo en la ventana que lo ejecutó —sin terminal nueva y sin editar el perfil de la shell— y los valores que mantienen Rune en marcha son constantes, no ajustes."
       ],
       "points": [
         "El reintento da a cada clave su propio cupo (`retry.attempts_per_key`, diez por defecto) junto al cupo de toda la llamada (`retry.max_attempts`). Una clave agotada cede el turno sin espera, y el anillo vuelve a empezar hasta agotar el cupo global.",
@@ -193,7 +193,15 @@
         "El soporte de imágenes publicado solo como parámetro aceptado ahora se lee, así que esos endpoints aceptan imágenes.",
         "El techo de salida que envía una petición es el número que reserva el presupuesto de contexto, y un proveedor que lo rechaza lo baja para todos los papeles, no solo para los resúmenes.",
         "Un paso cuyos argumentos aún llegan ya no se dibuja como una caja vacía, y una acción degenerada nunca se convierte en su título.",
-        "Las pantallas de precios explican cómo se calcula un coste y qué tiene prioridad, incluido un coste que el proveedor informa como cero."
+        "Las pantallas de precios explican cómo se calcula un coste y qué tiene prioridad, incluido un coste que el proveedor informa como cero.",
+        "Los valores que mantienen Rune en marcha —el reloj de fotogramas, la ventana de Escape, el tamaño de terminal que controla, las esperas de almacenamiento y similares— ya no son ajustes: `-config set` los rechaza, un archivo que aún contenga uno se limpia al actualizar, y el manual solo enumera lo que puedes cambiar. Todas las opciones que ya tenías en Settings o en `rune.toml` siguen igual.",
+        "Instalar y usar en un paso: en bash, zsh y cualquier shell POSIX el instalador añade su carpeta al PATH de la shell que lo llama, así que `rune` arranca en esa misma ventana; un script canalizado nunca dice Ready — imprime la única línea que termina el trabajo.",
+        "Ninguna plataforma edita el perfil de la shell. El binario se enlaza en una carpeta que ya está en el PATH, y Windows ajusta el PATH de la ventana actual y el PATH de usuario en el registro, diciendo cuál hizo.",
+        "El instalador dice qué cambió y dónde dejó el binario, lee la configuración de la shell de la persona antes de sugerir nada y muestra una barra de descarga en vivo con tamaño, velocidad y tiempo restante.",
+        "Una sola pantalla en cada plataforma y shell: el mismo logo, los mismos pasos y la misma caja Ready en Linux, macOS y Windows.",
+        "Dos errores reales de shell desaparecen: zsh convertía una comprobación de PATH fallida en un Ready falso por su trap EXIT, y posh moría en silencio por una línea de control de trabajos en una shell no interactiva.",
+        "El instalador publicado se ejecuta en runners reales de macOS y Windows, y en tres sistemas distintos bajo demanda, no solo en un contenedor en esta máquina.",
+        "Una notificación del sistema muestra ahora su etiqueta `<system_notification>`, para que las palabras de Rune no se confundan con las de la tarea, y la salida que dejó una tarea se dibuja bajo el título `Task_Output` en lugar de un bloque XML."
       ]
     },
     "0.7.8": {

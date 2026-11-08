@@ -527,7 +527,18 @@ pub fn config(words: &[String]) -> Result<(), String> {
             []=>Ok(format!("{}\nGlobal settings and providers: {FILE}\nCredentials: secrets.vault (encrypted, key in ~/.rune/master.key)",home.display())),
             ["check"]=>{
                 Configuration::load(&home)?;
-                Ok("Configuration is valid.".into())
+                // A fixed value in the file is not an error — the constant holds
+                // — but silently dropping something the person wrote would be
+                // dishonest, so the check says what it ignored.
+                let carried = Configuration::carried_fixed(&home)?;
+                if carried.is_empty() {
+                    Ok("Configuration is valid.".into())
+                } else {
+                    Ok(format!(
+                        "Configuration is valid. Rune's own constants were ignored and cannot be changed: {}",
+                        carried.join(", ")
+                    ))
+                }
             },
             ["show"]=>Configuration::load(&home)?.display_toml(),
             ["defaults"]=>Ok(Configuration::reference()),

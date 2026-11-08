@@ -8,8 +8,6 @@ Advanced global TOML:
 | Key | Factory default | Purpose and range |
 | --- | --- | --- |
 | `checkpoint.max_file_size` |64MiB| Largest file Rune can protect for eligible changes. An oversized write can fail rather than proceed unprotected. |
-| `checkpoint.refresh_interval` |1s| Refresh cadence for already tracked files, 100ms–1m. Faster updates consume more resources. |
-| `checkpoint.diff.max_cells` |1000000| Diff-comparison work allowance, 100–10000000. Affects comparison strategy, not permission or a maximum number of file changes. |
 | `checkpoint.diff.context` |3| Surrounding context lines in displayed diffs, 0–100. |
 
 Inspect with explain; change a specific key with set only when requested; reset using `rune -config reset <key>`. New uses follow the choice. There are no dedicated current Settings rows for these advanced options.
@@ -23,6 +21,4 @@ These are factory values, not a claim about the current user's saved choices. In
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
 | `checkpoint.max_file_size` | `"64MiB"` | Positive explicit size up to 1GiB |
-| `checkpoint.refresh_interval` | `"1s"` | Duration 100ms–1m |
-| `checkpoint.diff.max_cells` | `1000000` | Whole number 100–10000000 |
 | `checkpoint.diff.context` | `3` | Whole number 0–100 |

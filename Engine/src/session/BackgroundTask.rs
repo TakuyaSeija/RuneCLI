@@ -2640,7 +2640,9 @@ mod tests {
             1024,
             "the watch already running reads it"
         );
-        assert_eq!(watch.cancel_grace(), 1000);
+        // `terminal.cancel_grace` is one of Rune's own constants (owner,
+        // 2026-11-08): a file that still names it does not move it.
+        assert_eq!(watch.cancel_grace(), 200, "a constant, not a setting");
     }
 
     /// A wait that only printed meanwhile (a countdown) and waits again is

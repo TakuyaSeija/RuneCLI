@@ -5,8 +5,6 @@ Rune keeps local conversation/project data in the selected Rune home. Changing a
 Advanced global TOML:
 | Key | Factory default | Purpose |
 | --- | --- | --- |
-| `storage.busy_timeout` |5s| How long to wait when local storage is busy. |
-| `storage.scratch_lifetime` |24h| Age before abandoned temporary work is eligible for startup cleanup. Not a timer that deletes an actively open task's files. |
 | `storage.session_limit` |200| Default maximum session-list results, 1–10000. Does not mean older sessions were deleted. |
 
 Inspect with explain; change only the desired key and reset using `rune -config reset <key>`. Scratch cleanup lifetime takes effect on restart; other consumers follow their documented timing. Positive durations have the general bounds.
@@ -21,6 +19,4 @@ These are factory values, not a claim about the current user's saved choices. In
 
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
-| `storage.busy_timeout` | `"5s"` | Positive duration up to 24h |
-| `storage.scratch_lifetime` | `"24h"` | Positive duration up to 24h |
 | `storage.session_limit` | `200` | Whole number 1–10000 |

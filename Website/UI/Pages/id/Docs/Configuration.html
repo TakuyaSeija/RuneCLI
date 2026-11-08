@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">Lokasi dan cakupan</h2>
-<p>Konfigurasi global disimpan di <code>rune.toml</code> dalam folder home data Rune yang dipilih, biasanya <code>~/.rune/</code>. Halaman <a href="{{url "docs/reference"}}">Referensi pengaturan</a> mencantumkan setiap kunci yang dapat dimuatnya. Variabel <code>RUNE_HOME</code> memilih folder home yang berbeda. Berkas bernama rune.toml di dalam folder proyek tidak otomatis menjadi berkas pengaturan, dan flag <code>-project</code> memilih ruang kerja, bukan folder home pengaturan.</p>
+<p>Konfigurasi global disimpan di <code>rune.toml</code> dalam folder home data Rune yang dipilih, biasanya <code>~/.rune/</code>. Halaman <a href="{{url "docs/reference"}}">Referensi pengaturan</a> mencantumkan setiap pengaturan yang bisa Anda ubah: baris di Settings atau kunci di berkas itu. Variabel <code>RUNE_HOME</code> memilih folder home yang berbeda. Berkas bernama rune.toml di dalam folder proyek tidak otomatis menjadi berkas pengaturan, dan flag <code>-project</code> memilih ruang kerja, bukan folder home pengaturan.</p>
 <p>Gunakan <code>rune -config</code> untuk melihat lokasi sebenarnya. Berkas ini menyimpan pilihan yang Anda tetapkan; nilai yang tidak dicantumkan akan mewarisi nilai bawaan saat ini. Baris tingkat atas <code>version = 1</code> menjelaskan versi format konfigurasi, bukan versi aplikasi. Jangan mengubah angka tersebut untuk meminta pembaruan aplikasi.</p>
 <h2 id="inspect">Periksa satu per satu</h2>
 <dl class="ref">

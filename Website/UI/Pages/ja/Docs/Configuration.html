@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">保存場所と適用範囲</h2>
-<p>グローバル設定ファイルは、選択されている Rune データホーム（通常は <code>~/.rune/</code>）内の <code>rune.toml</code> です。<a href="{{url "docs/reference"}}">設定リファレンス</a>に設定可能なすべてのキーが記載されています。環境変数 <code>RUNE_HOME</code> で別のデータホームを選択できます。プロジェクト内に <code>rune.toml</code> という名前のファイルを置いても自動的に設定ファイルとして読み込まれることはなく、また <code>-project</code> は設定ホームではなくワークスペースを選択するフラグです。</p>
+<p>グローバル設定ファイルは、選択されている Rune データホーム（通常は <code>~/.rune/</code>）内の <code>rune.toml</code> です。<a href="{{url "docs/reference"}}">設定リファレンス</a>に、変更できるすべての設定項目が記載されています。Settings の行か、ファイル内のキーとして設定します。環境変数 <code>RUNE_HOME</code> で別のデータホームを選択できます。プロジェクト内に <code>rune.toml</code> という名前のファイルを置いても自動的に設定ファイルとして読み込まれることはなく、また <code>-project</code> は設定ホームではなくワークスペースを選択するフラグです。</p>
 <p>実際の設定ファイルの場所は <code>rune -config</code> で確認できます。このファイルにはあなたが保存した設定のみが記録され、記載のない項目は現在の既定値を引き継ぎます。ファイル先頭の <code>version = 1</code> は設定ファイルのフォーマットバージョンを表すものであり、アプリケーションのバージョンではありません（アップグレード目的でこの数値を書き換えないでください）。</p>
 <h2 id="inspect">1 項目ずつ確認する</h2>
 <dl class="ref">

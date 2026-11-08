@@ -2,7 +2,7 @@
 <h2 id="shared-scope">全局辅助任务</h2>
 <p>Settings → Generation 下方的辅助任务设置行适用于使用当前 Rune 主目录的所有会话。它们可以直接继承当前活动模型，也可以显式指定某组提供商与模型。修改这些配置可能会改变费用、延迟以及接收相关数据的提供商；确认修改辅助配置并不代表批准其他无关操作。</p>
 <p>配置的输出 token 配额仍受限于所选模型的实际能力上限及提供商的完整请求大小限制。在 Settings 中调大数值并不会扩大服务端本身的硬性上限。若要恢复继承关系，请重置模型覆盖项，不要凭空填写占位模型名。</p>
-<p>对于强制要求推理过程的模型，可能需要更大的有效输出配额。高级设置项 <code>auxiliary.mandatory_reasoning_output_tokens</code> 的出厂默认值为 4,096；它并非无条件叠加到每个任务上的额外配额，所请求的结果仍需容纳在所选模型的总输出上限之内。</p>
+<p>需要推理的辅助模型可能需要更大的有效输出额度。Rune 会为这类模型提供自身的下限(默认 4,096 个 token),以便仍能容纳可用的结果;该下限是常量,不是设置项,也不会加到每个任务上。</p>
 <h2 id="sanitizer">清洗器（Sanitizer）</h2>
 <p>清洗器协助分类器从原始上下文中提取用户的真实指令和限制条件。它<strong>不会</strong>清理磁盘文件、不会移除每条消息中的特殊 Unicode 字符，也不会改写对话历史。它仅在适用分类器审查的场景下运行。当提取结果不可用时，系统会回退为使用原始指令，用户的限制条件不会因此丢失。</p>
 <dl class="ref"><div><dt>出厂默认值</dt><dd>启用（Enabled）、继承当前模型、120 秒请求超时、4,096 输出 token，且源文本按每批最大 64 KiB 发送。</dd></div><div><dt>配置键</dt><dd><code>sanitizer.enabled</code>、<code>sanitizer.model</code>、<code>sanitizer.timeout</code>、<code>sanitizer.max_output_tokens</code>、<code>sanitizer.max_batch_size</code>。</dd></div></dl>

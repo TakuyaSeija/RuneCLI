@@ -464,18 +464,24 @@ pub enum Block {
     },
 }
 
-/// A notification row as the model reads it: Rune's own line, inside the tag,
+/// A notification row as the model reads it: Rune's own line inside its tag,
 /// and the output the task left below it, outside.
 ///
 /// One place decides where the tag ends, because the row is drawn by a person's
 /// eye and read by the model from the same bytes: the words inside the tag are
-/// Rune's, the words after it are the process's (defused by the engine). The
-/// output travels in a `<process_output>` block the model reads as data; a
-/// person reads the output alone, the envelope taken off like the tag. A row
-/// an earlier build stored — a bare line, or the output after a blank line —
-/// is read the same way.
+/// Rune's, the words after it are the process's (defused by the engine).
+///
+/// Owner, 2026-11-08: the tag is shown, never hidden. A person reads Rune's row
+/// with its `<system_notification>` envelope exactly as stored, so what Rune
+/// says and what a process printed are told apart by the words themselves. The
+/// `<process_output>` envelope is the one thing taken off: the drawing gives
+/// those rows their own heading instead (`Task_Output`, beside the box's own `System_Notification`), because a
+/// second XML tag inside the same box read as noise. A row an earlier build stored — a
+/// bare line, or the output after a blank line — is read the same way, and a
+/// line that never carried a tag is not given one.
 pub fn notification_parts(text: &str) -> (String, String) {
     let trimmed = text.trim();
+    let tagged = trimmed.starts_with("<system_notification>");
     let inside = trimmed
         .strip_prefix("<system_notification>")
         .unwrap_or(trimmed);
@@ -486,7 +492,13 @@ pub fn notification_parts(text: &str) -> (String, String) {
                 .strip_prefix("<process_output>")
                 .and_then(|body| body.strip_suffix("</process_output>"))
                 .map_or(rest, |body| body.trim_matches('\n'));
-            (line.trim().to_string(), output.to_string())
+            let line = line.trim();
+            let shown = if tagged {
+                format!("<system_notification>{line}</system_notification>")
+            } else {
+                line.to_string()
+            };
+            (shown, output.to_string())
         }
         None => (inside.trim().to_string(), String::new()),
     }
@@ -895,9 +907,10 @@ mod tests {
 
     /// A notification is read in the shape every build stored it: today's, the
     /// output in its `<process_output>` block; 0.11.3's, the output after a
-    /// blank line; an older ping, the line alone. A person reads the line and
-    /// the output, never the tags around them — and an envelope the process
-    /// printed itself arrives defused and stays the process's text.
+    /// blank line; an older ping, the line alone. Rune's row keeps its tag for
+    /// the eye (owner, 2026-11-08); the output's envelope becomes a heading —
+    /// and an envelope the process printed itself arrives defused and stays the
+    /// process's text.
     #[test]
     fn a_notification_reads_alike_in_every_shape_it_was_stored_in() {
         let line = "bg_1: Completed; PID 4; finished in 2s; /w/bg_1.txt";
@@ -921,7 +934,10 @@ mod tests {
         ] {
             assert_eq!(
                 notification_parts(&text),
-                (line.to_string(), body.to_string()),
+                (
+                    format!("<system_notification>{line}</system_notification>"),
+                    body.to_string()
+                ),
                 "{text}"
             );
         }

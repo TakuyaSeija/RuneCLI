@@ -31,7 +31,7 @@
   <script src="{{asset "Scripts/Terminal.js"}}" type="module"></script>
   <script src="{{asset "Scripts/TerminalInteraction.js"}}" defer></script>{{end}}
 </head>
-<body{{if .Page.Section}} class="docs-page"{{end}}>
+<body{{if or .Page.Section (eq .Page.Route "changelog")}} class="docs-page"{{end}}>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="top">
@@ -66,6 +66,8 @@
     <div class="foot-row">
       <p class="foot-brand"><a class="foot-home" href="{{url ""}}">{{template "brand-mark"}}<span class="brand-name">RuneAgent</span></a><span class="foot-note">&copy; {{year}} Atoryn</span></p>
       <nav class="foot-links" aria-label="More">
+        <a class="foot-only" href="{{url "docs"}}">Docs</a>
+        <a class="foot-only" href="{{url "install"}}">Install</a>
         {{- if .Latest}}
         <a href="{{url "changelog"}}"{{if eq .Page.Route "changelog"}} aria-current="page"{{end}}>Releases</a>
         {{- end}}

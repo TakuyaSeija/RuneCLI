@@ -36,7 +36,7 @@ References are relative to this skill's folder. Find that folder from the availa
 ## Other user help
 - [Skills](capabilities/skills.md), [capability limits](capabilities/configuration.md), [MCP servers](capabilities/mcp.md), [MCP authentication](capabilities/authentication.md)
 - [Attachments](data/attachments.md), [project instructions](data/instructions.md), [memory](data/memory.md), [storage](data/storage.md), [undo/redo](data/checkpoints.md), [spend notice](data/usage.md)
-- [Advanced display choices](appearance/layout.md), [display timing](appearance/rendering.md)
+- [Advanced display choices](appearance/layout.md), [display timing and footer messages](appearance/rendering.md)
 - [CLI commands](cli/commands.md), [shortcuts](cli/shortcuts.md), [troubleshooting](troubleshooting.md)
 - [Web vendors](connections/web-vendors.md); individual model providers are linked from [model accounts](connections/model-providers.md)
 

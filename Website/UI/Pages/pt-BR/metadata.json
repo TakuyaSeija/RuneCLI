@@ -180,9 +180,9 @@
   },
   "notes": {
     "0.12.0": {
-      "title": "Uma nova tentativa que se explica, e um resumo que continua",
+      "title": "Um retry que se explica, um resumo que continua e uma instalação que já se usa",
       "paragraphs": [
-        "Um limite de taxa transformava uma requisição numa sequência de números ilegíveis, e o resumo de uma sessão longa podia durar minutos e depois perder o trabalho ao ser cancelado. Agora a nova tentativa carrega duas cotas separadas e nomeia a chave que as gasta, a compactação pede um único resumo primeiro e guarda o que já escreveu, e um endpoint próprio recebe o formato que fala em vez de ser adivinhado pelo endereço."
+        "Um limite de taxa transformava uma requisição numa sequência de números ilegíveis, e o resumo de uma sessão longa podia durar minutos e depois perder o trabalho ao ser cancelado. Agora a nova tentativa carrega duas cotas separadas e nomeia a chave que as gasta, a compactação pede um único resumo primeiro e guarda o que já escreveu, e um endpoint próprio recebe o formato que fala em vez de ser adivinhado pelo endereço. O instalador agora termina o trabalho na janela que o executou — sem terminal novo e sem editar o perfil da shell — e os valores que mantêm o próprio Rune funcionando são constantes, não configurações."
       ],
       "points": [
         "A nova tentativa dá a cada chave a sua própria cota (`retry.attempts_per_key`, dez por padrão) ao lado da cota da chamada inteira (`retry.max_attempts`). Uma chave esgotada passa a vez sem espera, e o anel recomeça até a cota global acabar.",
@@ -193,7 +193,15 @@
         "O suporte a imagens publicado apenas como parâmetro aceito agora é lido, então esses endpoints aceitam imagens.",
         "O teto de saída enviado é o número que o orçamento de contexto reserva, e um provedor que o recusa o abaixa para todos os papéis, não só para resumos.",
         "Um passo cujos argumentos ainda estão chegando não é mais desenhado como caixa vazia, e uma ação degenerada nunca vira o seu título.",
-        "As telas de preço explicam como um custo é calculado e o que tem prioridade, inclusive um custo que o provedor informa como zero."
+        "As telas de preço explicam como um custo é calculado e o que tem prioridade, inclusive um custo que o provedor informa como zero.",
+        "Os valores que mantêm o próprio Rune funcionando — o relógio de quadros, a janela do Esc, o tamanho de terminal que ele controla, as esperas de armazenamento e afins — não são mais configurações: `-config set` os recusa, um arquivo que ainda traga um deles é limpo na atualização, e o manual lista apenas o que você pode alterar. Todas as opções que você já tinha em Settings ou no `rune.toml` continuam iguais.",
+        "Instalar e usar em um passo: no bash, no zsh e em qualquer shell POSIX o instalador adiciona a pasta dele ao PATH da shell que o chamou, então `rune` inicia na mesma janela; um script canalizado nunca diz Ready — imprime a única linha que conclui o trabalho.",
+        "Nenhuma plataforma edita o perfil da shell. O binário é ligado a uma pasta que já está no PATH, e o Windows ajusta o PATH da janela em execução e o PATH do usuário no registro, dizendo qual fez.",
+        "O instalador diz o que mudou e onde deixou o binário, lê a configuração de shell da pessoa antes de sugerir qualquer coisa e mostra uma barra de download ao vivo com tamanho, velocidade e tempo restante.",
+        "Uma tela em cada plataforma e shell: o mesmo logo, os mesmos passos e a mesma caixa Ready no Linux, macOS e Windows.",
+        "Dois erros reais de shell desapareceram: o zsh transformava uma checagem de PATH falhada em Ready falso pelo trap EXIT, e o posh morria em silêncio por uma linha de controle de tarefas em shell não interativa.",
+        "O instalador publicado roda em runners reais de macOS e Windows, e em três sistemas separados sob demanda, não apenas em um contêiner nesta máquina.",
+        "Uma notificação do sistema agora mostra sua tag `<system_notification>`, para que as palavras do Rune nunca sejam confundidas com as da tarefa, e a saída deixada por uma tarefa aparece sob o título `Task_Output` em vez de um bloco XML."
       ]
     },
     "0.7.8": {

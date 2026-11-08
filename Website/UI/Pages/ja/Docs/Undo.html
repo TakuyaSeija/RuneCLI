@@ -13,9 +13,7 @@
 <h2 id="advanced-options">詳細設定オプション</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>対象ファイルのスナップショットの最大サイズ（初期値 64 MiB）。</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>追跡中ファイルの差分再計算間隔（初期値 1 秒、100 ms〜1 分の範囲で設定可能）。</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>差分表示に含める前後のコンテキスト行数（初期値 3 行、0〜100 の範囲で設定可能）。</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>差分比較アルゴリズムの計算量上限（初期値 1,000,000）。比較の手法にのみ影響し、ファイルアクセス権や許可される変更回数には影響しません。</dd></div>
 </dl>
 <p>これらは詳細設定キーであり、Settings 画面の通常の行には表示されません。確認には <code>rune -config explain &lt;key&gt;</code>、リセットには <code>rune -config reset &lt;key&gt;</code> を使用してください。</p>
 {{end}}

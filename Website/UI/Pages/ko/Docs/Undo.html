@@ -13,9 +13,7 @@
 <h2 id="advanced-options">고급 옵션</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>파일 스냅샷을 생성할 수 있는 최대 파일 크기입니다(기본값 64 MiB).</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>이미 추적 중인 파일의 새로고침 주기입니다(기본값 1초, 100 ms~1분 범위에서 설정 가능).</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>변경 내역 주변에 함께 보여 줄 문맥 줄 수입니다(기본값 3줄, 0~100 범위에서 설정 가능).</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>비교 연산 작업 한도입니다(기본값 1,000,000). 비교 전략에만 영향을 주며 파일 접근 권한이나 허용되는 변경 횟수에는 영향을 주지 않습니다.</dd></div>
 </dl>
 <p>이 항목들은 Settings 화면의 일반 메뉴가 아니라 고급 구성 키입니다. 개별 옵션 설명은 <code>rune -config explain &lt;key&gt;</code>로 확인하고, 기본값 복원은 <code>rune -config reset &lt;key&gt;</code>를 사용하세요.</p>
 {{end}}

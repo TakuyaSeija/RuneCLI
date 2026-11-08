@@ -147,6 +147,76 @@ Field { key:"ui.counter_min_duration", default:"\"120ms\"", kind:Duration, help:
 Field { key:"ui.counter_max_duration", default:"\"1400ms\"", kind:Duration, help:"Maximum counter animation duration." },
 ];
 
+/// Values that are Rune's own working constants, not settings (owner,
+/// 2026-11-08): a wrong one breaks the program itself — a frame interval that
+/// burns a core, an escape wait that splits an arrow key into two keys, an SSE
+/// ceiling that cuts a stream, a storage wait that fails under its own lock.
+///
+/// They stay in [`FIELDS`], because every default lives in that one table and
+/// the code reads them through it. What they lose is the ability to be written:
+/// no Settings row ever showed them, and now `-config set`, a hand edit of
+/// rune.toml and the editor's own save are all refused, so nothing can put a
+/// person's file and the program at odds over them. The website and the
+/// official help do not document them; `-config explain` says plainly what they
+/// are.
+pub const FIXED: &[&str] = &[
+    // What a stream, a response or the event parser will hold.
+    "network.max_stream_size",
+    "network.max_response_size",
+    "network.max_event_size",
+    "network.catalog_timeout",
+    "network.catalog_ttl",
+    "network.catalog_max_pages",
+    // The terminal Rune drives: its size, its drains, its quiet-spell probe.
+    "terminal.rows",
+    "terminal.columns",
+    "terminal.term",
+    "terminal.flush_interval",
+    "terminal.input_wait_delay",
+    "terminal.drain_after_exit",
+    "terminal.cancel_grace",
+    "terminal.timeout_grace",
+    // How long local storage and its scratch wait.
+    "storage.busy_timeout",
+    "storage.scratch_lifetime",
+    // Snapshot watching and the diff's work budget.
+    "checkpoint.refresh_interval",
+    "checkpoint.diff.max_cells",
+    // How many capability results one page returns.
+    "discover_capabilities.page_size",
+    // The output floor a reasoning auxiliary model is given.
+    "auxiliary.mandatory_reasoning_output_tokens",
+    // The screen: frame clock, key decoding, colour probe, panel split, footer
+    // lifetimes, spinner and counter animation.
+    "ui.color",
+    "ui.frame_interval",
+    "ui.escape_timeout",
+    "ui.color_probe_timeout",
+    "ui.split_min_columns",
+    "ui.scroll_margin",
+    "ui.spinner_frames",
+    "ui.counter_min_duration",
+    "ui.counter_max_duration",
+    "ui.status_lifetime",
+    "ui.status_replace_lifetime",
+    "ui.quit_lifetime",
+    "ui.stop_lifetime",
+];
+
+/// Whether this key is one of Rune's own working constants rather than a
+/// setting.
+pub fn is_fixed(key: &str) -> bool {
+    FIXED.contains(&key)
+}
+
+/// The one wording every path uses when something tries to write a fixed
+/// value, so the answer never depends on which door the edit came through.
+fn fixed_error(key: &str) -> Error {
+    Error::invalid(format!(
+        "{key} is one of Rune's own constants, not a setting; it cannot be changed"
+    ))
+}
+
 /// When a changed value takes effect. Shown in Settings and `-config explain` so a
 /// user knows whether an edit is live, applies next turn, or needs a restart.
 ///
@@ -290,6 +360,11 @@ impl Configuration {
         let mut config = Self::default();
         for field in FIELDS {
             if let Some(value) = lookup(&raw, field.key) {
+                // A fixed value never comes from a file: the program's own
+                // constant holds, whatever the file says.
+                if is_fixed(field.key) {
+                    continue;
+                }
                 check_field(field, value)?;
                 set_value(&mut config.values, field.key, value.clone());
             }
@@ -406,6 +481,9 @@ impl Configuration {
         &self.values
     }
     pub fn parse_value(key: &str, text: &str) -> Result<Value> {
+        if is_fixed(key) {
+            return Err(fixed_error(key));
+        }
         if key.starts_with("capabilities.") {
             let value: Value = toml_edit::de::from_str(&format!("value = {text}"))
                 .map_err(|_| Error::invalid("Invalid TOML capability value"))?;
@@ -610,6 +688,23 @@ impl Configuration {
         layout(&mut document)?;
         Ok(document.to_string())
     }
+    /// The fixed values a home's file still carries, so `-config check` can
+    /// say what was left alone rather than hide it.
+    pub fn carried_fixed(home: &Path) -> Result<Vec<&'static str>> {
+        let text = match std::fs::read_to_string(home.join(FILE)) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e.into()),
+        };
+        let raw: Value =
+            toml_edit::de::from_str(&text).map_err(|e| Error::invalid(format!("{FILE}: {e}")))?;
+        Ok(FIXED
+            .iter()
+            .copied()
+            .filter(|key| lookup(&raw, key).is_some())
+            .collect())
+    }
+
     pub fn reference() -> String {
         Self::default()
             .display_toml()
@@ -626,6 +721,13 @@ impl Configuration {
             .iter()
             .find(|f| f.key == key)
             .ok_or_else(|| Error::invalid(format!("unknown configuration key {key}")))?;
+        if is_fixed(field.key) {
+            return Ok(format!(
+                "{key} = {}\n{}\nFixed value: one of Rune's own constants, not a setting; it cannot be changed.",
+                self.get(key),
+                field.help
+            ));
+        }
         Ok(format!(
             "{key} = {}\n{}\n{}",
             self.get(key),
@@ -708,6 +810,9 @@ impl Configuration {
         };
         for (key, value) in changes {
             let key = *key;
+            if is_fixed(key) {
+                return Err(fixed_error(key));
+            }
             if key != "providers"
                 && key != super::services::SECTION
                 && !key.starts_with("capabilities.")
@@ -1300,6 +1405,31 @@ fn read_document(home: &Path) -> Result<Value> {
         Err(e) => Err(e),
     }
 }
+/// Remove one key by its dotted path from a document being upgraded, keeping
+/// every other value, comment and order. Returns whether it was there.
+///
+/// It walks tables only (`as_table_like_mut`, never `Item::get_mut`, which
+/// creates the key it is asked for): a table that is not there is simply not
+/// there, so removing a value from a file that never held it leaves the file
+/// byte for byte as it was.
+pub(crate) fn remove_key(document: &mut toml_edit::DocumentMut, key: &str) -> bool {
+    fn walk(table: &mut dyn toml_edit::TableLike, parts: &[&str]) -> bool {
+        match parts {
+            [last] => table.remove(last).is_some(),
+            [head, rest @ ..] => match table
+                .get_mut(head)
+                .and_then(|item| item.as_table_like_mut())
+            {
+                Some(child) => walk(child, rest),
+                None => false,
+            },
+            [] => false,
+        }
+    }
+    let parts: Vec<&str> = key.split('.').collect();
+    walk(document.as_table_mut(), &parts)
+}
+
 fn lookup<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     key.split('.').try_fold(value, |v, k| v.get(k))
 }
@@ -1352,6 +1482,13 @@ fn validate_tree(value: &Value, path: &str) -> Result<()> {
         };
     }
     if let Some(field) = FIELDS.iter().find(|f| f.key == path) {
+        // A fixed value is the program's own constant. A file that still
+        // carries one is not refused — the value simply never applies — so a
+        // home written before this format keeps starting while the upgrade
+        // step cleans it. `-config check` names what it left alone.
+        if is_fixed(field.key) {
+            return Ok(());
+        }
         return check_field(field, value);
     }
     let map = value
@@ -1733,23 +1870,68 @@ fn units(text: &str, kind: Kind) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn checkpoint_refresh_interval_is_finite_bounded_and_has_one_fields_default() {
-        for value in ["0s", "1ms", "unlimited", "2m"] {
-            assert!(
+    fn checkpoint_refresh_interval_is_a_fixed_value_now() {
+        // Owner, 2026-11-08: it was a choice with bounds; it is now the
+        // program's own cadence, so a file can no longer move it.
+        assert!(is_fixed("checkpoint.refresh_interval"));
+        for value in ["0s", "1ms", "1s", "2m", "unlimited"] {
+            let accepted =
                 Configuration::from_values(json!({"checkpoint":{"refresh_interval":value}}))
-                    .is_err()
+                    .unwrap();
+            assert_eq!(
+                accepted.duration("checkpoint.refresh_interval"),
+                std::time::Duration::from_secs(1),
+                "{value} was applied"
             );
         }
-        for value in ["100ms", "1s", "1m"] {
+    }
+
+    #[test]
+    fn every_fixed_key_is_a_field_and_answers_as_a_fixed_value() {
+        let mut seen = std::collections::HashSet::new();
+        for key in FIXED {
+            assert!(seen.insert(*key), "{key} listed twice");
             assert!(
-                Configuration::from_values(json!({"checkpoint":{"refresh_interval":value}}))
-                    .is_ok()
+                FIELDS.iter().any(|f| f.key == *key),
+                "{key} is not in FIELDS"
+            );
+            let refused = Configuration::parse_value(key, "1")
+                .unwrap_err()
+                .to_string();
+            assert!(refused.contains("cannot be changed"), "{key}: {refused}");
+            let explained = Configuration::default().explain(key).unwrap();
+            assert!(explained.contains("Fixed value"), "{key}: {explained}");
+            let mut values = json!({});
+            set_value(&mut values, key, json!(1));
+            let accepted = Configuration::from_values(values).unwrap();
+            assert_eq!(
+                accepted.get(key),
+                Configuration::default().get(key),
+                "{key} came from the file instead of the program's constant"
             );
         }
-        assert_eq!(
-            Configuration::default().duration("checkpoint.refresh_interval"),
-            std::time::Duration::from_secs(1)
-        );
+        assert!(FIXED.len() >= 30, "the fixed list shrank unexpectedly");
+    }
+
+    #[test]
+    fn a_fixed_value_can_never_be_saved_into_rune_toml() {
+        let home = std::env::temp_dir().join(format!("rune-fixed-values-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        for key in ["ui.escape_timeout", "terminal.rows"] {
+            assert!(
+                Configuration::edit(&home, Some(key), Some(json!("1ms")), false, None).is_err(),
+                "{key} was written"
+            );
+            let written = std::fs::read_to_string(home.join(FILE)).unwrap_or_default();
+            assert!(!written.contains(key), "{key} reached the file");
+        }
+        // A real setting still saves, so the refusal is about the key, not the path.
+        Configuration::edit(&home, Some("ui.theme"), Some(json!("cyan")), false, None).unwrap();
+        assert!(std::fs::read_to_string(home.join(FILE))
+            .unwrap()
+            .contains("theme"));
+        let _ = std::fs::remove_dir_all(home);
     }
 
     use super::*;
@@ -2092,8 +2274,8 @@ mod tests {
             .explain("storage.busy_timeout")
             .unwrap();
         assert!(
-            shown.contains("live"),
-            "a live SQLite setting must say so: {shown}"
+            shown.contains("Fixed value"),
+            "a constant must say it cannot be changed: {shown}"
         );
     }
 

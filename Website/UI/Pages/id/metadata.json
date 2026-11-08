@@ -180,9 +180,9 @@
   },
   "notes": {
     "0.12.0": {
-      "title": "Retry yang menjelaskan dirinya, dan ringkasan yang bisa dilanjutkan",
+      "title": "Retry yang menjelaskan dirinya, ringkasan yang bisa dilanjutkan, dan pemasangan yang langsung bisa dipakai",
       "paragraphs": [
-        "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan lebih dulu dan menyimpan yang sudah ditulis, dan endpoint custom diberi tahu formatnya, bukan ditebak dari alamatnya."
+        "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan lebih dulu dan menyimpan yang sudah ditulis, dan endpoint custom diberi tahu formatnya, bukan ditebak dari alamatnya. Skrip pemasang kini menuntaskan pekerjaannya di jendela yang menjalankannya — tanpa terminal baru dan tanpa mengedit profil shell — dan nilai yang menjaga Rune sendiri tetap berjalan menjadi konstanta, bukan pengaturan."
       ],
       "points": [
         "Retry memberi tiap key jatah sendiri (`retry.attempts_per_key`, bawaan sepuluh) di samping jatah seluruh panggilan (`retry.max_attempts`). Key yang jatahnya habis langsung menyerahkan giliran tanpa jeda, dan ring berputar sampai jatah global habis.",
@@ -193,7 +193,15 @@
         "Dukungan gambar yang hanya tercantum sebagai parameter yang diterima kini dibaca, sehingga endpoint tersebut menerima gambar.",
         "Batas output yang dikirim adalah angka yang disisihkan anggaran konteks, dan provider yang menolaknya menurunkannya untuk semua peran, bukan hanya ringkasan.",
         "Langkah yang argumennya masih datang tidak lagi digambar sebagai kotak kosong, dan action yang rusak tidak pernah menjadi judulnya.",
-        "Layar harga menyatakan bagaimana biaya dihitung dan mana yang diutamakan, termasuk biaya yang dilaporkan provider sebagai nol."
+        "Layar harga menyatakan bagaimana biaya dihitung dan mana yang diutamakan, termasuk biaya yang dilaporkan provider sebagai nol.",
+        "Nilai yang menjaga Rune sendiri tetap berjalan — jam frame, jendela Escape, ukuran terminal yang dijalankannya, waktu tunggu penyimpanan, dan sejenisnya — bukan lagi pengaturan: `-config set` menolaknya, berkas yang masih memuatnya dibersihkan saat upgrade, dan manual hanya mencantumkan yang bisa Anda ubah. Semua pilihan yang sudah ada di Settings atau `rune.toml` tidak berubah.",
+        "Pasang dan pakai dalam satu langkah: di bash, zsh, dan shell POSIX mana pun, pemasang menambahkan foldernya ke PATH shell pemanggil sehingga `rune` langsung jalan di jendela yang sama; skrip yang dipipe tidak pernah mengaku Ready — ia mencetak satu baris yang menuntaskan pekerjaan.",
+        "Tidak ada platform yang mengedit profil shell. Biner ditautkan ke folder yang sudah ada di PATH, dan Windows mengatur PATH jendela yang sedang berjalan serta PATH pengguna di registry, lalu menyebut yang mana yang dilakukan.",
+        "Pemasang menyebut apa yang diubah dan di mana biner diletakkan, membaca pengaturan shell orang itu sebelum menyarankan apa pun, dan menampilkan bar unduhan hidup dengan ukuran, kecepatan, dan sisa waktu.",
+        "Satu tampilan di semua platform dan shell: logo, langkah, dan kotak Ready yang sama di Linux, macOS, dan Windows.",
+        "Dua bug shell nyata hilang: zsh mengubah pemeriksaan PATH yang gagal menjadi Ready palsu lewat trap EXIT, dan posh mati senyap karena satu baris job control di shell non-interaktif.",
+        "Pemasang yang terbit dijalankan di runner macOS dan Windows sungguhan, serta di tiga sistem terpisah saat diminta, bukan hanya di container pada mesin ini.",
+        "Pemberitahuan sistem kini menampilkan tag `<system_notification>`, agar kata-kata Rune tidak tertukar dengan kata tugas, dan output yang ditinggalkan tugas digambar di bawah judul `Task_Output`, bukan blok XML."
       ]
     },
     "0.7.8": {

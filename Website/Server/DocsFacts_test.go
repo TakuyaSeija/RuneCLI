@@ -34,7 +34,29 @@ func TestDocumentedVersionIsTheWorkspaceVersion(t *testing.T) {
 	}
 }
 
-// Every setting, with the factory value the application's own table gives it.
+// fixedKeys are the values that became Rune's own constants (owner,
+// 2026-11-08): they stay in the field table, but nothing may set them, so the
+// manual never presents them as settings.
+func fixedKeys(t *testing.T) map[string]bool {
+	t.Helper()
+	src := readSource(t, "../../Engine/src/settings/Configuration.rs")
+	start := strings.Index(src, "pub const FIXED")
+	if start < 0 {
+		t.Fatal("the fixed-value list moved")
+	}
+	end := strings.Index(src[start:], "];")
+	out := map[string]bool{}
+	for _, m := range regexp.MustCompile(`"([^"]+)"`).FindAllStringSubmatch(src[start:start+end], -1) {
+		out[m[1]] = true
+	}
+	if len(out) < 20 {
+		t.Fatalf("read only %d fixed values; the list moved", len(out))
+	}
+	return out
+}
+
+// Every setting a person can change, with the factory value the application's
+// own table gives it — and never one of the constants that cannot be changed.
 func TestSettingsReferenceCoversEveryFieldWithItsDefault(t *testing.T) {
 	src := readSource(t, "../../Engine/src/settings/Configuration.rs")
 	start := strings.Index(src, "pub const FIELDS")
@@ -52,7 +74,16 @@ func TestSettingsReferenceCoversEveryFieldWithItsDefault(t *testing.T) {
 	for _, m := range entry.FindAllStringSubmatch(page, -1) {
 		documented[m[1]] = m[2]
 	}
+	constants := fixedKeys(t)
+	documentable := 0
 	for _, f := range fields {
+		if constants[f[1]] {
+			if _, published := documented[f[1]]; published {
+				t.Errorf("%s is a fixed value and must not be documented as a setting", f[1])
+			}
+			continue
+		}
+		documentable++
 		var value string
 		if err := json.Unmarshal([]byte(`"`+f[2]+`"`), &value); err != nil {
 			t.Fatal(err)
@@ -71,8 +102,8 @@ func TestSettingsReferenceCoversEveryFieldWithItsDefault(t *testing.T) {
 			t.Errorf("%s: reference says %s, the application %s", f[1], got, want)
 		}
 	}
-	if len(documented) != len(fields) {
-		t.Errorf("reference lists %d settings, the application has %d", len(documented), len(fields))
+	if len(documented) != documentable {
+		t.Errorf("reference lists %d settings, the application has %d a person can change", len(documented), documentable)
 	}
 }
 

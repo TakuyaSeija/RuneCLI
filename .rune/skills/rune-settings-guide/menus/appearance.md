@@ -14,4 +14,4 @@ Other color, mouse, scrolling and display-timing choices are advanced TOML setti
 
 A background image, blur or transparency visible in a screenshot may be configured by the terminal/desktop. Rune Settings does not provide a background-image control.
 
-[Advanced layout/color/mouse/scroll](../appearance/layout.md) · [Timing](../appearance/rendering.md)
+[Advanced layout/color/mouse/scroll](../appearance/layout.md) · [Display timing](../appearance/rendering.md)

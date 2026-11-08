@@ -66,6 +66,18 @@ def fields():
     return [(key, json.loads('"' + raw + '"')) for key, raw in rows]
 
 
+def fixed():
+    """The keys that are Rune's own constants, not settings (owner, 2026-11-08).
+
+    They stay in the field table, but the page documents only what a person may
+    change: a value that cannot be set must not be published as if it could.
+    """
+    src = FIELDS.read_text(encoding="utf-8")
+    start = src.index("pub const FIXED")
+    end = src.index("];", start)
+    return set(re.findall(r'"([^"]+)"', src[start:end]))
+
+
 def help_tables():
     out = {}
     for path in sorted(HELP.rglob("*.md")):
@@ -129,7 +141,12 @@ def main():
         fail("cannot read the binary's version")
     version = version[1]
 
+    constants = fixed()
     rows, notes, purposes = fields(), help_tables(), help_purposes()
+    documented = [(key, default) for key, default in rows if key not in constants]
+    if len(documented) + len(constants) != len(rows):
+        fail("a fixed key is missing from the field table")
+    rows = documented
     reworded = []
     tables = {table for group in GROUPS for table in group[3]}
     home = tempfile.mkdtemp(prefix="settings-reference-", dir=STUDIO / "target" / "test-tmp" if (STUDIO / "target" / "test-tmp").is_dir() else None)
@@ -158,7 +175,7 @@ def main():
     out = [
         "{{define \"article\"}}",
         f"<!-- Generated from Rune {version} by Website/Tools/build_settings_reference.py: the source's field table, the binary and the official help agree on every factory value. Do not edit by hand. -->",
-        f"<p>Every setting Rune {html.escape(version)} reads from <code>rune.toml</code>, grouped the way the file groups them. Each entry gives the factory value, what the setting does in the program's own words, the values it accepts and when a change takes effect. Most have a row in Settings; the rest are changed with <code>rune -config set</code>.</p>",
+        f"<p>Every setting you can change in Rune {html.escape(version)}, grouped the way <code>rune.toml</code> groups them: a row in Settings or a key in that file. Each entry gives the factory value, what it does in the program's own words, the values it accepts and when a change takes effect. Rune's own constants — the values that keep it running — are not settings, cannot be changed and are not listed here.</p>",
         "<p>A factory value is what applies until you choose otherwise; your own choices show with <code>rune -config explain &lt;key&gt;</code>. Reset a choice with <code>rune -config reset &lt;key&gt;</code>. Durations and sizes need their units, such as <code>\"2m\"</code> or <code>\"16MiB\"</code>; see <a href=\"{{url \"docs/configuration\"}}\">Configuration file</a> for value formats.</p>",
     ]
     for title, anchor, route, group_tables in GROUPS:

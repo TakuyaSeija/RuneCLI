@@ -1,8 +1,8 @@
 {
   "0.12.0": {
-    "title": "A retry that explains itself, and a summary that resumes",
+    "title": "A retry that explains itself, a summary that resumes, and an install you can use at once",
     "paragraphs": [
-      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and a custom endpoint is told which wire it speaks instead of being guessed from its address."
+      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and a custom endpoint is told which wire it speaks instead of being guessed from its address. The installer now finishes the job in the window that ran it — no new terminal, no shell profile edited — and the values that keep Rune itself running are constants rather than settings."
     ],
     "points": [
       "Retrying gives each key its own allowance (`retry.attempts_per_key`, ten by default) beside the whole call's budget (`retry.max_attempts`). A spent key hands over at once, and the ring wraps until the global allowance is gone.",
@@ -13,7 +13,15 @@
       "Image support published only as an accepted parameter is read, so those endpoints accept pictures.",
       "The output ceiling a request sends is the number the context budget reserves, and a provider that refuses it lowers it for every role, not only summaries.",
       "A step whose arguments are still arriving is no longer drawn as an empty box, and a degenerate action never becomes its heading.",
-      "Pricing screens state how a request is priced and what takes priority, including a cost a provider reports as zero."
+      "Pricing screens state how a request is priced and what takes priority, including a cost a provider reports as zero.",
+      "Values that keep Rune itself running — the frame clock, the Escape window, the terminal size it drives, storage waits and the rest — are no longer settings: `-config set` refuses them, a file that still carries one is cleaned on upgrade, and the manual lists only what you can change. Every choice you already had in Settings or `rune.toml` is unchanged.",
+      "One step installs and runs: in bash, zsh and any POSIX shell the installer adds its folder to the calling shell's PATH, so `rune` starts in that same window; a piped script never claims Ready — it prints the single line that finishes the job.",
+      "No platform edits a shell profile. The binary is linked into a folder already on PATH, and Windows sets the running window's PATH and the user PATH in the registry, saying which it did.",
+      "The installer says what it changed and where it put the binary, reads the person's own shell setup before suggesting anything, and shows a live download bar with size, speed and time left.",
+      "One screen on every platform and shell: the same logo, steps and Ready box on Linux, macOS and Windows.",
+      "Two real shell bugs are gone: zsh turned a failed PATH check into a false ready through its EXIT trap, and posh died silently on a job-control line in a non-interactive shell.",
+      "The published installer is run on real macOS and Windows runners, and on three separate systems on demand, not only in a container on this machine.",
+      "A system notification now shows its `<system_notification>` tag, so Rune's own words are never mistaken for the task's, and the output a task left is drawn under a `Task_Output` heading instead of an XML block."
     ]
   },
   "0.7.8": {

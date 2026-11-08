@@ -13,9 +13,7 @@
 <h2 id="advanced-options">Options avancées</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>Taille maximale par défaut de 64 MiB pour l’instantané d’un fichier éligible.</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>Cadence de rafraîchissement par défaut de 1 seconde pour les fichiers déjà suivis, configurable de 100 ms à 1 minute.</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>Trois lignes de contexte autour des modifications par défaut, configurable de 0 à 100.</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>Budget de calcul de comparaison, fixé à 1 000 000 par défaut. Ce paramètre agit sur la stratégie de calcul du diff, et non sur l’accès aux fichiers ni sur le nombre de modifications autorisées.</dd></div>
 </dl>
 <p>Il s’agit de clés de configuration avancées qui ne possèdent pas de ligne dédiée dans Settings. Inspectez une option avec <code>rune -config explain &lt;key&gt;</code> ; réinitialisez-la avec <code>rune -config reset &lt;key&gt;</code>.</p>
 {{end}}

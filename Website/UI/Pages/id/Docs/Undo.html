@@ -13,9 +13,7 @@
 <h2 id="advanced-options">Opsi konfigurasi lanjutan</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>Batas ukuran maksimum bawaan 64 MiB untuk potret satu berkas yang memenuhi syarat.</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>Jeda penyegaran bawaan 1 detik untuk memantau perubahan pada berkas yang sudah dilacak, dapat diatur mulai dari 100 ms hingga 1 menit.</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>Tiga baris konteks di sekitar perubahan secara bawaan, dapat diatur dari 0 hingga 100 baris.</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>Batas kerja perhitungan perbandingan diff, 1.000.000 sel secara bawaan. Nilai ini memengaruhi algoritma perbandingan diff, bukan hak akses berkas atau jumlah perubahan yang diizinkan.</dd></div>
 </dl>
 <p>Kunci-kunci di atas adalah pengaturan lanjutan di berkas konfigurasi, bukan baris menu tambahan di halaman Settings saat ini. Periksa rincian sebuah opsi dengan <code>rune -config explain &lt;key&gt;</code>; atur ulang ke nilai bawaan dengan <code>rune -config reset &lt;key&gt;</code>.</p>
 {{end}}

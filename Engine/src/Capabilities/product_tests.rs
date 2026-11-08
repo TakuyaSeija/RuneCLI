@@ -512,17 +512,24 @@ fn product_help_covers_every_global_key_default_kind_knob_and_tool() {
         };
         assert_eq!(row["kind"], kind, "kind {}", field.key);
         let doc = document(row["document"].as_str().unwrap()).unwrap();
-        assert!(doc.contains(field.key), "undocumented {}", field.key);
+        // Rune's own constants became unsettings (owner, 2026-11-08): the help
+        // documents what a person may change, so it never presents one of them
+        // as a key with a default to set.
+        if !crate::settings::configuration::is_fixed(field.key) {
+            assert!(doc.contains(field.key), "undocumented {}", field.key);
+        }
         let shown = if row["default"].is_null() {
             "Inherit / unset".into()
         } else {
             row["default"].to_string()
         };
-        assert!(
-            doc.contains(&format!("| `{}` | `{shown}` |", field.key)),
-            "wrong documented default {}",
-            field.key
-        );
+        if !crate::settings::configuration::is_fixed(field.key) {
+            assert!(
+                doc.contains(&format!("| `{}` | `{shown}` |", field.key)),
+                "wrong documented default {}",
+                field.key
+            );
+        }
     }
     assert_eq!(
         map["knobs"],
@@ -782,7 +789,6 @@ fn terminal_help_explains_execution_choices_and_failed_handoff() {
 fn footer_help_explains_status_competition_and_confirmation_lifetimes() {
     let text = document("appearance/rendering.md").unwrap();
     for behavior in [
-        "ui.status_replace_lifetime",
         "8 seconds",
         "3 seconds of visible time",
         "Retry timing continues",

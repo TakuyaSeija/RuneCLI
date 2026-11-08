@@ -1349,7 +1349,7 @@ fn format_11_retires_keys_written_any_way_and_leaves_others_alone() {
 }
 
 #[test]
-fn format_12_preserves_explicit_refresh_and_is_read_only_when_checked() {
+fn format_30_retires_the_refresh_choice_and_keeps_every_other_choice() {
     let store = temp("refresh-v12");
     write_marker(&store, 11).unwrap();
     let old =
@@ -1361,11 +1361,17 @@ fn format_12_preserves_explicit_refresh_and_is_read_only_when_checked() {
     prepare(&store, &store, &[], &mut |_| {}).unwrap();
     assert_eq!(marked(&store).unwrap(), Some(VERSION));
     let config = crate::settings::configuration::Configuration::load(&store).unwrap();
+    // The cadence is Rune's own now (owner, 2026-11-08): the retired choice
+    // neither applies nor stays in the file, and the person's other choices are
+    // untouched.
     assert_eq!(
         config.duration("checkpoint.refresh_interval"),
-        std::time::Duration::from_millis(250)
+        std::time::Duration::from_secs(1)
     );
     assert_eq!(config.number("retry.max_attempts"), 9);
+    let text = std::fs::read_to_string(store.join("rune.toml")).unwrap();
+    assert!(!text.contains("refresh_interval"), "{text}");
+    assert!(text.contains("# owner choice"), "{text}");
     let after = tree(&store);
     prepare(&store, &store, &[], &mut |_| {}).unwrap();
     assert_eq!(

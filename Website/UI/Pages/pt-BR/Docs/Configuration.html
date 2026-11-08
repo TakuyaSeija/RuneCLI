@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">Localização e escopo</h2>
-<p>A configuração global fica no arquivo <code>rune.toml</code> dentro da pasta de dados selecionada do Rune, normalmente <code>~/.rune/</code>. A <a href="{{url "docs/reference"}}">Referência de configurações</a> lista todas as chaves que ele pode conter. A variável <code>RUNE_HOME</code> seleciona uma pasta de dados diferente. Um arquivo chamado rune.toml dentro de um projeto não se torna automaticamente o arquivo de configurações, e <code>-project</code> escolhe um workspace, não uma pasta de configurações.</p>
+<p>A configuração global fica no arquivo <code>rune.toml</code> dentro da pasta de dados selecionada do Rune, normalmente <code>~/.rune/</code>. A <a href="{{url "docs/reference"}}">Referência de configurações</a> lista todos os ajustes que você pode alterar: uma linha em Settings ou uma chave do arquivo. A variável <code>RUNE_HOME</code> seleciona uma pasta de dados diferente. Um arquivo chamado rune.toml dentro de um projeto não se torna automaticamente o arquivo de configurações, e <code>-project</code> escolhe um workspace, não uma pasta de configurações.</p>
 <p>Use <code>rune -config</code> para ver a localização exata. O arquivo guarda apenas as escolhas que você salvou; valores ausentes herdam os padrões atuais. A linha superior <code>version = 1</code> descreve o formato da configuração, não a versão do aplicativo. Não a altere para tentar solicitar uma atualização.</p>
 <h2 id="inspect">Inspecione um item por vez</h2>
 <dl class="ref">

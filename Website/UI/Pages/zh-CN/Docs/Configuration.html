@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="location-and-scope">文件位置与作用域</h2>
-<p>全局配置文件为当前 Rune 数据主目录下的 <code>rune.toml</code>（通常位于 <code>~/.rune/</code>）。<a href="{{url "docs/reference"}}">设置项参考</a>列出了它支持的全部配置键。可通过 <code>RUNE_HOME</code> 环境变量指定不同的数据主目录。项目内部名为 <code>rune.toml</code> 的文件不会自动作为设置文件加载，而 <code>-project</code> 标志用于选择工作区，不会改变设置主目录。</p>
+<p>全局配置文件为当前 Rune 数据主目录下的 <code>rune.toml</code>（通常位于 <code>~/.rune/</code>）。<a href="{{url "docs/reference"}}">设置项参考</a>列出了你可以更改的全部设置项:Settings 界面中的一行,或文件中的一个键。可通过 <code>RUNE_HOME</code> 环境变量指定不同的数据主目录。项目内部名为 <code>rune.toml</code> 的文件不会自动作为设置文件加载，而 <code>-project</code> 标志用于选择工作区，不会改变设置主目录。</p>
 <p>运行 <code>rune -config</code> 可查看配置文件的实际路径。该文件仅记录你主动保存的选项；未填写的项会自动继承当前版本的默认值。文件顶层的 <code>version = 1</code> 描述的是配置文件格式版本，而非应用软件版本，请勿为了升级软件而修改该数字。</p>
 <h2 id="inspect">逐项查看与校验</h2>
 <dl class="ref">

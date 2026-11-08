@@ -13,9 +13,7 @@
 <h2 id="advanced-options">Advanced options</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>64 MiB factory maximum for an eligible file snapshot.</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>1 second factory refresh cadence for already tracked files, configurable from 100 ms to 1 minute.</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>Three surrounding context lines by default, configurable from 0 to 100.</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>Comparison work allowance, 1,000,000 by default. This affects comparison strategy, not file access or the number of permitted changes.</dd></div>
 </dl>
 <p>These are advanced configuration keys, not extra current Settings rows. Inspect an option with <code>rune -config explain &lt;key&gt;</code>; reset with <code>rune -config reset &lt;key&gt;</code>.</p>
 {{end}}

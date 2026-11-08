@@ -102,7 +102,7 @@
 
         <nav class="docs-pagination" aria-label="Adjacent versions">
           {{- with (prevRelease $.Releases $i)}}
-          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+          <a href="#v{{.Version}}" class="history-page-nav prev" data-version="{{.Version}}">
             <span>Versão anterior</span>
             <strong>Versão {{.Version}}</strong>
           </a>
@@ -110,7 +110,7 @@
           <span></span>
           {{- end}}
           {{- with (nextRelease $.Releases $i)}}
-          <a href="#v{{.Version}}" class="history-page-nav" data-version="{{.Version}}">
+          <a href="#v{{.Version}}" class="history-page-nav next" data-version="{{.Version}}">
             <span>Próxima versão</span>
             <strong>Versão {{.Version}}</strong>
           </a>

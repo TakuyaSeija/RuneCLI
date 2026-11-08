@@ -13,9 +13,7 @@
 <h2 id="advanced-options">Opções avançadas</h2>
 <dl class="ref">
 <div><dt>checkpoint.max_file_size</dt><dd>Tamanho máximo de fábrica de 64 MiB para a captura (snapshot) de um arquivo elegível.</dd></div>
-<div><dt>checkpoint.refresh_interval</dt><dd>Cadência de fábrica de 1 segundo para atualizar o conteúdo de arquivos já monitorados, configurável de 100 ms a 1 minuto.</dd></div>
 <div><dt>checkpoint.diff.context</dt><dd>Três linhas de contexto ao redor das alterações por padrão, configurável de 0 a 100.</dd></div>
-<div><dt>checkpoint.diff.max_cells</dt><dd>Orçamento de trabalho de comparação, 1.000.000 por padrão. Afeta a estratégia de cálculo do diff, não o acesso a arquivos nem a quantidade de alterações permitidas.</dd></div>
 </dl>
 <p>Estas são chaves de configuração avançadas, não linhas extras na interface atual de Settings. Inspecione uma opção com <code>rune -config explain &lt;key&gt;</code> e redefina-a com <code>rune -config reset &lt;key&gt;</code>.</p>
 {{end}}

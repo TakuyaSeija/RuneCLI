@@ -31,7 +31,7 @@ For addresses/keys use Connections, follow its validation and wait for success. 
 
 For TOML-only options, change only the relevant property in the intended account, preserve other accounts, then run `rune -config check`. Removing an optional property restores its applicable default; do not assume every nested property supports `-config reset`. A valid file still needs a real request to prove connectivity, and testing requires consent.
 
-Catalog refresh timing is global: `network.catalog_timeout`, `network.catalog_ttl`, `network.catalog_max_pages`. See [network](../runtime/network.md). Model capability/pricing and current Generation choices are separate from account access.
+Catalog refresh is global, not per account, and Rune times it itself. See [network](../runtime/network.md) for the waits you can choose. Model capability/pricing and current Generation choices are separate from account access.
 
 A local Ollama model account and Ollama's web service need not use the same address/key. The correct endpoint depends on the service, not simply its displayed account name. See [web accounts](web-accounts.md) and [API keys](../permissions/credentials.md).
 

@@ -1,39 +1,41 @@
-# Advanced display timing
+# Display timing and footer messages
 
-Location: rune.toml only. Scope: global. Keep defaults unless diagnosing a specific display/input issue.
+Rune times its own drawing and its own footer: the refresh interval, how long a
+spinner takes to change, how long a counter animates, how long the Escape key
+window stays open, how long the terminal's background-colour answer may take,
+and how long each kind of footer message stays. Those values are the program's
+own constants. They are not settings: no Settings row shows them, `rune.toml`
+cannot hold them, `rune -config set` refuses them, and this guide does not list
+them as choices. Do not offer to change one; if a person asks, say plainly that
+it is fixed and describe what they will see.
 
-| Key | Factory default | Purpose |
-| --- | --- | --- |
-| `ui.frame_interval` |16ms| Display refresh interval. |
-| `ui.status_lifetime` |8s| How long a temporary footer message remains when no other message is waiting. |
-| `ui.status_replace_lifetime` |3s| Visible time before a waiting message or retry countdown may take its place; never longer than the message's normal lifetime. |
-| `ui.quit_lifetime` |4s| Quit-confirmation interval. |
-| `ui.stop_lifetime` |3s| Stop-confirmation interval. |
-| `ui.escape_timeout` |50ms| How long to distinguish an Escape key sequence. |
-| `ui.color_probe_timeout` |120ms| Wait for the terminal's background-color answer. |
-| `ui.spinner_frames` |6| Refresh ticks between spinner changes, 1–100. |
-| `ui.counter_min_duration` |120ms| Minimum counter animation time. |
-| `ui.counter_max_duration` |1400ms| Maximum counter animation time. |
+What a person does control here is in [display, mouse and scrolling](layout.md):
+the theme, the side panel, mouse interaction and how the wheel scrolls.
 
-Use `rune -config explain <key>` first. Change only the intended key with `rune -config set <key> <value>`; reset with `rune -config reset <key>`. Positive durations have the general [value bounds](../config/values.md). A current display/input operation can finish with its current timing.
+## Footer messages
 
-Temporary footer messages remain for 8 seconds by default when unopposed. If another message or retry countdown is waiting, the current message yields after 3 seconds of visible time; repeated updates keep only the latest waiting message. Retry timing continues while another message is shown. Esc and Ctrl+C confirmations take priority, and the covered message's visible time pauses until the confirmation ends. Press Esc again within `ui.stop_lifetime` (default 3 seconds) to stop active AI work, including retry backoff; another key disarms that confirmation. The hint disappears when the same stop interval ends, not after the ordinary 8-second message lifetime. Stopping/finished control results and leaving the current screen can clear obsolete messages rather than queue them.
+A temporary footer message stays 8 seconds when nothing else is waiting. If
+another message or a retry countdown is waiting, the current one yields after
+3 seconds of visible time, and repeated updates keep only the newest waiting
+message. Retry timing continues while another message is shown.
 
-Risk: faster refresh/animations can increase resource use; overly short status/confirmation windows are hard to read/use. An unsuitable Escape timeout can affect perceived input behavior, particularly over slower connections. These are display preferences, not model speed settings. Do not change the terminal profile or install terminal software without permission.
+Esc and Ctrl+C confirmations take priority over ordinary messages: the covered
+message's visible time pauses until the confirmation ends. Press Esc again
+within the stop-confirmation window to stop active AI work,
+including retry backoff; another key disarms that confirmation. The hint
+disappears when that window ends, not after the ordinary message lifetime.
+Stopping or finished control results, and leaving the current screen, can clear
+obsolete messages rather than queue them.
 
-## Default and input reference
+## Screen behaviour that follows from these constants
 
-These are factory values, not a claim about the current user's saved choices. Inspect with explain; use reset to remove a global override. See [value formats](../config/values.md).
+The screen refreshes on its own clock, so a slow terminal is given frames it can
+finish drawing rather than a queue of half-drawn ones. A terminal that answers
+its background-colour probe quickly gets the matching light or dark ink; the
+probe is given a short budget and Rune falls back when no answer arrives. On a
+narrow terminal the conversation is shown alone, and the side panel returns when
+there is room for it.
 
-| Global key | Factory value | Accepted value / note |
-| --- | --- | --- |
-| `ui.frame_interval` | `"16ms"` | Positive duration up to 24h |
-| `ui.status_lifetime` | `"8s"` | Positive duration up to 24h |
-| `ui.status_replace_lifetime` | `"3s"` | Positive duration up to 24h |
-| `ui.quit_lifetime` | `"4s"` | Positive duration up to 24h |
-| `ui.stop_lifetime` | `"3s"` | Positive duration up to 24h |
-| `ui.escape_timeout` | `"50ms"` | Positive duration up to 24h |
-| `ui.color_probe_timeout` | `"120ms"` | Positive duration up to 24h |
-| `ui.spinner_frames` | `6` | Whole number 1–100 |
-| `ui.counter_min_duration` | `"120ms"` | Positive duration up to 24h |
-| `ui.counter_max_duration` | `"1400ms"` | Positive duration up to 24h |
+Risk: none of this is a model-speed setting. Do not describe a display constant
+as a preference, and do not change the terminal profile or install terminal
+software without permission.

@@ -33,8 +33,8 @@
     </header>
     <div class="prose">{{template "article" .}}</div>
     <nav class="docs-pagination" aria-label="前後の記事">
-      {{with .Previous}}<a href="{{url .Route}}"><span>前へ</span><strong>{{.Label}}</strong></a>{{else}}<span></span>{{end}}
-      {{with .Next}}<a href="{{url .Route}}"><span>次へ</span><strong>{{.Label}}</strong></a>{{end}}
+      {{with .Previous}}<a class="prev" href="{{url .Route}}"><span>前へ</span><strong>{{.Label}}</strong></a>{{else}}<span></span>{{end}}
+      {{with .Next}}<a class="next" href="{{url .Route}}"><span>次へ</span><strong>{{.Label}}</strong></a>{{end}}
     </nav>
   </article>
 

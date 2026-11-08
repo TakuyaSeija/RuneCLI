@@ -31,12 +31,12 @@
   <script src="{{asset "Scripts/Terminal.js"}}" type="module"></script>
   <script src="{{asset "Scripts/TerminalInteraction.js"}}" defer></script>{{end}}
 </head>
-<body{{if .Page.Section}} class="docs-page"{{end}}>
+<body{{if or .Page.Section (eq .Page.Route "changelog")}} class="docs-page"{{end}}>
   <a class="skip-link" href="#main">Lompat ke isi</a>
 
   <header class="top">
     <div class="top-row">
-      {{if .Page.Section}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Buka menu dokumentasi"><span></span><span></span><span></span></button>{{end}}
+      {{if or .Page.Section (eq .Page.Route "changelog")}}<button class="menu-toggle" type="button" aria-controls="docs-nav" aria-expanded="false" aria-label="Buka menu dokumentasi"><span></span><span></span><span></span></button>{{end}}
       <a class="brand" href="{{url ""}}"{{if eq .Page.Route ""}} aria-current="page"{{end}}>
         {{template "brand-mark"}}
         <span class="brand-name-wrap"><span class="brand-name">RuneAgent</span><span class="brand-by">Atoryn Studio</span></span>
@@ -56,7 +56,7 @@
       </nav>
     </div>
   </header>
-  {{if .Page.Section}}<div class="scrim"></div>{{end}}
+  {{if or .Page.Section (eq .Page.Route "changelog")}}<div class="scrim"></div>{{end}}
 
   <main id="main" tabindex="-1">
 {{template "content" .}}
@@ -66,6 +66,8 @@
     <div class="foot-row">
       <p class="foot-brand"><a class="foot-home" href="{{url ""}}">{{template "brand-mark"}}<span class="brand-name">RuneAgent</span></a><span class="foot-note">&copy; {{year}} Atoryn</span></p>
       <nav class="foot-links" aria-label="Lainnya">
+        <a class="foot-only" href="{{url "docs"}}">Dokumen</a>
+        <a class="foot-only" href="{{url "install"}}">Pasang</a>
         {{- if .Latest}}
         <a href="{{url "changelog"}}"{{if eq .Page.Route "changelog"}} aria-current="page"{{end}}>Rilis</a>
         {{- end}}

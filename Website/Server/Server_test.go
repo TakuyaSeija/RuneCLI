@@ -842,6 +842,10 @@ func TestPublicContentRevealsNoInternals(t *testing.T) {
 	}
 }
 
+// widthSpecific is the anchor a page carries only for a phone, where the
+// header keeps nothing but the mark and the language menu.
+var widthSpecific = regexp.MustCompile(`<a class="foot-only"[^>]*>`)
+
 // One job per page: exactly one h1, one main landmark, the install command on
 // the install page only, and every page reachable from the header without a
 // second copy of the same action. The site is a manual, so structure is a
@@ -868,8 +872,18 @@ func TestEveryPageHasOneJobAndNoRepeatedAction(t *testing.T) {
 		if n := strings.Count(body, `data-copy`); n != 0 {
 			t.Errorf("%s: %d copy buttons", p.Route, n)
 		}
+		// A link that sits in the header on a wide screen sits in the footer on
+		// a phone (owner, 2026-11-08): the same destination may therefore appear
+		// once more, but only as one of those width-specific footer links, and
+		// only for Docs and Install.
+		narrow := widthSpecific.FindAllString(body, -1)
+		for _, link := range narrow {
+			if !strings.Contains(link, `href="/Studio/docs"`) && !strings.Contains(link, `href="/Studio/#install"`) {
+				t.Errorf("%s: a phone-only footer link points somewhere else: %s", p.Route, link)
+			}
+		}
 		for _, id := range []string{"install", "docs", "security"} {
-			if n := strings.Count(body, `href="/Studio/`+id+`"`); n > 3 {
+			if n := strings.Count(body, `href="/Studio/`+id+`"`); n > 3+len(narrow) {
 				t.Errorf("%s: %d links to %s", p.Route, n, id)
 			}
 		}
