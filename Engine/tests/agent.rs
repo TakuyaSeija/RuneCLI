@@ -16125,33 +16125,62 @@ fn a_rate_limited_key_hands_over_to_the_next_over_a_real_socket() {
     let address = listener.local_addr().unwrap();
     let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
     let log = Arc::clone(&seen);
+    let mut agent_attempts = 0;
     std::thread::spawn(move || {
-        for n in 0..40 {
+        use std::io::{BufRead, BufReader};
+        for _ in 0..40 {
             let Ok((mut socket, _)) = listener.accept() else {
                 return;
             };
-            let mut buf = [0u8; 8192];
-            let read = socket.read(&mut buf).unwrap_or(0);
-            let head = String::from_utf8_lossy(&buf[..read]).to_string();
-            let auth = head
-                .lines()
-                .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            log.lock().unwrap().push(auth);
-            let (status, ctype, payload) = if n < 10 {
-                (
-                    "429 Too Many Requests",
-                    "application/json",
-                    "{\"error\":{\"message\":\"slow down\"}}".to_string(),
-                )
-            } else {
+            let mut reader = BufReader::new(socket.try_clone().unwrap());
+            let mut request = String::new();
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap_or(0);
+                }
+                if line == "\r\n" {
+                    break;
+                }
+                request.push_str(&line);
+            }
+            let mut sent = vec![0; length];
+            let _ = reader.read_exact(&mut sent);
+            request.push_str(&String::from_utf8_lossy(&sent));
+
+            let is_title = request.contains("You name a conversation");
+            let (status, ctype, payload) = if is_title {
                 (
                     "200 OK",
                     "text/event-stream",
-                    "data: {\"choices\":[{\"delta\":{\"content\":\"served by the second key\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                    "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"set_title\",\"arguments\":\"{\\\"title\\\":\\\"Test\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n".to_string(),
                 )
+            } else {
+                let auth = request
+                    .lines()
+                    .find(|l| l.to_ascii_lowercase().starts_with("authorization:"))
+                    .unwrap_or("")
+                    .trim()
+                    .to_string();
+                log.lock().unwrap().push(auth);
+                agent_attempts += 1;
+                if agent_attempts <= 10 {
+                    (
+                        "429 Too Many Requests",
+                        "application/json",
+                        "{\"error\":{\"message\":\"slow down\"}}".to_string(),
+                    )
+                } else {
+                    (
+                        "200 OK",
+                        "text/event-stream",
+                        "data: {\"choices\":[{\"delta\":{\"content\":\"served by the second key\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".to_string(),
+                    )
+                }
             };
             let _ = write!(
                 socket,
