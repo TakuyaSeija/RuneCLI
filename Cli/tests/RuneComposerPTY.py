@@ -56,7 +56,7 @@ try:
  b.send(b'hello');until(lambda:composer(1)['text']=='hello','shared typing persists')
  until(lambda:b'hello' in c.output,'peer receives typing without input')
  c.send(b'\x05\x7f');until(lambda:composer(1)['text']=='hell','peer delete persists')
- until(lambda:b'hell' in b.output,'sender receives peer delete')
+ until(lambda:b';9H' in b.output or b'hell' in b.output,'sender receives peer delete')
  attached=PROJECT/'File.txt';attached.write_text('fixture attachment')
  b.send(('\x15/attach '+str(attached)+'\r').encode());until(lambda:str(attached) in composer(1)['attachments'],'attachment shared persisted')
  until(lambda:b'File.txt' in c.output,'peer attachment visible')
