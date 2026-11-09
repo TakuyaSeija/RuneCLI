@@ -67,6 +67,14 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
 :is(.prose pre.block,.notice,.empty,.docs-pagination a,.table-wrap){box-shadow:inset 0 1px 0 rgb(255 214 160 / .07);background-image:radial-gradient(140% 120% at 0% 0%,rgb(255 168 70 / .05),transparent 55%)}
 /* Changelog single-version view and reactive panels (owner, 2026-11-05) */
 .history-count{margin-left:auto;padding-left:8px;font:500 11px/1 var(--sans);color:var(--meta)}
+/* The release note reads chapter by chapter: each chapter is its own heading,
+   and the page's contents list them all (owner, 2026-11-09). */
+.history-article .prose h3{margin:44px 0 12px;font:600 19px/1.4 var(--sans);letter-spacing:-.015em;color:var(--ink);scroll-margin-top:84px}
+.history-article .prose h3.note-changes{margin-top:8px}
+.history-link{display:block}
+.history-link .v-num{display:block;font-weight:500;color:var(--body)}
+.history-link .history-sum{display:block;margin-top:2px;font-size:11.5px;line-height:1.45;color:var(--meta)}
+.history-link:hover .v-num,.history-link:focus-visible .v-num,.history-link[aria-current=page] .v-num{color:var(--ink)}
 .changelog-panel{display:none}
 .changelog-panel.is-active{display:block}
 .version-head{margin:0 0 28px;padding-bottom:20px;border-bottom:1px solid var(--line)}

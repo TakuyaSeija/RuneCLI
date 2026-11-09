@@ -151,11 +151,9 @@ func (s *site) parseLocale(l *locale) error {
 		},
 		"minorOf": minorOf,
 		"seriesTitle": func(minor string) string {
-			if t, ok := minorSeriesTitles[minor]; ok {
-				return t
-			}
 			return "Series " + minor
 		},
+		"releaseSummary":   releaseSummary,
 		"missingPlatforms": missingPlatforms,
 		"prevRelease": func(releases []*releaseView, i int) *releaseView {
 			if i+1 < len(releases) {
@@ -442,12 +440,25 @@ type missingPlatform struct {
 	Platform string
 }
 
-var minorSeriesTitles = map[string]string{
-	"0.11": "Series 0.11 · Streaming & Tools",
-	"0.10": "Series 0.10 · Supervision & Guards",
-	"0.9":  "Series 0.9 · Shell & Terminal",
-	"0.8":  "Series 0.8 · Presets & Compaction",
-	"0.7":  "Series 0.7 · Distros & Foundation",
+func releaseSummary(r *releaseView) string {
+	if r == nil || r.Note == nil {
+		return ""
+	}
+	if strings.TrimSpace(r.Note.Summary) != "" {
+		return r.Note.Summary
+	}
+	title := r.Note.Title
+	first := title
+	for _, sep := range []string{",", ";", "—", " - "} {
+		if idx := strings.Index(first, sep); idx > 0 {
+			first = first[:idx]
+		}
+	}
+	first = strings.TrimSpace(first)
+	if first == "" {
+		first = title
+	}
+	return first
 }
 
 func minorOf(version string) string {

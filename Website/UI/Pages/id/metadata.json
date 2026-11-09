@@ -184,28 +184,61 @@
       "paragraphs": [
         "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan utuh lebih dulu dan menyimpan progres per batch, dan endpoint kustom diberi tahu protokol kawatnya secara eksplisit. Dukungan gambar pada gateway OpenAI-compatible kini dikenali, laporan biaya nol tidak lagi membekukan pelacakan spend, skrip pemasang langsung aktif di shell yang sama tanpa mengedit file profil, dan nilai internal penjaga sistem kini menjadi konstanta alih-alih pengaturan."
       ],
-      "points": [
-        "Retry memberi tiap key jatah sendiri (`retry.attempts_per_key`, bawaan 10) di samping plafon percobaan seluruh panggilan (`retry.max_attempts`). Key yang jatahnya habis langsung menyerahkan giliran ke key berikutnya, dan ring berputar hingga jatah global habis.",
-        "Baris status di footer menampilkan nama key dan kedua penghitung: misal `Key A · attempt 3 of 10 · 21/100000`, dan setiap perpindahan key dicatat satu baris di transkrip.",
-        "Rotasi key tidak lagi memakai cooldown tunda (`retry.credit_cooldown` dipensiunkan pada format 29); key yang jatahnya habis langsung berotasi tanpa jeda hammering, dan key baru langsung tersinkronisasi lintas jendela aktif tanpa restart Rune.",
-        "Key koneksi yang sudah ada dapat diubah namanya langsung di Settings (`Rename key`) tanpa perlu menghapus dan memasukkannya kembali.",
-        "Compaction mengirim satu permintaan ringkasan utuh terlebih dahulu untuk menjaga keutuhan konteks, beralih ke model aktif jika jendela konteksnya lebih besar, dan hanya memecah menjadi batch bila provider menolak ukuran payload.",
-        "Compaction bertahap melaporkan progres langsung (`batch N · M sources left`), menyimpan carry yang dapat dilanjutkan setelah setiap batch selesai agar progres tidak hilang saat dibatalkan, dan mencatat pihak yang meminta pembatalan.",
-        "Preset koneksi kustom berganti nama dari `compatible` menjadi `Custom provider`, dan memungkinkan pemilihan protokol kawat secara eksplisit: OpenAI-compatible (`/chat/completions` dengan token Bearer) atau Anthropic-compatible (`/v1/messages` dengan header `x-api-key`).",
-        "Endpoint yang menyatakan kapabilitas multimodal lewat `supported_parameters: [\"vision\"]` (seperti DeepRelay, TokenHarbor, dan gateway OpenAI-compatible lainnya) kini dikenali kapabilitas gambarnya di katalog model alih-alih keliru dilaporkan 'support is not published', sehingga dapat menerima lampiran gambar.",
-        "Saat endpoint melaporkan biaya pemakaian nol (seperti model berkuota langganan pada DeepRelay yang mengembalikan `usage.cost: 0`), tarif model yang diatur pengguna di Settings tetap dipertahankan dan tidak ditimpa nol, menjaga akurasi pelacakan pengeluaran lintas sesi.",
-        "Kotak eksekusi perintah ditahan sampai karakter pertama argumen tiba untuk mencegah munculnya kotak kosong yang tampak rusak (seperti persegi Bash kosong), dan teks degenerate model pada properti action disaring agar tidak menjadi judul langkah.",
-        "Plafon output yang diminta disesuaikan dengan token yang dicadangkan anggaran konteks; jika provider menolak permintaan karena melebihi batas token output (seperti pembatasan pada router token atau DeepSeek), plafon tersebut otomatis diturunkan untuk permintaan berikutnya di semua peran.",
-        "Sebanyak 33 konstanta runtime internal (`FIXED`) dipisahkan dari pengaturan pengguna: perintah `-config set` dan `reset` menolaknya, nilai lama di `rune.toml` diabaikan dan dibersihkan saat upgrade ke format 30 tanpa menyentuh komentar, dan referensi dokumen menciut dari 116 menjadi 83 pengaturan yang dapat diubah.",
-        "Kejelasan diagnostik: `-config check` melaporkan daftar konstanta warisan yang diabaikan dari `rune.toml`, dan `-config explain` menandai nilai konstanta sebagai nilai tetap yang tidak dapat diubah.",
-        "Pemberitahuan sistem menampilkan tag `<system_notification>` di antarmuka terminal untuk membedakan status Rune dari data proses, output tugas ditampilkan di bawah sub-heading `Task_Output`, dan baris status notifikasi tidak lagi memakan jatah preview 4 baris output.",
-        "Pemasangan dan penggunaan langsung dalam satu langkah: di bash, zsh, dan shell POSIX, pemasang menambahkan foldernya ke PATH shell pemanggil dalam mode sourced (`. <(curl ...)`), sehingga `rune` langsung siap dipakai di jendela yang sama tanpa membuka terminal baru.",
-        "Tidak ada platform yang mengedit profil shell: file `.bashrc` atau `.zshrc` tidak disentuh; biner ditautkan ke folder yang sudah ada di PATH (`/usr/local/bin`, `/opt/homebrew/bin`, `~/bin`), sedangkan Windows mengatur PATH jendela aktif dan PATH registry pengguna secara transparan.",
-        "Pemasang menjelaskan apa yang diubah dan di mana biner diletakkan, memeriksa konfigurasi shell pengguna sebelum memberikan saran, dan menampilkan bar unduhan dinamis dengan ukuran, kecepatan transfer, dan perkiraan sisa waktu.",
-        "Antarmuka pemasang terpadu di semua sistem operasi: logo ASCII, langkah status, dan kotak Ready yang identik di Linux, macOS, dan Windows.",
-        "Perbaikan kompatibilitas shell pada pemasang: meniadakan jebakan trap EXIT di zsh yang menimpa exit code menjadi 0 (pemicu status Ready palsu), dan menghapus perintah `set +m` di non-interactive shell yang mematikan eksekusi pada shell posh.",
-        "Verifikasi pemasang lintas platform: paket rilis dan skrip pemasang diuji langsung pada runner macOS dan Windows sungguhan di CI serta matriks container multi-distro.",
-        "Penyempurnaan tata letak situs dan navigasi dokumen: header mobile seimbang dengan logo di tengah dan menu bahasa di kanan, tautan Docs dan Install dipindahkan ke footer mobile (1 baris di ponsel ≥360px), drawer changelog dipulihkan di semua bahasa, tombol navigasi artikel menggunakan class eksplisit `.prev` (kiri) dan `.next` (kanan), dan teks versi dokumentasi dipaku di bagian bawah sidebar desktop."
+      "summary": "Retry, pemadatan & pemasang",
+      "sections": [
+        {
+          "id": "model-providers",
+          "title": "Penyedia model & dukungan gambar",
+          "points": [
+            "Preset koneksi kustom berganti nama dari `compatible` menjadi `Custom provider`, dan memungkinkan pemilihan protokol kawat secara eksplisit: OpenAI-compatible (`/chat/completions` dengan token Bearer) atau Anthropic-compatible (`/v1/messages` dengan header `x-api-key`).",
+            "Endpoint yang menyatakan kapabilitas multimodal lewat `supported_parameters: [\"vision\"]` (seperti DeepRelay, TokenHarbor, dan gateway OpenAI-compatible lainnya) kini dikenali kapabilitas gambarnya di katalog model alih-alih keliru dilaporkan 'support is not published', sehingga dapat menerima lampiran gambar.",
+            "Saat endpoint melaporkan biaya pemakaian nol (seperti model berkuota langganan pada DeepRelay yang mengembalikan `usage.cost: 0`), tarif model yang diatur pengguna di Settings tetap dipertahankan dan tidak ditimpa nol, menjaga akurasi pelacakan pengeluaran lintas sesi."
+          ]
+        },
+        {
+          "id": "key-rotation",
+          "title": "Rotasi kunci & ketahanan",
+          "points": [
+            "Retry memberi tiap key jatah sendiri (`retry.attempts_per_key`, bawaan 10) di samping plafon percobaan seluruh panggilan (`retry.max_attempts`). Key yang jatahnya habis langsung menyerahkan giliran ke key berikutnya, dan ring berputar hingga jatah global habis.",
+            "Baris status di footer menampilkan nama key dan kedua penghitung: misal `Key A · attempt 3 of 10 · 21/100000`, dan setiap perpindahan key dicatat satu baris di transkrip.",
+            "Rotasi key tidak lagi memakai cooldown tunda (`retry.credit_cooldown` dipensiunkan pada format 29); key yang jatahnya habis langsung berotasi tanpa jeda hammering, dan key baru langsung tersinkronisasi lintas jendela aktif tanpa restart Rune.",
+            "Key koneksi yang sudah ada dapat diubah namanya langsung di Settings (`Rename key`) tanpa perlu menghapus dan memasukkannya kembali."
+          ]
+        },
+        {
+          "id": "compaction",
+          "title": "Pemadatan sesi",
+          "points": [
+            "Compaction mengirim satu permintaan ringkasan utuh terlebih dahulu untuk menjaga keutuhan konteks, beralih ke model aktif jika jendela konteksnya lebih besar, dan hanya memecah menjadi batch bila provider menolak ukuran payload.",
+            "Compaction bertahap melaporkan progres langsung (`batch N · M sources left`), menyimpan carry yang dapat dilanjutkan setelah setiap batch selesai agar progres tidak hilang saat dibatalkan, dan mencatat pihak yang meminta pembatalan."
+          ]
+        },
+        {
+          "id": "tool-execution",
+          "title": "Eksekusi alat & keluaran",
+          "points": [
+            "Kotak eksekusi perintah ditahan sampai karakter pertama argumen tiba untuk mencegah munculnya kotak kosong yang tampak rusak (seperti persegi Bash kosong), dan teks degenerate model pada properti action disaring agar tidak menjadi judul langkah.",
+            "Plafon output yang diminta disesuaikan dengan token yang dicadangkan anggaran konteks; jika provider menolak permintaan karena melebihi batas token output (seperti pembatasan pada router token atau DeepSeek), plafon tersebut otomatis diturunkan untuk permintaan berikutnya di semua peran.",
+            "Pemberitahuan sistem menampilkan tag `<system_notification>` di antarmuka terminal untuk membedakan status Rune dari data proses, output tugas ditampilkan di bawah sub-heading `Task_Output`, dan baris status notifikasi tidak lagi memakan jatah preview 4 baris output."
+          ]
+        },
+        {
+          "id": "runtime-constants",
+          "title": "Konstanta runtime & konfigurasi",
+          "points": [
+            "Sebanyak 33 konstanta runtime internal (`FIXED`) dipisahkan dari pengaturan pengguna: perintah `-config set` dan `reset` menolaknya, nilai lama di `rune.toml` diabaikan dan dibersihkan saat upgrade ke format 30 tanpa menyentuh komentar, dan referensi dokumen menciut dari 116 menjadi 83 pengaturan yang dapat diubah.",
+            "Kejelasan diagnostik: `-config check` melaporkan daftar konstanta warisan yang diabaikan dari `rune.toml`, dan `-config explain` menandai nilai konstanta sebagai nilai tetap yang tidak dapat diubah."
+          ]
+        },
+        {
+          "id": "installer",
+          "title": "Pemasang multi-platform",
+          "points": [
+            "Pemasangan dan penggunaan langsung dalam satu langkah: di bash, zsh, dan shell POSIX, pemasang menambahkan foldernya ke PATH shell pemanggil dalam mode sourced (`. <(curl ...)`), sehingga `rune` langsung siap dipakai di jendela yang sama tanpa membuka terminal baru.",
+            "Biner dipasang ke `~/.local/bin/rune` (atau `RUNE_INSTALL_DIR`); bila folder itu belum ada di PATH, pemasang menautkannya ke folder yang sudah ada di PATH atau mencetak satu baris export yang menuntaskan pekerjaan — profil shell tidak pernah diedit. Pada Windows, PATH sesi aktif dan PATH pengguna di registry diatur secara langsung.",
+            "Pemasang menjelaskan apa yang diubah dan di mana biner diletakkan, memeriksa konfigurasi shell pengguna sebelum memberikan saran, dan menampilkan bar unduhan dinamis dengan ukuran, kecepatan transfer, dan perkiraan sisa waktu. Antarmuka pemasang terpadu di semua sistem operasi: logo ASCII, langkah status, dan kotak Ready yang identik di Linux, macOS, dan Windows. Perbaikan kompatibilitas shell pada pemasang: meniadakan jebakan trap EXIT di zsh yang menimpa exit code menjadi 0 (pemicu status Ready palsu), dan menghapus perintah `set +m` di non-interactive shell yang mematikan eksekusi pada shell posh."
+          ]
+        }
       ]
     },
     "0.7.8": {

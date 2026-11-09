@@ -17,7 +17,7 @@
           <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
           <ul>
             {{- range $j, $r := $g.Releases}}
-            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}>Version {{$r.Version}}</a></li>
+            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}><span class="v-num" translate="no">{{$r.Version}}</span><span class="history-sum">{{releaseSummary $r}}</span></a></li>
             {{- end}}
           </ul>
         </details>
@@ -46,13 +46,22 @@
         </div>
 
         <div class="prose">
-          <h3 id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Änderungen in diesem Release</h3>
+          <h3 class="note-changes" data-anchor="changes" id="{{if eq $i 0}}changes{{else}}changes-{{$r.Version}}{{end}}">Änderungen in diesem Release</h3>
           {{- if $r.Note}}
           <h4 class="release-note-title">{{$r.Note.Title}}</h4>
           {{- range $r.Note.Paragraphs}}
           <p class="release-note-body">{{.}}</p>
           {{- end}}
-          {{- if $r.Note.Points}}
+          {{- if $r.Note.Sections}}
+          {{- range $r.Note.Sections}}
+          <h3 class="note-section" data-anchor="sec-{{.ID}}" id="{{if eq $i 0}}sec-{{.ID}}{{else}}sec-{{.ID}}-{{$r.Version}}{{end}}">{{.Title}}</h3>
+          <ul class="release-notes">
+            {{- range .Points}}
+            <li>{{.}}</li>
+            {{- end}}
+          </ul>
+          {{- end}}
+          {{- else if $r.Note.Points}}
           <ul class="release-notes">
             {{- range $r.Note.Points}}
             <li>{{.}}</li>
@@ -63,7 +72,7 @@
           <p class="release-none">Die Änderungen dieser Version wurden nicht aufgezeichnet. Sie wird bereitgestellt, damit ältere Builds per Versionsnummer installierbar bleiben.</p>
           {{- end}}
 
-          <h3 id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">Veröffentlichte Downloads</h3>
+          <h3 class="note-downloads" data-anchor="downloads" id="{{if eq $i 0}}downloads{{else}}downloads-{{$r.Version}}{{end}}">Veröffentlichte Downloads</h3>
           {{- if $r.Files}}
           <div class="table-wrap download-table-wrap">
             <table class="data download-table">
@@ -128,6 +137,15 @@
       <p class="index-title">Auf dieser Seite</p>
       <ol id="changelog-toc">
         <li><a href="#changes">Änderungen</a></li>
+        {{- if .Releases}}
+        {{- with index .Releases 0}}
+        {{- with .Note}}
+        {{- range .Sections}}
+        <li><a href="#sec-{{.ID}}">{{.Title}}</a></li>
+        {{- end}}
+        {{- end}}
+        {{- end}}
+        {{- end}}
         <li><a href="#downloads">Downloads</a></li>
       </ol>
     </nav>

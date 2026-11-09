@@ -184,28 +184,61 @@
       "paragraphs": [
         "Ein Rate-Limit verwandelte eine Anfrage früher in eine unverständliche Zahlenreihe, und die Zusammenfassung einer langen Sitzung konnte minutenlang laufen, nur um bei einem Abbruch verworfen zu werden. Jetzt führt der Retry zwei getrennte Kontingente und nennt den Schlüssel, der sie verbraucht; Compaction sendet zuerst eine vollständige Zusammenfassung und sichert den Fortschritt pro Batch; und benutzerdefinierte Endpunkte wählen ihr Wire-Format explizit. Vision-Unterstützung auf OpenAI-kompatiblen Gateways wird nun erkannt, Nullkosten-Meldungen frieren die Ausgabenverfolgung nicht mehr ein, der Installer arbeitet direkt in der aktiven Shell ohne Profilbearbeitung, und interne Laufzeitwerte sind nun feste Konstanten statt veränderbarer Einstellungen."
       ],
-      "points": [
-        "Beim Retry erhält jeder Schlüssel ein eigenes Kontingent (`retry.attempts_per_key`, standardmäßig zehn) neben dem Gesamtbudget des Aufrufs (`retry.max_attempts`). Ein erschöpfter Schlüssel übergibt sofort, und der Ring rotiert, bis das globale Budget aufgebraucht ist.",
-        "Die Statuszeile nennt den Schlüssel und beide Zähler, beispielsweise `Key A · attempt 3 of 10 · 21/100000`, und jeder Schlüsselwechsel wird im Transkript protokolliert.",
-        "Die Schlüsselrotation nutzt keine Abklingzeit mehr (`retry.credit_cooldown` entfällt im Format 29); ein erschöpfter Schlüssel rotiert verzögerungsfrei ohne Rate-Limit-Hämmern, und neu hinzugefügte Schlüssel synchronisieren sich live über alle aktiven Fenster.",
-        "Bestehende Verbindungsschlüssel können in Settings direkt umbenannt werden (`Rename key`), ohne sie entfernen und neu eingeben zu müssen.",
-        "Compaction sendet zuerst eine vollständige Zusammenfassungsanfrage, um den Kontext zu wahren, weicht auf das aktive Modell aus, wenn dessen Fenster größer ist, und teilt nur auf, wenn der Provider die Payload-Größe ablehnt.",
-        "Schrittweise Zusammenfassung meldet den Live-Fortschritt (`batch N · M sources left`), speichert nach jedem Batch einen fortsetzbaren Stand, damit abgebrochene Arbeit erhalten bleibt, und protokolliert, wer den Abbruch ausgelöst hat.",
-        "Das Preset für benutzerdefinierte Endpunkte heißt nun `Custom provider` (statt `compatible`) und erlaubt die explizite Wahl des Wire-Protokolls: OpenAI-kompatibel (`/chat/completions` mit Bearer-Token) oder Anthropic-kompatibel (`/v1/messages` mit `x-api-key`).",
-        "Endpunkte, die Bildverarbeitung über `supported_parameters: [\"vision\"]` deklarieren (wie DeepRelay, TokenHarbor und OpenAI-kompatible Gateways), werden im Modellkatalog nun korrekt als bildfähig erkannt statt fälschlich 'support is not published' zu melden.",
-        "Meldet ein Provider Nullkosten (etwa DeepRelay `usage.cost: 0` bei Tarif-Inklusivmodellen), bleiben die in Settings konfigurierten Modellpreise erhalten, sodass die Kostenerfassung über Sitzungen hinweg präzise bleibt.",
-        "Befehlsausführungsboxen werden zurückgehalten, bis die ersten Argumente eintreffen, damit keine leeren Befehlsrahmen aufblitzen, und degenerierter Modelltext in Action-Feldern wird gefiltert, sodass er nie als Schrittüberschrift erscheint.",
-        "Die angeforderte Ausgabe-Obergrenze entspricht den durch das Kontextbudget reservierten Tokens; lehnt ein Provider die Anfrage wegen Überschreitung seines Token-Limits ab (etwa Token-sparenden Routern oder DeepSeek), wird die Grenze für nachfolgende Anfragen aller Rollen automatisch angepasst.",
-        "33 interne Laufzeitkonstanten (`FIXED`) wurden von Benutzereinstellungen getrennt: `-config set` und `reset` lehnen sie ab, alte Werte in `rune.toml` werden beim Upgrade auf Format 30 bereinigt ohne Kommentare zu berühren, und die Einstellungsreferenz sinkt von 116 auf 83 änderbare Einstellungen.",
-        "Diagnostische Klarheit: `-config check` meldet ignorierte Alt-Konstanten aus `rune.toml`, und `-config explain` kennzeichnet feste Konstanten eindeutig als unveränderbar.",
-        "Systemmeldungen zeigen ihr `<system_notification>`-Tag in der Terminal-Oberfläche, um Runes Status klar von Prozessdaten zu trennen, Befehlsausgaben stehen unter einer sauberen `Task_Output`-Überschrift, und Statuszeilen verbrauchen nicht mehr das 4-Zeilen-Ausgabe-Vorschaubudget.",
-        "Installation und Nutzung in einem Schritt: in bash, zsh und POSIX-Shells fügt der Installer im Sourced-Modus (`. <(curl ...)`) seinen Ordner zum PATH hinzu, sodass `rune` im selben Fenster ohne Neustart der Shell startet.",
-        "Keine Plattform bearbeitet Shell-Profile: `.bashrc` oder `.zshrc` bleiben unberührt; Binärdateien werden in bestehende PATH-Verzeichnisse verlinkt (`/usr/local/bin`, `/opt/homebrew/bin`, `~/bin`), während Windows den Sitzungs- und Registrierungs-PATH transparent setzt.",
-        "Der Installer erklärt genau, was geändert und wohin die Datei kopiert wurde, prüft die vorhandene Shell-Konfiguration vor Empfehlungen und zeigt einen Ladebalken mit Größe, Übertragungsrate und verbleibender Zeit.",
-        "Einheitliche Benutzeroberfläche des Installers: identisches ASCII-Branding, Statusschritte und Ready-Boxen unter Linux, macOS und Windows.",
-        "Shell-Kompatibilitätskorrekturen: der EXIT-Trap-Fehler in zsh, der den Rückgabewert auf 0 überschrieb (falsches Ready), wurde behoben, und `set +m` in nicht-interaktiven Shells, das posh-Shells beendete, wurde entfernt.",
-        "Plattformübergreifende Verifizierung: Installationspakete und Skripte werden auf echten macOS- und Windows-Runnern in CI sowie einer Multi-Distro-Container-Matrix getestet.",
-        "Verbessertes Website- und Dokumentationslayout: balancierter mobiler Header mit zentriertem Logo und Sprachmenü, Docs/Install in den mobilen Footer verlegt (1 Zeile auf ≥360px), Changelog-Drawer in allen Sprachen wiederhergestellt, explizite `.prev`- und `.next`-Seitennavigation und fixierter Versionshinweis in der Desktop-Sidebar."
+      "summary": "Retry, Komprimierung & Installer",
+      "sections": [
+        {
+          "id": "model-providers",
+          "title": "Modellanbieter & Vision",
+          "points": [
+            "Das Preset für benutzerdefinierte Endpunkte heißt nun `Custom provider` (statt `compatible`) und erlaubt die explizite Wahl des Wire-Protokolls: OpenAI-kompatibel (`/chat/completions` mit Bearer-Token) oder Anthropic-kompatibel (`/v1/messages` mit `x-api-key`).",
+            "Endpunkte, die Bildverarbeitung über `supported_parameters: [\"vision\"]` deklarieren (wie DeepRelay, TokenHarbor und OpenAI-kompatible Gateways), werden im Modellkatalog nun korrekt als bildfähig erkannt statt fälschlich 'support is not published' zu melden.",
+            "Meldet ein Provider Nullkosten (etwa DeepRelay `usage.cost: 0` bei Tarif-Inklusivmodellen), bleiben die in Settings konfigurierten Modellpreise erhalten, sodass die Kostenerfassung über Sitzungen hinweg präzise bleibt."
+          ]
+        },
+        {
+          "id": "key-rotation",
+          "title": "Schlüsselrotation & Belastbarkeit",
+          "points": [
+            "Beim Retry erhält jeder Schlüssel ein eigenes Kontingent (`retry.attempts_per_key`, standardmäßig zehn) neben dem Gesamtbudget des Aufrufs (`retry.max_attempts`). Ein erschöpfter Schlüssel übergibt sofort, und der Ring rotiert, bis das globale Budget aufgebraucht ist.",
+            "Die Statuszeile nennt den Schlüssel und beide Zähler, beispielsweise `Key A · attempt 3 of 10 · 21/100000`, und jeder Schlüsselwechsel wird im Transkript protokolliert.",
+            "Die Schlüsselrotation nutzt keine Abklingzeit mehr (`retry.credit_cooldown` entfällt im Format 29); ein erschöpfter Schlüssel rotiert verzögerungsfrei ohne Rate-Limit-Hämmern, und neu hinzugefügte Schlüssel synchronisieren sich live über alle aktiven Fenster.",
+            "Bestehende Verbindungsschlüssel können in Settings direkt umbenannt werden (`Rename key`), ohne sie entfernen und neu eingeben zu müssen."
+          ]
+        },
+        {
+          "id": "compaction",
+          "title": "Sitzungskomprimierung",
+          "points": [
+            "Compaction sendet zuerst eine vollständige Zusammenfassungsanfrage, um den Kontext zu wahren, weicht auf das aktive Modell aus, wenn dessen Fenster größer ist, und teilt nur auf, wenn der Provider die Payload-Größe ablehnt.",
+            "Schrittweise Zusammenfassung meldet den Live-Fortschritt (`batch N · M sources left`), speichert nach jedem Batch einen fortsetzbaren Stand, damit abgebrochene Arbeit erhalten bleibt, und protokolliert, wer den Abbruch ausgelöst hat."
+          ]
+        },
+        {
+          "id": "tool-execution",
+          "title": "Werkzeugausführung & Ausgabe",
+          "points": [
+            "Befehlsausführungsboxen werden zurückgehalten, bis die ersten Argumente eintreffen, damit keine leeren Befehlsrahmen aufblitzen, und degenerierter Modelltext in Action-Feldern wird gefiltert, sodass er nie als Schrittüberschrift erscheint.",
+            "Die angeforderte Ausgabe-Obergrenze entspricht den durch das Kontextbudget reservierten Tokens; lehnt ein Provider die Anfrage wegen Überschreitung seines Token-Limits ab (etwa Token-sparenden Routern oder DeepSeek), wird die Grenze für nachfolgende Anfragen aller Rollen automatisch angepasst.",
+            "Systemmeldungen zeigen ihr `<system_notification>`-Tag in der Terminal-Oberfläche, um Runes Status klar von Prozessdaten zu trennen, Befehlsausgaben stehen unter einer sauberen `Task_Output`-Überschrift, und Statuszeilen verbrauchen nicht mehr das 4-Zeilen-Ausgabe-Vorschaubudget."
+          ]
+        },
+        {
+          "id": "runtime-constants",
+          "title": "Laufzeitkonstanten & Konfiguration",
+          "points": [
+            "33 interne Laufzeitkonstanten (`FIXED`) wurden von Benutzereinstellungen getrennt: `-config set` und `reset` lehnen sie ab, alte Werte in `rune.toml` werden beim Upgrade auf Format 30 bereinigt ohne Kommentare zu berühren, und die Einstellungsreferenz sinkt von 116 auf 83 änderbare Einstellungen.",
+            "Diagnostische Klarheit: `-config check` meldet ignorierte Alt-Konstanten aus `rune.toml`, und `-config explain` kennzeichnet feste Konstanten eindeutig als unveränderbar."
+          ]
+        },
+        {
+          "id": "installer",
+          "title": "Installationsprogramm für alle Plattformen",
+          "points": [
+            "Installation und Nutzung in einem Schritt: in bash, zsh und POSIX-Shells fügt der Installer im Sourced-Modus (`. <(curl ...)`) seinen Ordner zum PATH hinzu, sodass `rune` im selben Fenster ohne Neustart der Shell startet.",
+            "Das Binary wird nach `~/.local/bin/rune` installiert (oder `RUNE_INSTALL_DIR`); liegt dieser Ordner nicht im PATH, verlinkt der Installer es in einen Ordner, der im PATH liegt, oder druckt die eine Export-Zeile, die den Rest erledigt — Shell-Profile werden nie bearbeitet. Unter Windows werden der PATH der aktiven Sitzung und der Benutzer-PATH in der Registry gesetzt.",
+            "Der Installer erklärt genau, was geändert und wohin die Datei kopiert wurde, prüft die vorhandene Shell-Konfiguration vor Empfehlungen und zeigt einen Ladebalken mit Größe, Übertragungsrate und verbleibender Zeit. Einheitliche Benutzeroberfläche des Installers: identisches ASCII-Branding, Statusschritte und Ready-Boxen unter Linux, macOS und Windows. Shell-Kompatibilitätskorrekturen: der EXIT-Trap-Fehler in zsh, der den Rückgabewert auf 0 überschrieb (falsches Ready), wurde behoben, und `set +m` in nicht-interaktiven Shells, das posh-Shells beendete, wurde entfernt."
+          ]
+        }
       ]
     },
     "0.7.8": {

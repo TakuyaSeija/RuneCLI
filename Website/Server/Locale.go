@@ -77,13 +77,21 @@ type installText struct {
 }
 
 // releaseNote is one version's recorded change as the site words it: a title,
+type releaseSection struct {
+	ID     string   `json:"id"`
+	Title  string   `json:"title"`
+	Points []string `json:"points"`
+}
+
 // the paragraph that says what changed and why, and the short lines a reader
 // scans. A bare list of sentences was rejected by the owner (2026-11-06): a
 // changelog must explain a change, not only name it.
 type releaseNote struct {
-	Title      string   `json:"title"`
-	Paragraphs []string `json:"paragraphs"`
-	Points     []string `json:"points"`
+	Title      string           `json:"title"`
+	Summary    string           `json:"summary,omitempty"`
+	Paragraphs []string         `json:"paragraphs"`
+	Points     []string         `json:"points,omitempty"`
+	Sections   []releaseSection `json:"sections,omitempty"`
 }
 
 type localeText struct {
@@ -139,6 +147,22 @@ func (n releaseNote) check(where string) error {
 	for i, p := range n.Points {
 		if strings.TrimSpace(p) == "" {
 			return fmt.Errorf("%s: point %d is empty", where, i)
+		}
+	}
+	for i, s := range n.Sections {
+		if strings.TrimSpace(s.ID) == "" {
+			return fmt.Errorf("%s: section %d id is empty", where, i)
+		}
+		if strings.TrimSpace(s.Title) == "" {
+			return fmt.Errorf("%s: section %d title is empty", where, i)
+		}
+		if len(s.Points) == 0 {
+			return fmt.Errorf("%s: section %d has no points", where, i)
+		}
+		for j, p := range s.Points {
+			if strings.TrimSpace(p) == "" {
+				return fmt.Errorf("%s: section %d point %d is empty", where, i, j)
+			}
 		}
 	}
 	return nil
@@ -201,9 +225,17 @@ func (t *localeText) check() error {
 	}
 	for version, n := range t.Notes {
 		en := englishNotes[version]
-		if len(n.Paragraphs) != len(en.Paragraphs) || len(n.Points) != len(en.Points) {
-			return fmt.Errorf("note %s: %d paragraphs and %d points, English has %d and %d",
-				version, len(n.Paragraphs), len(n.Points), len(en.Paragraphs), len(en.Points))
+		if len(n.Paragraphs) != len(en.Paragraphs) || len(n.Points) != len(en.Points) || len(n.Sections) != len(en.Sections) {
+			return fmt.Errorf("note %s: paragraphs/points/sections count mismatch with English", version)
+		}
+		for i := range n.Sections {
+			if n.Sections[i].ID != en.Sections[i].ID {
+				return fmt.Errorf("note %s: section %d ID %q != English %q", version, i, n.Sections[i].ID, en.Sections[i].ID)
+			}
+			if len(n.Sections[i].Points) != len(en.Sections[i].Points) {
+				return fmt.Errorf("note %s section %q: %d points, English has %d",
+					version, n.Sections[i].ID, len(n.Sections[i].Points), len(en.Sections[i].Points))
+			}
 		}
 		if err := n.check("note " + version); err != nil {
 			return err

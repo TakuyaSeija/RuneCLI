@@ -96,3 +96,37 @@ func TestEveryChangelogEntryIsLayered(t *testing.T) {
 		}
 	}
 }
+
+// The newest release reads chapter by chapter (owner, 2026-11-09): its note is
+// divided into titled sections, the page's contents list every one of them, the
+// sidebar names each version with a few words about its fix, and the record
+// carries neither testing claims, website fixes, nor install folders that were
+// never where the binary went.
+func TestChangelogReadsInSectionsWithAnHonestSidebar(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.12.0", fakeRune("0.12.0"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	body := get(t, h, "GET", "/Studio/changelog").Body.String()
+
+	note := englishNotes["0.12.0"]
+	if len(note.Sections) < 3 {
+		t.Fatalf("0.12.0's note holds %d sections", len(note.Sections))
+	}
+	for _, s := range note.Sections {
+		// The page escapes its text, so a title with "&" arrives as "&amp;".
+		if !strings.Contains(body, `data-anchor="sec-`+s.ID+`"`) || !strings.Contains(body, html.EscapeString(s.Title)) {
+			t.Errorf("section %q is not rendered as a chapter", s.ID)
+		}
+	}
+	if !strings.Contains(body, `id="sec-model-providers"`) || !strings.Contains(body, `href="#sec-model-providers"`) {
+		t.Errorf("the contents do not reach the rendered chapters")
+	}
+	if !strings.Contains(body, `class="history-sum"`) || !strings.Contains(body, html.EscapeString(note.Summary)) {
+		t.Errorf("the sidebar does not name the version's fix in a few words")
+	}
+	for _, banned := range []string{"/usr/local/bin", "runners", "Responsive website"} {
+		if strings.Contains(body, banned) {
+			t.Errorf("the changelog still carries %q", banned)
+		}
+	}
+}

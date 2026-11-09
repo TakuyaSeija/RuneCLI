@@ -166,9 +166,10 @@
   // The contents mark the section being read: the last heading above the reading line, and the last one
   // once the page can scroll no further, so a short closing section is still reached. A heading chosen in
   // the contents stays marked while the page travels to it, until the reader scrolls on their own.
-  const links = [...document.querySelectorAll('.index a[href^="#"]')];
+  let links = [...document.querySelectorAll('.index a[href^="#"]')];
   let headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
   let refreshHeadings = () => {
+    links = [...document.querySelectorAll('.index a[href^="#"]')];
     headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
   };
   if (links.length) {
@@ -293,6 +294,23 @@
     const navLinks = [...document.querySelectorAll(".docs-sidebar .history-link")];
     const pageNavLinks = [...document.querySelectorAll(".history-page-nav")];
 
+    const toc = document.getElementById("changelog-toc");
+    // The contents of the reading page are the active version's own headings:
+    // its changes, one entry per recorded chapter, then its downloads. Rebuilt
+    // on every switch, because each version carries its own chapters.
+    const buildToc = (panel) => {
+      if (!toc) return;
+      toc.replaceChildren();
+      panel.querySelectorAll(".prose h3[data-anchor]").forEach((h) => {
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        a.href = "#" + h.id;
+        a.textContent = h.textContent;
+        li.append(a);
+        toc.append(li);
+      });
+    };
+
     const showVersion = (ver, updateUrl) => {
       let target = panels.find((p) => p.dataset.version === ver);
       if (!target && panels.length) target = panels[0];
@@ -301,17 +319,11 @@
       panels.forEach((p) => {
         const isActive = p === target;
         p.classList.toggle("is-active", isActive);
-        const h3s = p.querySelectorAll(".prose h3");
-        if (h3s.length >= 2) {
-          if (isActive) {
-            h3s[0].id = "changes";
-            h3s[1].id = "downloads";
-          } else {
-            h3s[0].id = "changes-" + p.dataset.version;
-            h3s[1].id = "downloads-" + p.dataset.version;
-          }
-        }
+        p.querySelectorAll(".prose h3[data-anchor]").forEach((h) => {
+          h.id = isActive ? h.dataset.anchor : h.dataset.anchor + "-" + p.dataset.version;
+        });
       });
+      buildToc(target);
       refreshHeadings();
 
       const activeVer = target.dataset.version;
@@ -366,15 +378,16 @@
       });
     });
 
-    const tocLinks = [...document.querySelectorAll("#changelog-toc a")];
-    tocLinks.forEach((link) => {
-      link.addEventListener("click", (e) => {
+    if (toc) {
+      toc.addEventListener("click", (e) => {
+        const link = e.target.closest("a");
+        if (!link) return;
         e.preventDefault();
         const targetHeading = document.getElementById(link.hash.slice(1));
         if (targetHeading) {
           targetHeading.scrollIntoView({ behavior: "smooth", block: "start" });
         }
       });
-    });
+    }
   }
 })();
