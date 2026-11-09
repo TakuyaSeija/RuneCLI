@@ -163,6 +163,27 @@
       timer = setTimeout(() => { delete button.dataset.state; button.setAttribute("aria-label", label); }, 2000);
     });
   });
+  const updateTocEdges = (container) => {
+    if (!container) return;
+    const parent = container.closest(".index");
+    if (!parent) return;
+    const hasOverflow = container.scrollHeight > container.clientHeight + 4;
+    parent.classList.toggle("has-overflow", hasOverflow);
+    if (hasOverflow) {
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 6;
+      parent.classList.toggle("is-at-bottom", atBottom);
+    } else {
+      parent.classList.remove("is-at-bottom");
+    }
+  };
+  document.querySelectorAll(".docs-toc .index ol, #changelog-toc, .read-index ol").forEach((ol) => {
+    updateTocEdges(ol);
+    ol.addEventListener("scroll", () => updateTocEdges(ol), { passive: true });
+  });
+  window.addEventListener("resize", () => {
+    document.querySelectorAll(".docs-toc .index ol, #changelog-toc, .read-index ol").forEach(updateTocEdges);
+  }, { passive: true });
+
   // The contents mark the section being read: the last heading above the reading line, and the last one
   // once the page can scroll no further, so a short closing section is still reached. A heading chosen in
   // the contents stays marked while the page travels to it, until the reader scrolls on their own.
@@ -355,6 +376,7 @@
         });
       });
       buildToc(target);
+      updateTocEdges(toc);
       refreshHeadings();
 
       const activeVer = target.dataset.version;
