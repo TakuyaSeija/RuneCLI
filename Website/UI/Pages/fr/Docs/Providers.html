@@ -83,7 +83,7 @@
 <p>L’adresse locale d’un préréglage est une valeur par défaut, et non la preuve que le service tourne sur votre machine. Démarrez d’abord le service ; la requête de test de Rune vous indiquera s’il a répondu.</p>
 
 <h2 id="keys">Clés et comptes</h2>
-<p>Une connexion peut contenir plusieurs clés. La commande <code>rune -provider keys &lt;name&gt;</code> les liste de façon masquée, et la vue Connections permet de les gérer sans afficher leurs valeurs. Lorsqu’une clé signale un solde insuffisant, Rune la met au repos pendant 15 minutes et utilise une autre clé si la connexion en possède une ; voir <a href="{{url "docs/runtime"}}">Exécution et nouvelles tentatives</a>.</p>
+<p>Une connexion peut contenir plusieurs clés. La commande <code>rune -provider keys &lt;name&gt;</code> les liste de façon masquée, et la vue Connections permet de les gérer sans afficher leurs valeurs. Lorsqu’une clé signale un solde insuffisant ou épuise son quota, Rune passe la main aussitôt à la clé suivante dans l’anneau ; voir <a href="{{url "docs/runtime"}}">Exécution et nouvelles tentatives</a>.</p>
 <p>Supprimer une connexion supprime sa configuration. Ses clés peuvent rester dans le coffre chiffré en vue d’une réutilisation ; supprimez explicitement une clé lorsque telle est votre intention. Une clé ne transite jamais en HTTP non chiffré vers une autre machine.</p>
 
 <h2 id="choose-a-model">Choisir un modèle</h2>

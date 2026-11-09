@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Reintentos posteriores al primer intento: hasta seis intentos en total. Cero desactiva los reintentos.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Paso base: las esperas aumentan en 3, 6, 9… segundos.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>Si la siguiente espera supera este valor, la secuencia vuelve a empezar desde el paso base. No es una espera exponencial.</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>Cuánto tiempo permanece en reposo una clave sin saldo antes de volver a ser elegible. No recarga el saldo.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>Cuántos intentos recibe una clave antes de usar la siguiente clave de su anillo: 10 intentos por defecto. Una clave agotada cede el turno al instante, y el anillo vuelve a empezar una vez que cada clave ha gastado su cupo.</td></tr>
 </tbody></table></div>
 <p>No todos los fallos se reintentan. Reintentar no soluciona una credencial incorrecta, un control incompatible ni un punto de conexión erróneo. Un número de reintentos muy alto puede prolongar un fallo y añadir cargos; consulta primero el error clasificado en los registros.</p>
 <h2 id="network">Tiempos de espera de red</h2>

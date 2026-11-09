@@ -8,7 +8,7 @@
 <p>壁纸、透明度、背景模糊、窗口装饰及字体渲染均由你的终端模拟器或桌面环境控制。Rune 本身不设背景图片或模糊选项。同一套主题在浅色或深色终端背景下可能呈现不同的视觉效果。</p>
 <p>组合键与鼠标手势同样取决于终端配置。某些终端配置可能会将 Ctrl+滚轮保留为缩放、将 Alt+滚轮保留为横向滚动，或将部分快捷键占用为终端自身操作。</p>
 <h2 id="advanced-options">高级显示选项</h2>
-<p>部分颜色、鼠标、滚动及渲染刷新间隔参数仅支持在 TOML 配置文件中设置，不会作为额外控件显示在 Appearance 页面上。修改前请先查看对应配置键的文档说明。提高刷新频率可能会消耗更多系统资源；调整滚动偏好也无法让不支持某种输入事件的终端上报该事件。</p>
+<dl class="ref"><div><dt><code>ui.mouse</code></dt><dd>默认 <code>true</code>。启用 Rune 内的鼠标点击、滚轮滚动与拖拽复制；设为 <code>false</code> 则将所有鼠标选择交给终端处理。</dd></div><div><dt><code>ui.scroll_lines</code></dt><dd>滚轮每格移动的行数，默认 <code>2</code>（1–30）。</dd></div><div><dt><code>ui.scroll_smooth</code></dt><dd>默认 <code>true</code>。在支持同步整帧绘制且达到 30 fps 以上的终端上启用平滑滚动，其余终端按格跳转。</dd></div></dl><p>这三项鼠标与滚动偏好属于 TOML 专属选项，而帧间隔、Escape 判定时间与颜色探测属于固定的运行时常量。滚动偏好无法让终端上报其本身不支持的输入。</p>
 <pre class="block"><code>rune -config explain ui.theme
 rune -config reset ui.theme</code></pre>
 <p>重置会直接修改全局偏好设置。请使用 <code>/help</code> 查看当前版本的阅读与导航快捷键，不要凭其他终端应用的习惯盲目猜测。</p>

@@ -83,7 +83,7 @@
 <p>Alamat lokal pada sebuah preset hanyalah nilai bawaan, bukan bukti bahwa layanan lokal tersebut sudah berjalan di mesin Anda. Jalankan layanannya terlebih dahulu; permintaan uji dari Rune akan memberi tahu Anda apakah layanan tersebut merespons.</p>
 
 <h2 id="keys">Kunci dan akun</h2>
-<p>Satu koneksi dapat menyimpan beberapa kunci API sekaligus. Perintah <code>rune -provider keys &lt;name&gt;</code> mencantumkan daftarnya dalam keadaan disamarkan, dan menu Connections mengelolanya tanpa memperlihatkan teks kunci secara terbuka. Saat sebuah kunci melaporkan saldo tidak mencukupi, Rune mengistirahatkannya selama 15 menit dan otomatis beralih memakai kunci berikutnya pada koneksi tersebut jika ada; lihat <a href="{{url "docs/runtime"}}">Runtime &amp; percobaan ulang</a>.</p>
+<p>Satu koneksi dapat menyimpan beberapa kunci API sekaligus. Perintah <code>rune -provider keys &lt;name&gt;</code> mencantumkan daftarnya dalam keadaan disamarkan, dan menu Connections mengelolanya tanpa memperlihatkan teks kunci secara terbuka. Saat sebuah kunci melaporkan saldo tidak mencukupi atau menghabiskan jatahnya, Rune langsung menyerahkan giliran ke kunci berikutnya di dalam cincin; lihat <a href="{{url "docs/runtime"}}">Runtime &amp; percobaan ulang</a>.</p>
 <p>Menghapus sebuah koneksi akan menghapus konfigurasinya. Kunci-kuncinya dapat tetap tersimpan di penyimpanan terenkripsi untuk digunakan kembali; hapus kunci secara eksplisit jika Anda memang ingin membuangnya. Kunci API tidak pernah dikirim melalui koneksi HTTP biasa tanpa enkripsi ke mesin lain.</p>
 
 <h2 id="choose-a-model">Memilih model</h2>

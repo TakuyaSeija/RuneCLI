@@ -83,7 +83,7 @@
 <p>Die lokale Adresse einer Vorlage ist lediglich ein Standardwert und kein Beweis dafür, dass der Dienst auf deinem Rechner bereits läuft. Starte zuerst den lokalen Dienst; die Testanfrage von Rune zeigt dir anschließend, ob er antwortet.</p>
 
 <h2 id="keys">Schlüssel und Konten</h2>
-<p>Eine Verbindung kann mehrere Schlüssel speichern. <code>rune -provider keys &lt;name&gt;</code> listet sie maskiert auf, und unter Connections verwaltest du sie, ohne dass die Schlüsselwerte im Klartext angezeigt werden. Meldet ein Schlüssel unzureichendes Guthaben, pausiert Rune ihn für 15 Minuten und wechselt automatisch zu einem weiteren hinterlegten Schlüssel derselben Verbindung; siehe <a href="{{url "docs/runtime"}}">Laufzeit &amp; Wiederholungen</a>.</p>
+<p>Eine Verbindung kann mehrere Schlüssel speichern. <code>rune -provider keys &lt;name&gt;</code> listet sie maskiert auf, und unter Connections verwaltest du sie, ohne dass die Schlüsselwerte im Klartext angezeigt werden. Meldet ein Schlüssel unzureichendes Guthaben oder erschöpft sein Kontingent, übergibt Rune sofort an den nächsten Schlüssel im Ring; siehe <a href="{{url "docs/runtime"}}">Laufzeit &amp; Wiederholungen</a>.</p>
 <p>Das Entfernen einer Verbindung löscht deren Konfiguration. Die zugehörigen Schlüssel können zur Wiederverwendung im verschlüsselten Speicher verbleiben; lösche einen Schlüssel gezielt, wenn er dauerhaft entfernt werden soll. Ein Schlüssel wird niemals über unverschlüsseltes HTTP an einen anderen Rechner übertragen.</p>
 
 <h2 id="choose-a-model">Modell auswählen</h2>

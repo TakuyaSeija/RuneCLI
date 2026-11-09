@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Novas tentativas após a primeira: até seis tentativas no total. Zero desativa novas tentativas.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Passo base: os tempos de espera aumentam em 3, 6, 9… segundos.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>Se a próxima espera ultrapassar este teto, a sequência recomeça a partir do passo base. Não é um backoff exponencial.</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>Por quanto tempo uma chave sem saldo descansa antes de voltar a ficar elegível. Isso não compra créditos.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>Quantas tentativas uma chave recebe antes que a próxima chave de seu anel seja usada — 10 tentativas por padrão. Uma chave gasta passa a vez no ato, e o anel recomeça assim que cada chave gasta sua cota.</td></tr>
 </tbody></table></div>
 <p>Nem toda falha gera uma nova tentativa. Tentar novamente não corrige uma credencial errada, um controle incompatível nem um endpoint incorreto. Um número muito alto de tentativas pode prolongar uma falha e gerar cobranças extras; leia primeiro o erro classificado nos logs.</p>
 <h2 id="network">Tempos de espera de rede</h2>

@@ -10,7 +10,7 @@
 <dl class="ref">
 <div><dt>Context / output（上下文与输出上限）</dt><dd>记录已知的模型容量上限。在本地设置覆盖值无法突破上游服务端的真实限制。</dd></div>
 <div><dt>Reasoning（推理配置）</dt><dd>配置会话初始推理行为及可选的推理强度列表。Thinking 徽标代表模型支持推理，并不代表当前会话已开启推理。</dd></div>
-<div><dt>Media / controls（媒体与控制项）</dt><dd>请仅开启接口端点实际支持的能力。在启用推理期间，部分不支持的采样控制项可能会隐藏或置灰。</dd></div>
+<div><dt>Modalities（模态输入）</dt><dd>声明此模型接受的输入类型：text、image、audio、video、file。若目录已发布多模态信息则自动填入；未发布任何信息的网关模型默认显示为 text，可在此处由你主动声明。</dd></div>
 <div><dt>Pricing（价格）</dt><dd>填入已知的输入/输出/缓存单价，供本地费用统计使用。未知价格不代表免费（0 元），且填入缓存价格也不证明该接口一定支持提示词缓存。</dd></div>
 </dl>
 <h2 id="fallback-and-removal">默认回退与移除模型</h2>

@@ -42,6 +42,8 @@ Field { key:"checkpoint.max_file_size", default:"\"64MiB\"", kind:Size, help:"Ma
 Field { key:"checkpoint.refresh_interval", default:"\"1s\"", kind:Duration, help:"Content refresh cadence for files already tracked by an open session; Rune writes publish immediately." },
 Field { key:"checkpoint.diff.max_cells", default:"1000000", kind:Count(100,10000000), help:"Myers diff work budget per piece; past it the diff is anchored on unique lines." },
 Field { key:"checkpoint.diff.context", default:"3", kind:Count(0,100), help:"Context lines in diffs." },
+ Field { key:"plan.reminder_tools", default:"8", kind:Count(0,1000), help:"Tool calls between plan reminders in one turn; zero turns the tool cadence off. A reminder hands the agent its plan back as a system notice between calls." },
+ Field { key:"plan.reminder_seconds", default:"\"15m\"", kind:Duration, help:"Wall-clock time between plan reminders in one turn; zero turns the time trigger off. Whichever comes first, the tool cadence or this, fires the reminder; rewriting the plan restarts both." },
 Field { key:"terminal.command_timeout", default:"\"120s\"", kind:Duration, help:"How long Rune waits for a foreground command before moving it to the background; the command continues running." },
 Field { key:"terminal.shell", default:"\"auto\"", kind:Text, help:"Shell for commands: auto (bash where this machine has it, else /bin/sh; on Windows PowerShell 7, else Windows PowerShell, else cmd) or an absolute executable. Each shell gets a command the way it reads one: POSIX shells -c, PowerShell an encoded script, cmd /C." },
 Field { key:"terminal.term", default:"\"xterm-256color\"", kind:Text, help:"TERM supplied to tool processes." },
@@ -315,7 +317,9 @@ pub fn take_misuse() -> Vec<String> {
 
 fn number_of(value: &Value, key: &str) -> u64 {
     value.as_u64().unwrap_or_else(|| {
-        if (key == "questions.timeout" || key == "permissions.timeout")
+        if (key == "questions.timeout"
+            || key == "permissions.timeout"
+            || key == "plan.reminder_seconds")
             && matches!(
                 value.as_str().unwrap_or("").trim().to_lowercase().as_str(),
                 "unlimited" | "none" | "0" | "0s" | "0m" | "0h"
@@ -1533,6 +1537,26 @@ fn check_field(field: &Field, value: &Value) -> Result<()> {
     {
         return Err(Error::invalid(format!("{} must be at least 1s", field.key)));
     }
+    if field.key == "plan.reminder_seconds" {
+        let zero = matches!(
+            value
+                .as_str()
+                .unwrap_or_default()
+                .trim()
+                .to_lowercase()
+                .as_str(),
+            "0" | "0s" | "0m" | "0h"
+        );
+        let ms = value
+            .as_str()
+            .and_then(|s| units(s, Duration).ok())
+            .unwrap_or(0);
+        if !zero && !(30_000..=86_400_000).contains(&ms) {
+            return Err(Error::invalid(
+                "plan.reminder_seconds must be zero (off) or 30s..=24h",
+            ));
+        }
+    }
 
     let valid = match field.kind {
         Capabilities => {
@@ -1565,12 +1589,18 @@ fn check_field(field: &Field, value: &Value) -> Result<()> {
             .is_some_and(|s| super::services::Target::parse(s).is_ok()),
         Money => value.as_f64().is_some_and(|n| n.is_finite() && n >= 0.0),
         Duration | Size => value.as_str().is_some_and(|s| {
+            let trimmed = s.trim().to_lowercase();
             if (field.key == "questions.timeout" || field.key == "permissions.timeout")
                 && matches!(
-                    s.trim().to_lowercase().as_str(),
+                    trimmed.as_str(),
                     "unlimited" | "none" | "0" | "0s" | "0m" | "0h"
                 )
             {
+                true
+            } else if field.key == "plan.reminder_seconds"
+                && matches!(trimmed.as_str(), "0" | "0s" | "0m" | "0h")
+            {
+                // Zero is how the plan's time trigger is switched off.
                 true
             } else {
                 units(s, field.kind).is_ok()

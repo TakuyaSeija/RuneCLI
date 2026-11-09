@@ -1,7 +1,7 @@
 {{define "article"}}
 <h2 id="access-not-selection">配置连接不等于启用模型</h2>
 <p>Connections 页面专门负责管理账户接口地址与 API 密钥。它不负责选择当前对话使用的模型、模型请求超时、网页搜索路由或网页读取器——这些分别由 Models、Runtime 和 Tools 页面管理。</p>
-<p>显示密钥数量或 Configured（已配置）状态仅代表本地已保存凭据，并不代表请求一定能成功或账户内有可用余额。Resting（冷却中）状态表示某把凭据暂时不可用。遇到问题时请先查看具体报错信息，无需反复删除重建账户。</p>
+<dl class="ref"><div><dt>Configured</dt><dd>该账户已保存一把或多把 API 密钥。这并不代表请求一定成功或账户内仍有可用余额。</dd></div><div><dt>Key missing</dt><dd>当前数据目录中尚未保存该账户的密钥；请在 Connections 中添加。</dd></div><div><dt>Unavailable</dt><dd>磁盘上存在加密凭据库但无法打开；请先从匹配的备份中恢复成对文件。</dd></div></dl><p>遇到问题时请先在 <code>/logs</code> 中查看具体报错，无需反复删除重建账户。</p>
 <h2 id="model-account">添加模型账户</h2>
 <p>各提供商预设及其所需的密钥格式和接口地址详见<a href="{{url "docs/providers"}}">模型提供商</a>。</p>
 <ol><li>打开 Settings → Connections → Add connection，选择目标模型提供商。</li><li>核对初始标为 Not connected yet 的表单。带固定地址的预设只需填入密钥；与具体账户绑定的地址或自定义地址则必须显式填写。</li><li>检查连接名称与密钥名称。请仅在带掩码的凭据输入框中填入机密密钥。</li><li>选择 Connect。Rune 会在保存新模型账户前发送一次真实测试请求（可能会产生计费）。选择 Cancel 则放弃保存。</li><li>连接成功后，前往 Models 页面选择实际要使用的提供商与模型。</li></ol>

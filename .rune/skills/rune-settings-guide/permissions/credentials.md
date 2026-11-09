@@ -8,9 +8,9 @@ Add API key adds a named key to the account's available keys. It does not mean e
 Removing a connection/provider can keep its credentials available for reuse. Do not assume account removal securely erases every credential. Use the supported credential-management actions for the installed version if removal is the goal.
 
 ## Availability and testing
-A key count or Configured status means credentials are present, not that a request succeeded or credit is available. Resting can mean a key is temporarily not ready. Tests are real requests and can cost money; ask before running them.
+A key count or Configured status means credentials are present, not that a request succeeded or credit is available. Tests are real requests and can cost money; ask before running them.
 
-Multiple keys can be used as alternatives when a key is unavailable. Credit cooldown controls how long an out-of-credit key rests; it does not buy more credit. See [retry](../runtime/retry.md).
+Multiple keys in an account's ring are tried in order: each key gets `retry.attempts_per_key` attempts before handing over at once to the next key; see [retry](../runtime/retry.md).
 
 ## When a key is missing or unavailable
 Settings › Connections, `rune -provider list` and `rune -provider keys <name>` always show what Rune's data folder holds now:

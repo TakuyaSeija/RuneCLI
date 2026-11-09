@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Jumlah percobaan ulang setelah percobaan pertama gagal: total hingga enam kali percobaan. Nilai nol menonaktifkan percobaan ulang.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Jeda dasar: waktu tunggu bertambah secara linier menjadi 3, 6, 9… detik.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>Jika jeda berikutnya melampaui batas ini, urutan jeda akan kembali dimulai dari jeda dasar. Ini bukan jeda eksponensial (exponential backoff).</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>Berapa lama kunci API yang kehabisan saldo kredit diistirahatkan sebelum dapat dicoba kembali. Pengaturan ini tidak mengisi ulang saldo kredit Anda.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>Berapa kali percobaan yang didapat satu kunci sebelum kunci berikutnya pada cincin digunakan — bawaan 10 percobaan. Kunci yang habis langsung menyerahkan giliran, dan cincin berputar kembali setelah setiap kunci menghabiskan jatahnya.</td></tr>
 </tbody></table></div>
 <p>Tidak setiap kegagalan akan dicoba ulang. Mencoba ulang tidak akan memperbaiki kredensial yang salah, kontrol yang tidak didukung oleh model, atau alamat endpoint yang keliru. Jumlah percobaan ulang yang terlalu tinggi justru dapat memperpanjang kegagalan dan menambah biaya; periksa kategori galat di dalam log terlebih dahulu.</p>
 <h2 id="network">Waktu tunggu jaringan</h2>

@@ -650,6 +650,30 @@ pub fn loop_warning(
     )
 }
 
+/// Hand the agent its plan back at the boundary between calls: what it said it
+/// would do, as a `<system_notice>` context row before the next request, so
+/// tool results stay pure. The text asks for a check, not a ritual — update
+/// the plan when the path has moved on from it; otherwise carry on.
+pub fn plan_reminder(rt: &Runtime, st: &SessionState, turn: i64, plan: &str) -> Result<()> {
+    let told = format!(
+        "Plan reminder — your current plan:\n{plan}\n\nCheck it against where you actually are: update it with track_tasks when your path has moved on from it; if it still matches, carry on and ignore this reminder."
+    );
+    let note = "Plan reminder; told via system_notice.".to_string();
+    tell(
+        rt,
+        st,
+        Told {
+            turn,
+            kind: ContextKind::Plan,
+            text: &frame::block("system_notice", &[], &told),
+            status: Default::default(),
+            sources: Default::default(),
+            note: note.clone(),
+            log: ("plan", "reminder", note),
+        },
+    )
+}
+
 /// The name a memory notice stores its verdict under.
 const MEMORY: &str = "memory index";
 const OVER: &str = "over budget";

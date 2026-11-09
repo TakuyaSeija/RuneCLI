@@ -23,7 +23,7 @@
 <div><dt>read_mcp_resource</dt><dd>Read a discovered resource. Factory returned-text allowance 50,000 characters.</dd></div>
 </dl>
 <h2 id="orchestration">Plans, questions and orchestration</h2>
-<p><code>track_tasks</code> replaces the task list, up to 20 tasks with 120 characters each by default. <code>ask_user_questions</code> requests decisions in an explicit form. Question waits are unlimited by default; permission waits expire after 10 minutes. Unlimited means no expiry, not automatic approval.</p>
+<p><code>track_tasks</code> replaces the task list, up to 20 tasks with 120 characters each by default. Reminders hand the plan back as a system notice at a configurable cadence: every eight tool calls (<code>plan.reminder_tools</code>) or every 15 minutes (<code>plan.reminder_seconds</code>) by default; zero turns either trigger off. <code>ask_user_questions</code> requests decisions in an explicit form. Question waits are unlimited by default; permission waits expire after 10 minutes. Unlimited means no expiry, not automatic approval.</p>
 <p><code>tools.max_actions_per_response</code> defaults to 20 proposed tool calls in one model response. It is not a total task budget, worker count or promise that calls run in parallel. Each call still has its own permission and validation.</p>
 <h2 id="change-responsibly">Change responsibly</h2>
 <p>Not every tool has a dedicated numeric editor. Higher limits can expose more content and consume more time, disk, memory or model context. Lower limits can omit needed evidence or stop work. Read notices about incomplete output instead of claiming a truncated result is complete.</p>

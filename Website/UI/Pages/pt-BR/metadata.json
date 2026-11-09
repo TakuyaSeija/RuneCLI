@@ -1,584 +1,1051 @@
 {
-  "pages": {
-    "": {
-      "title": "RuneAgent | um agente de programação para o seu terminal",
-      "lead": "O RuneAgent, da Atoryn Studio, trabalha no seu projeto com o modelo que você escolher, com resultados de ferramentas visíveis, permissões configuráveis e alterações de arquivos revisáveis."
-    },
-    "changelog": {
-      "title": "Histórico de versões | RuneAgent",
-      "lead": "Cada versão publicada do RuneAgent."
-    },
-    "license": {
-      "title": "Licença | RuneAgent",
-      "lead": "A licença sob a qual o RuneAgent é oferecido, traduzida para leitura; o texto em inglês é o vinculativo."
-    },
-    "notfound": {
-      "title": "Página não encontrada | RuneAgent",
-      "lead": "Esta página não existe."
-    }
+ "pages": {
+  "": {
+   "title": "RuneAgent | um agente de programação para o seu terminal",
+   "lead": "O RuneAgent, da Atoryn Studio, trabalha no seu projeto com o modelo que você escolher, com resultados de ferramentas visíveis, permissões configuráveis e alterações de arquivos revisáveis."
   },
-  "groups": {
-    "Get started": "Primeiros passos",
-    "Use Rune": "Usar o Rune",
-    "Configure": "Configurar",
-    "Extend": "Estender",
-    "Trust & understand": "Confiança e entendimento"
+  "changelog": {
+   "title": "Histórico de versões | RuneAgent",
+   "lead": "Cada versão publicada do RuneAgent."
   },
-  "docs_title": "{label} | documentação do RuneAgent",
-  "docs": {
-    "docs": {
-      "label": "Introdução",
-      "lead": "O que o Rune faz, o que ele envia a um modelo e como começar sua primeira sessão."
-    },
-    "docs/install": {
-      "label": "Instalação e atualização",
-      "lead": "Requisitos do sistema, o que os instaladores fazem, PATH, a pasta de dados, atualizações e remoção no Linux, macOS e Windows."
-    },
-    "docs/platforms": {
-      "label": "Suporte a plataformas",
-      "lead": "O que funciona igual no Linux, macOS e Windows, e o que cada sistema faz de forma diferente."
-    },
-    "docs/interface": {
-      "label": "Interface",
-      "lead": "Leia a conversa, os cartões de permissão, o plano, as alterações de arquivos e o status da sessão."
-    },
-    "docs/sessions": {
-      "label": "Sessões e contexto",
-      "lead": "Inicie, retome e direcione o trabalho; inspecione o contexto e compacte o histórico antigo."
-    },
-    "docs/commands": {
-      "label": "Comandos de barra",
-      "lead": "Os comandos da conversa, seus argumentos e o que cada um altera."
-    },
-    "docs/cli": {
-      "label": "Referência da linha de comando",
-      "lead": "Opções de inicialização e subcomandos do rune para configuração, contas, sessões e manutenção."
-    },
-    "docs/keyboard": {
-      "label": "Teclado e mouse",
-      "lead": "Atalhos canônicos para editar, navegar, responder perguntas e conversar."
-    },
-    "docs/shell": {
-      "label": "Comandos manuais",
-      "lead": "Execute você mesmo um comando com um ! no início — o que ele pode fazer, quando roda e o que a IA vê."
-    },
-    "docs/instructions": {
-      "label": "Instruções e anexos",
-      "lead": "Forneça orientações do projeto, anexe arquivos e mantenha uma memória duradoura do projeto."
-    },
-    "docs/memory": {
-      "label": "Memória",
-      "lead": "O que a memória do projeto guarda, o que realmente chega ao modelo, seu único orçamento em bytes e o que ela nunca pode decidir."
-    },
-    "docs/undo": {
-      "label": "Revisar, desfazer e refazer",
-      "lead": "Revise os diffs reais dos arquivos e entenda o que uma restauração de sessão pode e não pode reverter."
-    },
-    "docs/settings": {
-      "label": "Visão geral das configurações",
-      "lead": "Encontre a seção certa de Settings e diferencie escolhas globais de controles da sessão."
-    },
-    "docs/configuration": {
-      "label": "Arquivo de configuração",
-      "lead": "Inspecione, altere e redefina valores do rune.toml sem confundir escolhas com padrões."
-    },
-    "docs/reference": {
-      "label": "Referência de configurações",
-      "lead": "Cada configuração do rune.toml: seu valor de fábrica, o que faz, os valores que aceita e quando uma alteração passa a valer."
-    },
-    "docs/connections": {
-      "label": "Conexões",
-      "lead": "Adicione contas de modelos e da web, gerencie credenciais e verifique o destino antes de conectar."
-    },
-    "docs/providers": {
-      "label": "Provedores de modelos",
-      "lead": "Os 31 presets de provedores, suas chaves e endereços, serviços locais e notas sobre raciocínio por provedor."
-    },
-    "docs/models": {
-      "label": "Modelos e capacidades",
-      "lead": "Escolha um par provedor/modelo e configure limites conhecidos, opções de raciocínio e preços."
-    },
-    "docs/generation": {
-      "label": "Geração e raciocínio",
-      "lead": "Controle o raciocínio, a amostragem e a saída solicitada do modelo atual."
-    },
-    "docs/auxiliary": {
-      "label": "Modelos auxiliares",
-      "lead": "Configure as tarefas de sanitizer, classifier, compaction e título, incluindo suas implicações de dados e custo."
-    },
-    "docs/runtime": {
-      "label": "Tempo de execução e novas tentativas",
-      "lead": "Entenda os prazos das requisições, as esperas lineares entre tentativas, a pausa por crédito e a vida útil de uma sessão desanexada."
-    },
-    "docs/tools": {
-      "label": "Ferramentas e limites",
-      "lead": "Defina limites de saída retornada e de trabalho, e diferencie-os de uma dobra de exibição ou de uma permissão."
-    },
-    "docs/terminal": {
-      "label": "Terminal e trabalho em segundo plano",
-      "lead": "Como os comandos passam para segundo plano, recebem entrada e informam conclusão ou perda."
-    },
-    "docs/web": {
-      "label": "Busca e leitura web",
-      "lead": "Configure provedores separados de busca e de leitura de páginas sem mudar destinos silenciosamente."
-    },
-    "docs/appearance": {
-      "label": "Aparência",
-      "lead": "Escolha um tema, mostre ou oculte o painel lateral e entenda a renderização que depende do terminal."
-    },
-    "docs/skills": {
-      "label": "Skills",
-      "lead": "Descubra, ative e gerencie guias reutilizáveis sem tratá-los como autorização."
-    },
-    "docs/mcp": {
-      "label": "Conexões MCP",
-      "lead": "Revise servidores de ferramentas externos, seus escopos e acessos antes de conectá-los ao Rune."
-    },
-    "docs/security": {
-      "label": "Segurança",
-      "lead": "O limite de confiança, os modos de permissão, as limitações de cada plataforma e os limites do isolamento."
-    },
-    "docs/classifier": {
-      "label": "Política do classificador",
-      "lead": "Escreva e recarregue a política CLASSIFIER.md e entenda quando a revisão por IA está realmente ativa."
-    },
-    "docs/privacy": {
-      "label": "Privacidade e dados",
-      "lead": "O que fica no seu computador, o que vai para um provedor e o que revisar antes de compartilhar diagnósticos."
-    },
-    "docs/credentials": {
-      "label": "Credenciais",
-      "lead": "Use a interface de entrada de credenciais, diferencie chaves ausentes de indisponíveis e recupere de forma deliberada."
-    },
-    "docs/verification": {
-      "label": "Verificação da versão",
-      "lead": "Verifique a assinatura da versão e o checksum do arquivo, e entenda os limites de confiança da chave de assinatura."
-    },
-    "docs/architecture": {
-      "label": "Arquitetura",
-      "lead": "Uma visão geral pública do frontend, do motor local, dos provedores de modelos, da execução de ferramentas e dos dados de sessão."
-    },
-    "docs/troubleshooting": {
-      "label": "Solução de problemas",
-      "lead": "Diagnostique o status real antes de mudar prazos, provedores ou acessos."
-    }
+  "license": {
+   "title": "Licença | RuneAgent",
+   "lead": "A licença sob a qual o RuneAgent é oferecido, traduzida para leitura; o texto em inglês é o vinculativo."
   },
-  "chapters": {
-    "Plan": "Plano",
-    "Build": "Construir",
-    "Test": "Testar",
-    "Fix": "Corrigir",
-    "Verify": "Verificar",
-    "Report": "Relatório"
-  },
-  "install_note": {
-    "none": "Ainda não há nenhuma versão assinada publicada. Por enquanto, o comando termina sem instalar nada.",
-    "missing": "A versão {version} não tem build assinado para {system}. O comando termina sem instalar nada.",
-    "release": "Versão {version}, publicada em {date}, para {system} ({builds}).",
-    "beta": "O suporte a {system} está em beta.",
-    "and": "e"
-  },
-  "notes": {
-    "0.12.0": {
-      "title": "Um retry que se explica, um resumo que continua e uma instalação que já se usa",
-      "paragraphs": [
-        "Um limite de requisições costumava transformar uma tentativa em uma sequência confusa de números, e o resumo de uma sessão longa podia rodar por minutos apenas para ser descartado se fosse cancelado. Agora a repetição traz duas cotas separadas e indica a chave que está em uso; a compactação envia primeiro um resumo completo e preserva o progresso a cada lote; e conexões personalizadas escolhem explicitamente seu protocolo. O suporte a visão em gateways compatíveis com OpenAI agora é reconhecido, relatórios de custo zero não congelam mais o rastreamento de gastos, o instalador roda diretamente no terminal ativo sem editar perfis, e os valores internos de execução tornaram-se constantes fixas em vez de configurações."
-      ],
-      "summary": "Retries, resumos e instalador",
-      "sections": [
-        {
-          "id": "model-providers",
-          "title": "Provedores de modelos e visão",
-          "points": [
-            "A predefinição de conexão personalizada foi renomeada de `compatible` para `Custom provider`, permitindo escolher explicitamente o protocolo: compatível com OpenAI (`/chat/completions` com token Bearer) ou compatível com Anthropic (`/v1/messages` com `x-api-key`).",
-            "Pontos de acesso que declaram suporte multimodal através de `supported_parameters: [\"vision\"]` (como DeepRelay, TokenHarbor e gateways compatíveis com OpenAI) agora têm sua capacidade de visão reconhecida no catálogo em vez de relatar erroneamente 'support is not published', permitindo o envio de imagens anexadas.",
-            "Quando um provedor relata custo zero de uso (como modelos cobertos por planos no DeepRelay retornando `usage.cost: 0`), os valores de preço configurados pelo usuário em Settings são mantidos em vez de sobrescritos com zero, garantindo a precisão dos gastos entre sessões."
-          ]
-        },
-        {
-          "id": "key-rotation",
-          "title": "Rotação de chaves e resiliência",
-          "points": [
-            "A repetição dá a cada chave sua própria cota (`retry.attempts_per_key`, dez por padrão) além do orçamento total da chamada (`retry.max_attempts`). Uma chave esgotada passa a vez imediatamente e o anel gira até consumir o limite global.",
-            "A linha de status informa a chave e ambas as contagens, por exemplo `Key A · attempt 3 of 10 · 21/100000`, e cada troca de chave registra uma linha na transcrição.",
-            "A rotação de chaves não utiliza mais tempo de espera (`retry.credit_cooldown` foi descontinuado no formato 29); uma chave esgotada passa para a próxima sem sobrecarga de tentativas com espera zero, e chaves recém-adicionadas sincronizam-se em tempo real entre janelas abertas sem reiniciar o Rune.",
-            "Chaves de conexão existentes podem ser renomeadas diretamente em Settings (`Rename key`), sem necessidade de removê-las e inseri-las novamente."
-          ]
-        },
-        {
-          "id": "compaction",
-          "title": "Compactação de sessão",
-          "points": [
-            "A compactação envia primeiro uma solicitação de resumo completa para manter o contexto, recorrendo ao modelo ativo se sua janela for maior, e só divide em lotes se o provedor rejeitar o tamanho da carga.",
-            "A compactação em lotes relata o progresso ao vivo (`batch N · M sources left`), salva um estado recuperável após cada lote para preservar o trabalho se cancelado, e registra quem solicitou o cancelamento."
-          ]
-        },
-        {
-          "id": "tool-execution",
-          "title": "Execução de ferramentas e saída",
-          "points": [
-            "Caixas de execução de ferramentas são retidas até que os primeiros argumentos cheguem para evitar que uma caixa vazia pisque na tela, e textos degenerados gerados pelo modelo nos campos de ação são filtrados para não se tornarem títulos de etapas.",
-            "O teto de saída solicitado corresponde aos tokens reservados pelo orçamento de contexto; se um provedor rejeitar uma solicitação por exceder seu limite de saída (como em roteadores de tokens ou DeepSeek), o teto é reduzido automaticamente para as solicitações seguintes em todos os papéis.",
-            "Notificações do sistema exibem sua tag `<system_notification>` na interface do terminal para separar o status do Rune dos dados do processo, a saída da tarefa é exibida sob um título limpo `Task_Output`, e as linhas de notificação não consomem mais o limite de 4 linhas de pré-visualização da saída."
-          ]
-        },
-        {
-          "id": "runtime-constants",
-          "title": "Constantes de execução e configuração",
-          "points": [
-            "Trinta e três constantes internas de execução (`FIXED`) foram separadas das configurações de usuário: `-config set` e `reset` as recusam, valores antigos no `rune.toml` são ignorados e limpos na atualização para o formato 30 sem alterar comentários, e a referência de opções diminui de 116 para 83 configurações modificáveis.",
-            "Transparência de diagnóstico: `-config check` relata constantes legadas ignoradas no `rune.toml`, e `-config explain` identifica claramente as constantes fixas como valores inalteráveis."
-          ]
-        },
-        {
-          "id": "installer",
-          "title": "Instalador multiplataforma",
-          "points": [
-            "Instalação e uso em uma única etapa: no bash, zsh e shells POSIX, o instalador adiciona sua pasta ao PATH da shell no modo 'sourced' (`. <(curl ...)`), permitindo usar o `rune` na mesma janela sem reiniciar o terminal.",
-            "O binário é instalado em `~/.local/bin/rune` (ou `RUNE_INSTALL_DIR`); se essa pasta não estiver no PATH, o instalador cria um link em uma pasta que já esteja no PATH ou imprime a única linha de export que conclui o trabalho — perfis de shell nunca são editados. No Windows, o PATH da sessão ativa e o PATH do usuário no registro são definidos.",
-            "O instalador detalha exatamente o que foi alterado e onde o binário foi colocado, analisa a configuração de shell do usuário antes de sugerir comandos, e exibe uma barra de download dinâmica com tamanho, velocidade e tempo restante. Interface unificada do instalador em todos os sistemas operacionais: identidade visual ASCII, etapas de status e caixas de Ready idênticas no Linux, macOS e Windows. Correções de compatibilidade de shell: resolvido o erro no trap EXIT do zsh que redefinia o código de saída para 0 (falso Ready) e removida a chamada `set +m` em shells não interativas que encerrava shells posh."
-          ]
-        }
-      ]
-    },
-    "0.7.8": {
-      "title": "Linux em qualquer distribuição, e as bordas do terminal",
-      "paragraphs": [
-        "O Rune deixou de depender de uma única base glibc. Um carregador de execução autocontido permite que o mesmo binário inicie em todas as distribuições principais de Linux, e o comportamento do terminal e do download web foi alinhado ao que as pessoas usam de fato."
-      ],
-      "points": [
-        "Carregador de execução autocontido para cada distribuição principal de Linux.",
-        "As paletas de 256 cores do tmux são desenhadas corretamente.",
-        "web_fetch trata cookies de sessão automaticamente."
-      ]
-    },
-    "0.8.0": {
-      "title": "Vinte presets de modelo e uma única normalização de dialeto",
-      "paragraphs": [
-        "O catálogo de provedores cresceu para vinte perfis de modelo calibrados, com espaço para um endpoint local próprio. Atrás deles há uma única camada de normalização, então um endpoint OpenAI, Anthropic ou gateway compatível é descrito do mesmo jeito."
-      ],
-      "points": [
-        "Vinte presets de modelo calibrados, mais endpoints locais próprios.",
-        "Normalização de dialeto de API compartilhada por OpenAI, Anthropic e gateways compatíveis."
-      ]
-    },
-    "0.8.1": {
-      "title": "O seletor de sessões aponta para a linha certa",
-      "paragraphs": [
-        "Duas falhas de navegação desaparecem: o cursor do seletor de sessões estava deslocado em uma linha, e a navegação por teclado podia parar cedo demais ao percorrer prompts e sessões anteriores."
-      ],
-      "points": [
-        "O cursor do seletor de sessões usa índice a partir de 1; sem destaque de linha deslocado.",
-        "A navegação por teclado não para mais ao percorrer o arquivo de prompts e sessões."
-      ]
-    },
-    "0.8.9": {
-      "title": "A compactação guarda a arquitetura, a admissão a ordem",
-      "paragraphs": [
-        "O histórico antigo agora é limpo sem perder os fatos sobre os quais uma sessão é construída, e a fila de admissão mantém sua ordem cronológica mesmo quando várias janelas de terminal agem ao mesmo tempo."
-      ],
-      "points": [
-        "A compactação de contexto preserva fatos essenciais de arquitetura ao limpar histórico vencido.",
-        "A fila de admissão de sessões e sua ordem resistem a janelas de terminal concorrentes."
-      ]
-    },
-    "0.9.0": {
-      "title": "Um prompt enviado é reconhecido na hora",
-      "paragraphs": [
-        "A admissão não deixa mais ninguém esperando em silêncio. O prompt é reconhecido imediatamente, antes de o motor começar o trabalho pesado do turno, e a sessão sobrevive a um reinício do daemon ou do host graças ao seu diário de eventos imutável."
-      ],
-      "points": [
-        "A admissão de sessão reconhece o prompt enviado antes de o turno do motor começar.",
-        "A sessão é retomada entre reinícios de daemon e host, apoiada em registros de eventos imutáveis."
-      ]
-    },
-    "0.9.1": {
-      "title": "A intenção de lançamento vem da tarefa, e o pensamento é ajustável",
-      "paragraphs": [
-        "Se um comando roda em primeiro ou segundo plano é agora uma decisão de planejamento tirada das dependências da própria tarefa, não do nome de uma ferramenta. A mesma versão abriu os ajustes de pensamento do modelo: desligado, ou um nível baixo de esforço, pela gateway."
-      ],
-      "points": [
-        "O planejamento contextual deriva a intenção de lançamento das dependências da tarefa.",
-        "Os controles de raciocínio desligam o pensamento ou escolhem esforço baixo por gateways."
-      ]
-    },
-    "0.9.2": {
-      "title": "A seleção com mouse se comporta como um terminal",
-      "paragraphs": [
-        "Selecionar texto com o mouse e copiá-lo segue agora as convenções do próprio terminal, incluindo limpar a seleção, com o cursor mantendo coordenadas estáveis e sem adorno estranho na tela."
-      ],
-      "points": [
-        "Seleção com mouse, cópia e limpeza seguem o comportamento padrão do terminal.",
-        "Coordenadas do cursor e limites visuais ficam estáveis, sem artefatos."
-      ]
-    },
-    "0.9.3": {
-      "title": "Um script manual, e referências que se abrem",
-      "paragraphs": [
-        "Um `!` explícito executa um script multilinha inteiro pela porta de permissões com acesso total só para aquela chamada, e um link ou referência de arquivo na saída de um comando pode ser inspecionado e aberto no navegador apenas quando você pede."
-      ],
-      "points": [
-        "`!` executa o script multilinha inteiro pela porta de permissões com acesso total para aquela chamada.",
-        "Links e referências de arquivo do terminal são inspecionados e abertos a pedido."
-      ]
-    },
-    "0.9.4": {
-      "title": "A prévia mostra o script inteiro",
-      "paragraphs": [
-        "Antes de confirmar um script `!` manual você vê todas as suas linhas, não uma primeira linha encurtada. O script também mantém o contexto da conversa e o diretório de trabalho que o antecediam."
-      ],
-      "points": [
-        "A prévia de um script de shell multilinha mostra o comando completo antes de confirmar.",
-        "Comandos `!` manuais mantêm o contexto anterior e o diretório de trabalho ativo."
-      ]
-    },
-    "0.9.5": {
-      "title": "A saída em segundo plano tem para onde ir",
-      "paragraphs": [
-        "Um processo que roda e espera agora verte sua saída padrão e seu erro em arquivos de log próprios, e o motor reconhece um prompt interativo nas sessões PTY de Linux em vez de deixar que pareça silêncio."
-      ],
-      "points": [
-        "Processos em execução e em espera vertem stdout e stderr em arquivos de log dedicados.",
-        "A detecção de espera de entrada reconhece prompts interativos em sessões PTY de Linux."
-      ]
-    },
-    "0.9.6": {
-      "title": "O compositor pré-visualiza enquanto você digita",
-      "paragraphs": [
-        "A primeira linha do prompt aparece no compositor enquanto você digita, e o posicionamento do cursor e a quebra suave foram corrigidos para terminais largos e estreitos."
-      ],
-      "points": [
-        "O streaming de prompt em tempo real mostra a primeira linha de prévia no compositor.",
-        "Posicionamento do cursor e renderização da quebra suave corrigidos em telas largas e estreitas."
-      ]
-    },
-    "0.9.7": {
-      "title": "Quebras de linha são desenhadas, não puladas",
-      "paragraphs": [
-        "O compositor multilinha agora escreve um indicador explícito de quebra de linha em vez de deixar quebras cruas moverem o terminal, e colar um comando de shell multilinha no editor continua fluido."
-      ],
-      "points": [
-        "O compositor multilinha mostra indicadores explícitos de quebra de linha em vez de quebras cruas.",
-        "Melhor resposta de edição ao colar comandos de shell multilinha."
-      ]
-    },
-    "0.9.8": {
-      "title": "O desconhecido continua desconhecido",
-      "paragraphs": [
-        "Uma contagem de bytes que ninguém verificou agora é tratada como desconhecida em vez de virar capacidade de modelo adivinhada, e a orientação de segundo plano do motor explica por que um laço de sondagem em shell gasta tokens e como esperar um aviso."
-      ],
-      "points": [
-        "A contabilidade estrita de contexto trata bytes não verificados como desconhecidos, nunca como palpite.",
-        "A orientação de segundo plano explica por que laços de sondagem gastam tokens e como esperar."
-      ]
-    },
-    "0.9.9": {
-      "title": "Um dono por instrução, e um rodapé que cumpre",
-      "paragraphs": [
-        "Cada bloco de instrução do sistema tem agora um único dono, então duas fontes não podem mais se contradizer. O rodapé do terminal mantém visível um cancelamento com Esc armado, uma contagem regressiva de nova tentativa e um cartão de confirmação de permissão enquanto importam."
-      ],
-      "points": [
-        "Um único dono por bloco de instrução do sistema, removendo orientação contraditória.",
-        "O rodapé preserva o cancelamento com Esc armado, as contagens de nova tentativa e as confirmações de permissão."
-      ]
-    },
-    "0.10.0": {
-      "title": "O aviso de atualização fica à vista",
-      "paragraphs": [
-        "Quando um novo build é entregue enquanto você trabalha, o aviso fica fixado na visão da sessão ativa em vez de sumir numa redesenho, e toda a porta de testes passou a rodar em máquinas reais de Linux, macOS e Windows."
-      ],
-      "points": [
-        "Avisos de atualização ao vivo ficam fixados e visíveis na visão da sessão ativa.",
-        "A porta multiplataforma foi validada em Linux, macOS (Apple silicon e Intel) e Windows."
-      ]
-    },
-    "0.10.1": {
-      "title": "A ajuda oficial não pode ser ofuscada",
-      "paragraphs": [
-        "A habilidade de ajuda oficial agora é instalada onde habilidades próprias não podem ofuscá-la nem sobrescrevê-la. Diretórios de atualização antigos são aparados automaticamente para não encherem o disco."
-      ],
-      "points": [
-        "A instalação da habilidade de ajuda oficial é isolada das habilidades do usuário.",
-        "A limpeza automática de diretórios antigos preserva espaço em disco."
-      ]
-    },
-    "0.10.3": {
-      "title": "A saída do terminal diz o que o programa disse",
-      "paragraphs": [
-        "O eco da entrada do shell é separado do que o programa realmente imprimiu, então um resultado copiado contém só a saída do programa, e a frase de ação de uma ferramenta mantém sua descrição durante o streaming para que a chamada continue auditável."
-      ],
-      "points": [
-        "A saída do terminal separa o eco da entrada do shell do stdout do programa.",
-        "Frases de ação de ferramentas mantêm descrições explícitas para auditoria durante o streaming."
-      ]
-    },
-    "0.10.4": {
-      "title": "Erros mantêm suas palavras, repetições são contadas",
-      "paragraphs": [
-        "`/logs` mostra o texto de erro original do provedor ao lado do estado do turno em vez de parafraseá-lo, e a mesma chamada repetida é notada antes de esgotar o orçamento de requisições."
-      ],
-      "points": [
-        "`/logs` preserva o texto de erro original do provedor junto ao estado do turno.",
-        "Chamadas idênticas consecutivas são rastreadas e sinalizadas antes de o orçamento acabar."
-      ]
-    },
-    "0.10.5": {
-      "title": "Esperar não é repetir",
-      "paragraphs": [
-        "O guarda de laço agora distingue esperar o aviso de um processo de repetir um comando que falha sem parar, e uma falha de ferramenta chega com o passo de recuperação que combina com sua categoria."
-      ],
-      "points": [
-        "O guarda de laço distingue espera por aviso de falhas repetidas de comando.",
-        "Diagnósticos de erro trazem conselho de recuperação imediato por categoria de falha."
-      ]
-    },
-    "0.10.6": {
-      "title": "Resultados são dados, avisos são avisos",
-      "paragraphs": [
-        "O resultado de uma ferramenta agora carrega só seus dados; um aviso de repetição viaja como aviso do sistema, em cadência crescente, e diz o que fazer: parar de sondar uma tarefa em segundo plano, ou mudar de abordagem."
-      ],
-      "points": [
-        "Resultados de ferramentas continuam dados puros; avisos de repetição chegam como avisos do sistema no Cadence B.",
-        "Avisos de laço trazem orientação acionável em vez de só nomear a repetição."
-      ]
-    },
-    "0.10.7": {
-      "title": "O teto de saída vem do provedor",
-      "paragraphs": [
-        "O teto de saída de um gateway é lido agora do `max_tokens` do próprio provedor e não de um orçamento de pensamento baixo, que estava cortando respostas longas. Conclusões de mais de dez mil tokens agora terminam normalmente."
-      ],
-      "points": [
-        "Teto de saída alinhado ao `max_tokens` do provedor, não ao orçamento de pensamento.",
-        "Conclusões em streaming de até 10.712 tokens verificadas sem corte prematuro."
-      ]
-    },
-    "0.10.9": {
-      "title": "Memória, aliases e cookies",
-      "paragraphs": [
-        "O prompt de memória do projeto agora diz claramente para que serve a memória e que ela é mantida entre sessões. Argumentos de ferramenta aceitam os aliases que as pessoas digitam de fato, um caminho errado recebe o candidato mais próximo, e o download web leva cookies de sessão pelos redirecionamentos por conta própria."
-      ],
-      "points": [
-        "O prompt de memória do projeto declara a retenção de longo prazo entre sessões.",
-        "Argumentos aceitam aliases comuns, ajustam o texto de ação e sugerem o caminho mais próximo.",
-        "web_fetch trata cookies de sessão entre redirecionamentos sem cabeçalhos manuais."
-      ]
-    },
-    "0.10.10": {
-      "title": "Menos sondagem inútil, erros de arquivo mais claros",
-      "paragraphs": [
-        "O prompt do sistema agora explica do que depende uma tarefa em segundo plano, então o modelo para de sondar trabalho que já roda. Ferramentas de arquivo respondem a um caminho errado com o candidato mais próximo e recusam um patch desatualizado com orientação em vez de uma falha seca."
-      ],
-      "points": [
-        "O prompt do sistema esclarece dependências de execução em segundo plano para evitar sondagem repetida.",
-        "Erros de ferramentas de arquivo trazem caminhos próximos e orientação sobre patches desatualizados."
-      ]
-    },
-    "0.11.0": {
-      "title": "Sem cabeçalho vazio sobre uma resposta vazia",
-      "paragraphs": [
-        "Uma resposta transmitida que começava com espaços ou linhas em branco desenhava um cabeçalho `Response` vazio. Agora o cabeçalho só é desenhado quando há texto, e os bytes seguem intactos, sem expressão regular nem remoção com perda."
-      ],
-      "points": [
-        "Cabeçalhos vazios somem quando a resposta começa com espaços ou linhas em branco.",
-        "Transparência do fluxo e fidelidade dos bytes mantidas; sem regex nem remoção com perda."
-      ]
-    },
-    "0.11.1": {
-      "title": "Uma resposta repetida é parada durante o streaming",
-      "paragraphs": [
-        "O motor agora reconhece uma resposta que repete uma unidade curta sem fim e a para ao chegar, sem teto de comprimento de tokens. Depois você é perguntado, no formulário que já conhece, se mantém o texto escrito antes da repetição ou descarta a mensagem."
-      ],
-      "points": [
-        "O guarda de repetição do motor para um laço em 4 KiB, ou 16 KiB para espaços em branco.",
-        "O formulário de esclarecimento mantém a prosa anterior ou descarta a saída corrompida.",
-        "A velocidade normal do streaming é mantida, sem limite arbitrário de tokens nem falsos positivos."
-      ]
-    },
-    "0.11.2": {
-      "title": "Vãos que não pendem mais",
-      "paragraphs": [
-        "Uma resposta intermediária deixava linhas vazias penduradas atrás de si, empurrando a próxima chamada de ferramenta para baixo. As linhas vazias finais são aparadas e a coluna entre chamadas de ferramenta agora tem uma distância constante."
-      ],
-      "points": [
-        "Linhas vazias penduradas das respostas intermediárias foram removidas no renderizador.",
-        "O espaçamento vertical entre chamadas de ferramenta consecutivas foi uniformizado."
-      ]
-    },
-    "0.11.3": {
-      "title": "Uma ferramenta para processos em segundo plano",
-      "paragraphs": [
-        "O trabalho em segundo plano é gerido por uma única ferramenta `process_control` com as ações `type` e `stop`. Duas ferramentas antigas desaparecem, então há um só lugar para olhar e nenhuma escolha ambígua de parâmetros, e uma atualização de formato 28 leva os registros antigos."
-      ],
-      "points": [
-        "`process_control` unifica a gestão em segundo plano com as ações `type` e `stop`.",
-        "`terminal_input` e `kill_task` removidas, acabando com a ambiguidade de parâmetros.",
-        "A atualização de formato 28 leva registros antigos para a ferramenta unificada."
-      ]
-    },
-    "0.11.4": {
-      "title": "Um aviso que carrega a própria saída",
-      "paragraphs": [
-        "O fim de uma tarefa em segundo plano chega agora como um aviso autocontido: como terminou, seu identificador de processo e a saída que ainda não lhe foi dada, neutralizada e limitada. Ele substitui a viagem extra de acordar que buscava esses detalhes, e uma parada agora alcança toda a árvore de processos."
-      ],
-      "points": [
-        "Avisos entregam a saída do processo já neutralizada dentro da carga do evento.",
-        "Metadados, código de saída e linhas recentes viajam num só pacote, removendo uma chamada auxiliar.",
-        "Rotinas de limpeza terminam toda a árvore de processos sem órfãos."
-      ]
-    },
-    "0.11.5": {
-      "title": "Primeira inicialização e padrões de caminho no Windows",
-      "paragraphs": [
-        "Duas falhas encontradas em máquinas reais estão corrigidas: na primeira inicialização a habilidade de ajuda oficial se verificava enquanto a sessão era criada, e no Windows um padrão de caminho terminando em ponto ou espaço não era tratado. A suíte de fumaça também verifica inicialização em ambiente limpo em cada plataforma."
-      ],
-      "points": [
-        "Corrida da primeira inicialização entre verificação da ajuda e criação da sessão resolvida.",
-        "Padrões de caminho do Windows terminando em ponto ou espaço são tratados.",
-        "A suíte de fumaça verifica inicialização em ambiente limpo no POSIX e no Windows."
-      ]
-    },
-    "0.11.6": {
-      "title": "O que um script manual pode fazer, dito com clareza",
-      "paragraphs": [
-        "A tela de shell manual agora explica o limite de execução de um comando `!` em palavras: que acesso ele tem, e que o classificador e o saneador são contornados só para aquela chamada. A redação corresponde ao que acontece em shells POSIX e no Windows ConPTY."
-      ],
-      "points": [
-        "A tela de shell manual explica limites de elevação e privilégio dos comandos `!`.",
-        "A semântica de contorno do saneador e do classificador é esclarecida para POSIX e Windows ConPTY."
-      ]
-    },
-    "0.11.7": {
-      "title": "Um pensamento não é partido pelo texto que vem depois",
-      "paragraphs": [
-        "O raciocínio chegava às vezes intercalado com a resposta, então uma frase de pensamento era cortada pelas primeiras palavras da réplica. Os deltas de raciocínio são avaliados agora antes dos deltas de texto, e os fragmentos de uma rodada são unidos, mantendo um limite limpo antes do texto final."
-      ],
-      "points": [
-        "Deltas de raciocínio avaliados estritamente antes dos deltas de texto, acabando com pensamentos partidos.",
-        "Fragmentos de pensamento intermediários são unidos por rodada do turno.",
-        "Sessões filhas do repasse multi-salto são reconhecidas antes de o host pai liberar."
-      ]
-    },
-    "0.11.8": {
-      "title": "Trocar de modo no meio do streaming não redesenha o rodapé",
-      "paragraphs": [
-        "Trocar o modo de permissão enquanto uma resposta é transmitida recalculava prioridades e refluía o rodapé sem motivo. Um aviso de estado que você está lendo agora sobrevive à troca, e as promessas do rodapé continuam intactas em cada janela."
-      ],
-      "points": [
-        "Trocar o modo de permissão durante o streaming não dispara recálculos falsos de prioridade nem reflui o rodapé.",
-        "Avisos de estado ativos são preservados ao trocar de modo no meio do streaming.",
-        "Cancelamento com Esc, tentativas lineares e diálogos de confirmação mantêm prioridade em cada janela."
-      ]
-    },
-    "0.11.9": {
-      "title": "Padrões de caminho agrupados, buscados numa chamada",
-      "paragraphs": [
-        "find_files e o filtro include do search_text agora expandem alternativas entre chaves num caminho, incluindo grupos aninhados, junto com alternativas `|`. Um padrão como `*.{ts,tsx}` vira uma única chamada sobre uma única varredura de diretório em vez de várias, e nenhum esquema de provedor mudou para isso."
-      ],
-      "points": [
-        "Alternativas entre chaves como `*.{ts,tsx}`, grupos aninhados e alternativas `|` são expandidas nativamente.",
-        "find_files e o filtro include do search_text buscam um padrão agrupado numa única chamada.",
-        "A expansão acontece no motor: nenhum esquema de ferramenta nem formato de banco mudou."
-      ]
-    }
+  "notfound": {
+   "title": "Página não encontrada | RuneAgent",
+   "lead": "Esta página não existe."
   }
+ },
+ "groups": {
+  "Get started": "Primeiros passos",
+  "Use Rune": "Usar o Rune",
+  "Configure": "Configurar",
+  "Extend": "Estender",
+  "Trust & understand": "Confiança e entendimento"
+ },
+ "docs_title": "{label} | documentação do RuneAgent",
+ "docs": {
+  "docs": {
+   "label": "Introdução",
+   "lead": "O que o Rune faz, o que ele envia a um modelo e como começar sua primeira sessão."
+  },
+  "docs/install": {
+   "label": "Instalação e atualização",
+   "lead": "Requisitos do sistema, o que os instaladores fazem, PATH, a pasta de dados, atualizações e remoção no Linux, macOS e Windows."
+  },
+  "docs/platforms": {
+   "label": "Suporte a plataformas",
+   "lead": "O que funciona igual no Linux, macOS e Windows, e o que cada sistema faz de forma diferente."
+  },
+  "docs/interface": {
+   "label": "Interface",
+   "lead": "Leia a conversa, os cartões de permissão, o plano, as alterações de arquivos e o status da sessão."
+  },
+  "docs/sessions": {
+   "label": "Sessões e contexto",
+   "lead": "Inicie, retome e direcione o trabalho; inspecione o contexto e compacte o histórico antigo."
+  },
+  "docs/commands": {
+   "label": "Comandos de barra",
+   "lead": "Os comandos da conversa, seus argumentos e o que cada um altera."
+  },
+  "docs/cli": {
+   "label": "Referência da linha de comando",
+   "lead": "Opções de inicialização e subcomandos do rune para configuração, contas, sessões e manutenção."
+  },
+  "docs/keyboard": {
+   "label": "Teclado e mouse",
+   "lead": "Atalhos canônicos para editar, navegar, responder perguntas e conversar."
+  },
+  "docs/shell": {
+   "label": "Comandos manuais",
+   "lead": "Execute você mesmo um comando com um ! no início — o que ele pode fazer, quando roda e o que a IA vê."
+  },
+  "docs/instructions": {
+   "label": "Instruções e anexos",
+   "lead": "Forneça orientações do projeto, anexe arquivos e mantenha uma memória duradoura do projeto."
+  },
+  "docs/memory": {
+   "label": "Memória",
+   "lead": "O que a memória do projeto guarda, o que realmente chega ao modelo, seu único orçamento em bytes e o que ela nunca pode decidir."
+  },
+  "docs/undo": {
+   "label": "Revisar, desfazer e refazer",
+   "lead": "Revise os diffs reais dos arquivos e entenda o que uma restauração de sessão pode e não pode reverter."
+  },
+  "docs/settings": {
+   "label": "Visão geral das configurações",
+   "lead": "Encontre a seção certa de Settings e diferencie escolhas globais de controles da sessão."
+  },
+  "docs/configuration": {
+   "label": "Arquivo de configuração",
+   "lead": "Inspecione, altere e redefina valores do rune.toml sem confundir escolhas com padrões."
+  },
+  "docs/reference": {
+   "label": "Referência de configurações",
+   "lead": "Cada configuração do rune.toml: seu valor de fábrica, o que faz, os valores que aceita e quando uma alteração passa a valer."
+  },
+  "docs/connections": {
+   "label": "Conexões",
+   "lead": "Adicione contas de modelos e da web, gerencie credenciais e verifique o destino antes de conectar."
+  },
+  "docs/providers": {
+   "label": "Provedores de modelos",
+   "lead": "Os 31 presets de provedores, suas chaves e endereços, serviços locais e notas sobre raciocínio por provedor."
+  },
+  "docs/models": {
+   "label": "Modelos e capacidades",
+   "lead": "Escolha um par provedor/modelo e configure limites conhecidos, opções de raciocínio e preços."
+  },
+  "docs/generation": {
+   "label": "Geração e raciocínio",
+   "lead": "Controle o raciocínio, a amostragem e a saída solicitada do modelo atual."
+  },
+  "docs/auxiliary": {
+   "label": "Modelos auxiliares",
+   "lead": "Configure as tarefas de sanitizer, classifier, compaction e título, incluindo suas implicações de dados e custo."
+  },
+  "docs/runtime": {
+   "label": "Tempo de execução e novas tentativas",
+   "lead": "Entenda os prazos das requisições, as esperas lineares entre tentativas, a pausa por crédito e a vida útil de uma sessão desanexada."
+  },
+  "docs/tools": {
+   "label": "Ferramentas e limites",
+   "lead": "Defina limites de saída retornada e de trabalho, e diferencie-os de uma dobra de exibição ou de uma permissão."
+  },
+  "docs/terminal": {
+   "label": "Terminal e trabalho em segundo plano",
+   "lead": "Como os comandos passam para segundo plano, recebem entrada e informam conclusão ou perda."
+  },
+  "docs/web": {
+   "label": "Busca e leitura web",
+   "lead": "Configure provedores separados de busca e de leitura de páginas sem mudar destinos silenciosamente."
+  },
+  "docs/appearance": {
+   "label": "Aparência",
+   "lead": "Escolha um tema, mostre ou oculte o painel lateral e entenda a renderização que depende do terminal."
+  },
+  "docs/skills": {
+   "label": "Skills",
+   "lead": "Descubra, ative e gerencie guias reutilizáveis sem tratá-los como autorização."
+  },
+  "docs/mcp": {
+   "label": "Conexões MCP",
+   "lead": "Revise servidores de ferramentas externos, seus escopos e acessos antes de conectá-los ao Rune."
+  },
+  "docs/security": {
+   "label": "Segurança",
+   "lead": "O limite de confiança, os modos de permissão, as limitações de cada plataforma e os limites do isolamento."
+  },
+  "docs/classifier": {
+   "label": "Política do classificador",
+   "lead": "Escreva e recarregue a política CLASSIFIER.md e entenda quando a revisão por IA está realmente ativa."
+  },
+  "docs/privacy": {
+   "label": "Privacidade e dados",
+   "lead": "O que fica no seu computador, o que vai para um provedor e o que revisar antes de compartilhar diagnósticos."
+  },
+  "docs/credentials": {
+   "label": "Credenciais",
+   "lead": "Use a interface de entrada de credenciais, diferencie chaves ausentes de indisponíveis e recupere de forma deliberada."
+  },
+  "docs/verification": {
+   "label": "Verificação da versão",
+   "lead": "Verifique a assinatura da versão e o checksum do arquivo, e entenda os limites de confiança da chave de assinatura."
+  },
+  "docs/architecture": {
+   "label": "Arquitetura",
+   "lead": "Uma visão geral pública do frontend, do motor local, dos provedores de modelos, da execução de ferramentas e dos dados de sessão."
+  },
+  "docs/troubleshooting": {
+   "label": "Solução de problemas",
+   "lead": "Diagnostique o status real antes de mudar prazos, provedores ou acessos."
+  }
+ },
+ "chapters": {
+  "Plan": "Plano",
+  "Build": "Construir",
+  "Test": "Testar",
+  "Fix": "Corrigir",
+  "Verify": "Verificar",
+  "Report": "Relatório"
+ },
+ "install_note": {
+  "none": "Ainda não há nenhuma versão assinada publicada. Por enquanto, o comando termina sem instalar nada.",
+  "missing": "A versão {version} não tem build assinado para {system}. O comando termina sem instalar nada.",
+  "release": "Versão {version}, publicada em {date}, para {system} ({builds}).",
+  "beta": "O suporte a {system} está em beta.",
+  "and": "e"
+ },
+ "notes": {
+  "0.12.0": {
+   "title": "Um retry que se explica, um resumo que continua e uma instalação que já se usa",
+   "paragraphs": [
+    "Um limite de requisições costumava transformar uma tentativa em uma sequência confusa de números, e o resumo de uma sessão longa podia rodar por minutos apenas para ser descartado se fosse cancelado. Agora a repetição traz duas cotas separadas e indica a chave que está em uso; a compactação envia primeiro um resumo completo e preserva o progresso a cada lote; e conexões personalizadas escolhem explicitamente seu protocolo. O suporte a visão em gateways compatíveis com OpenAI agora é reconhecido, relatórios de custo zero não congelam mais o rastreamento de gastos, o instalador roda diretamente no terminal ativo sem editar perfis, e os valores internos de execução tornaram-se constantes fixas em vez de configurações."
+   ],
+   "summary": "Retries, resumos e instalador",
+   "sections": [
+    {
+     "id": "model-providers",
+     "title": "Provedores de modelos e visão",
+     "points": [
+      {
+       "id": "custom-provider",
+       "title": "Custom provider nomeia seu formato de fio",
+       "text": "O preset de conexão própria muda de nome de `compatible` para `Custom provider` e agora escolhe explicitamente seu protocolo de fio: compatível com OpenAI (`/chat/completions` com token Bearer) ou compatível com Anthropic (`/v1/messages` com `x-api-key`)."
+      },
+      {
+       "id": "vision-declaration",
+       "title": "Vision declarado no catálogo",
+       "text": "Endpoints que declaram capacidade multimodal como fazem as gateways compatíveis com OpenAI — `supported_parameters` nomeando `vision` (DeepRelay e outros) — têm agora seu suporte de imagem reconhecido no catálogo de modelos, em vez de reportar falsamente 'support is not published'. Um endpoint que não publica nada sobre seus modelos fica honestamente 'not published', e Alt+C › Modalities é onde você o declara você mesmo (veja abaixo)."
+      },
+      {
+       "id": "zero-cost-pricing",
+       "title": "Custo zero reportado guarda o preço",
+       "text": "Quando um endpoint reporta custo de uso zero (por exemplo, modelos cobertos por plano no DeepRelay devolvendo `usage.cost: 0`), o preço do modelo configurado em Settings se conserva em vez de ser sobrescrito por zero, e o rastreio de gasto segue exato entre sessões."
+      },
+      {
+       "id": "model-modalities",
+       "title": "Modalidades que você declara por modelo",
+       "text": "Uma gateway cujo /models nada diz sobre seus modelos nunca podia receber uma imagem: o Rune recusava cada anexo com 'support is not published' porque ninguém tinha publicado nada. Alt+C (Settings › Models › Modalities) agora deixa você declarar as entradas de um modelo — text, image, audio, video, file — com o que o catálogo publica enchendo-o onde existe e sua declaração valendo onde o catálogo cala. Uma modalidade declarada é marcada como sua, então uma atualização do catálogo nunca a leva de volta, e uma classe fora do vocabulário compartilhado é recusada."
+      },
+      {
+       "id": "reasoning-editor-evidence",
+       "title": "Alt+C abre sobre a evidência",
+       "text": "O editor de reasoning abria com só Off marcado para um modelo que o catálogo diz pensar, e confirmá-lo sem mudar nada escrevia esse Off como sua escolha — por isso o thinking tinha de ser ligado modelo por modelo. O editor abre agora sobre a evidência publicada: os níveis que o catálogo lista ficam marcados, e o que uma sessão nova começaria é o que o editor mostra. Um Enter intocado não escreve nada — a evidência segue o padrão — e só uma mudança real se guarda como sua. A forma de catálogo da xAI (`capabilities.reasoning_effort`, `capabilities.default_reasoning_effort`) é lida junto à da OpenRouter."
+      }
+     ]
+    },
+    {
+     "id": "key-rotation",
+     "title": "Rotação de chaves e resiliência",
+     "points": [
+      {
+       "id": "per-key-allowance",
+       "title": "Cada chave recebe sua própria cota",
+       "text": "O retry agora dá a cada chave sua própria cota (`retry.attempts_per_key`, dez por padrão) ao lado do orçamento da chamada inteira (`retry.max_attempts`). Uma chave gasta passa a vez no ato, e o anel gira até a cota global se esgotar."
+      },
+      {
+       "id": "status-names-key",
+       "title": "A linha de status nomeia a chave",
+       "text": "A linha de status nomeia a chave e as duas contagens, por exemplo `Key A · attempt 3 of 10 · 21/100000`, e cada rotação de chave registra uma linha na transcrição."
+      },
+      {
+       "id": "no-cooldown",
+       "title": "Uma chave gasta passa a vez no ato",
+       "text": "A rotação de chaves não usa mais resfriamento adiado (`retry.credit_cooldown` aposentou-se no formato 29); uma chave gasta cede de imediato à seguinte sem martelar o limite de taxa com esperas de zero, e chaves adicionadas no meio do caminho sincronizam entre janelas concorrentes sem relançar o Rune."
+      },
+      {
+       "id": "rename-keys",
+       "title": "Chaves renomeiam sem redigitar",
+       "text": "Chaves de conexão renomeiam diretamente em Settings (`Rename key`) sem remover e reinserir suas credenciais."
+      }
+     ]
+    },
+    {
+     "id": "compaction",
+     "title": "Compactação de sessão",
+     "points": [
+      {
+       "id": "one-summary-first",
+       "title": "Um resumo antes de empilhar",
+       "text": "A compactação envia primeiro uma requisição de resumo completa para conservar o contexto da conversa, recua ao modelo ativo quando sua janela é maior, e se divide em lotes só se o provedor recusar o tamanho do payload."
+      },
+      {
+       "id": "resumable-batches",
+       "title": "Lotes que se pode retomar",
+       "text": "A compactação em lotes reporta o progresso ao vivo (`batch N · M sources left`), guarda um carregável retomável após cada lote completo para que trabalho cancelado se conserve, e registra quem pediu o cancelamento."
+      }
+     ]
+    },
+    {
+     "id": "tool-execution",
+     "title": "Execução de ferramentas e saída",
+     "points": [
+      {
+       "id": "no-empty-boxes",
+       "title": "Nenhuma caixa vazia antes dos argumentos",
+       "text": "Caixas de execução de ferramentas ficam retidas até chegarem os argumentos em vez de piscar como um quadro de comando vazio, e texto degenerado do modelo nos campos de ação é filtrado para nunca virar o título do passo."
+      },
+      {
+       "id": "output-ceiling-reserved",
+       "title": "O teto combina com o reservado",
+       "text": "O teto de saída pedido iguala os tokens que o orçamento de contexto reserva; se um provedor recusa uma requisição por passar seu limite de saída (por exemplo, routers poupadores de tokens ou endpoints de DeepSeek), o teto se abaixa automaticamente para as requisições seguintes em todos os papéis."
+      },
+      {
+       "id": "notification-tag",
+       "title": "Uma notificação mostra sua etiqueta",
+       "text": "Uma notificação de sistema mostra sua etiqueta `<system_notification>` na UI do terminal para distinguir o status do Rune dos dados do processo, a saída da tarefa se desenha sob um título `Task_Output` limpo, e linhas de status de notificação não mais consomem a pré-visualização de 4 linhas."
+      }
+     ]
+    },
+    {
+     "id": "session-view",
+     "title": "Visão de sessão e arquivos",
+     "points": [
+      {
+       "id": "file-change-stable",
+       "title": "Um arquivo tocado segue listado em cada modo",
+       "text": "O painel FILES CHANGED era filtrado pelo modo de permissão vigente: um arquivo escrito com acesso total ligado sumia da lista no modo ask e reaparecia no full. O painel é um fato, não uma permissão. Um arquivo que a sessão tocou agora segue listado em cada modo — reportado da contagem própria do livro de escrituras enquanto seu caminho é inalcançável, e o diff exato volta no momento em que o caminho volta a ser alcançável. Sua vista de diff o diz em palavras em vez de falhar, e devolver o arquivo continua recusado fora do alcance de que precisa."
+      }
+     ]
+    },
+    {
+     "id": "plan-reminders",
+     "title": "Lembretes do plano",
+     "points": [
+      {
+       "id": "plan-reminder",
+       "title": "O plano volta entre as chamadas",
+       "text": "Um turno longo podia se desviar do plano que o começou: o plano era escrito uma vez, e nada o trazia de volta. Na fronteira entre chamadas de ferramentas, o Rune agora devolve ao agente seu plano como um aviso do sistema — após um número de chamadas (`plan.reminder_tools`, oito por padrão) ou após tempo decorrido (`plan.reminder_seconds`, quinze minutos por padrão), o que chegar primeiro. O lembrete pede uma checagem, não um ritual: atualize o plano com track_tasks quando seu caminho se afastou dele; siga e ignore-o se ele ainda combina. Ambos os ajustes vivem no rune.toml e se apagam no zero; reescrever o plano recomeça os dois relógios."
+      }
+     ]
+    },
+    {
+     "id": "runtime-constants",
+     "title": "Constantes de execução e configuração",
+     "points": [
+      {
+       "id": "fixed-constants",
+       "title": "Trinta e três constantes saem das configurações",
+       "text": "Trinta e três constantes internas de runtime (`FIXED`) se separam das escolhas do usuário: `-config set` e `reset` as recusam, valores velhos no `rune.toml` são ignorados e limpos na atualização ao formato 30 sem tocar comentários, e a referência de configurações cai de 116 para 85 configurações acionáveis."
+      },
+      {
+       "id": "diagnostics-explain",
+       "title": "O diagnóstico nomeia o que é fixo",
+       "text": "`-config check` reporta constantes legadas ignoradas que o `rune.toml` carrega, e `-config explain` identifica claramente constantes fixas de runtime."
+      }
+     ]
+    },
+    {
+     "id": "installer",
+     "title": "Instalador multiplataforma",
+     "points": [
+      {
+       "id": "sourced-path",
+       "title": "Instalar e usar na mesma janela",
+       "text": "Instalar e usar no ato no terminal ativo: em bash, zsh e shells POSIX, o instalador adiciona sua pasta ao PATH do shell chamador em modo sourced (`. <(curl ...)`), então o `rune` inicia na mesma janela sem reiniciar o shell."
+      },
+      {
+       "id": "install-path-promise",
+       "title": "A promessa do caminho de instalação cumprida",
+       "text": "O binário se instala em `~/.local/bin/rune` (ou `RUNE_INSTALL_DIR`); quando essa pasta não está no PATH, o instalador a liga numa pasta já no PATH ou imprime a única linha de export que termina o trabalho — perfis de shell nunca são editados. No Windows, o PATH da sessão ativa e o PATH de usuário no registro são definidos."
+      },
+      {
+       "id": "installer-report",
+       "title": "Um instalador que reporta e mostra",
+       "text": "O instalador reporta exatamente o que mudou e onde deixou o binário, inspeciona a configuração do shell antes de sugerir linhas de setup, e mostra uma barra de download ao vivo com tamanho, taxa e tempo restante. Interface unificada entre plataformas: branding ASCII idêntico, passos de status e caixas Ready iguais em Linux, macOS e Windows. Bugs de compatibilidade de shell corrigidos: o bug do trap EXIT no zsh que pisava o código de retorno e gerava Ready falsos foi eliminado, e as chamadas `set +m` não interativas que matavam shells posh foram removidas."
+      }
+     ]
+    }
+   ],
+   "points": []
+  },
+  "0.7.8": {
+   "title": "Linux em qualquer distribuição, e as bordas do terminal",
+   "paragraphs": [
+    "O Rune deixou de depender de uma única base glibc. Um carregador de execução autocontido permite que o mesmo binário inicie em todas as distribuições principais de Linux, e o comportamento do terminal e do download web foi alinhado ao que as pessoas usam de fato."
+   ],
+   "points": [
+    {
+     "id": "runtime-loader",
+     "title": "Uma compilação para cada distribuição Linux",
+     "text": "Até agora uma compilação do Rune dependia da versão de glibc da máquina que a construiu, e um binário podia recusar-se a iniciar em outra distribuição. Um carregador de runtime autossuficiente traz consigo as peças que ao sistema podem faltar, e a mesma compilação inicia agora em cada distribuição principal de Linux sem reconstrução por distro."
+    },
+    {
+     "id": "tmux-palette",
+     "title": "Cores corretas dentro do tmux",
+     "text": "Dentro do tmux a paleta de 256 cores era lida com o deslocamento errado, e o texto saía em cores vizinhas. A paleta agora é indexada como o tmux a reporta, e o realce de sintaxe num painel do tmux desenha com as cores exatas que a interface escolheu."
+    },
+    {
+     "id": "web-fetch-cookies",
+     "title": "web_fetch transporta cookies de sessão",
+     "text": "Páginas que guardam seu conteúdo atrás de um cookie de sessão respondiam a uma solicitação com uma tela de login em vez da página. O web_fetch agora guarda os cookies de sessão que uma resposta lhe entrega e os envia nas requisições seguintes do mesmo fetch, assim uma página com sessão se lê como qualquer outra."
+    }
+   ],
+   "sections": [],
+   "summary": "Um build para cada Linux"
+  },
+  "0.8.0": {
+   "title": "Vinte presets de modelo e uma única normalização de dialeto",
+   "paragraphs": [
+    "O catálogo de provedores cresceu para vinte perfis de modelo calibrados, com espaço para um endpoint local próprio. Atrás deles há uma única camada de normalização, então um endpoint OpenAI, Anthropic ou gateway compatível é descrito do mesmo jeito."
+   ],
+   "points": [
+    {
+     "id": "model-presets",
+     "title": "Vinte presets de modelo calibrados",
+     "text": "O catálogo de provedores carregava um punhado de perfis e deixava o resto ao ajuste manual. Vinte presets calibrados cobrem os provedores que as pessoas realmente usam, cada um com sua janela de contexto conhecida, teto de saída e controles de thinking, e uma entrada própria aceita um endpoint local seu ao lado deles."
+    },
+    {
+     "id": "dialect-normalisation",
+     "title": "Uma normalização para cada dialeto de API",
+     "text": "Um endpoint OpenAI, um Anthropic e uma gateway compatível falavam cada um um dialeto um pouco diferente, e cada camada de ferramentas precisava saber com qual estava falando. Uma camada de normalização os descreve agora do mesmo modo a montante, então adicionar um provedor não ensina vocabulário novo ao resto do código."
+    }
+   ],
+   "sections": [],
+   "summary": "20 presets, um dialeto"
+  },
+  "0.8.1": {
+   "title": "O seletor de sessões aponta para a linha certa",
+   "paragraphs": [
+    "Duas falhas de navegação desaparecem: o cursor do seletor de sessões estava deslocado em uma linha, e a navegação por teclado podia parar cedo demais ao percorrer prompts e sessões anteriores."
+   ],
+   "points": [
+    {
+     "id": "picker-caret",
+     "title": "O seletor de sessões destaca a linha certa",
+     "text": "O seletor de sessões calculava a linha destacada com índice a partir de zero enquanto a lista se desenha a partir de um, então o cursor caía uma linha longe da sessão que nomeava. A indexação agora combina com o desenho, e o destaque aterriza na linha que o cursor quer."
+    },
+    {
+     "id": "archive-navigation",
+     "title": "Navegar pelos arquivos alcança cada página",
+     "text": "A navegação por teclado entre prompts e sessões antigas parava na borda de uma página em vez de pisar na seguinte, deixando as entradas mais velhas fora do alcance do teclado. A caminhada cruza agora as páginas, e cada entrada do arquivo é alcançável sem mouse."
+    }
+   ],
+   "sections": [],
+   "summary": "Seletor de sessões corrigido"
+  },
+  "0.8.9": {
+   "title": "A compactação guarda a arquitetura, a admissão a ordem",
+   "paragraphs": [
+    "O histórico antigo agora é limpo sem perder os fatos sobre os quais uma sessão é construída, e a fila de admissão mantém sua ordem cronológica mesmo quando várias janelas de terminal agem ao mesmo tempo."
+   ],
+   "points": [
+    {
+     "id": "compaction-architecture",
+     "title": "A compactação guarda os fatos sobre os quais uma sessão se apoia",
+     "text": "Limpar a história vencida limpiava também os fatos de arquitetura com que a sessão raciocina, deixando o modelo adivinhar a forma do código que já mapeara. A compactação preserva agora esses fatos enquanto o detalhe vencido vai embora, assim uma sessão velha ainda sabe no que está trabalhando."
+    },
+    {
+     "id": "admission-order",
+     "title": "A admissão segura sua ordem sob muitas janelas",
+     "text": "Várias janelas de terminal admitindo trabalho ao mesmo tempo podiam reordenar a fila, e um prompt enviado depois podia começar antes de um anterior. A fila de admissão mantém ordem cronológica sob concorrência, e os prompts começam na ordem em que foram enviados."
+    }
+   ],
+   "sections": [],
+   "summary": "Compactação e ordem de admissão"
+  },
+  "0.9.0": {
+   "title": "Um prompt enviado é reconhecido na hora",
+   "paragraphs": [
+    "A admissão não deixa mais ninguém esperando em silêncio. O prompt é reconhecido imediatamente, antes de o motor começar o trabalho pesado do turno, e a sessão sobrevive a um reinício do daemon ou do host graças ao seu diário de eventos imutável."
+   ],
+   "points": [
+    {
+     "id": "prompt-ack",
+     "title": "Um prompt enviado recebe resposta no ato",
+     "text": "Enviar um prompt deixava a janela muda até o motor terminar sua preparação — lia-se como um travamento. O prompt é reconhecido agora no momento em que é admitido, antes do trabalho pesado do turno, e a janela mostra o que acontece enquanto isso."
+    },
+    {
+     "id": "journal-resume",
+     "title": "Uma sessão sobrevive a uma reinicialização",
+     "text": "Uma reinicialização de daemon ou de host antes encerrava uma sessão para sempre. A história da sessão vive agora em um diário de eventos imutável, e a retomada reproduz exatamente o que foi registrado, então uma reinicialização custa apenas a reinicialização."
+    }
+   ],
+   "sections": [],
+   "summary": "Ack de prompt e diário"
+  },
+  "0.9.1": {
+   "title": "A intenção de lançamento vem da tarefa, e o pensamento é ajustável",
+   "paragraphs": [
+    "Se um comando roda em primeiro ou segundo plano é agora uma decisão de planejamento tirada das dependências da própria tarefa, não do nome de uma ferramenta. A mesma versão abriu os ajustes de pensamento do modelo: desligado, ou um nível baixo de esforço, pela gateway."
+   ],
+   "points": [
+    {
+     "id": "launch-intent",
+     "title": "Primeiro plano ou segundo plano é uma decisão de planejamento",
+     "text": "Se um comando corria em primeiro ou segundo plano era decidido pela ferramenta que o modelo escolhesse — não pela tarefa. A intenção de lançamento deriva agora das dependências da própria tarefa: uma chamada cujo resultado é preciso em seguida fica em primeiro plano; o trabalho que pode seguir sem a resposta vai ao segundo plano de imediato."
+    },
+    {
+     "id": "thinking-controls",
+     "title": "Thinking que você pode ajustar, pela gateway",
+     "text": "O thinking de um modelo não podia ser dirigido: rodava ao padrão da gateway ou não rodava. Os controles de reasoning desligam agora o thinking ou escolhem um nível baixo pela gateway, e a sessão guarda a escolha até você mudá-la."
+    }
+   ],
+   "sections": [],
+   "summary": "Intenção de lançamento e thinking"
+  },
+  "0.9.2": {
+   "title": "A seleção com mouse se comporta como um terminal",
+   "paragraphs": [
+    "Selecionar texto com o mouse e copiá-lo segue agora as convenções do próprio terminal, incluindo limpar a seleção, com o cursor mantendo coordenadas estáveis e sem adorno estranho na tela."
+   ],
+   "points": [
+    {
+     "id": "mouse-selection",
+     "title": "A seleção com mouse segue as regras do terminal",
+     "text": "Selecionar com o mouse se comportava como um campo de texto e não como um terminal: a seleção não se limpava como um terminal limpa, e copiar levava fronteiras que você não escolheu. Selecionar, copiar e limpar seguem agora as convenções do próprio terminal."
+    },
+    {
+     "id": "caret-stability",
+     "title": "Um cursor que fica onde você o deixa",
+     "text": "A seleção podia arrastar o cursor para fora de suas coordenadas e deixar resíduos na tela. O cursor guarda coordenadas estáveis e a tela não mantém artefatos — no mesmo quadro e no mesmo lugar."
+    }
+   ],
+   "sections": [],
+   "summary": "Seleção de mouse tipo terminal"
+  },
+  "0.9.3": {
+   "title": "Um script manual, e referências que se abrem",
+   "paragraphs": [
+    "Um `!` explícito executa um script multilinha inteiro pela porta de permissões com acesso total só para aquela chamada, e um link ou referência de arquivo na saída de um comando pode ser inspecionado e aberto no navegador apenas quando você pede."
+   ],
+   "points": [
+    {
+     "id": "manual-scripts",
+     "title": "Um `!` executa o script inteiro",
+     "text": "Um `!` manual antes executava uma linha, então uma sequência de shell de vários passos precisava ser confirmada linha por linha. Um `!` explícito agora executa o script multilinha inteiro pela porta de permissão, com acesso total para essa única chamada — e o classificador e o sanitizador são deliberadamente contornados; a tela diz antes de rodar."
+    },
+    {
+     "id": "reference-opening",
+     "title": "Referências abrem só quando você pede",
+     "text": "Um link ou referência de arquivo impresso na saída de um comando era texto puro — ou pior, abria num clique que você não havia querido. Clicar numa referência agora mostra todo o seu destino primeiro; um link HTTP(S) abre o navegador só num Open ou Enter explícito, e referências de arquivo continuam só-cópia."
+    }
+   ],
+   "sections": [],
+   "summary": "Scripts manuais e links"
+  },
+  "0.9.4": {
+   "title": "A prévia mostra o script inteiro",
+   "paragraphs": [
+    "Antes de confirmar um script `!` manual você vê todas as suas linhas, não uma primeira linha encurtada. O script também mantém o contexto da conversa e o diretório de trabalho que o antecediam."
+   ],
+   "points": [
+    {
+     "id": "script-preview",
+     "title": "A pré-visualização mostra cada linha",
+     "text": "Antes de confirmar um script manual você via uma única linha encurtada — aprovava sem ver o que executaria. A pré-visualização mostra agora todas as linhas do script exatamente como rodarão."
+    },
+    {
+     "id": "context-and-cwd",
+     "title": "Comandos manuais guardam seu contexto",
+     "text": "Um `!` manual corria desligado da conversa e do diretório em que você trabalhava. Ele guarda agora o contexto anterior e o diretório de trabalho ativo, então um comando rápido aterriza onde você está e a IA lê a mesma sessão que você vê."
+    }
+   ],
+   "sections": [],
+   "summary": "Prévia do script inteiro"
+  },
+  "0.9.5": {
+   "title": "A saída em segundo plano tem para onde ir",
+   "paragraphs": [
+    "Um processo que roda e espera agora verte sua saída padrão e seu erro em arquivos de log próprios, e o motor reconhece um prompt interativo nas sessões PTY de Linux em vez de deixar que pareça silêncio."
+   ],
+   "points": [
+    {
+     "id": "output-logs",
+     "title": "A saída em segundo plano aterriza no próprio registro",
+     "text": "Um processo que corria e esperava produzia saída que ninguém podia ler depois — sumia com o terminal. Processos que correm e esperam agora transmitem stdout e stderr para arquivos de registro próprios, e o caminho é nomeado onde a saída é pedida."
+    },
+    {
+     "id": "input-wait",
+     "title": "Um prompt interativo é reconhecido, não é silêncio",
+     "text": "Em sessões PTY de Linux um prompt interativo parecia silêncio: o processo estava bem e esperando por você, e o motor não sabia distinguir. Esperas de entrada digitada agora são detectadas, reportadas como fato, e `process_control` é como respondê-las."
+    }
+   ],
+   "sections": [],
+   "summary": "Logs de fundo e esperas de entrada"
+  },
+  "0.9.6": {
+   "title": "O compositor pré-visualiza enquanto você digita",
+   "paragraphs": [
+    "A primeira linha do prompt aparece no compositor enquanto você digita, e o posicionamento do cursor e a quebra suave foram corrigidos para terminais largos e estreitos."
+   ],
+   "points": [
+    {
+     "id": "composer-preview",
+     "title": "O composer mostra a primeira linha enquanto você digita",
+     "text": "O composer não dava pista nenhuma de um prompt longo até enviá-lo. A primeira linha de pré-visualização agora flui para o composer enquanto você digita, então uma instrução longa se vê ser o que você pensa antes do Enter."
+    },
+    {
+     "id": "cursor-wrap",
+     "title": "Cursores corretos em telas largas e estreitas",
+     "text": "O posicionamento do cursor e a quebra suave erravam nas duas pontas da faixa de largura — um terminal largo punha o cursor antes do texto, um estreito quebrava além da borda. Ambos estão corrigidos, e editar se sente igual em qualquer largura."
+    }
+   ],
+   "sections": [],
+   "summary": "Prévia viva do composer"
+  },
+  "0.9.7": {
+   "title": "Quebras de linha são desenhadas, não puladas",
+   "paragraphs": [
+    "O compositor multilinha agora escreve um indicador explícito de quebra de linha em vez de deixar quebras cruas moverem o terminal, e colar um comando de shell multilinha no editor continua fluido."
+   ],
+   "points": [
+    {
+     "id": "newline-preview",
+     "title": "Quebras de linha se desenham, não se pulam",
+     "text": "Um composer multilinha deixava quebras de linha cruas moverem o cursor do terminal, e as primeiras linhas rolavam enquanto você digitava. O composer agora escreve um indicador explícito de linha nova (↵) onde cada linha termina, e o que você escreveu fica onde escreveu."
+    },
+    {
+     "id": "paste-responsiveness",
+     "title": "Colar continua respondendo",
+     "text": "Colar um comando de shell multilinha travava o editor enquanto era medido e redesenhado. Colar agora responde na hora, e o bloco colado é pré-visualizado inteiro antes de ser enviado."
+    }
+   ],
+   "sections": [],
+   "summary": "Indicadores de linha nova"
+  },
+  "0.9.8": {
+   "title": "O desconhecido continua desconhecido",
+   "paragraphs": [
+    "Uma contagem de bytes que ninguém verificou agora é tratada como desconhecida em vez de virar capacidade de modelo adivinhada, e a orientação de segundo plano do motor explica por que um laço de sondagem em shell gasta tokens e como esperar um aviso."
+   ],
+   "points": [
+    {
+     "id": "context-truth",
+     "title": "O desconhecido segue desconhecido na conta de contexto",
+     "text": "Uma contagem de bytes que ninguém havia verificado era convertida numa capacidade de modelo adivinhada, e o medidor media um número que ninguém mediu. A contabilidade estrita de contexto trata contagens não verificadas como desconhecidas — o medidor não desenha barra, em vez de uma de ar de autoridade que não mede nada."
+    },
+    {
+     "id": "background-guidance",
+     "title": "Uma orientação que explica por que o polling custa",
+     "text": "O modelo fazia polling de trabalho de shell que já corria em segundo plano, pagando requisições para não aprender nada. A orientação de segundo plano do motor explica agora por que um laço de polling gasta tokens e que a notificação traz a resposta — o modelo espera, em vez de perguntar de novo."
+    }
+   ],
+   "sections": [],
+   "summary": "Contas de contexto honestas"
+  },
+  "0.9.9": {
+   "title": "Um dono por instrução, e um rodapé que cumpre",
+   "paragraphs": [
+    "Cada bloco de instrução do sistema tem agora um único dono, então duas fontes não podem mais se contradizer. O rodapé do terminal mantém visível um cancelamento com Esc armado, uma contagem regressiva de nova tentativa e um cartão de confirmação de permissão enquanto importam."
+   ],
+   "points": [
+    {
+     "id": "instruction-ownership",
+     "title": "Um dono por bloco de instruções",
+     "text": "Duas fontes podiam possuir o mesmo bloco de instruções do sistema e se contradizer no meio da sessão, e o modelo seguia a última que chegava. Cada bloco tem agora um único dono, e a orientação não oscila entre suas próprias versões."
+    },
+    {
+     "id": "footer-promises",
+     "title": "Um rodapé que cumpre suas promessas",
+     "text": "O rodapé podia largar um Esc armado, uma contagem de retry ou uma confirmação de permissão enquanto ainda valiam — um estado que a tela negava. O rodapé os mantém visíveis enquanto armados, em cada janela."
+    }
+   ],
+   "sections": [],
+   "summary": "Dono de instruções e rodapé"
+  },
+  "0.10.0": {
+   "title": "O aviso de atualização fica à vista",
+   "paragraphs": [
+    "Quando um novo build é entregue enquanto você trabalha, o aviso fica fixado na visão da sessão ativa em vez de sumir numa redesenho, e toda a porta de testes passou a rodar em máquinas reais de Linux, macOS e Windows."
+   ],
+   "points": [
+    {
+     "id": "update-notice",
+     "title": "O aviso de atualização fica preso",
+     "text": "Um build novo entregado no meio da sessão se anunciava e sumia com o redesenho seguinte — era preciso pegar o aviso em flagrante. Ele agora fica preso na visão da sessão ativa até você tratá-lo."
+    },
+    {
+     "id": "cross-platform-gate",
+     "title": "O gate corre em máquinas reais",
+     "text": "macOS e Windows só eram checados por tipos, nunca executados. Todo o gate de testes corre agora em máquinas reais de Linux, macOS (Apple silicon e Intel) e Windows, então uma regressão de plataforma é pega antes de uma publicação, não depois de instalar."
+    }
+   ],
+   "sections": [],
+   "summary": "Aviso de atualização preso"
+  },
+  "0.10.1": {
+   "title": "A ajuda oficial não pode ser ofuscada",
+   "paragraphs": [
+    "A habilidade de ajuda oficial agora é instalada onde habilidades próprias não podem ofuscá-la nem sobrescrevê-la. Diretórios de atualização antigos são aparados automaticamente para não encherem o disco."
+   ],
+   "points": [
+    {
+     "id": "help-isolation",
+     "title": "A ajuda oficial não pode ser ofuscada",
+     "text": "O skill de ajuda oficial se instalava no mesmo espaço das habilidades pessoais, então um skill seu com o mesmo nome o substituía em silêncio. Ele agora se instala onde uma habilidade pessoal não pode nem ofuscá-lo nem sobrescrevê-lo, e install e update recusam um pacote que tente tomar seu nome."
+    },
+    {
+     "id": "upgrade-pruning",
+     "title": "Diretórios de upgrade velhos são podados",
+     "text": "Cada upgrade deixava seu diretório para trás, e o disco enchia formato por formato. Diretórios de upgrade velhos são podados automaticamente quando nenhum processo em execução os segura, e a revisão atual nunca é removida."
+    }
+   ],
+   "sections": [],
+   "summary": "Isolamento da ajuda e poda"
+  },
+  "0.10.3": {
+   "title": "A saída do terminal diz o que o programa disse",
+   "paragraphs": [
+    "O eco da entrada do shell é separado do que o programa realmente imprimiu, então um resultado copiado contém só a saída do programa, e a frase de ação de uma ferramenta mantém sua descrição durante o streaming para que a chamada continue auditável."
+   ],
+   "points": [
+    {
+     "id": "echo-separation",
+     "title": "O que o programa disse, não o que você digitou",
+     "text": "O eco da entrada do shell e a saída real do programa caíam num só fluxo, então um resultado copiado trazia de volta o seu próprio comando. O eco agora é separado, e um resultado copiado contém só o que o programa imprimiu."
+    },
+    {
+     "id": "action-descriptions",
+     "title": "Frases de ação seguem auditáveis durante o streaming",
+     "text": "A frase de ação de uma ferramenta podia perder sua descrição enquanto a chamada fluía, deixando um passo que não se podia auditar depois. A descrição agora se conserva por todo o fluxo, e cada passo se lê como o que fez."
+    }
+   ],
+   "sections": [],
+   "summary": "Saída de terminal limpa"
+  },
+  "0.10.4": {
+   "title": "Erros mantêm suas palavras, repetições são contadas",
+   "paragraphs": [
+    "`/logs` mostra o texto de erro original do provedor ao lado do estado do turno em vez de parafraseá-lo, e a mesma chamada repetida é notada antes de esgotar o orçamento de requisições."
+   ],
+   "points": [
+    {
+     "id": "logs-original-errors",
+     "title": "`/logs` conserva as palavras originais do provedor",
+     "text": "`/logs` parafraseava o erro de um provedor antes de mostrá-lo — as palavras que você colava numa busca ou num relatório de bug eram do Rune, não do provedor. O texto original do erro agora se senta ao lado do estado do turno do motor, sem alteração."
+    },
+    {
+     "id": "repeat-tracking",
+     "title": "Repetições são contadas antes de custar",
+     "text": "A mesma chamada feita de novo e de novo passava despercebida até o orçamento de requisições mostrá-la. Chamadas idênticas consecutivas agora são rastreadas e sinalizadas antes de o orçamento esgotar, com a contagem nomeada no aviso."
+    }
+   ],
+   "sections": [],
+   "summary": "Erros originais, repetições"
+  },
+  "0.10.5": {
+   "title": "Esperar não é repetir",
+   "paragraphs": [
+    "O guarda de laço agora distingue esperar o aviso de um processo de repetir um comando que falha sem parar, e uma falha de ferramenta chega com o passo de recuperação que combina com sua categoria."
+   ],
+   "points": [
+    {
+     "id": "wait-vs-loop",
+     "title": "Esperar não é laçar",
+     "text": "O guarda-laiço tratava a espera por uma notificação de segundo plano como repetir um comando que sempre falha, e reprendia o modelo por esperar corretamente. Agora se distinguem: uma espera é respondida por sua notificação, e só uma repetição verdadeira é avisada."
+    },
+    {
+     "id": "recovery-advice",
+     "title": "Conselho de recuperação em cada falha",
+     "text": "Uma falha de ferramenta chegava como erro pelado, e o modelo tinha de inventar o passo de recuperação. O diagnóstico agora traz o conselho que combina com a categoria da falha, então a chamada seguinte tenta o certo em vez do mesmo."
+    }
+   ],
+   "sections": [],
+   "summary": "Esperar vs laçar, recuperação"
+  },
+  "0.10.6": {
+   "title": "Resultados são dados, avisos são avisos",
+   "paragraphs": [
+    "O resultado de uma ferramenta agora carrega só seus dados; um aviso de repetição viaja como aviso do sistema, em cadência crescente, e diz o que fazer: parar de sondar uma tarefa em segundo plano, ou mudar de abordagem."
+   ],
+   "points": [
+    {
+     "id": "pure-results",
+     "title": "Resultados de ferramentas levam só seus dados",
+     "text": "Um aviso de repetição era costurado dentro do resultado da ferramenta, e o modelo lia conselho onde devia estar a saída do comando. Resultados agora são dados puros; avisos viajam como linhas `<system_notice>` numa cadência que se alarga, no seu lugar."
+    },
+    {
+     "id": "actionable-warnings",
+     "title": "Um aviso que diz o que fazer",
+     "text": "Um aviso de laço nomeava a repetição e parava aí. Ele agora carrega o passo que combina: pare de fazer polling de uma tarefa de segundo plano e espere sua notificação, ou mude a abordagem e tente outra coisa."
+    }
+   ],
+   "sections": [],
+   "summary": "Resultados puros, avisos"
+  },
+  "0.10.7": {
+   "title": "O teto de saída vem do provedor",
+   "paragraphs": [
+    "O teto de saída de um gateway é lido agora do `max_tokens` do próprio provedor e não de um orçamento de pensamento baixo, que estava cortando respostas longas. Conclusões de mais de dez mil tokens agora terminam normalmente."
+   ],
+   "points": [
+    {
+     "id": "output-ceiling",
+     "title": "O teto vem do provedor",
+     "text": "O teto de saída de uma gateway era tirado de um orçamento de thinking baixo, e respostas longas cortavam num tamanho que o provedor nunca impôs. O teto agora se lê do próprio `max_tokens` do provedor, e respostas correm até o comprimento que o endpoint permite."
+    },
+    {
+     "id": "long-completions",
+     "title": "Completions longas terminam",
+     "text": "Completions eram medidas falhando em 8.188 tokens. Com o teto certo, completions verificadas de mais de dez mil tokens terminam normalmente em vez de cortar no meio da frase."
+    }
+   ],
+   "sections": [],
+   "summary": "Teto de saída do provedor"
+  },
+  "0.10.9": {
+   "title": "Memória, aliases e cookies",
+   "paragraphs": [
+    "O prompt de memória do projeto agora diz claramente para que serve a memória e que ela é mantida entre sessões. Argumentos de ferramenta aceitam os aliases que as pessoas digitam de fato, um caminho errado recebe o candidato mais próximo, e o download web leva cookies de sessão pelos redirecionamentos por conta própria."
+   ],
+   "points": [
+    {
+     "id": "memory-prompt",
+     "title": "A memória diz para que existe",
+     "text": "O prompt de memória nunca dizia que notas sobrevivem à sessão, então o modelo escrevia resumos em vez de experiência. Ele agora diz claramente para que a memória existe e que se guarda entre sessões — e uma nota merece seu lugar registrando uma causa."
+    },
+    {
+     "id": "argument-aliases",
+     "title": "Argumentos aceitam o que as pessoas digitam",
+     "text": "Argumentos de ferramentas recusavam os alias que as pessoas realmente digitam (`rm` por `remove`, `del` por `delete`), e um caminho errado voltava como falha pelada. Alias agora são aceitos, um caminho errado nomeia o candidato mais próximo, e o texto de `action` é travado no seu limite."
+    },
+    {
+     "id": "fetch-cookies",
+     "title": "Cookies seguem a redireção",
+     "text": "Um fetch que cruzava uma redireção perdia seus cookies de sessão, e a página atrás da redireção respondia com um login. O web_fetch agora transporta cookies de sessão através de redireções por si mesmo, sem cabeçalhos manuais."
+    }
+   ],
+   "sections": [],
+   "summary": "Memória, alias, cookies"
+  },
+  "0.10.10": {
+   "title": "Menos sondagem inútil, erros de arquivo mais claros",
+   "paragraphs": [
+    "O prompt do sistema agora explica do que depende uma tarefa em segundo plano, então o modelo para de sondar trabalho que já roda. Ferramentas de arquivo respondem a um caminho errado com o candidato mais próximo e recusam um patch desatualizado com orientação em vez de uma falha seca."
+   ],
+   "points": [
+    {
+     "id": "background-dependencies",
+     "title": "O prompt explica de que depende uma tarefa de segundo plano",
+     "text": "O prompt do sistema nunca dizia de que depende uma tarefa posta no segundo plano, então o modelo fazia polling de trabalho que já corria e pagava requisições para não aprender nada. O prompt agora explica a dependência, e os polls inúteis cessaram."
+    },
+    {
+     "id": "file-error-guidance",
+     "title": "Erros de arquivo que apontam algo útil",
+     "text": "Um caminho errado falhava devolvendo o caminho como eco, e um patch velho falhava sem nada além da falha. As ferramentas de arquivo respondem agora com o candidato mais próximo que existe, e um patch velho explica o que reler em vez de recusar em silêncio."
+    }
+   ],
+   "sections": [],
+   "summary": "Menos polls, erros claros"
+  },
+  "0.11.0": {
+   "title": "Sem cabeçalho vazio sobre uma resposta vazia",
+   "paragraphs": [
+    "Uma resposta transmitida que começava com espaços ou linhas em branco desenhava um cabeçalho `Response` vazio. Agora o cabeçalho só é desenhado quando há texto, e os bytes seguem intactos, sem expressão regular nem remoção com perda."
+   ],
+   "points": [
+    {
+     "id": "no-empty-header",
+     "title": "Sem cabeçalho vazio sobre uma resposta vazia",
+     "text": "Uma resposta em fluxo que começava com espaços ou linhas em branco desenhava um cabeçalho `Response` sem nada — um título sem corpo na tela. O cabeçalho se desenha só quando há texto abaixo."
+    },
+    {
+     "id": "byte-fidelity",
+     "title": "Os bytes passam intactos",
+     "text": "A correção podia recortar ou reescrever o fluxo, e um corte com perda mudaria o que o modelo de fato disse. Nada é reescrito: sem regex, sem corte com perda, e exatamente os bytes que uma resposta carregava chegam à tela."
+    }
+   ],
+   "sections": [],
+   "summary": "Sem cabeçalho de resposta vazio"
+  },
+  "0.11.1": {
+   "title": "Uma resposta repetida é parada durante o streaming",
+   "paragraphs": [
+    "O motor agora reconhece uma resposta que repete uma unidade curta sem fim e a para ao chegar, sem teto de comprimento de tokens. Depois você é perguntado, no formulário que já conhece, se mantém o texto escrito antes da repetição ou descarta a mensagem."
+   ],
+   "points": [
+    {
+     "id": "repetition-guard",
+     "title": "Uma resposta repetida é parada enquanto flui",
+     "text": "Um modelo que repetia uma unidade curta para sempre fluía até a requisição morrer do próprio tamanho. O motor reconhece a repetição — uma unidade exata de 1–64 bytes, ao menos 4 KiB e 16 repetições, ou 16 KiB para unidades de espaço — e a para quando chega, sem teto de comprimento de tokens."
+    },
+    {
+     "id": "keep-or-discard",
+     "title": "Guardar o que foi escrito, ou descartar",
+     "text": "Uma resposta parada deixava a pergunta do que guardar sem resposta na tela. O formulário de esclarecimento que você já conhece pergunta se guardar o texto escrito antes da repetição ou descartar a mensagem; sem resposta ela fica, e só um Discard explícito a joga fora."
+    },
+    {
+     "id": "no-false-positives",
+     "title": "Dados reais nunca são tomados por laço",
+     "text": "Linhas minificadas, data URIs de base64, hashes, separadores de tabela e regras de Markdown todos parecem repetição para um contador ingênuo. A regra de bytes lê estrutura, e nenhum deles é parado; a velocidade normal de streaming não muda."
+    }
+   ],
+   "sections": [],
+   "summary": "Guarda de repetição"
+  },
+  "0.11.2": {
+   "title": "Vãos que não pendem mais",
+   "paragraphs": [
+    "Uma resposta intermediária deixava linhas vazias penduradas atrás de si, empurrando a próxima chamada de ferramenta para baixo. As linhas vazias finais são aparadas e a coluna entre chamadas de ferramenta agora tem uma distância constante."
+   ],
+   "points": [
+    {
+     "id": "no-dangling-gaps",
+     "title": "Respostas intermediárias não deixam vazio",
+     "text": "Uma resposta intermediária deixava linhas em branco penduradas, e cada vazio empurrava a chamada seguinte mais abaixo na tela. As linhas em branco do fim são cortadas no renderizador, e o espaço após uma resposta intermediária é nenhum."
+    },
+    {
+     "id": "uniform-spacing",
+     "title": "Uma espinha uniforme entre chamadas",
+     "text": "A distância entre uma chamada de ferramenta e a seguinte dependia de com que a resposta anterior terminava. A espinha agora é uma distância consistente, e uma transcrição cheia de chamadas se lê parelha em vez de se dispersar."
+    }
+   ],
+   "sections": [],
+   "summary": "Sem vazios pendurados"
+  },
+  "0.11.3": {
+   "title": "Uma ferramenta para processos em segundo plano",
+   "paragraphs": [
+    "O trabalho em segundo plano é gerido por uma única ferramenta `process_control` com as ações `type` e `stop`. Duas ferramentas antigas desaparecem, então há um só lugar para olhar e nenhuma escolha ambígua de parâmetros, e uma atualização de formato 28 leva os registros antigos."
+   ],
+   "points": [
+    {
+     "id": "one-background-tool",
+     "title": "Uma ferramenta para processos de segundo plano",
+     "text": "O trabalho de segundo plano era gerido por duas ferramentas com argumentos que se sobrepunham, e escolher entre elas era um chute. Uma única ferramenta `process_control` com as ações `type` e `stop` faz ambas, e há um só lugar para olhar."
+    },
+    {
+     "id": "legacy-tools-removed",
+     "title": "O par ambíguo se foi",
+     "text": "`terminal_input` e `kill_task` continuavam declaradas junto da ferramenta nova, então o modelo podia tomar o caminho legado e lá metade dos parâmetros não fazia sentido. Elas são removidas — junto com a ambiguidade."
+    },
+    {
+     "id": "format-28-upgrade",
+     "title": "Sessões velhas vêm junto",
+     "text": "Sessões gravadas sob as ferramentas velhas tinham de sobreviver à mudança. Um passo de upgrade ao formato 28 move uma vez os registros de sessões velhas à ferramenta unificada, e um registro danificado nunca faz o passo falhar."
+    }
+   ],
+   "sections": [],
+   "summary": "Uma ferramenta de fundo"
+  },
+  "0.11.4": {
+   "title": "Um aviso que carrega a própria saída",
+   "paragraphs": [
+    "O fim de uma tarefa em segundo plano chega agora como um aviso autocontido: como terminou, seu identificador de processo e a saída que ainda não lhe foi dada, neutralizada e limitada. Ele substitui a viagem extra de acordar que buscava esses detalhes, e uma parada agora alcança toda a árvore de processos."
+   ],
+   "points": [
+    {
+     "id": "self-contained-notifications",
+     "title": "Uma notificação carrega a própria saída",
+     "text": "O fim de uma tarefa de segundo plano se anunciava e fazia o modelo perguntar de novo pela saída — uma ida-e-volta de despertar por tarefa. A notificação agora carrega a saída que você ainda não tinha recebido — neutralizada e limitada — dentro do próprio evento."
+    },
+    {
+     "id": "one-packet-metadata",
+     "title": "Tudo chega num pacote",
+     "text": "Como a tarefa terminou, seu código de saída e suas últimas linhas viajavam em respostas separadas. Metadados, código de saída e últimas linhas chegam agora num pacote, e a chamada de despertar extra sumiu."
+    },
+    {
+     "id": "tree-termination",
+     "title": "Um stop alcança a árvore toda",
+     "text": "Parar uma tarefa matava o processo que você nomeou e deixava seus filhos correndo. O stop agora termina a árvore de processos inteira, e nada do que ela iniciou sobrevive."
+    }
+   ],
+   "sections": [],
+   "summary": "Notificações carregam saída"
+  },
+  "0.11.5": {
+   "title": "Primeira inicialização e padrões de caminho no Windows",
+   "paragraphs": [
+    "Duas falhas encontradas em máquinas reais estão corrigidas: na primeira inicialização a habilidade de ajuda oficial se verificava enquanto a sessão era criada, e no Windows um padrão de caminho terminando em ponto ou espaço não era tratado. A suíte de fumaça também verifica inicialização em ambiente limpo em cada plataforma."
+   ],
+   "points": [
+    {
+     "id": "first-start-race",
+     "title": "O primeiro início não corre mais contra si mesmo",
+     "text": "No primeiro início o skill de ajuda oficial se verificava enquanto a sessão ainda era criada — e os dois colidiam. A verificação agora espera a sessão existir, e um primeiro início é um início limpo."
+    },
+    {
+     "id": "windows-path-patterns",
+     "title": "Caminhos de Windows terminados em ponto ou espaço",
+     "text": "No Windows um padrão de caminho terminado em ponto ou espaço era tratado mal, e arquivos com nomes assim não podiam ser achados. Os padrões são tratados, e esses arquivos são achados como qualquer outro."
+    },
+    {
+     "id": "clean-start-smoke",
+     "title": "A suíte de fumaça inicia limpa",
+     "text": "A suíte de fumaça testava upgrades mas nunca um primeiro início numa máquina nua. Um início em ambiente limpo é checado agora em POSIX e Windows, e uma publicação não sai sem prová-lo."
+    }
+   ],
+   "sections": [],
+   "summary": "Primeiro início e caminhos Windows"
+  },
+  "0.11.6": {
+   "title": "O que um script manual pode fazer, dito com clareza",
+   "paragraphs": [
+    "A tela de shell manual agora explica o limite de execução de um comando `!` em palavras: que acesso ele tem, e que o classificador e o saneador são contornados só para aquela chamada. A redação corresponde ao que acontece em shells POSIX e no Windows ConPTY."
+   ],
+   "points": [
+    {
+     "id": "manual-boundary-words",
+     "title": "O que um script manual pode fazer, dito em palavras",
+     "text": "A tela do shell manual executava um comando `!` sem dizer que acesso ele carregava — o limite era algo que você já tinha de saber. A tela agora explica o limite de execução em palavras: acesso total para essa chamada, dito e ficado."
+    },
+    {
+     "id": "bypass-semantics",
+     "title": "A contorno é dito, não descoberto",
+     "text": "O classificador e o sanitizador são contornados para uma chamada manual — é o desenho — e nada na tela o admitia. A redação agora diz exatamente isso, e combina com o que acontece em shells POSIX e no Windows ConPTY."
+    }
+   ],
+   "sections": [],
+   "summary": "O limite em palavras"
+  },
+  "0.11.7": {
+   "title": "Um pensamento não é partido pelo texto que vem depois",
+   "paragraphs": [
+    "O raciocínio chegava às vezes intercalado com a resposta, então uma frase de pensamento era cortada pelas primeiras palavras da réplica. Os deltas de raciocínio são avaliados agora antes dos deltas de texto, e os fragmentos de uma rodada são unidos, mantendo um limite limpo antes do texto final."
+   ],
+   "points": [
+    {
+     "id": "reasoning-before-text",
+     "title": "Um pensamento não é partido pela resposta",
+     "text": "Deltas de reasoning e de texto chegavam entrelaçados, então as primeiras palavras da resposta cortavam uma frase de thinking pela metade. O reasoning agora é avaliado estritamente antes do texto, e um pensamento se lê inteiro antes de a resposta começar."
+    },
+    {
+     "id": "round-coalescing",
+     "title": "Fragmentos de pensamento juntam-se ao seu round",
+     "text": "Os fragmentos de um round de thinking chegavam como blocos separados, cada um com cabeçalho próprio na tela. Fragmentos agora se fundem por round, e um round de thinking é um bloco."
+    },
+    {
+     "id": "handover-ack",
+     "title": "Uma sessão filha é reconhecida antes de soltar",
+     "text": "Um handover de vários saltos soltava o host pai antes de a sessão filha reconhecer seus registros novos — um crash no meio perdia o handover. A filha agora reconhece primeiro, e o pai solta só depois."
+    }
+   ],
+   "sections": [],
+   "summary": "O thinking fica inteiro"
+  },
+  "0.11.8": {
+   "title": "Trocar de modo no meio do streaming não redesenha o rodapé",
+   "paragraphs": [
+    "Trocar o modo de permissão enquanto uma resposta é transmitida recalculava prioridades e refluía o rodapé sem motivo. Um aviso de estado que você está lendo agora sobrevive à troca, e as promessas do rodapé continuam intactas em cada janela."
+   ],
+   "points": [
+    {
+     "id": "no-midstream-reflow",
+     "title": "Trocar de modo para de refluir o rodapé",
+     "text": "Mudar o modo de permissão enquanto uma resposta fluía recalculava prioridades e refluía as colunas do rodapé sem motivo — a tela saltava sob o texto que você lia. A troca não dispara mais reflow, e o fluxo fica onde estava."
+    },
+    {
+     "id": "notice-survival",
+     "title": "Um aviso de estado sobrevive à troca",
+     "text": "Um aviso de estado que você lia podia ser apagado pela própria troca de modo. Avisos ativos agora se conservam através de uma troca no meio do fluxo, e o dito segue dito."
+    },
+    {
+     "id": "priority-promises",
+     "title": "As promessas do rodapé valem em cada janela",
+     "text": "Cancelamento com Esc, retries lineares e diálogos de confirmação podiam perder prioridade numa janela enquanto outra os segurava. Essas promessas guardam sua prioridade em cada janela, e nenhuma janela fica para trás."
+    }
+   ],
+   "sections": [],
+   "summary": "Rodapé estável em pleno fluxo"
+  },
+  "0.11.9": {
+   "title": "Padrões de caminho agrupados, buscados numa chamada",
+   "paragraphs": [
+    "find_files e o filtro include do search_text agora expandem alternativas entre chaves num caminho, incluindo grupos aninhados, junto com alternativas `|`. Um padrão como `*.{ts,tsx}` vira uma única chamada sobre uma única varredura de diretório em vez de várias, e nenhum esquema de provedor mudou para isso."
+   ],
+   "points": [
+    {
+     "id": "brace-expansion",
+     "title": "Padrões agrupados expandem nativamente",
+     "text": "Um padrão como `*.{ts,tsx}` ia ao sistema de arquivos como texto literal e não casava com nada. Alternativas de chaves — incluídos grupos aninhados — e alternativas `|` expandem agora nativamente, no motor, antes da caminhada começar."
+    },
+    {
+     "id": "one-call-search",
+     "title": "Uma chamada, uma caminhada",
+     "text": "Buscar um padrão agrupado era uma chamada por alternativa, cada uma andando a mesma árvore outra vez. find_files e o filtro include de search_text buscam um padrão agrupado numa única chamada sobre uma única caminhada."
+    },
+    {
+     "id": "no-declaration-change",
+     "title": "Nada mais precisou mudar",
+     "text": "Uma mudança tão funda podia tocar declarações de ferramentas ou o formato do banco de dados. Não tocou: a expansão acontece no motor, nenhuma declaração de provedor mudou, e nenhum formato de banco se moveu."
+    }
+   ],
+   "sections": [],
+   "summary": "Padrões de caminho agrupados"
+  }
+ }
 }

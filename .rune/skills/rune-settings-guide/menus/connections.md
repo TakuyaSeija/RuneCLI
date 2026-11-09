@@ -2,7 +2,7 @@
 
 Use Connections to manage accounts, endpoint addresses and API keys. It does not choose the model or web provider used for a request.
 
-The list combines model and web accounts. Keys shows a count. State describes credential availability; Configured, Keyless or Resting does not by itself mean a live request succeeded. Serves lists enabled uses such as Models, Search and Fetch.
+The list combines model and web accounts. Keys shows a count. State describes credential availability; Configured or Keyless does not by itself mean a live request succeeded. Serves lists enabled uses such as Models, Search and Fetch.
 
 ## Add or edit an account
 - Add connection → model provider: its form is shown first, marked NOT CONNECTED YET, with the cursor on what it still needs (the address for a provider without one of its own, else the API key); Enter opens a field, and Enter in the API key connects. Rune tests a new model account before accepting it. Esc or Cancel in the form or any of its fields leaves the addition with nothing saved. A connection name already in use is refused.

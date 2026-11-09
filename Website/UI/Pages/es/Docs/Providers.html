@@ -83,7 +83,7 @@
 <p>La dirección local de un perfil predefinido es un valor por defecto, no una prueba de que el servicio esté ejecutándose en tu equipo. Inicia primero el servicio; la solicitud de prueba de Rune te indicará si responde.</p>
 
 <h2 id="keys">Claves y cuentas</h2>
-<p>Una conexión puede almacenar varias claves. <code>rune -provider keys &lt;name&gt;</code> las enumera de forma oculta, y Connections permite gestionarlas sin mostrar sus valores. Cuando una clave devuelve un error de saldo insuficiente, Rune la deja en reposo durante 15 minutos y pasa a usar otra clave si la conexión dispone de ella; consulta <a href="{{url "docs/runtime"}}">Tiempo de ejecución y reintentos</a>.</p>
+<p>Una conexión puede almacenar varias claves. <code>rune -provider keys &lt;name&gt;</code> las enumera de forma oculta, y Connections permite gestionarlas sin mostrar sus valores. Cuando una clave devuelve un error de saldo insuficiente o agota su cupo, Rune cede el turno al instante a la siguiente clave del anillo; consulta <a href="{{url "docs/runtime"}}">Tiempo de ejecución y reintentos</a>.</p>
 <p>Eliminar una conexión borra su configuración, pero sus claves pueden permanecer en el almacén cifrado para reutilizarse; elimina la clave explícitamente cuando esa sea tu intención. Una clave nunca viaja por HTTP sin cifrar hacia otra máquina.</p>
 
 <h2 id="choose-a-model">Elegir un modelo</h2>

@@ -1691,6 +1691,13 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                 finished.explain_terminal_recovery(st, &call.name);
                 call::report(rt, st, &call.id, &finished)?;
 
+                // The plan, handed back at the boundary between calls before
+                // the model drifts from it (owner, 2026-11-09). The row is a
+                // <system_notice> of its own; tool results stay pure.
+                if let Some(plan) = st.tasks.reminder_due(st.id, crate::store::now_ms())? {
+                    super::context::plan_reminder(rt, st, turn, &plan)?;
+                }
+
                 // The memory index was written: the next request checks it against
                 // its budget (`context::before_request`), whichever tool wrote it.
                 // A part of the context the model wrote itself is not news to it.

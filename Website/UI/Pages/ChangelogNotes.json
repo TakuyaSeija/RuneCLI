@@ -1,403 +1,836 @@
 {
-  "0.12.0": {
-    "title": "A retry that explains itself, a summary that resumes, and an install you can use at once",
-    "paragraphs": [
-      "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and custom endpoints explicitly select their wire format. Gateway vision support on OpenAI-compatible endpoints is recognized, zero-cost reports no longer freeze spend tracking, the installer runs directly in the current shell without editing profiles, and values that keep Rune itself running are constants rather than settings."
-    ],
-    "summary": "Retry, compaction & installer",
-    "sections": [
-      {
-        "id": "model-providers",
-        "title": "Model providers & vision",
-        "points": [
-          "The custom connection preset is renamed from `compatible` to `Custom provider`, and allows explicitly choosing the wire protocol: OpenAI-compatible (`/chat/completions` with Bearer token) or Anthropic-compatible (`/v1/messages` with `x-api-key`).",
-          "Endpoints that declare multimodal capabilities through `supported_parameters: [\"vision\"]` (such as DeepRelay, TokenHarbor, and custom OpenAI-compatible gateways) now have their vision support recognized in the model catalog instead of falsely reporting 'support is not published', allowing them to receive image attachments.",
-          "When an endpoint reports zero usage cost (such as plan-covered models on DeepRelay returning `usage.cost: 0`), configured model pricing in Settings is preserved rather than overwritten by zero, keeping spend tracking accurate across sessions."
-        ]
-      },
-      {
-        "id": "key-rotation",
-        "title": "Key rotation & resilience",
-        "points": [
-          "Retrying gives each key its own allowance (`retry.attempts_per_key`, ten by default) beside the whole call's budget (`retry.max_attempts`). A spent key hands over at once, and the ring wraps until the global allowance is gone.",
-          "The status line names the key and both counts, for example `Key A · attempt 3 of 10 · 21/100000`, and every key rotation records a line in the transcript.",
-          "Key rotation no longer uses a delayed cooldown (`retry.credit_cooldown` is retired in format 29); a spent key immediately yields to the next key without zero-wait rate-limit hammering, and newly added keys synchronize across concurrent windows without relaunching Rune.",
-          "Connection keys can be renamed directly in Settings (`Rename key`) without removing and re-entering their credentials."
-        ]
-      },
-      {
-        "id": "compaction",
-        "title": "Session compaction",
-        "points": [
-          "Compaction sends one full summary request first to preserve conversation context, falling back to the active model when its window is larger, and splits into batches only if the provider rejects the payload size.",
-          "Batched compaction reports live progress (`batch N · M sources left`), saves a resumable carry after every completed batch so cancelled work is preserved, and logs the cancellation initiator."
-        ]
-      },
-      {
-        "id": "tool-execution",
-        "title": "Tool execution & output",
-        "points": [
-          "Tool execution boxes are held back until arguments arrive rather than flashing an empty command box, and degenerate model text in tool action fields is filtered out so it never becomes the step's heading.",
-          "The requested output ceiling matches the tokens reserved by the context budget; if a provider rejects a request for exceeding its output limit (such as token-saving routers or DeepSeek endpoints), the ceiling is automatically lowered for subsequent requests across all roles.",
-          "A system notification displays its `<system_notification>` tag in the terminal UI to distinguish Rune's status from process data, task output is drawn under a clean `Task_Output` heading, and notification status rows no longer consume the 4-line output preview allowance."
-        ]
-      },
-      {
-        "id": "runtime-constants",
-        "title": "Runtime constants & configuration",
-        "points": [
-          "Thirty-three internal runtime constants (`FIXED`) are separated from user settings: `-config set` and `reset` refuse them, older values in `rune.toml` are ignored and cleaned during upgrade to format 30 without touching comments, and the settings reference drops from 116 to 83 actionable settings.",
-          "Diagnostic transparency: `-config check` reports any ignored legacy constants carried in `rune.toml`, and `-config explain` clearly identifies fixed runtime constants."
-        ]
-      },
-      {
-        "id": "installer",
-        "title": "Multi-platform installer",
-        "points": [
-          "One-step install and run in the active terminal: in bash, zsh, and POSIX shells, the installer adds its folder to the calling shell's PATH in sourced mode (`. <(curl ...)`), allowing `rune` to start in that same window without restarting the shell.",
-          "The binary is installed to `~/.local/bin/rune` (or `RUNE_INSTALL_DIR`); when that folder is not on PATH the installer links it into a folder already on PATH or prints the single export line that finishes the job — shell profiles are never edited. On Windows the active session's PATH and the user PATH in the registry are set.",
-          "The installer reports exactly what it changed and where it placed the binary, inspects existing shell configuration before suggesting setup lines, and displays a live download bar with size, transfer rate, and time remaining. Unified installer interface across platforms: identical ASCII branding, status steps, and Ready boxes on Linux, macOS, and Windows. Shell compatibility bug fixes: eliminated an EXIT trap return-code clobbering bug in zsh that generated false Ready reports, and removed non-interactive `set +m` calls that terminated posh shells."
-        ]
-      }
-    ]
-  },
-  "0.7.8": {
-    "title": "Linux on every distribution, and terminal fixes at the edges",
-    "paragraphs": [
-      "Rune stopped depending on one glibc baseline. A self-contained runtime loader lets the same build start on every major Linux distribution, and terminal and web-fetch behaviour was brought in line with what people actually run."
-    ],
+ "0.12.0": {
+  "title": "A retry that explains itself, a summary that resumes, and an install you can use at once",
+  "paragraphs": [
+   "A rate limit used to turn one request into a string of numbers nobody could read, and a summary of a long session could run for minutes before throwing its work away. Retrying now carries two separate allowances and names the key that is spending them, compaction asks for one summary first and keeps what it has already written, and custom endpoints explicitly select their wire format. Gateway vision support on OpenAI-compatible endpoints is recognized, zero-cost reports no longer freeze spend tracking, the installer runs directly in the current shell without editing profiles, and values that keep Rune itself running are constants rather than settings."
+  ],
+  "summary": "Retry, compaction & installer",
+  "sections": [
+   {
+    "id": "model-providers",
+    "title": "Model providers & vision",
     "points": [
-      "Self-contained runtime loader for every major Linux distribution.",
-      "tmux 256-colour palettes render correctly.",
-      "web_fetch handles session cookies automatically."
+     {
+      "id": "custom-provider",
+      "title": "Custom provider names its wire",
+      "text": "The custom connection preset is renamed from `compatible` to `Custom provider`, and allows explicitly choosing the wire protocol: OpenAI-compatible (`/chat/completions` with Bearer token) or Anthropic-compatible (`/v1/messages` with `x-api-key`)."
+     },
+     {
+      "id": "vision-declaration",
+      "title": "Vision declared in the catalogue",
+      "text": "Endpoints that declare multimodal capability the way OpenAI-compatible gateways do — `supported_parameters` naming `vision` (DeepRelay and others) — now have their vision support recognized in the model catalog instead of falsely reporting 'support is not published'. An endpoint that publishes nothing about its models stays honestly 'not published', and Alt+C › Modalities is where you declare it yourself (see below)."
+     },
+     {
+      "id": "zero-cost-pricing",
+      "title": "Zero-cost reporting keeps pricing",
+      "text": "When an endpoint reports zero usage cost (such as plan-covered models on DeepRelay returning `usage.cost: 0`), configured model pricing in Settings is preserved rather than overwritten by zero, keeping spend tracking accurate across sessions."
+     },
+     {
+      "id": "model-modalities",
+      "title": "Modalities you can declare per model",
+      "text": "A gateway whose /models says nothing about its models could never receive an image: Rune refused every attachment with 'support is not published' because nobody had published anything. Alt+C (Settings › Models › Modalities) now lets you declare a model's inputs — text, image, audio, video, file — with what the catalogue publishes filling it where it exists and your declaration standing where it does not. A declared modality is marked yours, so a catalogue refresh never takes it back, and a kind outside the shared vocabulary is refused."
+     },
+     {
+      "id": "reasoning-editor-evidence",
+      "title": "Alt+C opens on the evidence",
+      "text": "The reasoning editor opened with only Off pre-ticked for a model the catalogue says thinks, and confirming it unchanged wrote that Off down as your choice — which is why thinking had to be enabled model by model. The editor now opens on the published evidence: the levels the catalogue lists are pre-ticked, and what a new session would start with is what the editor shows. An untouched Enter writes nothing — the evidence stays the default — and only a real change is stored as yours. The xAI catalogue shape (`capabilities.reasoning_effort`, `capabilities.default_reasoning_effort`) is read alongside the OpenRouter one."
+     }
     ]
-  },
-  "0.8.0": {
-    "title": "Twenty model presets and one dialect normalisation",
-    "paragraphs": [
-      "The provider catalogue grew to twenty calibrated model profiles, with room for a local endpoint of your own. Behind them sits one normalisation layer, so an OpenAI, Anthropic or compatible gateway endpoint is described the same way."
-    ],
+   },
+   {
+    "id": "key-rotation",
+    "title": "Key rotation & resilience",
     "points": [
-      "Twenty calibrated model presets, plus custom local endpoints.",
-      "API dialect normalisation shared by OpenAI, Anthropic and compatible gateways."
+     {
+      "id": "per-key-allowance",
+      "title": "Each key gets its own allowance",
+      "text": "Retrying gives each key its own allowance (`retry.attempts_per_key`, ten by default) beside the whole call's budget (`retry.max_attempts`). A spent key hands over at once, and the ring wraps until the global allowance is gone."
+     },
+     {
+      "id": "status-names-key",
+      "title": "The status line names the key",
+      "text": "The status line names the key and both counts, for example `Key A · attempt 3 of 10 · 21/100000`, and every key rotation records a line in the transcript."
+     },
+     {
+      "id": "no-cooldown",
+      "title": "A spent key hands over at once",
+      "text": "Key rotation no longer uses a delayed cooldown (`retry.credit_cooldown` is retired in format 29); a spent key immediately yields to the next key without zero-wait rate-limit hammering, and newly added keys synchronize across concurrent windows without relaunching Rune."
+     },
+     {
+      "id": "rename-keys",
+      "title": "Keys rename without re-entering",
+      "text": "Connection keys can be renamed directly in Settings (`Rename key`) without removing and re-entering their credentials."
+     }
     ]
-  },
-  "0.8.1": {
-    "title": "The session picker points at the right row",
-    "paragraphs": [
-      "Two navigation faults are gone: the caret in the session picker was off by one row, and keyboard navigation could stop short while browsing earlier prompts and sessions."
-    ],
+   },
+   {
+    "id": "compaction",
+    "title": "Session compaction",
     "points": [
-      "Session picker caret uses 1-based indexing; no off-by-one row highlight.",
-      "Keyboard navigation no longer short-circuits while browsing prompt and session archives."
+     {
+      "id": "one-summary-first",
+      "title": "One summary before batching",
+      "text": "Compaction sends one full summary request first to preserve conversation context, falling back to the active model when its window is larger, and splits into batches only if the provider rejects the payload size."
+     },
+     {
+      "id": "resumable-batches",
+      "title": "Batches you can resume",
+      "text": "Batched compaction reports live progress (`batch N · M sources left`), saves a resumable carry after every completed batch so cancelled work is preserved, and logs the cancellation initiator."
+     }
     ]
-  },
-  "0.8.9": {
-    "title": "Compaction keeps architecture, admission keeps its order",
-    "paragraphs": [
-      "Older history is now cleared without losing the facts a session is built on, and the admission queue holds its chronological order even when several terminal windows act at once."
-    ],
+   },
+   {
+    "id": "tool-execution",
+    "title": "Tool execution & output",
     "points": [
-      "Context compaction preserves essential architecture facts while clearing expired history.",
-      "Session admission queue and its ordering hold up against concurrent terminal windows."
+     {
+      "id": "no-empty-boxes",
+      "title": "No empty box before the arguments",
+      "text": "Tool execution boxes are held back until arguments arrive rather than flashing an empty command box, and degenerate model text in tool action fields is filtered out so it never becomes the step's heading."
+     },
+     {
+      "id": "output-ceiling-reserved",
+      "title": "The ceiling matches what was reserved",
+      "text": "The requested output ceiling matches the tokens reserved by the context budget; if a provider rejects a request for exceeding its output limit (such as token-saving routers or DeepSeek endpoints), the ceiling is automatically lowered for subsequent requests across all roles."
+     },
+     {
+      "id": "notification-tag",
+      "title": "A notification shows its tag",
+      "text": "A system notification displays its `<system_notification>` tag in the terminal UI to distinguish Rune's status from process data, task output is drawn under a clean `Task_Output` heading, and notification status rows no longer consume the 4-line output preview allowance."
+     }
     ]
-  },
-  "0.9.0": {
-    "title": "A submitted prompt is acknowledged at once",
-    "paragraphs": [
-      "Admission no longer leaves a person waiting in silence. A prompt is acknowledged immediately, before the engine begins the heavy work of the turn, and a session survives a daemon or host restart through its immutable event journal."
-    ],
+   },
+   {
+    "id": "session-view",
+    "title": "Session view & files",
     "points": [
-      "Session admission acknowledges a submitted prompt before the engine turn starts.",
-      "Session resumption across daemon and host restarts, backed by immutable event records."
+     {
+      "id": "file-change-stable",
+      "title": "A touched file stays listed in every mode",
+      "text": "The FILES CHANGED panel was filtered by the permission mode in force: a file written while full access was on vanished from the list in ask mode and reappeared back in full. The panel is a fact, not a permission. A file the session touched stays listed in every mode now — reported from the engine's own recorded tally while its path is unreachable, and the exact diff returns the moment the path is reachable again. Its diff view says so in words instead of failing, and putting the file back is still refused outside the reach it needs."
+     }
     ]
-  },
-  "0.9.1": {
-    "title": "Launch intent from the task, and thinking you can set",
-    "paragraphs": [
-      "Whether a command runs in the foreground or in the background is now a planning decision made from the task's own dependencies rather than from a tool name. The same release made a model's thinking settings reachable: off, or a low effort level, through the gateway."
-    ],
+   },
+   {
+    "id": "plan-reminders",
+    "title": "Plan reminders",
     "points": [
-      "Contextual execution planning derives tool launch intent from task dependencies.",
-      "Reasoning controls switch thinking off or select a low effort level via model gateways."
+     {
+      "id": "plan-reminder",
+      "title": "The plan comes back between calls",
+      "text": "A long turn could drift from the plan that started it: the plan was written once, and nothing brought it back. At the boundary between tool calls Rune now hands the agent its plan again as a system notice — after a number of calls (`plan.reminder_tools`, eight by default) or after elapsed time (`plan.reminder_seconds`, fifteen minutes by default), whichever comes first. The reminder asks for a check, not a ritual: update the plan with track_tasks when the path has moved on from it, carry on and ignore it when it still matches. Both settings live in rune.toml and turn off at zero; rewriting the plan restarts both clocks."
+     }
     ]
-  },
-  "0.9.2": {
-    "title": "Mouse selection behaves like a terminal",
-    "paragraphs": [
-      "Selecting text with the mouse and copying it now follows the terminal's own conventions, including clearing a selection, with the caret keeping stable coordinates and no stray chrome on screen."
-    ],
+   },
+   {
+    "id": "runtime-constants",
+    "title": "Runtime constants & configuration",
     "points": [
-      "Mouse selection, copy and clear follow standard terminal behaviour.",
-      "Caret coordinates and visual boundaries stay stable without terminal chrome artefacts."
+     {
+      "id": "fixed-constants",
+      "title": "Thirty-three constants leave the settings",
+      "text": "Thirty-three internal runtime constants (`FIXED`) are separated from user settings: `-config set` and `reset` refuse them, older values in `rune.toml` are ignored and cleaned during upgrade to format 30 without touching comments, and the settings reference drops from 116 to 85 actionable settings."
+     },
+     {
+      "id": "diagnostics-explain",
+      "title": "Diagnostics name what is fixed",
+      "text": "Diagnostic transparency: `-config check` reports any ignored legacy constants carried in `rune.toml`, and `-config explain` clearly identifies fixed runtime constants."
+     }
     ]
-  },
-  "0.9.3": {
-    "title": "A manual script, and references you can open",
-    "paragraphs": [
-      "An explicit `!` runs a whole multiline script through the permission gate with full access for that call, and a link or file reference in a command's output can be inspected and opened in the browser only when you ask for it."
-    ],
+   },
+   {
+    "id": "installer",
+    "title": "Multi-platform installer",
     "points": [
-      "`!` runs entire multiline scripts through the permission gate with full access for that call.",
-      "Terminal links and file references can be inspected and opened on request."
+     {
+      "id": "sourced-path",
+      "title": "Install and run in the same window",
+      "text": "One-step install and run in the active terminal: in bash, zsh, and POSIX shells, the installer adds its folder to the calling shell's PATH in sourced mode (`. <(curl ...)`), allowing `rune` to start in that same window without restarting the shell."
+     },
+     {
+      "id": "install-path-promise",
+      "title": "The install-path promise kept",
+      "text": "The binary is installed to `~/.local/bin/rune` (or `RUNE_INSTALL_DIR`); when that folder is not on PATH the installer links it into a folder already on PATH or prints the single export line that finishes the job — shell profiles are never edited. On Windows the active session's PATH and the user PATH in the registry are set."
+     },
+     {
+      "id": "installer-report",
+      "title": "An installer that reports and shows",
+      "text": "The installer reports exactly what it changed and where it placed the binary, inspects existing shell configuration before suggesting setup lines, and displays a live download bar with size, transfer rate, and time remaining. Unified installer interface across platforms: identical ASCII branding, status steps, and Ready boxes on Linux, macOS, and Windows. Shell compatibility bug fixes: eliminated an EXIT trap return-code clobbering bug in zsh that generated false Ready reports, and removed non-interactive `set +m` calls that terminated posh shells."
+     }
     ]
-  },
-  "0.9.4": {
-    "title": "The preview shows the whole script",
-    "paragraphs": [
-      "Before a manual `!` script is confirmed you see all of its lines, not a shortened first line. The script also keeps the conversation context and working directory that preceded it."
-    ],
-    "points": [
-      "Multiline shell script previews show the complete command before confirmation.",
-      "Manual `!` commands keep preceding context and the active working directory."
-    ]
-  },
-  "0.9.5": {
-    "title": "Background output has somewhere to go",
-    "paragraphs": [
-      "A process that runs and waits now streams its standard output and error into its own log files, and the engine recognises an interactive prompt on Linux PTY sessions instead of letting it look like silence."
-    ],
-    "points": [
-      "Running and waiting processes stream stdout and stderr to dedicated log files.",
-      "Input-wait detection recognises interactive prompts in Linux PTY sessions."
-    ]
-  },
-  "0.9.6": {
-    "title": "The composer previews while you type",
-    "paragraphs": [
-      "The first line of a prompt is shown in the composer as you type it, and cursor placement and soft wrapping were corrected for both wide and narrow terminals."
-    ],
-    "points": [
-      "Real-time prompt streaming shows the first preview line in the composer.",
-      "Cursor positioning and soft-wrap rendering corrected on wide and narrow viewports."
-    ]
-  },
-  "0.9.7": {
+   }
+  ]
+ },
+ "0.7.8": {
+  "title": "Linux on every distribution, and terminal fixes at the edges",
+  "paragraphs": [
+   "Rune stopped depending on one glibc baseline. A self-contained runtime loader lets the same build start on every major Linux distribution, and terminal and web-fetch behaviour was brought in line with what people actually run."
+  ],
+  "points": [
+   {
+    "id": "runtime-loader",
+    "title": "One build for every Linux distribution",
+    "text": "Until now a Rune build depended on the glibc version of the machine that built it, so a binary could refuse to start on a different distribution. A self-contained runtime loader ships the pieces the system may lack, and the same build now starts on every major Linux distribution without a per-distro rebuild."
+   },
+   {
+    "id": "tmux-palette",
+    "title": "Correct colours inside tmux",
+    "text": "Inside tmux the 256-colour palette was read at the wrong offset, so text came out in neighbouring colours. The palette is now indexed the way tmux reports it, and syntax highlighting inside a tmux pane renders in the exact colours the UI chose."
+   },
+   {
+    "id": "web-fetch-cookies",
+    "title": "Session cookies carried by web_fetch",
+    "text": "Pages that gate their content behind a session cookie answered a fetch with a login screen instead of the page. web_fetch now keeps the session cookies a response hands it and sends them on the follow-up requests of the same fetch, so a page that needs a session reads like any other page."
+   }
+  ],
+  "summary": "One build for every Linux"
+ },
+ "0.8.0": {
+  "title": "Twenty model presets and one dialect normalisation",
+  "paragraphs": [
+   "The provider catalogue grew to twenty calibrated model profiles, with room for a local endpoint of your own. Behind them sits one normalisation layer, so an OpenAI, Anthropic or compatible gateway endpoint is described the same way."
+  ],
+  "points": [
+   {
+    "id": "model-presets",
+    "title": "Twenty calibrated model presets",
+    "text": "The provider catalogue carried a handful of profiles and left the rest to hand tuning. Twenty calibrated presets cover the providers people actually run, each with its known context window, output ceiling and thinking controls, and a custom entry accepts a local endpoint of your own beside them."
+   },
+   {
+    "id": "dialect-normalisation",
+    "title": "One normalisation for every API dialect",
+    "text": "An OpenAI endpoint, an Anthropic endpoint and a compatible gateway each spoke a slightly different dialect, and every tool layer had to know which one it was talking to. One normalisation layer now describes them the same way upstream, so adding a provider no longer teaches the rest of the code a new vocabulary."
+   }
+  ],
+  "summary": "Twenty presets, one dialect"
+ },
+ "0.8.1": {
+  "title": "The session picker points at the right row",
+  "paragraphs": [
+   "Two navigation faults are gone: the caret in the session picker was off by one row, and keyboard navigation could stop short while browsing earlier prompts and sessions."
+  ],
+  "points": [
+   {
+    "id": "picker-caret",
+    "title": "Session picker highlights the right row",
+    "text": "The session picker computed the highlighted row with zero-based indexing while the list is drawn one-based, so the caret sat one row away from the session it named. The indexing now matches the drawing, and the highlight lands on the row the cursor means."
+   },
+   {
+    "id": "archive-navigation",
+    "title": "Browsing archives reaches every page",
+    "text": "Keyboard navigation through earlier prompts and sessions stopped at a page boundary instead of stepping into the next page, making the oldest entries unreachable by keyboard. The walk continues across pages now, and every archived entry is reachable without the mouse."
+   }
+  ],
+  "summary": "Session picker fixes"
+ },
+ "0.8.9": {
+  "title": "Compaction keeps architecture, admission keeps its order",
+  "paragraphs": [
+   "Older history is now cleared without losing the facts a session is built on, and the admission queue holds its chronological order even when several terminal windows act at once."
+  ],
+  "points": [
+   {
+    "id": "compaction-architecture",
+    "title": "Compaction keeps the facts a session stands on",
+    "text": "Clearing expired history also cleared the architecture facts the session reasons with, leaving the model to guess the shape of the code it had already mapped. Compaction now preserves those facts while the expired detail goes, so an old session still knows what it is working on."
+   },
+   {
+    "id": "admission-order",
+    "title": "Admission holds its order under many windows",
+    "text": "Several terminal windows admitting work at once could reorder the queue, so a prompt submitted later could start before an earlier one. The admission queue keeps chronological order under concurrency, and prompts start in the order they were submitted."
+   }
+  ],
+  "summary": "Compaction & admission order"
+ },
+ "0.9.0": {
+  "title": "A submitted prompt is acknowledged at once",
+  "paragraphs": [
+   "Admission no longer leaves a person waiting in silence. A prompt is acknowledged immediately, before the engine begins the heavy work of the turn, and a session survives a daemon or host restart through its immutable event journal."
+  ],
+  "points": [
+   {
+    "id": "prompt-ack",
+    "title": "A submitted prompt is answered at once",
+    "text": "Submitting a prompt left the window silent until the engine finished its setup, which read as a hang. The prompt is now acknowledged the moment it is admitted, before the heavy work of the turn begins, and the window shows what is happening in between."
+   },
+   {
+    "id": "journal-resume",
+    "title": "A session survives a restart",
+    "text": "A daemon or host restart used to end a session for good. The session's history lives in an immutable event journal now, and resumption replays exactly what was recorded, so a restart costs nothing but the restart itself."
+   }
+  ],
+  "summary": "Prompt ack & journal resume"
+ },
+ "0.9.1": {
+  "title": "Launch intent from the task, and thinking you can set",
+  "paragraphs": [
+   "Whether a command runs in the foreground or in the background is now a planning decision made from the task's own dependencies rather than from a tool name. The same release made a model's thinking settings reachable: off, or a low effort level, through the gateway."
+  ],
+  "points": [
+   {
+    "id": "launch-intent",
+    "title": "Foreground or background is a planning decision",
+    "text": "Whether a command ran in the foreground or the background was decided by which tool the model picked, not by what the task needed. Launch intent is now derived from the task's own dependencies — a call whose result is needed next stays foreground; work that can proceed without the answer goes to the background at once."
+   },
+   {
+    "id": "thinking-controls",
+    "title": "Thinking you can set, through the gateway",
+    "text": "A model's thinking could not be steered: it ran at the gateway's default or not at all. Reasoning controls now switch thinking off or select a low effort level through the gateway, and the session keeps the choice until you change it."
+   }
+  ],
+  "summary": "Launch intent & thinking"
+ },
+ "0.9.2": {
+  "title": "Mouse selection behaves like a terminal",
+  "paragraphs": [
+   "Selecting text with the mouse and copying it now follows the terminal's own conventions, including clearing a selection, with the caret keeping stable coordinates and no stray chrome on screen."
+  ],
+  "points": [
+   {
+    "id": "mouse-selection",
+    "title": "Mouse selection follows terminal rules",
+    "text": "Selecting with the mouse behaved like a text field instead of a terminal: the selection did not clear the way a terminal clears it, and copy picked up boundaries you had not chosen. Selection, copy and clear now follow the terminal's own conventions."
+   },
+   {
+    "id": "caret-stability",
+    "title": "A caret that stays where it is put",
+    "text": "Selection could drag the caret off its coordinates and leave stray chrome on screen. The caret keeps stable coordinates and the screen holds no artefacts, in the same frame and the same place you left it."
+   }
+  ],
+  "summary": "Terminal-like mouse selection"
+ },
+ "0.9.3": {
+  "title": "A manual script, and references you can open",
+  "paragraphs": [
+   "An explicit `!` runs a whole multiline script through the permission gate with full access for that call, and a link or file reference in a command's output can be inspected and opened in the browser only when you ask for it."
+  ],
+  "points": [
+   {
+    "id": "manual-scripts",
+    "title": "One `!` runs the whole script",
+    "text": "A manual `!` ran one line, so a multi-step shell sequence had to be confirmed line by line. An explicit `!` now runs the entire multiline script through the permission gate, with full access for that one call, and the classifier and sanitizer are skipped for it by design — the screen says so before it runs."
+   },
+   {
+    "id": "reference-opening",
+    "title": "References open only when you ask",
+    "text": "A link or file reference printed in a command's output was plain text, or worse, opened on a click you did not mean. Clicking a reference now shows its whole destination first; an HTTP(S) link opens in the browser only on an explicit Open or Enter, and file references stay copy-only."
+   }
+  ],
+  "summary": "Manual scripts & links"
+ },
+ "0.9.4": {
+  "title": "The preview shows the whole script",
+  "paragraphs": [
+   "Before a manual `!` script is confirmed you see all of its lines, not a shortened first line. The script also keeps the conversation context and working directory that preceded it."
+  ],
+  "points": [
+   {
+    "id": "script-preview",
+    "title": "The preview shows every line",
+    "text": "Before a manual script was confirmed you saw one shortened line, so what you approved was not what you ran. The preview now shows all of the script's lines exactly as they will execute."
+   },
+   {
+    "id": "context-and-cwd",
+    "title": "Manual commands keep their context",
+    "text": "A manual `!` ran detached from the conversation and the directory you were working in. It now keeps the preceding context and the active working directory, so a quick command lands where you are and the AI reads the same session you see."
+   }
+  ],
+  "summary": "Whole-script preview"
+ },
+ "0.9.5": {
+  "title": "Background output has somewhere to go",
+  "paragraphs": [
+   "A process that runs and waits now streams its standard output and error into its own log files, and the engine recognises an interactive prompt on Linux PTY sessions instead of letting it look like silence."
+  ],
+  "points": [
+   {
+    "id": "output-logs",
+    "title": "Background output lands in its own log",
+    "text": "A process that ran and waited produced output nobody could read later — it vanished with the terminal. Running and waiting processes now stream stdout and stderr into dedicated log files, and the log path is named where the output is asked for."
+   },
+   {
+    "id": "input-wait",
+    "title": "An interactive prompt is recognised, not silence",
+    "text": "On Linux PTY sessions an interactive prompt looked like silence: the process was fine and waiting for you, and the engine could not tell. Typed-input waits are detected now, reported as a fact, and `process_control` is how you answer them."
+   }
+  ],
+  "summary": "Background logs & input waits"
+ },
+ "0.9.6": {
+  "title": "The composer previews while you type",
+  "paragraphs": [
+   "The first line of a prompt is shown in the composer as you type it, and cursor placement and soft wrapping were corrected for both wide and narrow terminals."
+  ],
+  "points": [
+   {
+    "id": "composer-preview",
+    "title": "The composer shows the first line as you type",
+    "text": "The composer gave no hint of a long prompt until it was sent. The first preview line is now streamed into the composer while you type, so a long instruction is visibly what you think it is before Enter."
+   },
+   {
+    "id": "cursor-wrap",
+    "title": "Correct cursors on wide and narrow screens",
+    "text": "Cursor placement and soft wrapping went wrong at both ends of the width range — a wide terminal placed the cursor short of the text, a narrow one wrapped past the edge. Both are corrected, and editing feels the same at any width."
+   }
+  ],
+  "summary": "Composer live preview"
+ },
+ "0.9.7": {
+  "title": "Newlines are drawn, not jumped over",
+  "paragraphs": [
+   "A multiline composer now writes an explicit newline indicator instead of letting raw line breaks move the terminal, and pasting a multiline shell command into the editor stays responsive."
+  ],
+  "points": [
+   {
+    "id": "newline-preview",
     "title": "Newlines are drawn, not jumped over",
-    "paragraphs": [
-      "A multiline composer now writes an explicit newline indicator instead of letting raw line breaks move the terminal, and pasting a multiline shell command into the editor stays responsive."
-    ],
-    "points": [
-      "Multiline composer shows explicit newline indicators rather than raw line breaks.",
-      "Better editing responsiveness when pasting multiline shell commands."
-    ]
-  },
-  "0.9.8": {
+    "text": "A multiline composer let raw line breaks move the terminal cursor, so earlier lines scrolled away while typing. The composer now writes an explicit newline indicator (↵) where a line ends, and what you wrote stays where you wrote it."
+   },
+   {
+    "id": "paste-responsiveness",
+    "title": "Pasting stays responsive",
+    "text": "Pasting a multiline shell command stalled the editor while it was measured and redrawn. Pasting is responsive now, and the pasted block is previewed whole before it is submitted."
+   }
+  ],
+  "summary": "Newline indicators"
+ },
+ "0.9.8": {
+  "title": "Unknown stays unknown in the context count",
+  "paragraphs": [
+   "A byte count nobody verified is now treated as unknown rather than converted into a guessed model capacity, and the engine's background guidance explains why a shell polling loop costs tokens and how to wait for a notification instead."
+  ],
+  "points": [
+   {
+    "id": "context-truth",
     "title": "Unknown stays unknown in the context count",
-    "paragraphs": [
-      "A byte count nobody verified is now treated as unknown rather than converted into a guessed model capacity, and the engine's background guidance explains why a shell polling loop costs tokens and how to wait for a notification instead."
-    ],
-    "points": [
-      "Strict context accounting treats unverified byte counts as unknown, never as a guess.",
-      "Background guidance explains why polling loops waste tokens and how to wait instead."
-    ]
-  },
-  "0.9.9": {
-    "title": "One owner per instruction, and a footer that keeps its promises",
-    "paragraphs": [
-      "Each system instruction block now has a single owner, so two sources can no longer contradict each other. The terminal footer keeps an armed Esc cancellation, a retry countdown and a permission confirmation visible while they matter."
-    ],
-    "points": [
-      "Single ownership per system instruction block, removing contradictory guidance.",
-      "Footer preserves armed Esc cancellation, retry countdowns and permission confirmations."
-    ]
-  },
-  "0.10.0": {
-    "title": "A live update notice stays where you can see it",
-    "paragraphs": [
-      "When a new build is handed over while you work, the notice stays pinned in the active session view instead of disappearing with a redraw, and the whole test gate began running on real Linux, macOS and Windows machines."
-    ],
-    "points": [
-      "Live update notices stay pinned and visible in the active session view.",
-      "Cross-platform gate validated on Linux, macOS (Apple silicon and Intel) and Windows."
-    ]
-  },
-  "0.10.1": {
-    "title": "Official help can never be shadowed",
-    "paragraphs": [
-      "The official help skill now installs somewhere a person's own skills can neither shadow nor overwrite it. Old upgrade directories are trimmed automatically so they stop filling the disk."
-    ],
-    "points": [
-      "Official help skill installation is isolated from user skills.",
-      "Automatic pruning of old upgrade directories preserves local disk space."
-    ]
-  },
-  "0.10.3": {
-    "title": "Terminal output says what the program said",
-    "paragraphs": [
-      "Echoed shell input is separated from what the program actually printed, so a copied result holds only the program's output, and a tool's action sentence keeps its description while it streams so the call stays auditable."
-    ],
-    "points": [
-      "Terminal output separates echoed shell input from the program's own stdout.",
-      "Tool action sentences keep explicit descriptions for auditing during streaming."
-    ]
-  },
-  "0.10.4": {
-    "title": "Errors keep their own words, and repeats are counted",
-    "paragraphs": [
-      "`/logs` shows a provider's original error text beside the engine's turn status instead of paraphrasing it, and the same call made again and again is noticed before it burns the request budget."
-    ],
-    "points": [
-      "`/logs` keeps the original provider error text alongside the turn status.",
-      "Identical consecutive tool calls are tracked and flagged before the budget runs out."
-    ]
-  },
-  "0.10.5": {
-    "title": "Waiting is not the same as looping",
-    "paragraphs": [
-      "The loop guard now tells waiting for a process notification apart from repeating a command that keeps failing, and a tool failure arrives with the recovery step that fits its category."
-    ],
-    "points": [
-      "Loop guard distinguishes waiting for a notification from repeated command failures.",
-      "Error diagnostics carry immediate recovery advice for each failure category."
-    ]
-  },
-  "0.10.6": {
-    "title": "Tool results are data, warnings are notices",
-    "paragraphs": [
-      "A tool result now carries nothing but its own data; a repetition warning travels as a system notice instead, on a widening cadence, and it tells you what to do: stop polling a background task, or change the approach."
-    ],
-    "points": [
-      "Tool results stay pure data; repetition notices arrive as system notices on Cadence B.",
-      "Loop warnings carry actionable guidance instead of only naming the repeat."
-    ]
-  },
-  "0.10.7": {
-    "title": "The output ceiling comes from the provider",
-    "paragraphs": [
-      "A gateway's output ceiling is now read from the provider's own `max_tokens` rather than from a low thinking budget, which had been cutting long answers short. Completions of more than ten thousand tokens now finish normally."
-    ],
-    "points": [
-      "Output ceiling aligned with provider `max_tokens`, not the thinking budget.",
-      "Streaming completions up to 10,712 tokens verified without premature cutoff."
-    ]
-  },
-  "0.10.9": {
-    "title": "Memory, aliases and cookies",
-    "paragraphs": [
-      "The project memory prompt now says plainly what memory is for and that it is kept across sessions. Tool arguments accept the aliases people actually type, a wrong path gets the nearest candidate, and web fetch carries session cookies through redirects by itself."
-    ],
-    "points": [
-      "Project memory prompt states long-term retention across sessions.",
-      "Tool arguments accept common aliases, clamp action text and suggest the nearest path.",
-      "web_fetch handles session cookies across redirects without manual headers."
-    ]
-  },
-  "0.10.10": {
-    "title": "Fewer pointless polls, clearer file errors",
-    "paragraphs": [
-      "The system prompt now explains what a background task depends on, so the model stops polling work that already runs. File tools answer a bad path with the nearest candidate and refuse a stale patch with guidance instead of a bare failure."
-    ],
-    "points": [
-      "System prompt clarifies background execution dependencies to avoid redundant polling.",
-      "File tool errors carry nearest-path suggestions and stale-patch guidance."
-    ]
-  },
-  "0.11.0": {
+    "text": "A byte count nobody verified was converted into a guessed model capacity, and the meter measured a number nobody had measured. Strict context accounting treats unverified counts as unknown — the meter shows no bar rather than an authoritative-looking one that measures nothing."
+   },
+   {
+    "id": "background-guidance",
+    "title": "Guidance that explains why polling costs",
+    "text": "The model polled shell work that was already backgrounded, spending requests to learn nothing. The engine's background guidance now explains why a polling loop costs tokens and that the notification carries the answer, so the model waits for it instead."
+   }
+  ],
+  "summary": "Honest context counts"
+ },
+ "0.9.9": {
+  "title": "One owner per instruction, and a footer that keeps its promises",
+  "paragraphs": [
+   "Each system instruction block now has a single owner, so two sources can no longer contradict each other. The terminal footer keeps an armed Esc cancellation, a retry countdown and a permission confirmation visible while they matter."
+  ],
+  "points": [
+   {
+    "id": "instruction-ownership",
+    "title": "One owner per instruction block",
+    "text": "Two sources could own the same system instruction block and contradict each other mid-session, and the model followed whichever arrived last. Each block now has a single owner, and guidance no longer flips between versions of itself."
+   },
+   {
+    "id": "footer-promises",
+    "title": "A footer that keeps its promises",
+    "text": "The footer could drop an armed Esc cancellation, a running retry countdown or a permission confirmation while they still mattered, leaving a state the screen denied. The footer keeps those visible for as long as they are armed, in every window."
+   }
+  ],
+  "summary": "Instruction ownership & footer"
+ },
+ "0.10.0": {
+  "title": "A live update notice stays where you can see it",
+  "paragraphs": [
+   "When a new build is handed over while you work, the notice stays pinned in the active session view instead of disappearing with a redraw, and the whole test gate began running on real Linux, macOS and Windows machines."
+  ],
+  "points": [
+   {
+    "id": "update-notice",
+    "title": "The update notice stays pinned",
+    "text": "A new build handed over mid-session announced itself and vanished with the next redraw, so the notice had to be caught in the act. It now stays pinned in the active session view until you act on it."
+   },
+   {
+    "id": "cross-platform-gate",
+    "title": "The gate runs on real machines",
+    "text": "macOS and Windows were type-checked but never exercised. The whole test gate now runs on real Linux, macOS (Apple silicon and Intel) and Windows machines, so a platform regression is caught before a release, not after an install."
+   }
+  ],
+  "summary": "Pinned update notice"
+ },
+ "0.10.1": {
+  "title": "Official help can never be shadowed",
+  "paragraphs": [
+   "The official help skill now installs somewhere a person's own skills can neither shadow nor overwrite it. Old upgrade directories are trimmed automatically so they stop filling the disk."
+  ],
+  "points": [
+   {
+    "id": "help-isolation",
+    "title": "Official help cannot be shadowed",
+    "text": "The official help skill installed in the same space as personal skills, so a skill of your own with the same name silently replaced it. It now installs where a personal skill can neither shadow nor overwrite it, and install and update refuse a package that tries to take its name."
+   },
+   {
+    "id": "upgrade-pruning",
+    "title": "Old upgrade directories are trimmed",
+    "text": "Every upgrade left its directory behind, and the disk filled up one format at a time. Old upgrade directories are pruned automatically once no running process holds them, and the current revision is never removed."
+   }
+  ],
+  "summary": "Help isolation & pruning"
+ },
+ "0.10.3": {
+  "title": "Terminal output says what the program said",
+  "paragraphs": [
+   "Echoed shell input is separated from what the program actually printed, so a copied result holds only the program's output, and a tool's action sentence keeps its description while it streams so the call stays auditable."
+  ],
+  "points": [
+   {
+    "id": "echo-separation",
+    "title": "What the program said, not what you typed",
+    "text": "Echoed shell input and the program's real output landed in one stream, so a copied result carried your own command back with it. The echo is separated now, and a copied result holds only what the program printed."
+   },
+   {
+    "id": "action-descriptions",
+    "title": "Action sentences stay auditable while streaming",
+    "text": "A tool's action sentence could lose its description while the call streamed, leaving a step you could not audit afterwards. The description is kept for the whole stream, and every step reads as what it did."
+   }
+  ],
+  "summary": "Clean terminal output"
+ },
+ "0.10.4": {
+  "title": "Errors keep their own words, and repeats are counted",
+  "paragraphs": [
+   "`/logs` shows a provider's original error text beside the engine's turn status instead of paraphrasing it, and the same call made again and again is noticed before it burns the request budget."
+  ],
+  "points": [
+   {
+    "id": "logs-original-errors",
+    "title": "`/logs` keeps the provider's own words",
+    "text": "`/logs` paraphrased a provider's error before showing it, so the words you pasted into a search or a bug report were Rune's, not the provider's. The original error text now sits beside the engine's turn status, unchanged."
+   },
+   {
+    "id": "repeat-tracking",
+    "title": "Repeats are counted before they cost",
+    "text": "The same call made again and again went unnoticed until the request budget showed it. Consecutive identical calls are tracked now and flagged before the budget runs out, with the count named in the notice."
+   }
+  ],
+  "summary": "Original errors, repeat counts"
+ },
+ "0.10.5": {
+  "title": "Waiting is not the same as looping",
+  "paragraphs": [
+   "The loop guard now tells waiting for a process notification apart from repeating a command that keeps failing, and a tool failure arrives with the recovery step that fits its category."
+  ],
+  "points": [
+   {
+    "id": "wait-vs-loop",
+    "title": "Waiting is not looping",
+    "text": "The loop guard treated waiting for a background notification like repeating a failing command, and scolded the model for waiting correctly. The two are told apart now: a wait for a notification is answered by the notification, and only a true repeat is warned."
+   },
+   {
+    "id": "recovery-advice",
+    "title": "Recovery advice in every failure",
+    "text": "A tool failure arrived as a bare error, and the model had to invent the recovery step. Diagnostics now carry the recovery advice that fits the failure's category, so the next call tries the right thing instead of the same one."
+   }
+  ],
+  "summary": "Wait vs loop, recovery advice"
+ },
+ "0.10.6": {
+  "title": "Tool results are data, warnings are notices",
+  "paragraphs": [
+   "A tool result now carries nothing but its own data; a repetition warning travels as a system notice instead, on a widening cadence, and it tells you what to do: stop polling a background task, or change the approach."
+  ],
+  "points": [
+   {
+    "id": "pure-results",
+    "title": "Tool results carry only their data",
+    "text": "A repetition warning was stitched into the tool result, so the model read advice inside what should have been the command's own output. Tool results are pure data now; warnings travel as `<system_notice>` rows on a widening cadence, where they belong."
+   },
+   {
+    "id": "actionable-warnings",
+    "title": "A warning that says what to do",
+    "text": "A loop warning named the repeat and stopped there. It now carries the step that fits: stop polling a background task and await its notification, or change the approach and try something else."
+   }
+  ],
+  "summary": "Pure results, notices"
+ },
+ "0.10.7": {
+  "title": "The output ceiling comes from the provider",
+  "paragraphs": [
+   "A gateway's output ceiling is now read from the provider's own `max_tokens` rather than from a low thinking budget, which had been cutting long answers short. Completions of more than ten thousand tokens now finish normally."
+  ],
+  "points": [
+   {
+    "id": "output-ceiling",
+    "title": "The ceiling comes from the provider",
+    "text": "A gateway's output ceiling was taken from a low thinking budget, and long answers were cut short at a size the provider never imposed. The ceiling is read from the provider's own `max_tokens` now, and answers run to the length the endpoint allows."
+   },
+   {
+    "id": "long-completions",
+    "title": "Long completions finish",
+    "text": "Completions were measured failing at 8,188 tokens. With the right ceiling, verified completions of more than ten thousand tokens finish normally instead of ending mid-sentence."
+   }
+  ],
+  "summary": "Provider output ceiling"
+ },
+ "0.10.9": {
+  "title": "Memory, aliases and cookies",
+  "paragraphs": [
+   "The project memory prompt now says plainly what memory is for and that it is kept across sessions. Tool arguments accept the aliases people actually type, a wrong path gets the nearest candidate, and web fetch carries session cookies through redirects by itself."
+  ],
+  "points": [
+   {
+    "id": "memory-prompt",
+    "title": "Memory says what it is for",
+    "text": "The memory prompt never said that notes survive the session, so the model wrote summaries instead of experience. It now states plainly what memory is for and that it is kept across sessions, and a note earns its place by recording a cause."
+   },
+   {
+    "id": "argument-aliases",
+    "title": "Arguments accept what people type",
+    "text": "Tool arguments refused the aliases people actually type (`rm` for `remove`, `del` for `delete`), and a wrong path came back as a bare failure. Aliases are accepted now, a wrong path names the nearest candidate, and `action` text is clamped to its bound."
+   },
+   {
+    "id": "fetch-cookies",
+    "title": "Cookies follow the redirect",
+    "text": "A fetch that crossed a redirect lost its session cookies, and the page behind the redirect answered with a login. web_fetch carries session cookies across redirects by itself, with no manual headers."
+   }
+  ],
+  "summary": "Memory, aliases, cookies"
+ },
+ "0.10.10": {
+  "title": "Fewer pointless polls, clearer file errors",
+  "paragraphs": [
+   "The system prompt now explains what a background task depends on, so the model stops polling work that already runs. File tools answer a bad path with the nearest candidate and refuse a stale patch with guidance instead of a bare failure."
+  ],
+  "points": [
+   {
+    "id": "background-dependencies",
+    "title": "The prompt explains what a background task depends on",
+    "text": "The system prompt never said what a backgrounded task depends on, so the model polled work that was already running and paid requests to learn nothing. The prompt now explains the dependency, and pointless polls stopped."
+   },
+   {
+    "id": "file-error-guidance",
+    "title": "File errors that point somewhere useful",
+    "text": "A bad path failed with the path echoed back, and a stale patch failed with nothing but the failure. File tools now answer with the nearest candidate that exists, and a stale patch explains what to re-read instead of refusing silently."
+   }
+  ],
+  "summary": "Fewer polls, clearer errors"
+ },
+ "0.11.0": {
+  "title": "No empty header over a blank response",
+  "paragraphs": [
+   "A streamed response that began with whitespace or blank lines used to draw an empty `Response` header. The header is now drawn only when there is text, and the bytes themselves still pass through untouched, with no regex and no lossy stripping."
+  ],
+  "points": [
+   {
+    "id": "no-empty-header",
     "title": "No empty header over a blank response",
-    "paragraphs": [
-      "A streamed response that began with whitespace or blank lines used to draw an empty `Response` header. The header is now drawn only when there is text, and the bytes themselves still pass through untouched, with no regex and no lossy stripping."
-    ],
-    "points": [
-      "Empty response headers are gone when a response begins with whitespace or blank lines.",
-      "Flow transparency and exact byte fidelity kept; no regex or lossy stripping."
-    ]
-  },
-  "0.11.1": {
-    "title": "A repeated answer is stopped while it streams",
-    "paragraphs": [
-      "The engine now recognises a response that repeats one short unit over and over and stops it as it arrives, with no ceiling on token length. You are then asked, in the form you already know, whether to keep the text written before the repeat or discard the message."
-    ],
-    "points": [
-      "Engine-level repetition guard halts a repeating loop at 4 KiB, or 16 KiB for whitespace.",
-      "The clarification form keeps preceding prose or discards the corrupted output.",
-      "Normal streaming speed preserved, with no arbitrary token limit and no false positives on minified data."
-    ]
-  },
-  "0.11.2": {
-    "title": "Gaps that no longer hang",
-    "paragraphs": [
-      "An intermediate response left dangling empty lines behind it, which pushed the next tool call down the screen. The trailing blank lines are trimmed and the spine between tool calls is now one consistent distance."
-    ],
-    "points": [
-      "Dangling empty lines removed from intermediate responses in the renderer.",
-      "Vertical spacing between consecutive tool calls made uniform."
-    ]
-  },
-  "0.11.3": {
+    "text": "A streamed response that began with whitespace or blank lines drew a `Response` header over nothing, and the screen showed a heading with no body. The header is drawn only when there is text beneath it."
+   },
+   {
+    "id": "byte-fidelity",
+    "title": "The bytes pass through untouched",
+    "text": "The fix could have stripped or rewritten the stream, and a lossy strip would have changed what the model actually said. Nothing is rewritten: no regex, no lossy stripping, and the exact bytes a response carried still reach the screen."
+   }
+  ],
+  "summary": "No empty response header"
+ },
+ "0.11.1": {
+  "title": "A repeated answer is stopped while it streams",
+  "paragraphs": [
+   "The engine now recognises a response that repeats one short unit over and over and stops it as it arrives, with no ceiling on token length. You are then asked, in the form you already know, whether to keep the text written before the repeat or discard the message."
+  ],
+  "points": [
+   {
+    "id": "repetition-guard",
+    "title": "A repeated answer stops while it streams",
+    "text": "A model that repeats one short unit forever used to stream until the request died of its own size. The engine recognises the repeat — one exact unit of 1–64 bytes, at least 4 KiB and 16 repeats, or 16 KiB for whitespace-only units — and stops it as it arrives, with no ceiling on token length."
+   },
+   {
+    "id": "keep-or-discard",
+    "title": "Keep what was written, or discard",
+    "text": "A stopped response left the question of what to keep unanswered on screen. The clarification form you already know asks whether to keep the text written before the repeat or discard the message; unanswered keeps it, and only an explicit Discard throws it away."
+   },
+   {
+    "id": "no-false-positives",
+    "title": "Real data is never mistaken for a loop",
+    "text": "Minified lines, base64 data URIs, hashes, table separators and Markdown rules all look like repetition to a naive counter. The byte rule reads structure, and none of those is stopped; normal streaming speed is unchanged."
+   }
+  ],
+  "summary": "Repetition guard"
+ },
+ "0.11.2": {
+  "title": "Gaps that no longer hang",
+  "paragraphs": [
+   "An intermediate response left dangling empty lines behind it, which pushed the next tool call down the screen. The trailing blank lines are trimmed and the spine between tool calls is now one consistent distance."
+  ],
+  "points": [
+   {
+    "id": "no-dangling-gaps",
+    "title": "Intermediate responses leave no gap",
+    "text": "An intermediate response left dangling empty lines after it, and every gap pushed the next tool call further down the screen. The trailing blank lines are trimmed at the renderer, and the space after an intermediate response is none."
+   },
+   {
+    "id": "uniform-spacing",
+    "title": "One consistent spine between calls",
+    "text": "The distance between one tool call and the next depended on what the response before it happened to end with. The spine is one consistent distance now, and a transcript of many calls reads evenly instead of drifting apart."
+   }
+  ],
+  "summary": "No dangling gaps"
+ },
+ "0.11.3": {
+  "title": "One tool for background processes",
+  "paragraphs": [
+   "Background work is managed by one `process_control` tool with a `type` and a `stop` action. Two legacy tools are gone, so there is one place to look and no ambiguous choice of parameters, and a format-28 upgrade carries older session records over."
+  ],
+  "points": [
+   {
+    "id": "one-background-tool",
     "title": "One tool for background processes",
-    "paragraphs": [
-      "Background work is managed by one `process_control` tool with a `type` and a `stop` action. Two legacy tools are gone, so there is one place to look and no ambiguous choice of parameters, and a format-28 upgrade carries older session records over."
-    ],
-    "points": [
-      "`process_control` unifies background management with `type` and `stop` actions.",
-      "`terminal_input` and `kill_task` removed, ending parameter ambiguity.",
-      "Format 28 upgrade moves older session records to the unified tool smoothly."
-    ]
-  },
-  "0.11.4": {
-    "title": "A notification that carries its own output",
-    "paragraphs": [
-      "A background task's end now arrives as one self-contained notification: how it ended, its process id, and the output you had not been given yet, defused and bounded. It replaces the extra wake-up roundtrip that used to fetch those details, and a stop now reaches the whole process tree."
-    ],
-    "points": [
-      "Notifications deliver defused process output in the event payload itself.",
-      "Metadata, exit code and recent lines travel in one packet, removing an auxiliary wake call.",
-      "Cleanup routines terminate the whole process tree without orphans."
-    ]
-  },
-  "0.11.5": {
-    "title": "First start, and Windows path patterns",
-    "paragraphs": [
-      "Two faults found on real machines are fixed: on a first start the official help skill checked itself while the session was being created, and on Windows a path pattern ending in a dot or a space was not handled. The smoke suite also checks a clean-environment start on each platform."
-    ],
-    "points": [
-      "First-start race between help-skill verification and session creation resolved.",
-      "Windows path patterns ending in a trailing dot or whitespace handled.",
-      "Smoke suite verifies clean-environment startup on POSIX and Windows."
-    ]
-  },
-  "0.11.6": {
-    "title": "What a manual script may do, said plainly",
-    "paragraphs": [
-      "The manual shell screen now explains the execution boundary of an `!` command in words: what access it has, and that the classifier and sanitizer are bypassed for that one call. The wording matches what happens on POSIX shells and on Windows ConPTY."
-    ],
-    "points": [
-      "Manual shell screen explains elevation and privilege boundaries of `!` commands.",
-      "Sanitizer and classifier bypass semantics clarified for POSIX and Windows ConPTY."
-    ]
-  },
-  "0.11.7": {
-    "title": "A thought is not split by the text that follows",
-    "paragraphs": [
-      "Reasoning could arrive interleaved with the answer, so a sentence of thinking was cut in half by the first words of the reply. Reasoning deltas are now evaluated before text deltas, and the fragments of one round are coalesced, keeping a clean boundary before the final text."
-    ],
-    "points": [
-      "Reasoning deltas evaluated strictly before text deltas, ending split thoughts.",
-      "Intermediate thought fragments coalesced per turn round.",
-      "Multi-hop handover child sessions are acknowledged before the parent host releases."
-    ]
-  },
-  "0.11.8": {
-    "title": "Switching mode mid-stream no longer redraws the footer",
-    "paragraphs": [
-      "Changing permission mode while a response streams used to recalculate priorities and reflow the footer for no reason. A status notice you are reading now survives the switch, and the promises the footer makes stay intact in every window."
-    ],
-    "points": [
-      "Changing permission mode during streaming no longer triggers false priority recalculations or footer reflows.",
-      "Active status notices are preserved during mid-stream mode switching.",
-      "Esc cancellation, linear retries and confirmation dialogs keep their priority in every window."
-    ]
-  },
-  "0.11.9": {
-    "title": "Grouped path patterns, searched in one call",
-    "paragraphs": [
-      "find_files and the include filter of search_text now expand brace alternatives in a path, including nested groups, alongside `|` alternatives. A pattern like `*.{ts,tsx}` is one call over one directory walk rather than several, and no provider declaration changed to make that possible."
-    ],
-    "points": [
-      "Brace alternatives such as `*.{ts,tsx}`, nested groups and `|` alternatives expand natively.",
-      "find_files and search_text's include filter search a grouped pattern in one call.",
-      "Expansion happens in the engine: no tool declaration and no database format changed."
-    ]
-  }
+    "text": "Background work was managed by two tools with overlapping arguments, and choosing between them was a guess. One `process_control` tool with a `type` and a `stop` action does both now, and there is one place to look."
+   },
+   {
+    "id": "legacy-tools-removed",
+    "title": "The ambiguous pair is gone",
+    "text": "`terminal_input` and `kill_task` remained declared beside the new tool, so the model could pick the legacy path and half the parameters made no sense there. They are removed, and the ambiguity with them."
+   },
+   {
+    "id": "format-28-upgrade",
+    "title": "Older sessions carry over",
+    "text": "Sessions recorded under the old tools had to survive the change. A format-28 upgrade step moves older session records to the unified tool once, and a damaged record never fails the step."
+   }
+  ],
+  "summary": "One background tool"
+ },
+ "0.11.4": {
+  "title": "A notification that carries its own output",
+  "paragraphs": [
+   "A background task's end now arrives as one self-contained notification: how it ended, its process id, and the output you had not been given yet, defused and bounded. It replaces the extra wake-up roundtrip that used to fetch those details, and a stop now reaches the whole process tree."
+  ],
+  "points": [
+   {
+    "id": "self-contained-notifications",
+    "title": "A notification carries its own output",
+    "text": "A background task's end announced itself and made the model ask again for the output, one wake-up roundtrip per task. The notification now carries the output you had not been given yet — defused and bounded — inside the event itself."
+   },
+   {
+    "id": "one-packet-metadata",
+    "title": "Everything arrives in one packet",
+    "text": "How the task ended, its exit code and its recent lines travelled in separate answers. Metadata, exit code and recent lines arrive in one packet now, and the auxiliary wake call is gone."
+   },
+   {
+    "id": "tree-termination",
+    "title": "A stop reaches the whole tree",
+    "text": "Stopping a task killed the process you named and left its children running. The stop now terminates the whole process tree, and nothing it started survives it."
+   }
+  ],
+  "summary": "Notifications carry output"
+ },
+ "0.11.5": {
+  "title": "First start, and Windows path patterns",
+  "paragraphs": [
+   "Two faults found on real machines are fixed: on a first start the official help skill checked itself while the session was being created, and on Windows a path pattern ending in a dot or a space was not handled. The smoke suite also checks a clean-environment start on each platform."
+  ],
+  "points": [
+   {
+    "id": "first-start-race",
+    "title": "First start no longer races itself",
+    "text": "On a first start the official help skill verified itself while the session was still being created, and the two collided. The verification waits for the session to exist now, and a first start is a clean start."
+   },
+   {
+    "id": "windows-path-patterns",
+    "title": "Windows paths ending in dot or space",
+    "text": "On Windows a path pattern ending in a dot or a space was mishandled, and files whose names end so could not be matched. The patterns are handled, and those files are found like any other."
+   },
+   {
+    "id": "clean-start-smoke",
+    "title": "The smoke suite starts clean",
+    "text": "The smoke suite tested upgrades but never a first start on a bare machine. A clean-environment start is checked on POSIX and Windows now, and a release cannot ship without proving it."
+   }
+  ],
+  "summary": "First start & Windows paths"
+ },
+ "0.11.6": {
+  "title": "What a manual script may do, said plainly",
+  "paragraphs": [
+   "The manual shell screen now explains the execution boundary of an `!` command in words: what access it has, and that the classifier and sanitizer are bypassed for that one call. The wording matches what happens on POSIX shells and on Windows ConPTY."
+  ],
+  "points": [
+   {
+    "id": "manual-boundary-words",
+    "title": "What a manual script may do, in words",
+    "text": "The manual shell screen ran an `!` command without saying what access it carried, so the boundary was something you had to already know. The screen now explains the execution boundary in words: full access for that call, on the record."
+   },
+   {
+    "id": "bypass-semantics",
+    "title": "The bypass is said, not discovered",
+    "text": "The classifier and sanitizer are bypassed for one manual call — by design — and nothing on screen admitted it. The wording now says exactly that, and it matches what happens on POSIX shells and on Windows ConPTY alike."
+   }
+  ],
+  "summary": "Manual boundary in words"
+ },
+ "0.11.7": {
+  "title": "A thought is not split by the text that follows",
+  "paragraphs": [
+   "Reasoning could arrive interleaved with the answer, so a sentence of thinking was cut in half by the first words of the reply. Reasoning deltas are now evaluated before text deltas, and the fragments of one round are coalesced, keeping a clean boundary before the final text."
+  ],
+  "points": [
+   {
+    "id": "reasoning-before-text",
+    "title": "A thought is not split by the reply",
+    "text": "Reasoning deltas and text deltas arrived interleaved, so the first words of an answer cut a sentence of thinking in half. Reasoning is evaluated strictly before text now, and a thought reads whole before the reply begins."
+   },
+   {
+    "id": "round-coalescing",
+    "title": "Thought fragments join their round",
+    "text": "The fragments of one thinking round arrived as separate blocks, each with its own header on screen. Fragments are coalesced per round, and one round of thinking is one block."
+   },
+   {
+    "id": "handover-ack",
+    "title": "A child session is acknowledged before release",
+    "text": "A multi-hop handover released the parent host before the child session had acknowledged its new records, and a crash in between lost the handover. The child acknowledges first now, and the parent releases only after."
+   }
+  ],
+  "summary": "Thinking stays whole"
+ },
+ "0.11.8": {
+  "title": "Switching mode mid-stream no longer redraws the footer",
+  "paragraphs": [
+   "Changing permission mode while a response streams used to recalculate priorities and reflow the footer for no reason. A status notice you are reading now survives the switch, and the promises the footer makes stay intact in every window."
+  ],
+  "points": [
+   {
+    "id": "no-midstream-reflow",
+    "title": "Mode switching stops reflowing the footer",
+    "text": "Changing permission mode while a response streamed recalculated priorities and reflowed the footer columns for no reason, and the screen jumped under the text you were reading. The switch no longer triggers a reflow, and the stream stays where it was."
+   },
+   {
+    "id": "notice-survival",
+    "title": "A status notice survives the switch",
+    "text": "A status notice you were reading could be wiped by the mode switch itself. Active notices are preserved through mid-stream switching now, and what you were told stays told."
+   },
+   {
+    "id": "priority-promises",
+    "title": "The footer's promises hold in every window",
+    "text": "Esc cancellation, linear retries and confirmation dialogs could lose their priority in one window while another held them. Those promises keep their priority in every window now, and no window falls behind."
+   }
+  ],
+  "summary": "Footer stable mid-stream"
+ },
+ "0.11.9": {
+  "title": "Grouped path patterns, searched in one call",
+  "paragraphs": [
+   "find_files and the include filter of search_text now expand brace alternatives in a path, including nested groups, alongside `|` alternatives. A pattern like `*.{ts,tsx}` is one call over one directory walk rather than several, and no provider declaration changed to make that possible."
+  ],
+  "points": [
+   {
+    "id": "brace-expansion",
+    "title": "Grouped patterns expand natively",
+    "text": "A pattern like `*.{ts,tsx}` was handed to the filesystem as literal text and matched nothing. Brace alternatives — including nested groups — and `|` alternatives expand natively now, in the engine, before the walk begins."
+   },
+   {
+    "id": "one-call-search",
+    "title": "One call, one walk",
+    "text": "Searching a grouped pattern meant one call per alternative, each walking the same tree again. find_files and the include filter of search_text search a grouped pattern in one call over one walk now."
+   },
+   {
+    "id": "no-declaration-change",
+    "title": "Nothing else had to change",
+    "text": "A change this deep could have touched tool declarations or the database format. It did not: expansion happens in the engine, no provider declaration changed, and no database format moved."
+   }
+  ],
+  "summary": "Grouped path patterns"
+ }
 }

@@ -8,7 +8,7 @@ Ctrl+F returns to search. Arrows move between panes/results; Home/End and PageUp
 ## Other actions
 | Action | Use and consequence |
 | --- | --- |
-| Alt+C on a model | Open persistent model configuration: context/output capability, reasoning options and pricing. |
+| Alt+C on a model | Open persistent model configuration: context/output capability, reasoning options, input modalities and pricing. |
 | T on a result | Send a real model test. It can cost money; ask before testing. |
 | Enter model ID… | Add/select an exact custom model ID. This alone does not prove it works. Unknown limits stay unknown. |
 | Refresh catalog | Update available models and published information. Does not switch the active session. Makes a network request. |

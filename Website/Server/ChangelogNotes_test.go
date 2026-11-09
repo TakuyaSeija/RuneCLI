@@ -27,7 +27,7 @@ func TestChangelogSpeaksThePageLanguageAndAdmitsAMissingRecord(t *testing.T) {
 			t.Fatalf("the changelog does not show 0.11.7's paragraph")
 		}
 	}
-	if len(note.Points) == 0 || !strings.Contains(english, note.Points[0]) {
+	if len(note.Points) == 0 || !strings.Contains(english, note.Points[0].Text) {
 		t.Fatalf("the changelog does not show 0.11.7's detail lines")
 	}
 	if !strings.Contains(english, "was not recorded") {
@@ -82,16 +82,24 @@ func TestEveryChangelogEntryIsLayered(t *testing.T) {
 			}
 		}
 	}
-	// The page must render all three layers, in the reader's own language.
+	// The page must render every layer, in the reader's own language: a
+	// title, the paragraph, and each recorded point as its own anchored
+	// heading with its text beneath it (owner, 2026-11-09).
 	for _, code := range []string{"", "id", "fr"} {
 		path := "/Studio/changelog"
 		if code != "" {
 			path = "/Studio/" + code + "/changelog"
 		}
 		body := get(t, h, "GET", path).Body.String()
-		for _, want := range []string{"release-note-title", "release-note-body", "release-notes"} {
+		for _, want := range []string{"release-note-title", "release-note-body", "release-points", "note-point", "release-point-body"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s changelog does not render %s", path, want)
+			}
+		}
+		n := englishNotes["0.11.9"]
+		for _, p := range n.Points {
+			if !strings.Contains(body, `data-anchor="pt-`+p.ID+`"`) {
+				t.Errorf("%s changelog does not anchor point %q", path, p.ID)
 			}
 		}
 	}
@@ -118,8 +126,16 @@ func TestChangelogReadsInSectionsWithAnHonestSidebar(t *testing.T) {
 			t.Errorf("section %q is not rendered as a chapter", s.ID)
 		}
 	}
-	if !strings.Contains(body, `id="sec-model-providers"`) || !strings.Contains(body, `href="#sec-model-providers"`) {
+	if !strings.Contains(body, `id="sec-model-providers"`) {
 		t.Errorf("the contents do not reach the rendered chapters")
+	}
+	// On this page lists the points directly, without chapter or documentation titles (owner, 2026-11-09).
+	for _, s := range note.Sections {
+		for _, p := range s.Points {
+			if !strings.Contains(body, `class="toc-point"`) || !strings.Contains(body, `href="#pt-`+p.ID+`"`) {
+				t.Errorf("the contents do not list point %q", p.ID)
+			}
+		}
 	}
 	if !strings.Contains(body, `class="history-sum"`) || !strings.Contains(body, html.EscapeString(note.Summary)) {
 		t.Errorf("the sidebar does not name the version's fix in a few words")

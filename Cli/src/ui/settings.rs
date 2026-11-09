@@ -336,6 +336,13 @@ pub enum Field {
         provider: String,
         model: String,
     },
+    /// The inputs the person vouches this model may be shown, published or
+    /// not: a gateway whose /models says nothing about its models is the
+    /// person's to settle (owner, 2026-11-09).
+    ModelModalities {
+        provider: String,
+        model: String,
+    },
     /// Where a model connection is reached.
     BaseUrl(String),
     /// Where a service connection is reached for one service (search's
@@ -404,6 +411,7 @@ impl Editor {
         match &self.field {
             Field::Global(k) => k.ends_with(".excluded_tools") || k.ends_with(".context_tools"),
             Field::ModelReasoning { .. } => self.choices.iter().any(|c| c != "off" && c != "on"),
+            Field::ModelModalities { .. } => true,
             _ => false,
         }
     }
@@ -1390,6 +1398,23 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
         .help(&router_off_hint(provider_api(app, provider), info.as_ref())
             .map(|(_, help)| format!("Configure reasoning support and effort levels for this model. {help}"))
             .unwrap_or_else(|| "Configure reasoning support and effort levels for this model".into())),
+        Row::new(
+            Kind::Edit(Field::ModelModalities {
+                provider: provider.into(),
+                model: model.into(),
+            }),
+            "Modalities",
+            info.as_ref().map(|m| {
+                let manual = m.manual_fields.iter().any(|f| f == "modalities");
+                let shown = if m.modalities.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    m.modalities.join(", ")
+                };
+                if manual { format!("{shown} · set by you") } else { shown }
+            }).unwrap_or_else(|| "Unknown".into()),
+        )
+        .help("Inputs this model may be shown: text, image, audio, video, file. What the endpoint publishes fills it; a gateway that says nothing is yours to declare."),
     ];
     for (key, label) in [
         ("cache_write", "Cache write price"),
@@ -4356,6 +4381,7 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
                 | Field::ModelBusyInput { .. }
                 | Field::ModelBusyOutput { .. }
                 | Field::ModelReasoning { .. }
+                | Field::ModelModalities { .. }
         ) | Kind::Sidebar
     ) && width >= 54
     {
@@ -4797,6 +4823,7 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
                 | Field::ModelBusyInput { .. }
                 | Field::ModelBusyOutput { .. }
                 | Field::ModelReasoning { .. }
+                | Field::ModelModalities { .. }
         );
         if !is_model_cfg && app.preferences.pending.is_some() {
             return true;
@@ -5725,6 +5752,65 @@ fn next_editor_id() -> u64 {
     NEXT_EDITOR_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
+/// The value the model reasoning editor opens on: what the person set, else
+/// what the evidence says — the levels the catalogue publishes, or what a new
+/// session would start with when only On/Off is offered. The save path reads
+/// the same function, so "submitted exactly as the evidence showed it" can be
+/// told apart from a real choice (owner, 2026-11-09: an untouched Enter never
+/// writes an Off the catalogue never stated).
+fn model_reasoning_default(
+    info: &runeengine::settings::providers::ModelInfo,
+    api: &str,
+) -> Option<String> {
+    let choices = info.reasoning_choices(api);
+    if choices.is_empty() {
+        return None;
+    }
+    Some(if choices.iter().any(|c| c != "off" && c != "on") {
+        info.reasoning_options
+            .clone()
+            .unwrap_or_else(|| {
+                if info.thinking_required {
+                    choices.clone()
+                } else {
+                    // The published levels fill the checklist; Off stays
+                    // available but is not pre-ticked, exactly as the
+                    // catalogue said it.
+                    choices
+                        .iter()
+                        .filter(|c| c.as_str() != "off")
+                        .cloned()
+                        .collect()
+                }
+            })
+            .into_iter()
+            .filter(|c| choices.contains(c))
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else if info.reasoning_options.is_none() {
+        if info.starts_thinking(api) {
+            "on".into()
+        } else {
+            "off".into()
+        }
+    } else if info.thinking_required || info.reasoning_enabled.unwrap_or(false) {
+        "on".into()
+    } else {
+        "off".into()
+    })
+}
+
+/// The value the model modalities editor opens on: what the endpoint
+/// published, else the text default. What the person stored is what the model
+/// carries — the editor shows it back.
+fn model_modalities_default(info: &runeengine::settings::providers::ModelInfo) -> String {
+    if info.modalities.is_empty() {
+        "text".into()
+    } else {
+        info.modalities.join(", ")
+    }
+}
+
 fn open_editor(app: &mut App, field: Field, row: &Row) {
     // No key can be added or removed while the store cannot be opened: say
     // why before anything is typed (owner, 2026-10-16).
@@ -5755,6 +5841,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             | Field::ModelBusyInput { .. }
             | Field::ModelBusyOutput { .. }
             | Field::ModelReasoning { .. }
+            | Field::ModelModalities { .. }
     );
     if !is_model_cfg && app.preferences.pending.is_some() {
         notice(
@@ -6052,7 +6139,8 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
                 notice(app, "Model metadata unavailable.", Tone::Error);
                 return;
             };
-            choices = m.reasoning_choices(provider_api(app, provider));
+            let api = provider_api(app, provider);
+            choices = m.reasoning_choices(api);
             if choices.is_empty() {
                 notice(
                     app,
@@ -6061,25 +6149,19 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
                 );
                 return;
             }
-            if choices.iter().any(|c| c != "off" && c != "on") {
-                m.reasoning_options
-                    .clone()
-                    .unwrap_or_else(|| {
-                        if m.thinking_required {
-                            choices.clone()
-                        } else {
-                            vec!["off".into()]
-                        }
-                    })
-                    .into_iter()
-                    .filter(|c| choices.contains(c))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            } else if m.thinking_required || m.reasoning_enabled.unwrap_or(false) {
-                "on".into()
-            } else {
-                "off".into()
-            }
+            model_reasoning_default(&m, api).unwrap_or_default()
+        }
+        Field::ModelModalities { provider, model } => {
+            clearable = false;
+            let Some(m) = app.lookup_model_info(provider, model) else {
+                notice(app, "Model metadata unavailable.", Tone::Error);
+                return;
+            };
+            choices = runeengine::settings::providers::INPUT_MODALITIES
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+            model_modalities_default(&m)
         }
     };
     let editor_id = next_editor_id();
@@ -6183,6 +6265,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             Field::ModelBusyInput { model, .. } => format!("{model} / Peak hours input price"),
             Field::ModelBusyOutput { model, .. } => format!("{model} / Peak hours output price"),
             Field::ModelReasoning { model, .. } => format!("{model} / Reasoning"),
+            Field::ModelModalities { model, .. } => format!("{model} / Modalities"),
             _ => row.label.clone(),
         },
         field,
@@ -6241,6 +6324,7 @@ fn save_editor(app: &mut App, d: &mut Driver) {
             | Field::ModelBusyInput { .. }
             | Field::ModelBusyOutput { .. }
             | Field::ModelReasoning { .. }
+            | Field::ModelModalities { .. }
     );
     if !is_model_cfg && app.preferences.pending.is_some() {
         return;
@@ -6910,6 +6994,10 @@ fn save_editor(app: &mut App, d: &mut Driver) {
         | Field::ModelReasoning {
             ref provider,
             ref model,
+        }
+        | Field::ModelModalities {
+            ref provider,
+            ref model,
         } => {
             let mut info = app.lookup_model_info(provider, model).unwrap_or_else(|| {
                 runeengine::settings::providers::ModelInfo {
@@ -7162,7 +7250,8 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                     }
                 }
                 Field::ModelReasoning { provider, .. } => {
-                    let choices = info.reasoning_choices(provider_api(app, provider));
+                    let api = provider_api(app, provider);
+                    let choices = info.reasoning_choices(api);
                     let selected: Vec<String> = text
                         .split(',')
                         .map(str::trim)
@@ -7177,12 +7266,55 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                         );
                         return;
                     }
+                    // Nothing the person stored, submitted exactly as the
+                    // evidence showed it: the evidence stays the default —
+                    // an untouched Enter never writes an Off the catalogue
+                    // never stated (owner, 2026-11-09).
+                    if info.reasoning_options.is_none()
+                        && text == model_reasoning_default(&info, api).unwrap_or_default()
+                    {
+                        app.preferences.editor = None;
+                        app.note("Kept as published.");
+                        return;
+                    }
                     // Never overwrite capability, mandatory vendor policy, or
                     // API effort list with the user's current On/Off selection.
                     info.reasoning_enabled = Some(selected.iter().any(|v| v != "off"));
                     info.reasoning_options = Some(selected.clone());
                     info.default_effort =
                         selected.iter().find(|v| *v != "off" && *v != "on").cloned();
+                }
+                Field::ModelModalities { .. } => {
+                    let selected: Vec<String> = text
+                        .split(',')
+                        .map(str::trim)
+                        .filter(|v| !v.is_empty())
+                        .map(String::from)
+                        .collect();
+                    let unknown: Vec<&String> = selected
+                        .iter()
+                        .filter(|v| {
+                            !runeengine::settings::providers::INPUT_MODALITIES.contains(&v.as_str())
+                        })
+                        .collect();
+                    if selected.is_empty() || !unknown.is_empty() {
+                        notice(
+                            app,
+                            &format!(
+                                "Choose at least one input kind: {}.",
+                                runeengine::settings::providers::INPUT_MODALITIES.join(", ")
+                            ),
+                            Tone::Error,
+                        );
+                        return;
+                    }
+                    // The person vouched for these inputs: they are marked
+                    // theirs, so a catalogue refresh never takes them back
+                    // (merge_catalogue keeps every manual_fields override).
+                    info.modalities = selected;
+                    if !info.manual_fields.iter().any(|f| f == "modalities") {
+                        info.manual_fields.push("modalities".into());
+                    }
                 }
                 _ => {}
             }
@@ -9953,23 +10085,18 @@ mod tests {
         assert!(app.preferences.editor.is_some());
         let ed = app.preferences.editor.as_ref().unwrap();
         assert_eq!(ed.choices, vec!["off", "low", "medium", "high"]);
-        assert_eq!(ed.cursor, 0);
+        // Published evidence fills the checklist: the catalogue's levels are
+        // pre-ticked, Off available but not ticked, and the cursor opens on the
+        // first published level (owner, 2026-11-09).
+        assert_eq!(ed.text, "low, medium, high");
+        assert_eq!(ed.cursor, 1);
         assert!(ed.is_multi_choice());
 
-        // Move to "high" (cursor 3)
-        app.on_key(Key::Down, &mut d);
-        app.on_key(Key::Down, &mut d);
-        app.on_key(Key::Down, &mut d);
-        assert_eq!(app.preferences.editor.as_ref().unwrap().cursor, 3);
-
+        // Untick low and medium: what remains is the person's choice.
         app.on_key(Key::Enter, &mut d);
-        assert!(app
-            .preferences
-            .editor
-            .as_ref()
-            .unwrap()
-            .text
-            .contains("high"));
+        app.on_key(Key::Down, &mut d);
+        app.on_key(Key::Enter, &mut d);
+        assert_eq!(app.preferences.editor.as_ref().unwrap().text, "high");
         assert!(
             app.preferences.editor.is_some(),
             "checklist Enter toggles, not save"
@@ -9984,6 +10111,125 @@ mod tests {
         // Verify row now shows "high"
         let r_after = rows(&app);
         assert!(r_after[effort_row_idx].value.contains("high"));
+
+        d.engine.shutdown();
+    }
+
+    /// Owner, 2026-11-09: an untouched Enter must not write an Off the
+    /// catalogue never stated. The editor opens on the published evidence and
+    /// confirming it unchanged keeps that evidence as the default — nothing is
+    /// sent, nothing is stored as the person's choice.
+    #[test]
+    fn an_untouched_reasoning_editor_keeps_the_evidence_instead_of_writing_off() {
+        let mut app = app();
+        let mut d = super::super::test_driver("model-config-effort-untouched");
+        app.providers = serde_json::json!({
+            "providers": [
+                {
+                    "name": "openrouter",
+                    "models": [
+                        {
+                            "id": "evidence-model",
+                            "thinking": true,
+                            "efforts": ["low", "high"],
+                            "default_effort": "low"
+                        }
+                    ]
+                }
+            ]
+        });
+        app.preferences.navigate(Page::ModelConfig {
+            provider: "openrouter".into(),
+            model: "evidence-model".into(),
+        });
+        settle(&mut app);
+
+        let r = rows(&app);
+        let row_idx = r
+            .iter()
+            .position(|r| matches!(r.kind, Kind::Edit(Field::ModelReasoning { .. })))
+            .expect("Reasoning row");
+        app.preferences.location.row = row_idx;
+        app.on_key(Key::Enter, &mut d);
+        assert!(app.preferences.editor.is_some());
+        // Confirm without touching anything.
+        app.on_key(Key::Tab, &mut d);
+        app.on_key(Key::Enter, &mut d);
+        assert!(app.preferences.editor.is_none(), "the editor closes");
+        assert!(
+            app.preferences.pending.is_none(),
+            "nothing is sent for an unchanged confirmation"
+        );
+        let after = app
+            .lookup_model_info("openrouter", "evidence-model")
+            .expect("model stays in the cache");
+        assert!(
+            after.reasoning_options.is_none(),
+            "no reasoning_options were written: {:?}",
+            after.reasoning_options
+        );
+        assert!(
+            !after.manual_fields.iter().any(|f| f == "efforts"),
+            "nothing was marked as the person's: {:?}",
+            after.manual_fields
+        );
+
+        d.engine.shutdown();
+    }
+
+    /// Owner, 2026-11-09: a gateway whose /models says nothing about its
+    /// models is the person's to settle. Alt+C › Modalities opens on the text
+    /// default, takes the person's declaration, marks it theirs, and the row
+    /// says so; a model the catalogue does describe opens on what it published.
+    #[test]
+    fn the_modalities_editor_declares_inputs_a_catalogue_never_published() {
+        let mut app = app();
+        let mut d = super::super::test_driver("model-config-modalities");
+        app.providers = serde_json::json!({
+            "providers": [
+                { "name": "TokenHarbor", "models": [ { "id": "glm-5.3-flash" } ] }
+            ]
+        });
+        app.preferences.navigate(Page::ModelConfig {
+            provider: "TokenHarbor".into(),
+            model: "glm-5.3-flash".into(),
+        });
+        settle(&mut app);
+
+        let r = rows(&app);
+        let row_idx = r
+            .iter()
+            .position(|r| matches!(r.kind, Kind::Edit(Field::ModelModalities { .. })))
+            .expect("Modalities row");
+        assert!(r[row_idx].value.contains("unknown"), "{}", r[row_idx].value);
+        app.preferences.location.row = row_idx;
+        app.on_key(Key::Enter, &mut d);
+        let ed = app.preferences.editor.as_ref().expect("the editor opens");
+        assert_eq!(ed.choices, vec!["text", "image", "audio", "video", "file"]);
+        assert_eq!(ed.text, "text");
+
+        // Tick image beside text and confirm.
+        app.on_key(Key::Down, &mut d);
+        app.on_key(Key::Enter, &mut d);
+        assert_eq!(app.preferences.editor.as_ref().unwrap().text, "text, image");
+        app.on_key(Key::Tab, &mut d);
+        app.on_key(Key::Enter, &mut d);
+        assert!(app.preferences.editor.is_none(), "saved and closed");
+        let after = app
+            .lookup_model_info("TokenHarbor", "glm-5.3-flash")
+            .expect("model stays in the cache");
+        assert_eq!(after.modalities, ["text", "image"]);
+        assert!(
+            after.manual_fields.iter().any(|f| f == "modalities"),
+            "the declaration is marked theirs: {:?}",
+            after.manual_fields
+        );
+        let r_after = rows(&app);
+        assert!(
+            r_after[row_idx].value.contains("set by you"),
+            "{}",
+            r_after[row_idx].value
+        );
 
         d.engine.shutdown();
     }

@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Nouvelles tentatives après le premier essai : jusqu’à six tentatives au total. Zéro désactive les nouvelles tentatives.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Pas de base : les attentes augmentent de 3, 6, 9… secondes.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>Si l’attente suivante dépasse ce plafond, la séquence repart au pas de base. Il ne s’agit pas d’un recul exponentiel (exponential backoff).</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>Durée pendant laquelle une clé à court de crédit reste au repos avant de redevenir éligible. Cela ne recharge pas le crédit.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>Combien de tentatives reçoit une clé avant que la clé suivante de son anneau soit utilisée — 10 tentatives par défaut. Une clé épuisée passe la main aussitôt, et l’anneau recommence une fois que chaque clé a dépensé son quota.</td></tr>
 </tbody></table></div>
 <p>Tous les échecs ne donnent pas lieu à une nouvelle tentative. Réessayer ne peut pas corriger un identifiant erroné, un réglage non pris en charge ni un mauvais point de terminaison. Un nombre très élevé de tentatives peut prolonger une panne et alourdir la facture ; consultez d’abord l’erreur classifiée dans les journaux.</p>
 <h2 id="network">Délais d’attente réseau</h2>

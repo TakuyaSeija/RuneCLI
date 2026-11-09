@@ -3382,6 +3382,7 @@ impl App {
                 at,
                 ..
             } => {
+                self.set_retry_status(None);
                 self.busy = true;
                 let now = runeengine::store::now_ms();
                 // The engine's clock, so a window that joins late counts from
@@ -3521,6 +3522,7 @@ impl App {
                 at,
                 ..
             } => {
+                self.set_retry_status(None);
                 self.thinking_ended();
                 self.label = steps::label(&name).to_string();
                 match self.tool_by_id(&id) {

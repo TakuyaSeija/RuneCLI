@@ -33,7 +33,7 @@ GROUPS = [
     ("Terminal", "terminal", "docs/terminal", ["terminal"]),
     ("Background processes", "processes", "docs/terminal", ["process_control"]),
     ("Files and search", "files", "docs/tools", ["inspect_file", "find_files", "search_text", "scan"]),
-    ("Tool calls, plans and questions", "tool-calls", "docs/tools", ["tools", "tasks", "questions", "permissions"]),
+    ("Tool calls, plans and questions", "tool-calls", "docs/tools", ["tools", "tasks", "plan", "questions", "permissions"]),
     ("Web search and fetch", "web", "docs/web", ["web_search", "web_fetch"]),
     ("Skills and MCP", "capabilities", "docs/mcp", ["skills", "capabilities", "discover_capabilities", "read_mcp_resource"]),
     ("Network, retries and session lifetime", "runtime", "docs/runtime", ["network", "retry", "host"]),

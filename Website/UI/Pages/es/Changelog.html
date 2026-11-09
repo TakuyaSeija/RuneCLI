@@ -55,18 +55,24 @@
           {{- if $r.Note.Sections}}
           {{- range $r.Note.Sections}}
           <h3 class="note-section" data-anchor="sec-{{.ID}}" id="{{if eq $i 0}}sec-{{.ID}}{{else}}sec-{{.ID}}-{{$r.Version}}{{end}}">{{.Title}}</h3>
-          <ul class="release-notes">
+          <div class="release-points">
             {{- range .Points}}
-            <li>{{.}}</li>
+            <div class="release-point">
+              <h4 class="note-point" data-anchor="pt-{{.ID}}" id="{{if eq $i 0}}pt-{{.ID}}{{else}}pt-{{.ID}}-{{$r.Version}}{{end}}">{{.Title}}</h4>
+              <p class="release-point-body">{{.Text}}</p>
+            </div>
             {{- end}}
-          </ul>
+          </div>
           {{- end}}
           {{- else if $r.Note.Points}}
-          <ul class="release-notes">
+          <div class="release-points">
             {{- range $r.Note.Points}}
-            <li>{{.}}</li>
+            <div class="release-point">
+              <h4 class="note-point" data-anchor="pt-{{.ID}}" id="{{if eq $i 0}}pt-{{.ID}}{{else}}pt-{{.ID}}-{{$r.Version}}{{end}}">{{.Title}}</h4>
+              <p class="release-point-body">{{.Text}}</p>
+            </div>
             {{- end}}
-          </ul>
+          </div>
           {{- end}}
           {{- else}}
           <p class="release-none">Los cambios de esta versión no fueron registrados. Se publica para que las versiones anteriores sigan siendo instalables por número.</p>
@@ -136,17 +142,22 @@
     <nav class="index" aria-label="En esta página">
       <p class="index-title">En esta página</p>
       <ol id="changelog-toc">
-        <li><a href="#changes">Cambios</a></li>
         {{- if .Releases}}
         {{- with index .Releases 0}}
         {{- with .Note}}
         {{- range .Sections}}
-        <li><a href="#sec-{{.ID}}">{{.Title}}</a></li>
+        {{- range .Points}}
+        <li class="toc-point"><a href="#pt-{{.ID}}">{{.Title}}</a></li>
+        {{- end}}
+        {{- end}}
+        {{- if .Points}}
+        {{- range .Points}}
+        <li class="toc-point"><a href="#pt-{{.ID}}">{{.Title}}</a></li>
         {{- end}}
         {{- end}}
         {{- end}}
         {{- end}}
-        <li><a href="#downloads">Descargas</a></li>
+        {{- end}}
       </ol>
     </nav>
   </aside>

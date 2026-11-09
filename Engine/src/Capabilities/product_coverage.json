@@ -482,6 +482,16 @@
    "default": 20,
    "kind": "Count(1,1000)"
   },
+  "plan.reminder_tools": {
+   "document": "tools/track-tasks.md",
+   "default": 8,
+   "kind": "Count(0,1000)"
+  },
+  "plan.reminder_seconds": {
+   "document": "tools/track-tasks.md",
+   "default": "15m",
+   "kind": "Duration"
+  },
   "storage.busy_timeout": {
    "document": "data/storage.md",
    "default": "5s",
@@ -822,6 +832,7 @@
    "ModelBusyInput",
    "ModelBusyOutput",
    "ModelReasoning",
+   "ModelModalities",
    "BaseUrl",
    "ServiceUrl",
    "ServiceRouteText",

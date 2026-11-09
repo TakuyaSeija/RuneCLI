@@ -46,6 +46,14 @@ pub enum Change {
     /// by hand): nothing to diff against or put back. Its counts are the write
     /// ledger's running tally, the only numbers left.
     Missing,
+    /// The session touched it, but the path is not reachable under the jail in
+    /// force right now — a file written while full access was on, listed again
+    /// in ask mode, say. Its current content cannot be read, so there is
+    /// nothing to diff against; its counts are the write ledger's running
+    /// tally, and the exact diff returns the moment the path is reachable
+    /// again. What the session did is a fact about the past; the mode decides
+    /// only what may be read and written now.
+    Unreachable,
 }
 
 /// One file's difference between a checkpoint and the working tree.
@@ -237,7 +245,17 @@ impl Checkpoints {
     /// change of it together, the session's and anyone else's.
     pub fn file_diff(&self, session: i64, path: &str, jail: &Jail) -> Result<FileDiff> {
         let (file, before) = self.first_state(session, path)?;
-        let after = self.current(&jail.resolve(&file.path)?)?;
+        let Ok(abs) = jail.resolve(&file.path) else {
+            // Not readable under the jail in force now: an honest empty diff
+            // beats an error the frontend would show as a failure of the read
+            // rather than of the reach.
+            return Ok(FileDiff {
+                path: file.path,
+                change: Change::Unreachable,
+                hunks: Vec::new(),
+            });
+        };
+        let after = self.current(&abs)?;
         Ok(FileDiff {
             path: file.path,
             ..compare(before.as_deref(), after.as_deref(), &self.config.snapshot())
@@ -315,7 +333,14 @@ impl Checkpoints {
     /// against the file as the last undo found it.
     pub fn redo_diff(&self, session: i64, path: &str, jail: &Jail) -> Result<FileDiff> {
         let (file, undone) = self.redo_state(session, path)?;
-        let now = self.current(&jail.resolve(&file.path)?)?;
+        let Ok(abs) = jail.resolve(&file.path) else {
+            return Ok(FileDiff {
+                path: file.path,
+                change: Change::Unreachable,
+                hunks: Vec::new(),
+            });
+        };
+        let now = self.current(&abs)?;
         Ok(FileDiff {
             path: file.path,
             ..compare(now.as_deref(), undone.as_deref(), &self.config.snapshot())
@@ -440,12 +465,23 @@ impl Checkpoints {
         let mut out = Vec::with_capacity(files.len());
         for file in files {
             let abs = match jail.resolve(&file.path) {
-                // A path the session is no longer allowed to reach — a one-call
-                // grant left behind by an earlier run, say — cannot be tallied
-                // right now. Its ledger row survives and it reappears the moment
-                // it is reachable again; the tally must never jam the resume
-                // door on it.
-                Err(_) => continue,
+                // A path the session is no longer allowed to reach — a file
+                // written while full access was on, listed again in ask mode —
+                // is still a fact the panel keeps. Its ledger row reports the
+                // write ledger's own tally, and the exact diff returns the
+                // moment the path is reachable again; the tally must never jam
+                // the resume door on it, and switching modes must never make a
+                // touched file vanish from the list.
+                Err(_) => {
+                    out.push(FileChange {
+                        path: file.path,
+                        change: Change::Unreachable,
+                        added: file.added,
+                        removed: file.removed,
+                        last_at: file.last_at,
+                    });
+                    continue;
+                }
                 Ok(abs) => abs,
             };
 
@@ -801,6 +837,45 @@ mod tests {
                 .unwrap_err()
                 .to_string();
         assert!(refused.contains("no longer kept"), "{refused}");
+    }
+
+    #[test]
+    fn a_file_written_outside_the_workspace_stays_listed_in_a_narrow_jail() {
+        let f = fixture("unreachable-listed");
+        let outside = f.dir.parent().unwrap().join("outside.txt");
+        std::fs::write(&outside, b"outside\n").unwrap();
+        let wide = f.jail.clone().unconfined();
+        f.cp.capture(f.session, 1, &outside, &wide).unwrap();
+        std::fs::write(&outside, b"outside changed\n").unwrap();
+        f.cp.record_change(f.session, 2, &outside, &wide, 1, 0)
+            .unwrap();
+
+        // The narrow jail (ask mode) may not read the file; the ledger row
+        // keeps it listed with the write ledger's own tally. Switching modes
+        // must never make a touched file vanish from the list.
+        let listed = f.cp.session_changes(f.session, &f.jail).unwrap();
+        assert_eq!(listed.len(), 1, "{listed:?}");
+        assert_eq!(listed[0].path, outside.to_str().unwrap());
+        assert_eq!(listed[0].change, Change::Unreachable);
+        assert_eq!((listed[0].added, listed[0].removed), (1, 0));
+
+        // The wide jail (full mode) reads it and diffs it exactly.
+        let read = f.cp.session_changes(f.session, &wide).unwrap();
+        assert_eq!(read[0].change, Change::Modified);
+
+        // The diff under the narrow jail says so instead of failing.
+        let diff =
+            f.cp.file_diff(f.session, outside.to_str().unwrap(), &f.jail)
+                .unwrap();
+        assert_eq!(diff.change, Change::Unreachable);
+        assert!(diff.hunks.is_empty());
+
+        // Putting it back is still refused: only reading is hidden, never
+        // history, and the jail remains the write boundary.
+        let refused =
+            f.cp.restore_file(f.session, outside.to_str().unwrap(), &f.jail, &f.memory, 3)
+                .unwrap_err();
+        assert!(matches!(refused, crate::Error::Jail(_)), "{refused}");
     }
 
     #[test]

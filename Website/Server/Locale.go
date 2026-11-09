@@ -76,21 +76,31 @@ type installText struct {
 	And     string `json:"and"`
 }
 
-// releaseNote is one version's recorded change as the site words it: a title,
-type releaseSection struct {
-	ID     string   `json:"id"`
-	Title  string   `json:"title"`
-	Points []string `json:"points"`
+// releasePoint is one recorded change: an id that anchors it in the page's
+// "On this page" list, a short title a reader scans, and the text that
+// describes it — what stood before, what changed, how it behaves now. The
+// owner rejected a bare bullet (2026-11-06) and a short one (2026-11-09): a
+// changelog must describe a change, not name it.
+type releasePoint struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Text  string `json:"text"`
 }
 
-// the paragraph that says what changed and why, and the short lines a reader
-// scans. A bare list of sentences was rejected by the owner (2026-11-06): a
-// changelog must explain a change, not only name it.
+type releaseSection struct {
+	ID     string         `json:"id"`
+	Title  string         `json:"title"`
+	Points []releasePoint `json:"points"`
+}
+
+// releaseNote is one version's recorded change as the site words it: a title,
+// the paragraph that says what changed and why, and the points a reader
+// walks — grouped into chapters for a release big enough to need them.
 type releaseNote struct {
 	Title      string           `json:"title"`
 	Summary    string           `json:"summary,omitempty"`
 	Paragraphs []string         `json:"paragraphs"`
-	Points     []string         `json:"points,omitempty"`
+	Points     []releasePoint   `json:"points,omitempty"`
 	Sections   []releaseSection `json:"sections,omitempty"`
 }
 
@@ -129,9 +139,24 @@ func loadChangelogNotes() error {
 	return nil
 }
 
+// samePoints holds a translation's points to the English ones: the same ids
+// in the same order — an anchor the reader clicks must name the same point in
+// every language — while the words may differ.
+func samePoints(where string, got, want []releasePoint) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("%s: %d points, English has %d", where, len(got), len(want))
+	}
+	for i := range want {
+		if got[i].ID != want[i].ID {
+			return fmt.Errorf("%s: point %d ID %q != English %q", where, i, got[i].ID, want[i].ID)
+		}
+	}
+	return nil
+}
+
 // check holds one note to the layered shape: a title, at least one paragraph,
-// and no empty line. How long a line is belongs to the writer, not to a
-// ceiling in code (owner, 2026-11-08).
+// point ids that are unique and non-empty, and no empty line. How long a line
+// is belongs to the writer, not to a ceiling in code (owner, 2026-11-08).
 func (n releaseNote) check(where string) error {
 	if strings.TrimSpace(n.Title) == "" {
 		return fmt.Errorf("%s: the title is empty", where)
@@ -144,9 +169,10 @@ func (n releaseNote) check(where string) error {
 			return fmt.Errorf("%s: paragraph %d is empty", where, i)
 		}
 	}
+	seen := map[string]bool{}
 	for i, p := range n.Points {
-		if strings.TrimSpace(p) == "" {
-			return fmt.Errorf("%s: point %d is empty", where, i)
+		if err := p.check(fmt.Sprintf("%s: point %d", where, i), seen); err != nil {
+			return err
 		}
 	}
 	for i, s := range n.Sections {
@@ -160,10 +186,30 @@ func (n releaseNote) check(where string) error {
 			return fmt.Errorf("%s: section %d has no points", where, i)
 		}
 		for j, p := range s.Points {
-			if strings.TrimSpace(p) == "" {
-				return fmt.Errorf("%s: section %d point %d is empty", where, i, j)
+			if err := p.check(fmt.Sprintf("%s: section %s point %d", where, s.ID, j), seen); err != nil {
+				return err
 			}
 		}
+	}
+	return nil
+}
+
+// check holds one point to its shape: an id that anchors it (unique across the
+// whole note, so one anchor names one point), a short title, and a text that
+// describes the change rather than naming it.
+func (p releasePoint) check(where string, seen map[string]bool) error {
+	if strings.TrimSpace(p.ID) == "" {
+		return fmt.Errorf("%s: id is empty", where)
+	}
+	if seen[p.ID] {
+		return fmt.Errorf("%s: point id %q is used twice", where, p.ID)
+	}
+	seen[p.ID] = true
+	if strings.TrimSpace(p.Title) == "" {
+		return fmt.Errorf("%s: the title is empty", where)
+	}
+	if strings.TrimSpace(p.Text) == "" {
+		return fmt.Errorf("%s: the text is empty", where)
 	}
 	return nil
 }
@@ -232,10 +278,12 @@ func (t *localeText) check() error {
 			if n.Sections[i].ID != en.Sections[i].ID {
 				return fmt.Errorf("note %s: section %d ID %q != English %q", version, i, n.Sections[i].ID, en.Sections[i].ID)
 			}
-			if len(n.Sections[i].Points) != len(en.Sections[i].Points) {
-				return fmt.Errorf("note %s section %q: %d points, English has %d",
-					version, n.Sections[i].ID, len(n.Sections[i].Points), len(en.Sections[i].Points))
+			if err := samePoints(fmt.Sprintf("note %s section %q", version, n.Sections[i].ID), n.Sections[i].Points, en.Sections[i].Points); err != nil {
+				return err
 			}
+		}
+		if err := samePoints(fmt.Sprintf("note %s", version), n.Points, en.Points); err != nil {
+			return err
 		}
 		if err := n.check("note " + version); err != nil {
 			return err

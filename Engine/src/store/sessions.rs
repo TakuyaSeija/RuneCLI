@@ -86,6 +86,10 @@ pub enum ContextKind {
     ContextUpdate,
     /// The user put files back the way they were before a turn (undo).
     Restore,
+    /// The agent's own plan, handed back between calls so it does not drift
+    /// from it. Ephemeral guidance, like a loop warning: dropped on
+    /// compaction, never drawn.
+    Plan,
 }
 
 /// The data a context row carries beside its text.

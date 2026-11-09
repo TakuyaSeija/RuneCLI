@@ -223,7 +223,12 @@ impl super::App {
                 }
             }
             if self.status.is_none() && self.retry_status.is_some() {
-                self.footer.retry_at.get_or_insert(now);
+                let at = *self.footer.retry_at.get_or_insert(now);
+                if self.compacting.is_none() && now.saturating_duration_since(at) >= timing.lifetime
+                {
+                    self.retry_status = None;
+                    self.footer.retry_at = None;
+                }
             }
         }
         before.as_deref() != self.footer_text()
@@ -463,5 +468,28 @@ mod tests {
         app.clear_matching_status("Switching mode");
         assert_eq!(app.footer_text(), Some("Theme: Violet"));
         assert!(app.footer.pending.is_none());
+    }
+
+    #[test]
+    fn stalled_or_timeout_retry_notice_times_out_and_clears() {
+        let now = Instant::now();
+        let mut app = crate::ui::App::for_test();
+        app.retry_at(
+            Some("Stream stalled (30s without data) — attempt 1 of 3".into()),
+            now,
+        );
+        app.footer_tick_at(now, TIMING, false);
+        assert_eq!(
+            app.footer_text(),
+            Some("Stream stalled (30s without data) — attempt 1 of 3")
+        );
+        app.footer_tick_at(now + Duration::from_secs(7), TIMING, false);
+        assert_eq!(
+            app.footer_text(),
+            Some("Stream stalled (30s without data) — attempt 1 of 3")
+        );
+        // After lifetime (8s), unopposed retry status must cleanly expire
+        app.footer_tick_at(now + Duration::from_secs(8), TIMING, false);
+        assert_eq!(app.footer_text(), None);
     }
 }

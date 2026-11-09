@@ -4938,6 +4938,53 @@ fn a_sixth_repeated_process_control_instructs_to_await_the_wake() {
     );
 }
 
+/// The plan, handed back between calls: once the tool cadence is reached, the
+/// model is given its plan as a `<system_notice>` context row, and no tool
+/// result carries it (owner, 2026-11-09).
+#[test]
+fn the_plan_comes_back_between_calls_at_the_tool_cadence() {
+    let mut responses = Vec::new();
+    responses.push(json!({ "chunks": [ { "tool_call": { "id": "p1",
+        "name": "track_tasks",
+        "args": { "action": "keep the plan",
+            "tasks": [ { "text": "reach the answer", "status": "doing" } ] } } } ] }));
+    for at in 1..=7 {
+        responses.push(json!({ "chunks": [ { "tool_call": { "id": format!("m{at}"),
+            "name": "inspect_file", "args": { "action": format!("read missing {at}"),
+                "path": "nonexistent_file.txt" } } } ] }));
+    }
+    responses.push(json!({ "chunks": [ { "text": "done" } ] }));
+    let mut h = harness("plan-reminder", json!({ "responses": responses }));
+    let events = prompt(
+        &mut h,
+        "keep the plan and read missing",
+        Decision::AllowOnce,
+    );
+    let results = result_contents(&events);
+    assert_eq!(results.len(), 8, "{results:?}");
+    for res in &results {
+        assert!(!res.contains("Plan reminder"), "tool result is pure: {res}");
+    }
+    let db = runeengine::store::Db::open(&h.db_path, std::time::Duration::from_secs(5)).unwrap();
+    let rows = db.history(h.session).unwrap();
+    let reminders: Vec<_> = rows
+        .iter()
+        .filter(|m| {
+            m.role == runeengine::store::sessions::Role::Context
+                && m.content.contains("Plan reminder")
+        })
+        .collect();
+    assert_eq!(reminders.len(), 1, "{reminders:?}");
+    assert!(
+        reminders[0].content.contains("◐ reach the answer"),
+        "{}",
+        reminders[0].content
+    );
+    assert!(reminders[0]
+        .content
+        .contains("carry on and ignore this reminder"));
+}
+
 /// Verification of Cadence B across multiple tool types: tool results stay pure,
 /// system_notice is emitted at 3 and 6.
 #[test]

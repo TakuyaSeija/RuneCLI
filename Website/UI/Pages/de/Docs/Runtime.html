@@ -7,7 +7,7 @@
 <tr><td>retry.max_attempts</td><td>5</td><td>Wiederholungsversuche nach dem ersten Versuch: insgesamt also bis zu sechs Versuche. Null deaktiviert Wiederholungen.</td></tr>
 <tr><td>retry.initial_delay</td><td>3s</td><td>Grundschritt: Die Wartezeit steigt linear um 3, 6, 9 … Sekunden an.</td></tr>
 <tr><td>retry.max_delay</td><td>1m</td><td>Würde die nächste Wartezeit diesen Wert überschreiten, beginnt die Reihe wieder beim Grundschritt. Es handelt sich nicht um exponentielles Backoff.</td></tr>
-<tr><td>retry.credit_cooldown</td><td>15m</td><td>Wie lange ein Schlüssel ohne Guthaben pausiert, bevor er wieder berücksichtigt wird. Lädt kein neues Guthaben auf.</td></tr>
+<tr><td>retry.attempts_per_key</td><td>10</td><td>Wie viele Versuche ein Schlüssel erhält, bevor der nächste Schlüssel im Ring verwendet wird – standardmäßig 10 Versuche. Ein verbrauchter Schlüssel übergibt sofort, und der Ring beginnt von vorn, sobald jeder Schlüssel sein Kontingent aufgebraucht hat.</td></tr>
 </tbody></table></div>
 <p>Nicht jeder Fehler löst einen Wiederholungsversuch aus. Ein erneuter Versuch kann weder einen falschen API-Schlüssel noch einen nicht unterstützten Parameter oder eine falsche Endpunkt-Adresse reparieren. Sehr hohe Wiederholungszahlen können einen Fehler unnötig in die Länge ziehen und zusätzliche Kosten verursachen; prüfe zuerst die genaue Fehlermeldung in den Logs.</p>
 <h2 id="network">Netzwerk-Zeitlimits</h2>

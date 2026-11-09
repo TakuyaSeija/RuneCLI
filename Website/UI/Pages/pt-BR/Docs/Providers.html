@@ -83,7 +83,7 @@
 <p>O endereço local de uma predefinição é apenas um valor padrão, não uma garantia de que o serviço esteja rodando na sua máquina. Inicie o serviço primeiro; a requisição de teste do Rune dirá se ele respondeu.</p>
 
 <h2 id="keys">Chaves e contas</h2>
-<p>Uma conexão pode guardar várias chaves. O comando <code>rune -provider keys &lt;name&gt;</code> lista as chaves de forma mascarada, e a tela Connections permite gerenciá-las sem expor seus valores. Quando uma chave informa saldo insuficiente, o Rune a coloca em pausa por 15 minutos e passa a usar outra chave, caso a conexão tenha mais de uma; veja <a href="{{url "docs/runtime"}}">Tempo de execução e novas tentativas</a>.</p>
+<p>Uma conexão pode guardar várias chaves. O comando <code>rune -provider keys &lt;name&gt;</code> lista as chaves de forma mascarada, e a tela Connections permite gerenciá-las sem expor seus valores. Quando uma chave informa saldo insuficiente ou esgota sua cota, o Rune passa a vez no ato para a próxima chave do anel; veja <a href="{{url "docs/runtime"}}">Tempo de execução e novas tentativas</a>.</p>
 <p>Remover uma conexão apaga sua configuração. Suas chaves podem permanecer no cofre criptografado para reutilização; exclua uma chave explicitamente quando quiser removê-la de vez. Uma chave nunca trafega via HTTP simples para outra máquina.</p>
 
 <h2 id="choose-a-model">Escolher um modelo</h2>

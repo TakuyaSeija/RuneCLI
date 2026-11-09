@@ -1,7 +1,7 @@
 {{define "article"}}
 <h2 id="access-not-selection">접근 정보 등록과 사용 선택은 별개입니다</h2>
 <p>Connections는 계정 주소와 API 키를 관리합니다. 현재 사용할 모델, 모델 요청 타임아웃, 웹 검색 경로, 웹페이지 리더 선택은 각각 Models, Runtime, Tools에서 담당합니다.</p>
-<p>키 개수나 Configured 표시는 자격 증명이 등록되어 있다는 뜻일 뿐, 요청이 성공했다거나 잔액이 충분하다는 뜻은 아닙니다. Resting 표시는 자격 증명을 일시적으로 사용할 수 없는 상태임을 나타낼 수 있으니, 계정을 반복해서 다시 등록하는 대신 실제 실패 원인을 먼저 확인하세요.</p>
+<dl class="ref"><div><dt>Configured</dt><dd>이 계정에 하나 이상의 API 키가 저장되어 있습니다. 요청 성공이나 잔액 보유를 증명하지는 않습니다.</dd></div><div><dt>Key missing</dt><dd>현재 데이터 홈에 이 계정의 키가 없습니다. Connections에서 키를 추가하세요.</dd></div><div><dt>Unavailable</dt><dd>암호화된 자격 증명 저장소가 디스크에 있으나 열 수 없습니다. 변경하기 전에 일치하는 백업 쌍을 복원하세요.</dd></div></dl><p>계정을 반복해서 다시 만드는 대신 <code>/logs</code>에서 실제 실패 원인을 먼저 확인하세요.</p>
 <h2 id="model-account">모델 계정 추가</h2>
 <p>각 제공자 프리셋과 필요한 키 형식 및 기본 주소는 <a href="{{url "docs/providers"}}">모델 제공자</a> 문서에 정리되어 있습니다.</p>
 <ol><li>Settings → Connections → Add connection을 열고 원하는 모델 제공자를 선택합니다.</li><li>처음에는 Not connected yet으로 표시되는 입력 폼을 확인합니다. 고정 주소가 있는 프리셋은 키만 요청하며, 계정마다 주소가 다르거나 사용자 지정 엔드포인트인 경우에는 주소를 직접 입력해야 합니다.</li><li>연결 이름과 키 이름을 확인하고, 시크릿은 반드시 자격 증명 입력란에만 넣습니다.</li><li>Connect를 선택합니다. Rune은 새 모델 계정을 저장하기 전에 실제 테스트 요청을 보내며, 이 요청에는 요금이 부과될 수 있습니다. Cancel을 누르면 저장하지 않고 취소합니다.</li><li>연결이 완료되면 Models에서 실제로 사용할 제공자/모델 쌍을 선택합니다.</li></ol>

@@ -168,20 +168,50 @@
   // the contents stays marked while the page travels to it, until the reader scrolls on their own.
   let links = [...document.querySelectorAll('.index a[href^="#"]')];
   let headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
+  let update = () => {};
   let refreshHeadings = () => {
     links = [...document.querySelectorAll('.index a[href^="#"]')];
     headings = links.map((link) => document.getElementById(link.hash.slice(1))).filter(Boolean);
+    update();
   };
   if (links.length) {
     let queued = false;
     let chosen = headings.find((heading) => "#" + heading.id === location.hash) || null;
     const mark = (current) => {
       for (const link of links) {
-        if (current && link.hash === "#" + current.id) link.setAttribute("aria-current", "true");
-        else link.removeAttribute("aria-current");
+        if (current && link.hash === "#" + current.id) {
+          const wasActive = link.getAttribute("aria-current") === "true";
+          link.setAttribute("aria-current", "true");
+          if (!wasActive) {
+            const container = link.closest("#changelog-toc, .docs-toc .index ol, .read-index ol, .docs-toc");
+            if (container && container.scrollHeight > container.clientHeight) {
+              if (!container.dataset.hasEdgeListener) {
+                container.dataset.hasEdgeListener = "true";
+                container.addEventListener("scroll", () => {
+                  const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight <= 6;
+                  const parent = container.closest(".index");
+                  if (parent) parent.classList.toggle("is-at-bottom", atBottom);
+                }, { passive: true });
+              }
+              const contRect = container.getBoundingClientRect();
+              const linkRect = link.getBoundingClientRect();
+              const currentOffsetInContainer = linkRect.top - contRect.top + container.scrollTop;
+              // Smart Scroll UI: hold the active point at the container's center once reached
+              const target = (currentOffsetInContainer + linkRect.height / 2) - contRect.height / 2;
+              const maxScroll = container.scrollHeight - contRect.height;
+              const nextScroll = Math.max(0, Math.min(maxScroll, Math.round(target)));
+              container.scrollTo({ top: nextScroll, behavior: "smooth" });
+              const atBottom = nextScroll >= maxScroll - 6;
+              const parent = container.closest(".index");
+              if (parent) parent.classList.toggle("is-at-bottom", atBottom);
+            }
+          }
+        } else {
+          link.removeAttribute("aria-current");
+        }
       }
     };
-    const update = () => {
+    update = () => {
       queued = false;
       if (chosen) {
         const top = chosen.getBoundingClientRect().top;
@@ -198,12 +228,13 @@
       else for (const heading of headings) if (heading.getBoundingClientRect().top <= 160) current = heading;
       if (current) mark(current);
     };
-    for (const link of links) {
-      link.addEventListener("click", () => {
+    document.addEventListener("click", (e) => {
+      const link = e.target.closest('.index a[href^="#"]');
+      if (link) {
         chosen = document.getElementById(link.hash.slice(1));
         if (chosen) mark(chosen);
-      });
-    }
+      }
+    });
     const release = () => { chosen = null; };
     addEventListener("wheel", release, { passive: true });
     addEventListener("touchmove", release, { passive: true });
@@ -295,14 +326,14 @@
     const pageNavLinks = [...document.querySelectorAll(".history-page-nav")];
 
     const toc = document.getElementById("changelog-toc");
-    // The contents of the reading page are the active version's own headings:
-    // its changes, one entry per recorded chapter, then its downloads. Rebuilt
-    // on every switch, because each version carries its own chapters.
+    // The contents of the reading page are the active version's own points:
+    // one entry per recorded point. Rebuilt on every switch (owner, 2026-11-09).
     const buildToc = (panel) => {
       if (!toc) return;
       toc.replaceChildren();
-      panel.querySelectorAll(".prose h3[data-anchor]").forEach((h) => {
+      panel.querySelectorAll(".prose h4.note-point[data-anchor]").forEach((h) => {
         const li = document.createElement("li");
+        li.className = "toc-point";
         const a = document.createElement("a");
         a.href = "#" + h.id;
         a.textContent = h.textContent;
@@ -319,7 +350,7 @@
       panels.forEach((p) => {
         const isActive = p === target;
         p.classList.toggle("is-active", isActive);
-        p.querySelectorAll(".prose h3[data-anchor]").forEach((h) => {
+        p.querySelectorAll(".prose h3[data-anchor], .prose h4[data-anchor]").forEach((h) => {
           h.id = isActive ? h.dataset.anchor : h.dataset.anchor + "-" + p.dataset.version;
         });
       });

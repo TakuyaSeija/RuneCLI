@@ -679,6 +679,27 @@ pub fn configure_model(
             "Reasoning cannot be disabled for this model",
         ));
     }
+    // The person may vouch for inputs the endpoint never published (a gateway
+    // whose /models says nothing about its models), but only in the vocabulary
+    // every reader shares — a made-up kind would be declared support nothing
+    // can send.
+    let unknown: Vec<&String> = model
+        .modalities
+        .iter()
+        .filter(|m| !crate::settings::providers::INPUT_MODALITIES.contains(&m.as_str()))
+        .collect();
+    if !unknown.is_empty() {
+        return Err(Error::invalid(format!(
+            "Unknown input kind{}: {}. Supported: {}.",
+            if unknown.len() == 1 { "" } else { "s" },
+            unknown
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            crate::settings::providers::INPUT_MODALITIES.join(", "),
+        )));
+    }
     s.providers.update_model_metadata(provider, model.clone())?;
     Ok(json!({ "provider": provider, "configured": model, "ok": true }))
 }
@@ -1109,6 +1130,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
         .or_else(|| row.pointer("/capabilities/supported_efforts"))
         .or_else(|| row.pointer("/capabilities/efforts"))
         .or_else(|| row.pointer("/capabilities/thinking_efforts"))
+        .or_else(|| row.pointer("/capabilities/reasoning_effort"))
         .or_else(|| row.pointer("/reasoning/efforts"))
         .or_else(|| row.get("supported_efforts"))
         .or_else(|| row.get("reasoning_efforts"))
@@ -1216,6 +1238,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
                 "/reasoning/supported_efforts",
                 "/capabilities/supported_efforts",
                 "/capabilities/effort",
+                "/capabilities/reasoning_effort",
                 "/supported_efforts",
                 "/reasoning_efforts",
                 "/capabilities/thinkingEffortSupported",
@@ -1291,6 +1314,7 @@ fn catalogue_entry(row: &Value) -> Option<ModelInfo> {
             .and_then(Value::as_u64),
         default_effort: row
             .pointer("/reasoning/default_effort")
+            .or_else(|| row.pointer("/capabilities/default_reasoning_effort"))
             .and_then(Value::as_str)
             .map(String::from),
         thinking_modes: row
@@ -2511,6 +2535,115 @@ mod tests {
             .clone();
         assert!(!other.thinking);
         assert!(!other.starts_thinking("9router"));
+    }
+
+    /// xAI publishes its levels and default on the row itself
+    /// (`capabilities.reasoning_effort`, `capabilities.default_reasoning_effort`)
+    /// and its inputs flat (`input_modalities`). Every published shape is one
+    /// the reader must name — no catalogue shape is anybody's monopoly, and
+    /// Rune serves people on endpoints the maintainer never touches
+    /// (owner, 2026-11-09).
+    #[test]
+    fn an_xai_row_declares_efforts_a_default_and_its_inputs() {
+        let listed = catalogue_entry_for_test(&json!({
+            "id": "grok-420-reasoning",
+            "input_modalities": ["text", "image"],
+            "capabilities": {
+                "reasoning_effort": ["low", "medium", "high", "xhigh"],
+                "default_reasoning_effort": "high"
+            }
+        }))
+        .unwrap();
+        assert_eq!(listed.efforts, ["low", "medium", "high", "xhigh"]);
+        assert!(listed.thinking);
+        assert_eq!(listed.default_effort.as_deref(), Some("high"));
+        assert_eq!(listed.modalities, ["text", "image"]);
+    }
+
+    /// The person vouches for inputs an endpoint never published (Alt+C ›
+    /// Modalities): the choice is marked theirs, survives a refresh that says
+    /// nothing, and overrides a refresh that says something else. A kind
+    /// outside the shared vocabulary is refused — declared support nothing
+    /// could send (owner, 2026-11-09).
+    #[test]
+    fn a_person_declared_modality_is_marked_and_survives_a_refresh() {
+        let s = on_disk("modalities-manual");
+        {
+            let mut held = panic::lock(&s);
+            held.providers
+                .add(super::super::providers::preset("groq").unwrap().build(""))
+                .unwrap();
+            held.providers
+                .remember_model("groq", "openai/gpt-oss-120b")
+                .unwrap();
+        }
+        let mut chosen = panic::lock(&s)
+            .providers
+            .get("groq")
+            .unwrap()
+            .model("openai/gpt-oss-120b")
+            .unwrap()
+            .clone();
+        chosen.modalities = vec!["text".into(), "image".into()];
+        configure_model(&s, "groq", chosen).unwrap();
+        let stored = panic::lock(&s)
+            .providers
+            .get("groq")
+            .unwrap()
+            .model("openai/gpt-oss-120b")
+            .unwrap()
+            .clone();
+        assert_eq!(stored.modalities, ["text", "image"]);
+        assert!(
+            stored.manual_fields.iter().any(|f| f == "modalities"),
+            "{:?}",
+            stored.manual_fields
+        );
+
+        // A refresh that publishes nothing keeps the vouched inputs...
+        let row = catalogue_entry_for_test(&json!({ "id": "openai/gpt-oss-120b" })).unwrap();
+        panic::lock(&s)
+            .providers
+            .cache_models("groq", vec![row])
+            .unwrap();
+        let after = panic::lock(&s)
+            .providers
+            .get("groq")
+            .unwrap()
+            .model("openai/gpt-oss-120b")
+            .unwrap()
+            .clone();
+        assert_eq!(after.modalities, ["text", "image"]);
+
+        // ...and one that publishes a different set does not take it away.
+        let row = catalogue_entry_for_test(&json!({
+            "id": "openai/gpt-oss-120b",
+            "architecture": { "input_modalities": ["text"] }
+        }))
+        .unwrap();
+        panic::lock(&s)
+            .providers
+            .cache_models("groq", vec![row])
+            .unwrap();
+        let after = panic::lock(&s)
+            .providers
+            .get("groq")
+            .unwrap()
+            .model("openai/gpt-oss-120b")
+            .unwrap()
+            .clone();
+        assert_eq!(after.modalities, ["text", "image"]);
+
+        let mut bad = panic::lock(&s)
+            .providers
+            .get("groq")
+            .unwrap()
+            .model("openai/gpt-oss-120b")
+            .unwrap()
+            .clone();
+        bad.modalities = vec!["music".into()];
+        let error = configure_model(&s, "groq", bad).unwrap_err();
+        assert!(error.to_string().contains("music"), "{error}");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {{define "article"}}
 <h2 id="inspect-changes">Inspect actual changes</h2>
-<p>The side panel reports current differences for files tracked by the session. Added and removed counts compare content; they are not a total of every edit title. Repeated edits can cancel each other out, and a tool's line count alone is not a complete review.</p>
+<p>The side panel reports current differences for files tracked by the session. Added and removed counts compare content; they are not a total of every edit title. Repeated edits can cancel each other out, and a tool's line count alone is not a complete review. Touched files stay listed in every permission mode: an unreachable path outside the workspace reports the recorded tally, and its diff view explains the reach restriction until the file is reachable again.</p>
 <p>Review a diff and rerun the relevant checks before keeping the result. A passing command only proves what that command tested. Rune does not automatically commit your work, and file restoration is not a replacement for version control or a consistent backup.</p>
 <h2 id="restore-a-file">Restore a file</h2>
 <ol><li>Wait for the work affecting the file to settle.</li><li>Open <code>/undo</code> and select the intended file. Use the offered diff action, including Alt+S in the list, to read what will change.</li><li>Start confirmation with Enter and confirm within the displayed interval only after checking the current contents.</li><li>Verify the restored file and any dependent work.</li></ol>

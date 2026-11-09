@@ -319,6 +319,18 @@ fn diff(doc: &mut Document, shown: &Shown, side: Side, width: usize) {
             doc.append("diff:body", paragraph(side.unchanged(), MUTED, 0, width));
             return;
         }
+        Some("unreachable") => {
+            doc.append(
+                "diff:body",
+                paragraph(
+                    "The session changed this file, but its path is not reachable under what this session may reach right now — the counts above are the write ledger's own tally. The exact diff appears once the path is reachable again.",
+                    MUTED,
+                    0,
+                    width,
+                ),
+            );
+            return;
+        }
         _ => {}
     }
     doc.append("diff:body", hunk_rows(hunks, width));
@@ -852,6 +864,25 @@ mod tests {
             shown.last().unwrap().starts_with("495 495 │"),
             "{}",
             shown.last().unwrap()
+        );
+    }
+
+    #[test]
+    fn an_unreachable_diff_says_its_counts_are_the_ledgers_own_tally() {
+        let mut app = app_with(files());
+        app.session = Some(1);
+        let mut d = super::super::test_driver("undo-diff");
+        key(&mut app, &Key::Alt('s'), &mut d);
+        diffed(
+            &mut app,
+            Side::Undo,
+            "Cli/src/ui/draw.rs".into(),
+            json!({"diff": {"change": "unreachable", "hunks": []}}),
+        );
+        let shown = text(&document(&app, 100));
+        assert!(
+            shown.contains("not reachable under what this session may reach"),
+            "{shown}"
         );
     }
 

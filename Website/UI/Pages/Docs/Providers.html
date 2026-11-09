@@ -83,7 +83,7 @@
 <p>A preset's local address is a default, not proof that the service runs on your machine. Start the service first; Rune's test request tells you whether it answered.</p>
 
 <h2 id="keys">Keys and accounts</h2>
-<p>A connection can hold several keys. <code>rune -provider keys &lt;name&gt;</code> lists them masked, and Connections manages them without showing their values. When a key reports insufficient balance, Rune rests it for 15 minutes and uses another key if the connection has one; see <a href="{{url "docs/runtime"}}">Runtime &amp; retries</a>.</p>
+<p>A connection can hold several keys. <code>rune -provider keys &lt;name&gt;</code> lists them masked, and Connections manages them without showing their values. When a key reports insufficient balance or reaches its allowance, Rune hands over at once to the next key in the ring; see <a href="{{url "docs/runtime"}}">Runtime &amp; retries</a>.</p>
 <p>Removing a connection removes its configuration. Its keys can stay in the encrypted store for reuse; delete a key explicitly when you mean to. A key never travels over plain HTTP to another machine.</p>
 
 <h2 id="choose-a-model">Choose a model</h2>

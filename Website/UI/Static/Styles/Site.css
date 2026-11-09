@@ -40,7 +40,14 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
 .code-copy svg{grid-area:1/1;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:opacity .2s ease,transform .3s var(--ease)}.code-copy .i-done{opacity:0;transform:scale(.5)}.code-copy[data-state=done]{color:var(--ember)}.code-copy[data-state=done] .i-copy{opacity:0;transform:scale(.5)}.code-copy[data-state=done] .i-done{opacity:1;transform:none}.code-copy[data-state=select]::after{content:"Press Ctrl+C to copy";position:absolute;right:0;bottom:calc(100% + 6px);padding:4px 10px;border:1px solid var(--line-2);border-radius:8px;background:var(--raise-2);font:500 11px/1.5 var(--sans);color:var(--ink);white-space:nowrap}
 /* Documentation reads like a manual: a quiet index, one readable column, and the page's own contents beside it. */
 .docs-layout{display:grid;grid-template-columns:236px minmax(0,1fr) 208px;gap:clamp(32px,4vw,64px);width:min(100% - 2 * var(--edge),1380px);margin-inline:auto;padding:44px 0 104px;align-items:start}
-.docs-sidebar,.docs-toc{position:sticky;top:calc(var(--head-h) + 24px);max-height:calc(100svh - var(--head-h) - 40px);overflow:auto;overscroll-behavior:contain}
+.docs-sidebar{position:sticky;top:calc(var(--head-h) + 24px);max-height:calc(100svh - var(--head-h) - 40px);overflow:auto;overscroll-behavior:contain}
+.docs-toc{position:sticky;top:calc(var(--head-h) + 24px);overscroll-behavior:contain;scrollbar-width:none;-ms-overflow-style:none}
+.docs-toc::-webkit-scrollbar{display:none}
+.docs-toc .index{position:relative}
+.docs-toc .index::after{content:"";position:absolute;bottom:0;left:0;right:0;height:36px;pointer-events:none;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);background:linear-gradient(to top,var(--bg),rgb(10 9 8 / 0));-webkit-mask-image:linear-gradient(transparent,#000 70%);mask-image:linear-gradient(transparent,#000 70%);opacity:1;transition:opacity .25s ease}
+.docs-toc .index.is-at-bottom::after{opacity:0}
+.docs-toc .index ol,#changelog-toc,.read-index ol{position:relative;max-height:clamp(300px,60vh,480px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;-ms-overflow-style:none}
+.docs-toc .index ol::-webkit-scrollbar,#changelog-toc::-webkit-scrollbar,.read-index ol::-webkit-scrollbar{display:none}
 .docs-menu>summary{display:flex;align-items:center;gap:10px;margin-bottom:18px;list-style:none;cursor:pointer;font:600 16px/1.2 var(--sans);letter-spacing:-.015em;color:var(--ink)}.docs-menu>summary::-webkit-details-marker{display:none}.docs-menu>summary>.meta{display:none}
 .docs-group{margin-bottom:4px}.docs-group>summary{display:flex;align-items:center;gap:10px;min-height:36px;padding:0 4px;list-style:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--body);transition:color .2s ease}.docs-group>summary::-webkit-details-marker{display:none}
 .docs-group>summary::before,.docs-menu>summary::after{content:"";flex:none;width:7px;height:7px;border-right:1.5px solid var(--meta);border-bottom:1.5px solid var(--meta);transform:rotate(-45deg);transition:transform .3s var(--ease),border-color .2s ease}.docs-group[open]>summary::before,.docs-menu[open]>summary::after{transform:translateY(-2px) rotate(45deg)}.docs-menu>summary::after{display:none}
@@ -71,10 +78,13 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
    and the page's contents list them all (owner, 2026-11-09). */
 .history-article .prose h3{margin:44px 0 12px;font:600 19px/1.4 var(--sans);letter-spacing:-.015em;color:var(--ink);scroll-margin-top:84px}
 .history-article .prose h3.note-changes{margin-top:8px}
-.history-link{display:block}
-.history-link .v-num{display:block;font-weight:500;color:var(--body)}
-.history-link .history-sum{display:block;margin-top:2px;font-size:11.5px;line-height:1.45;color:var(--meta)}
+.docs-group a.history-link,.history-link{display:flex;align-items:baseline;gap:8px;min-width:0;padding:6px 12px;white-space:nowrap;overflow:hidden}
+.history-link .v-num{flex:none;font-size:13.5px;font-weight:500;color:var(--body);white-space:nowrap;margin-right:8px}
+/* One line: the version and its summary share the same horizontal row (owner, 2026-11-09).
+   The summary truncates with an ellipsis if it exceeds the sidebar width. */
+.history-link .history-sum{flex:1;min-width:0;margin-top:0;font-size:12.5px;line-height:1.4;color:var(--meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .history-link:hover .v-num,.history-link:focus-visible .v-num,.history-link[aria-current=page] .v-num{color:var(--ink)}
+.history-link:hover .history-sum,.history-link:focus-visible .history-sum,.history-link[aria-current=page] .history-sum{color:var(--body)}
 .changelog-panel{display:none}
 .changelog-panel.is-active{display:block}
 .version-head{margin:0 0 28px;padding-bottom:20px;border-bottom:1px solid var(--line)}
@@ -84,7 +94,15 @@ code{font:400 .86em/1.65 var(--mono);background:var(--soft);padding:.12em .38em;
 .release-meta-row{display:flex;align-items:center;gap:12px;margin-top:10px}
 .tag{display:inline-flex;align-self:start;padding:2px 10px;border:1px solid var(--line-2);border-radius:99px;font-size:12px;color:var(--ink)}
 .date{font-size:13px;color:var(--meta)}
-.release-notes{margin:18px 0;padding-left:22px;list-style:disc;font-size:15px;line-height:1.75}
+/* One recorded point at a time: a short heading a reader scans, then the
+   text that describes it (owner, 2026-11-09: a changelog describes a change,
+   not only names it). The TOC indents each point under its chapter. */
+.release-points{margin:14px 0 8px;display:grid;gap:20px}
+.release-point .note-point{margin:0 0 6px;font:600 16px/1.4 var(--sans);letter-spacing:-.01em;color:var(--ink);scroll-margin-top:84px}
+.release-point-body{margin:0;font-size:15px;line-height:1.75;color:var(--body)}
+.index ol li.toc-point a{display:block;margin-left:-1px;padding:6px 0 6px 14px;border-left:1px solid transparent;font-size:12.5px;line-height:1.45;color:var(--meta);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s ease,border-color .2s ease}
+.index ol li.toc-point a:hover{color:var(--ink)}
+.index ol li.toc-point a[aria-current=true]{color:var(--ink);border-left-color:var(--ember)}
 .release-note-title{margin:22px 0 10px;font-family:var(--sans);font-size:17px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
 .release-note-body{margin:0 0 14px;font-size:15px;line-height:1.75;color:var(--body)}
 .release-note-title+.release-note-body{margin-top:0}

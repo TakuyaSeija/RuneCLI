@@ -168,6 +168,14 @@ pub struct ModelInfo {
     pub modalities: Vec<String>,
 }
 
+/// The input kinds a catalogue can declare and the person can vouch for in
+/// Alt+C (Settings › Models › Modalities): what [`ModelInfo::modalities`] may
+/// hold, what the editor offers, and what `configure_model` accepts. The set
+/// is the vocabulary [`crate::media::modality_of`] speaks, plus `text` — a
+/// source file is not a modality, it is just more of the message, and `text`
+/// is what an endpoint that publishes nothing defaults to in the editor.
+pub const INPUT_MODALITIES: [&str; 5] = ["text", "image", "audio", "video", "file"];
+
 impl ModelInfo {
     /// Capability and user selection are separate: selecting Off never erases
     /// vendor support. A 9router model offers every level the router reads
@@ -2006,6 +2014,11 @@ impl Providers {
                     old.default_effort != model.default_effort
                         || model.manual_fields.contains(&"default_effort".to_string()),
                 ),
+                (
+                    "modalities",
+                    old.modalities != model.modalities
+                        || model.manual_fields.contains(&"modalities".to_string()),
+                ),
             ] {
                 if changed && !model.manual_fields.iter().any(|k| k == key) {
                     model.manual_fields.push(key.into());
@@ -2037,6 +2050,11 @@ impl Providers {
             }
             if !model.efforts.is_empty() {
                 model.manual_fields.push("efforts".into());
+            }
+            // Inputs the person declared for a model the endpoint says nothing
+            // about are theirs, or a refresh would strip them back to unknown.
+            if !model.modalities.is_empty() {
+                model.manual_fields.push("modalities".into());
             }
         }
         let previous = self.clone();

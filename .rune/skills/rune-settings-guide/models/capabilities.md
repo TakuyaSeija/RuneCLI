@@ -18,6 +18,9 @@ This is different from Generation → Max output, which chooses the desired outp
 
 Risk: a wrong ceiling can cause rejection or unwanted restrictions. Use provider information, not a similarly named model's limits.
 
+## Modalities
+Purpose: declare the input kinds this model accepts (`text`, `image`, `audio`, `video`, `file`). When the provider's catalog publishes input modalities, they fill the list automatically; when a gateway publishes nothing about its models, you can declare the supported inputs here (`text` by default). A declared choice is marked `set by you` (`modalities` in `manual_fields`) so catalog refreshes do not erase it. Declaring an input kind does not make an upstream model support it.
+
 ## Other model information
 Reasoning options and prices have separate guides: [reasoning](reasoning.md), [pricing](pricing.md). Published tool support, supported controls and accepted media can differ between models/providers. Advanced model overrides should only state capabilities the provider actually supports; selecting them cannot add a missing upstream feature.
 
