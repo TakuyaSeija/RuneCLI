@@ -179,6 +179,35 @@
   "and": "e"
  },
  "notes": {
+  "0.12.2": {
+   "title": "Segurança na prévia do terminal, status de raciocínio ativo e navegação nas configurações",
+   "paragraphs": [
+    "Os títulos de etapa do terminal agora evitam o vazamento de scripts multilinha quando a descrição da ação atrasa na transmissão, os resumos de raciocínio do modelo refletem com precisão os padrões vigentes do catálogo e da sessão, a remoção de chaves de conexão executa de forma limpa após a confirmação do usuário e a navegação nas configurações percorre linhas somente leitura com estilo de tema e expansão ao focar."
+   ],
+   "points": [
+    {
+     "id": "terminal-heading-preview",
+     "title": "O título do terminal nunca vaza scripts multilinha",
+     "text": "Quando um modelo executa `terminal_use` com um script multilinha e transmite sua descrição tardiamente ou a omite, o cabeçalho da etapa agora limita de forma limpa sua prévia à primeira linha de comando com reticências, impedindo que o código bruto transborde para fora da caixa do terminal."
+    },
+    {
+     "id": "reasoning-summary-status",
+     "title": "Status de raciocínio ativo nas configurações do modelo",
+     "text": "A visualização de configuração do modelo em Configurações agora lê o estado efetivo `starts_thinking` em vez do alternador bruto, exibindo corretamente o suporte a raciocínio como On para modelos que iniciam com o pensamento ativado pelo catálogo ou adaptador."
+    },
+    {
+     "id": "connection-drop-key",
+     "title": "A remoção de chaves de API é executada mediante confirmação",
+     "text": "Selecionar a ação de confirmação para remover uma chave de API agora despacha o comando drop-key diretamente, resolvendo um problema em que a comparação de texto impedia a exclusão."
+    },
+    {
+     "id": "settings-read-only-navigation",
+     "title": "Navegação em linhas somente leitura e expansão de foco",
+     "text": "A navegação por teclado e roda do mouse nas Configurações agora percorre suavemente as linhas de preços e fatos somente leitura até o final com o estilo de destaque do tema, sem setas interativas, expandindo rótulos truncados ao receber foco."
+    }
+   ],
+   "summary": "Prévia do terminal, status de raciocínio e navegação"
+  },
   "0.12.1": {
    "title": "Ordem de mensagens de rede para ferramentas e temporizador persistente do lembrete de plano",
    "paragraphs": [

@@ -1,4 +1,33 @@
 {
+ "0.12.2": {
+  "title": "Terminal preview fallback safety, live reasoning status, and settings navigation",
+  "paragraphs": [
+   "Terminal step headings now safeguard against raw multiline script leakage when action descriptions stream late, model reasoning summaries accurately reflect effective catalog and session defaults, connection key removal cleanly executes upon user confirmation, and settings navigation smoothly traverses read-only rows with theme styling and focus expansion."
+  ],
+  "points": [
+   {
+    "id": "terminal-heading-preview",
+    "title": "Terminal heading never leaks multiline script",
+    "text": "When a model executes `terminal_use` with a multiline script and streams its action description late or omits it, the step heading now cleanly limits its preview to the first command line with an ellipsis, preventing raw script code from spilling outside the terminal box."
+   },
+   {
+    "id": "reasoning-summary-status",
+    "title": "Live thinking status in model settings",
+    "text": "The Settings model configuration view now reads the effective `starts_thinking` state rather than the unconfigured toggle, correctly showing reasoning support as On for models that start with thinking enabled by their catalog or adapter."
+   },
+   {
+    "id": "connection-drop-key",
+    "title": "API key removal executes on user confirmation",
+    "text": "Selecting the confirmation action to remove an API key now dispatches the drop-key command directly, resolving an issue where text matching prevented key deletion."
+   },
+   {
+    "id": "settings-read-only-navigation",
+    "title": "Read-only row navigation and focus expansion",
+    "text": "Keyboard and mouse wheel navigation in Settings now smoothly traverses read-only pricing and fact rows down to the bottom with theme accent styling, no interactive chevrons, and full expansion on focus without truncation."
+   }
+  ],
+  "summary": "Terminal preview, reasoning status & settings navigation"
+ },
  "0.12.1": {
   "title": "Wire message ordering for tool results and persistent plan reminder timer",
   "paragraphs": [

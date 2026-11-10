@@ -179,6 +179,35 @@
   "and": "y"
  },
  "notes": {
+  "0.12.2": {
+   "title": "Seguridad en la vista previa del terminal, estado de razonamiento activo y navegación en ajustes",
+   "paragraphs": [
+    "Los títulos de paso en terminal ahora evitan la filtración de scripts multilínea cuando las descripciones de acción tardan en transmitirse, los resúmenes de razonamiento del modelo reflejan con precisión los valores predeterminados del catálogo y la sesión, la eliminación de claves de conexión se ejecuta limpiamente tras la confirmación del usuario y la navegación en ajustes recorre con fluidez las filas de solo lectura con estilo del tema y expansión al enfocar."
+   ],
+   "points": [
+    {
+     "id": "terminal-heading-preview",
+     "title": "El encabezado del terminal nunca filtra scripts multilínea",
+     "text": "Cuando un modelo ejecuta `terminal_use` con un script multilínea y transmite su descripción tarde o la omite, el encabezado del paso limita limpiamente su vista previa a la primera línea de comando con puntos suspensivos, evitando que el código sin procesar se desborde fuera del cuadro del terminal."
+    },
+    {
+     "id": "reasoning-summary-status",
+     "title": "Estado de pensamiento activo en la configuración del modelo",
+     "text": "La vista de configuración del modelo en Ajustes ahora lee el estado efectivo `starts_thinking` en lugar del interruptor sin configurar, mostrando correctamente la compatibilidad con razonamiento como On para modelos que inician con el pensamiento habilitado por su catálogo o adaptador."
+    },
+    {
+     "id": "connection-drop-key",
+     "title": "La eliminación de claves API se ejecuta tras confirmación",
+     "text": "Seleccionar la acción de confirmación para eliminar una clave API ahora envía el comando drop-key directamente, resolviendo un problema donde la coincidencia de texto impedía la eliminación."
+    },
+    {
+     "id": "settings-read-only-navigation",
+     "title": "Navegación en filas de solo lectura y expansión de foco",
+     "text": "La navegación por teclado y rueda en Ajustes ahora recorre sin problemas las filas informativas y de precios de solo lectura hasta el final con el color de acento del tema, sin flechas interactivas, y expandiendo las etiquetas truncadas al recibir el foco."
+    }
+   ],
+   "summary": "Vista previa de terminal, estado de razonamiento y navegación"
+  },
   "0.12.1": {
    "title": "Orden de mensajes en cable para resultados de herramientas y temporizador persistente de recordatorio de plan",
    "paragraphs": [

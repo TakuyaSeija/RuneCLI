@@ -179,6 +179,35 @@
   "and": "et"
  },
  "notes": {
+  "0.12.2": {
+   "title": "Sécurité de l'aperçu du terminal, état du raisonnement en direct et navigation dans les paramètres",
+   "paragraphs": [
+    "Les en-têtes d'étape du terminal empêchent désormais les fuites de scripts multilignes lorsque la description de l'action est diffusée en retard, les résumés du raisonnement des modèles reflètent fidèlement l'état réel du catalogue et de la session, la suppression des clés de connexion s'exécute dès la confirmation de l'utilisateur, et la navigation dans les paramètres atteint les lignes en lecture seule avec le style du thème et l'expansion au focus."
+   ],
+   "points": [
+    {
+     "id": "terminal-heading-preview",
+     "title": "L'en-tête du terminal ne laisse jamais fuiter un script multiligne",
+     "text": "Lorsqu'un modèle exécute `terminal_use` avec un script multiligne et transmet sa description tardivement ou l'omet, l'en-tête de l'étape limite proprement son aperçu à la première ligne de commande avec des points de suspension, empêchant le code brut de déborder hors de la boîte du terminal."
+    },
+    {
+     "id": "reasoning-summary-status",
+     "title": "État de réflexion en direct dans les paramètres du modèle",
+     "text": "La vue de configuration du modèle dans les Paramètres lit désormais l'état effectif `starts_thinking` plutôt que le commutateur brut, affichant correctement la prise en charge du raisonnement sur On pour les modèles activés par leur catalogue ou adaptateur."
+    },
+    {
+     "id": "connection-drop-key",
+     "title": "La suppression de clé API s'exécute sur confirmation",
+     "text": "Sélectionner l'action de confirmation pour supprimer une clé API distribue désormais directement la commande drop-key, résolvant un problème où la comparaison de texte empêchait la suppression."
+    },
+    {
+     "id": "settings-read-only-navigation",
+     "title": "Navigation dans les lignes en lecture seule et expansion au focus",
+     "text": "La navigation au clavier et à la molette dans les Paramètres parcourt de manière fluide les lignes informatives et de tarification en lecture seule jusqu'en bas avec le style d'accent du thème, sans chevrons interactifs, et en déployant complètement les libellés tronqués lors du focus."
+    }
+   ],
+   "summary": "Aperçu terminal, état du raisonnement et navigation"
+  },
   "0.12.1": {
    "title": "Ordre des messages réseau pour les outils et minuteur persistant du rappel de plan",
    "paragraphs": [

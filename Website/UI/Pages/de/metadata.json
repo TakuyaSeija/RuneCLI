@@ -179,6 +179,35 @@
   "and": "und"
  },
  "notes": {
+  "0.12.2": {
+   "title": "Sicherheit der Terminal-Vorschau, genauer Reasoning-Status und Einstellungsnavigation",
+   "paragraphs": [
+    "Terminal-Schrittüberschriften verhindern nun das Durchsickern mehrzeiliger Skripte bei verzögerter Aktionsbeschreibung, Modell-Reasoning-Zusammenfassungen spiegeln den tatsächlichen Katalog- und Sitzungsstatus präzise wider, das Entfernen von Verbindungsschlüsseln wird bei Bestätigung sauber ausgeführt, und die Navigation in den Einstellungen erreicht schreibgeschützte Zeilen mit Design-Akzentfarben und Fokuserweiterung."
+   ],
+   "points": [
+    {
+     "id": "terminal-heading-preview",
+     "title": "Terminal-Überschrift gibt keine mehrzeiligen Skripte preis",
+     "text": "Wenn ein Modell `terminal_use` mit einem mehrzeiligen Skript ausführt und die Aktionsbeschreibung verspätet eintrifft oder fehlt, beschränkt die Schrittüberschrift die Vorschau sauber auf die erste Befehlszeile mit Auslassungspunkten, sodass kein Rohcode außerhalb des Terminalrahmens austritt."
+    },
+    {
+     "id": "reasoning-summary-status",
+     "title": "Genauer Thinking-Status in den Modelleinstellungen",
+     "text": "Die Modellkonfigurationsansicht in den Einstellungen prüft nun den wirksamen Zustand `starts_thinking` anstelle des unkonfigurierten Schalters und zeigt die Reasoning-Unterstützung für Modelle, deren Katalog Thinking aktiviert, korrekt als On an."
+    },
+    {
+     "id": "connection-drop-key",
+     "title": "API-Schlüsselentfernung wird bei Bestätigung ausgeführt",
+     "text": "Die Auswahl der Bestätigungsaktion zum Entfernen eines Schlüssels sendet den drop-key-Befehl nun direkt und behebt ein Problem, bei dem ein Textvergleich das Löschen verhinderte."
+    },
+    {
+     "id": "settings-read-only-navigation",
+     "title": "Navigation in schreibgeschützten Zeilen und Fokuserweiterung",
+     "text": "Die Tastatur- und Mausrad-Navigation in den Einstellungen durchläuft schreibgeschützte Preis- und Faktenzeilen bis zum Ende reibungslos im Akzentstil des Designs, ohne interaktive Pfeile, und blendet abgeschnittene Bezeichnungen bei Fokus vollständig ein."
+    }
+   ],
+   "summary": "Terminal-Vorschau, Reasoning-Status & Einstellungsnavigation"
+  },
   "0.12.1": {
    "title": "Drahtnachrichten-Reihenfolge für Tool-Ergebnisse und beständiger Planerinnerungs-Timer",
    "paragraphs": [

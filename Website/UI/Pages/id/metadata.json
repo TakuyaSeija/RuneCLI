@@ -179,6 +179,35 @@
   "and": "dan"
  },
  "notes": {
+  "0.12.2": {
+   "title": "Keamanan preview terminal, status reasoning akurat, dan navigasi settings",
+   "paragraphs": [
+    "Judul langkah terminal kini terlindungi dari kebocoran skrip multiline saat deskripsi action terlambat di-stream, ringkasan reasoning model secara akurat mencerminkan status aktif katalog dan sesi, penghapusan key koneksi berjalan bersih saat dikonfirmasi, dan navigasi daftar settings dapat melintasi baris read-only dengan aksen tema serta ekspansi penuh saat difokuskan."
+   ],
+   "points": [
+    {
+     "id": "terminal-heading-preview",
+     "title": "Judul terminal tidak membocorkan skrip multiline",
+     "text": "Saat model menjalankan `terminal_use` dengan skrip multiline dan deskripsi action datang terlambat atau tidak ada, judul langkah kini membatasi preview secara rapi ke baris perintah pertama dengan tanda elipsis, mencegah kode skrip mentah tumpah ke luar kotak terminal."
+    },
+    {
+     "id": "reasoning-summary-status",
+     "title": "Status thinking akurat pada pengaturan model",
+     "text": "Tampilan konfigurasi model pada Settings kini membaca status efektif `starts_thinking` alih-alih setelan kosong, secara benar menampilkan dukungan reasoning sebagai On untuk model yang aktif thinking-nya dari katalog atau adapter."
+    },
+    {
+     "id": "connection-drop-key",
+     "title": "Penghapusan API key berjalan saat konfirmasi",
+     "text": "Memilih tombol konfirmasi untuk menghapus API key kini langsung mengeksekusi perintah drop key, memperbaiki kendala pencocokan teks yang sebelumnya menggagalkan penghapusan."
+    },
+    {
+     "id": "settings-read-only-navigation",
+     "title": "Navigasi baris read-only dan ekspansi fokus",
+     "text": "Navigasi keyboard dan scroll mouse di Settings kini dapat menelusuri baris informasi tarif dan fakta hingga paling bawah dengan warna aksen tema, tanpa chevron interaktif, dan memperluas label yang terpotong secara penuh saat difokuskan."
+    }
+   ],
+   "summary": "Preview terminal, status reasoning & navigasi settings"
+  },
   "0.12.1": {
    "title": "Urutan pesan kawat untuk hasil tool dan timer pengingat plan yang persisten",
    "paragraphs": [
