@@ -32,14 +32,14 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="session-title">D’un dossier vide à des tests validés.</h2>
-      <p class="lead">Six moments d’une session réelle au cours de laquelle Rune a conçu un lecteur de musique en {{.Demo.Recorded}}. Chaque étape, fichier et chiffre provient directement de la session ; la diffusion en continu, le rythme de lecture et les approbations en mode Ask sont simulés, et la session d’origine s’est déroulée en mode Full.</p>
+      <p class="lead">Six moments d’une session réelle au cours de laquelle RuneAgent a conçu un lecteur de musique en {{.Demo.Recorded}}. Chaque étape, fichier et chiffre provient directement de la session ; la diffusion en continu, le rythme de lecture et les approbations en mode Ask sont simulés, et la session d’origine s’est déroulée en mode Full.</p>
     </div>
     <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
       <div class="chapters" role="group" aria-label="Chapitres de la session enregistrée">
         {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="Enregistré à {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
       <div class="terminal-viewport" data-terminal-viewport>
-      <section class="term" aria-label="Illustration interactive : extrait de la session enregistrée Rune 655, rythmé pour la lecture ; la diffusion progressive et les approbations Ask sont simulées et ne reflètent pas le minutage réel des fragments">
+      <section class="term" aria-label="Illustration interactive : extrait de la session enregistrée RuneAgent 655, rythmé pour la lecture ; la diffusion progressive et les approbations Ask sont simulées et ne reflètent pas le minutage réel des fragments">
         <div class="tbar">
           <div class="tbar-ctrls" data-replay-controls hidden>
             <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="Lancer la lecture" title="Lire">
@@ -116,7 +116,7 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="features-title">Un agent qui montre son travail.</h2>
-      <p class="lead">Le modèle propose. Rune affiche ce qui s’exécute, ce qui a changé et combien cela coûte, et vous laisse les décisions qui comptent.</p>
+      <p class="lead">Le modèle propose. RuneAgent affiche ce qui s’exécute, ce qui a changé et combien cela coûte, et vous laisse les décisions qui comptent.</p>
     </div>
     <div class="feature-grid">
       <article class="feature feature-reach">
@@ -125,7 +125,7 @@
         <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
         <div class="feature-copy">
           <h3>Vous décidez jusqu’où il peut aller.</h3>
-          <p>Chaque session fonctionne dans l’un des trois modes. Choisissez-le avec <code>/mode</code> ; Ask est le mode de départ de Rune.</p>
+          <p>Chaque session fonctionne dans l’un des trois modes. Choisissez-le avec <code>/mode</code> ; Ask est le mode de départ de RuneAgent.</p>
           <div class="modes">
             <label class="mode" for="mode-ask"><b>Ask</b><span>Chaque modification et chaque commande demandent votre accord à chaque fois.</span></label>
             <label class="mode" for="mode-auto"><b>Auto</b><span>Agit librement dans l’espace de travail. Les accès externes et les commandes risquées demandent toujours confirmation.</span></label>
@@ -160,7 +160,7 @@
       <article class="feature feature-panel">
         <div class="feature-copy">
           <h3>Votre modèle, votre compte.</h3>
-          <p>Choisissez parmi les modèles renvoyés par vos fournisseurs configurés, ou saisissez l’identifiant exact d’un modèle. Rune comptabilise le contexte, les jetons et les dépenses au fil du travail. Aucun crédit API n’est inclus.</p>
+          <p>Choisissez parmi les modèles renvoyés par vos fournisseurs configurés, ou saisissez l’identifiant exact d’un modèle. RuneAgent comptabilise le contexte, les jetons et les dépenses au fil du travail. Aucun crédit API n’est inclus.</p>
         </div>
         <p class="feature-note">Le panneau latéral tel que le dessine le CLI, issu de la session enregistrée.</p>
         <div class="cli-panel" role="group" aria-label="Les compteurs de session du panneau latéral">

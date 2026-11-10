@@ -32,14 +32,14 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="session-title">De uma pasta vazia aos testes passando.</h2>
-      <p class="lead">Seis momentos de uma sessão real em que o Rune construiu um reprodutor de música em {{.Demo.Recorded}}. Cada etapa, arquivo e número veio da própria sessão; o streaming, o ritmo de leitura e as aprovações no modo Ask são simulados, e a sessão original rodou no modo Full.</p>
+      <p class="lead">Seis momentos de uma sessão real em que o RuneAgent construiu um reprodutor de música em {{.Demo.Recorded}}. Cada etapa, arquivo e número veio da própria sessão; o streaming, o ritmo de leitura e as aprovações no modo Ask são simulados, e a sessão original rodou no modo Full.</p>
     </div>
     <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
       <div class="chapters" role="group" aria-label="Capítulos da sessão gravada">
         {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="Gravado em {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
       <div class="terminal-viewport" data-terminal-viewport>
-      <section class="term" aria-label="Ilustração interativa: um trecho da sessão gravada 655 do Rune, com ritmo ajustado para leitura; o streaming progressivo e as aprovações no modo Ask são simulados, não tempos reais de pacotes">
+      <section class="term" aria-label="Ilustração interativa: um trecho da sessão gravada 655 do RuneAgent, com ritmo ajustado para leitura; o streaming progressivo e as aprovações no modo Ask são simulados, não tempos reais de pacotes">
         <div class="tbar">
           <div class="tbar-ctrls" data-replay-controls hidden>
             <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="Reproduzir a gravação" title="Reproduzir">
@@ -116,7 +116,7 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="features-title">Um agente que mostra o próprio trabalho.</h2>
-      <p class="lead">O modelo propõe. O Rune mostra o que é executado, o que mudou e quanto custou, deixando as decisões importantes nas suas mãos.</p>
+      <p class="lead">O modelo propõe. O RuneAgent mostra o que é executado, o que mudou e quanto custou, deixando as decisões importantes nas suas mãos.</p>
     </div>
     <div class="feature-grid">
       <article class="feature feature-reach">
@@ -125,7 +125,7 @@
         <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
         <div class="feature-copy">
           <h3>Você decide até onde ele vai.</h3>
-          <p>Cada sessão roda em um de três modos. Escolha com <code>/mode</code>; o Rune sempre começa no modo Ask.</p>
+          <p>Cada sessão roda em um de três modos. Escolha com <code>/mode</code>; o RuneAgent sempre começa no modo Ask.</p>
           <div class="modes">
             <label class="mode" for="mode-ask"><b>Ask</b><span>Cada edição pede permissão, e cada comando pede permissão todas as vezes.</span></label>
             <label class="mode" for="mode-auto"><b>Auto</b><span>Trabalha livremente dentro do workspace. Acessos externos e comandos arriscados continuam pedindo permissão.</span></label>
@@ -160,7 +160,7 @@
       <article class="feature feature-panel">
         <div class="feature-copy">
           <h3>Seu modelo, sua conta.</h3>
-          <p>Escolha entre os modelos retornados pelos provedores configurados ou informe um ID de modelo exato. O Rune contabiliza contexto, tokens e gastos enquanto trabalha. Não há crédito de API embutido.</p>
+          <p>Escolha entre os modelos retornados pelos provedores configurados ou informe um ID de modelo exato. O RuneAgent contabiliza contexto, tokens e gastos enquanto trabalha. Não há crédito de API embutido.</p>
         </div>
         <p class="feature-note">O painel lateral exatamente como a CLI o desenha, extraído da sessão gravada.</p>
         <div class="cli-panel" role="group" aria-label="Os números da sessão no painel lateral">

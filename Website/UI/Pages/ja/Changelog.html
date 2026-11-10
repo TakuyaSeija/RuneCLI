@@ -17,7 +17,7 @@
           <summary>{{seriesTitle $g.Minor}} <span class="history-count" translate="no">({{len $g.Releases}})</span></summary>
           <ul>
             {{- range $j, $r := $g.Releases}}
-            <li><a href="#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if and (eq $i 0) (eq $j 0)}} aria-current="page"{{end}}><span class="v-num" translate="no">{{$r.Version}}</span><span class="history-sum">{{releaseSummary $r}}</span></a></li>
+            <li><a href="{{url (printf "changelog/%s" $r.Version)}}#v{{$r.Version}}" class="history-link" data-version="{{$r.Version}}"{{if eq $r.Version $.ActiveVersion}} aria-current="page"{{end}}><span class="v-num" translate="no">{{$r.Version}}</span><span class="history-sum">{{releaseSummary $r}}</span></a></li>
             {{- end}}
           </ul>
         </details>
@@ -35,7 +35,7 @@
     </header>
     <div class="changelog-panels">
       {{- range $i, $r := .Releases}}
-      <section class="changelog-panel{{if eq $i 0}} is-active is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
+      <section class="changelog-panel{{if eq $r.Version $.ActiveVersion}} is-active{{end}}{{if eq $i 0}} is-latest{{end}}" id="v{{$r.Version}}" data-version="{{$r.Version}}">
         <div class="version-head">
           <p class="crumbs">リリース<span aria-hidden="true">/</span>{{seriesTitle (minorOf $r.Version)}}</p>
           <h2>バージョン {{$r.Version}}</h2>

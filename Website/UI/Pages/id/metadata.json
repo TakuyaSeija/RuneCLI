@@ -1,20 +1,20 @@
 {
  "pages": {
   "": {
-   "title": "RuneAgent | agen coding untuk terminal Anda",
-   "lead": "RuneAgent dari Atoryn Studio bekerja di proyek Anda dengan model pilihan Anda, hasil perangkat yang terlihat, izin yang dapat diatur, dan perubahan berkas yang dapat ditinjau."
+   "title": "RuneAgent: agen coding AI untuk terminal Anda",
+   "lead": "RuneAgent merencanakan, mengedit, dan menjalankan perintah di proyek Anda dengan model yang Anda sambungkan. Anda melihat setiap langkah dan perubahan berkas, dan Anda yang menentukan batas kerjanya."
   },
   "changelog": {
-   "title": "Catatan rilis | RuneAgent",
-   "lead": "Setiap rilis RuneAgent yang telah diterbitkan."
+   "title": "Catatan Rilis RuneAgent: Riwayat Versi dan Pembaruan Resmi",
+   "lead": "Catatan rilis resmi untuk setiap build RuneAgent yang diterbitkan. Pelajari perubahan teknis, kapabilitas baru, pembaruan perilaku, dan perbaikan untuk Linux, macOS, dan Windows."
   },
   "license": {
-   "title": "Lisensi | RuneAgent",
-   "lead": "Lisensi yang berlaku untuk RuneAgent, diterjemahkan untuk dibaca; teks bahasa Inggris yang mengikat."
+   "title": "Lisensi RuneAgent: Ketentuan Penggunaan dan Hak Cipta",
+   "lead": "Lisensi perangkat lunak resmi dan ketentuan penggunaan untuk biner RuneAgent yang diterbitkan oleh Atoryn Studio."
   },
   "notfound": {
-   "title": "Halaman tidak ditemukan | RuneAgent",
-   "lead": "Halaman ini tidak ada."
+   "title": "404: Halaman Tidak Ditemukan",
+   "lead": "Halaman yang Anda tuju tidak ditemukan di Atoryn Studio."
   }
  },
  "groups": {
@@ -24,143 +24,143 @@
   "Extend": "Perluasan",
   "Trust & understand": "Kepercayaan & pemahaman"
  },
- "docs_title": "{label} | dokumentasi RuneAgent",
+ "docs_title": "{label}: Dokumentasi Resmi RuneAgent",
  "docs": {
   "docs": {
    "label": "Pengantar",
-   "lead": "Apa yang dilakukan Rune, apa yang dikirimnya ke model, dan cara memulai sesi pertama Anda."
+   "lead": "Cara RuneAgent merencanakan tugas, memeriksa berkas, dan menjalankan perintah terminal dengan model Anda. Pahami alur prompt, batas eksekusi, dan sesi."
   },
   "docs/install": {
    "label": "Pasang & perbarui",
-   "lead": "Kebutuhan sistem, apa yang dilakukan pemasang, PATH, folder data, pembaruan, dan penghapusan di Linux, macOS, dan Windows."
+   "lead": "Kebutuhan sistem, pemasang otomatis shell dan PowerShell, konfigurasi PATH, isolasi folder data, verifikasi pembaruan, dan langkah pencopotan bersih."
   },
   "docs/platforms": {
    "label": "Dukungan platform",
-   "lead": "Apa yang bekerja sama di Linux, macOS, dan Windows, dan apa yang dilakukan setiap sistem secara berbeda."
+   "lead": "Paritas engine lintas platform di Linux glibc dan musl, macOS Apple Silicon dan Intel, serta Windows: perbedaan shell, PTY, dan eksekusi lokal."
   },
   "docs/interface": {
    "label": "Antarmuka",
-   "lead": "Membaca percakapan, kartu izin, rencana, perubahan berkas, dan status sesi."
+   "lead": "Navigasi transkrip terpadu, lipatan visual, kotak pratinjau perintah, pencatatan panel samping, kartu izin, formulir pertanyaan, dan indikator status."
   },
   "docs/sessions": {
    "label": "Sesi & konteks",
-   "lead": "Memulai, melanjutkan, dan mengarahkan pekerjaan; memeriksa konteks dan meringkas riwayat lama."
+   "lead": "Memulai, melanjutkan, dan beralih sesi proyek; memantau penggunaan token live; mengonfigurasi pemadatan konteks otomatis; dan menyimpan riwayat lokal."
   },
   "docs/commands": {
    "label": "Perintah garis miring",
-   "lead": "Perintah percakapan, argumennya, dan apa yang diubah oleh masing-masing."
+   "lead": "Perintah percakapan interaktif: /mode untuk beralih mode izin, /undo untuk pemulihan berkas, /mcp untuk deteksi tool, dan /panel untuk panel samping."
   },
   "docs/cli": {
    "label": "Referensi baris perintah",
-   "lead": "Opsi peluncuran dan subperintah rune untuk konfigurasi, akun, sesi, dan pemeliharaan."
+   "lead": "Flag baris perintah dan subperintah rune untuk prompt mandiri (-p), pemeriksaan pengaturan (-config), manajemen kredensial (-secrets), dan pemangkasan sesi."
   },
   "docs/keyboard": {
    "label": "Papan ketik & mouse",
-   "lead": "Pintasan baku untuk menyunting, bernavigasi, menjawab pertanyaan, dan percakapan."
+   "lead": "Pintasan papan ketik terminal untuk navigasi, penyuntingan, Ctrl+O untuk panel, Ctrl+T untuk rencana, pembatalan Esc ganda, dan perilaku gulir mouse."
   },
   "docs/shell": {
    "label": "Perintah manual",
-   "lead": "Jalankan perintah sendiri dengan awalan ! — apa yang boleh dilakukannya, kapan dijalankan, dan apa yang dilihat AI."
+   "lead": "Menjalankan skrip shell manual langsung dengan awalan !: akses sandbox penuh satu kali, pratinjau konfirmasi interaktif, dan isolasi variabel lingkungan."
   },
   "docs/instructions": {
    "label": "Instruksi & lampiran",
-   "lead": "Berikan panduan proyek, lampirkan berkas, dan simpan memori proyek yang tahan lama."
+   "lead": "Menyediakan aturan proyek via AGENTS.md, melampirkan berkas dan gambar, menetralkan injeksi prompt tak tepercaya, serta mengelola memori proyek."
   },
   "docs/memory": {
    "label": "Memori",
-   "lead": "Apa isi memori proyek, apa yang benar-benar sampai ke model, satu anggaran bytenya, dan apa yang tidak boleh diputuskannya."
+   "lead": "Arsitektur catatan proyek terstruktur dalam MEMORY.md: batasan anggaran byte, indeks riwayat yang kekal, dan pedoman mencatat keputusan arsitektur."
   },
   "docs/undo": {
    "label": "Tinjau, urungkan & ulangi",
-   "lead": "Tinjau diff berkas yang sebenarnya dan pahami apa yang bisa dan tidak bisa dikembalikan oleh pemulihan sesi."
+   "lead": "Meninjau diff terpadu yang presisi, melacak mutasi per sesi, mengembalikan berkas ke kondisi awal dengan /undo, dan memahami batasan pemulihan sistem."
   },
   "docs/settings": {
    "label": "Ringkasan pengaturan",
-   "lead": "Temukan bagian Settings yang tepat dan bedakan pilihan global dari kontrol sesi."
+   "lead": "Menavigasi bagian pengaturan: membedakan konfigurasi global rune.toml dari preferensi model per sesi, dan mengatur nilai bawaan tanpa menebak."
   },
   "docs/configuration": {
    "label": "Berkas konfigurasi",
-   "lead": "Periksa, ubah, dan setel ulang nilai rune.toml tanpa mencampuradukkan pilihan dengan nilai bawaan."
+   "lead": "Mengelola konfigurasi di rune.toml: memahami nilai bawaan pabrik, arsitektur muat ulang otomatis, aturan reset kunci, dan prioritas variabel lingkungan."
   },
   "docs/reference": {
    "label": "Referensi pengaturan",
-   "lead": "Setiap pengaturan di rune.toml: nilai bawaan pabriknya, fungsinya, nilai yang diterimanya, dan kapan perubahan berlaku."
+   "lead": "Referensi lengkap setiap pengaturan rune.toml: nilai pabrik, tipe data yang valid, perilaku hot-reload, dan dampaknya terhadap runtime, tool, dan UI."
   },
   "docs/connections": {
    "label": "Koneksi",
-   "lead": "Tambahkan akun model dan web, kelola kredensial, dan periksa tujuan sebelum menyambungkan."
+   "lead": "Menambahkan dan mengelola akun penyedia model, memasukkan kredensial API ke penyimpanan terenkripsi, menguji koneksi live, dan memeriksa endpoint."
   },
   "docs/providers": {
    "label": "Penyedia model",
-   "lead": "31 preset penyedia, kunci dan alamatnya, layanan lokal, serta catatan penalaran per penyedia."
+   "lead": "Mengenal 31 preset penyedia bawaan seperti Anthropic, OpenAI, DeepSeek, Ollama, dan Z.ai: alamat endpoint, kontrol thinking, dan cakupan kredensial."
   },
   "docs/models": {
    "label": "Model & kapabilitas",
-   "lead": "Pilih pasangan penyedia/model dan atur batas yang diketahui, opsi penalaran, serta harga."
+   "lead": "Memilih pasangan model aktif, mengatur tingkat penalaran thinking, menyesuaikan batas konteks, dan menentukan tarif kustom untuk pelacakan biaya akurat."
   },
   "docs/generation": {
    "label": "Generasi & penalaran",
-   "lead": "Kendalikan penalaran, sampling, dan keluaran yang diminta dari model saat ini."
+   "lead": "Mengatur tingkat penalaran, suhu sampling, batas token keluaran maksimum, serta visibilitas token thinking di OpenAI, Anthropic, dan gateway provider."
   },
   "docs/auxiliary": {
    "label": "Model bantu",
-   "lead": "Atur tugas sanitizer, classifier, compaction, dan judul, termasuk dampaknya pada data dan biaya."
+   "lead": "Mengonfigurasi model bantu terpisah untuk pemadatan riwayat latar belakang, evaluasi kebijakan keamanan via classifier, dan penamaan sesi otomatis."
   },
   "docs/runtime": {
    "label": "Runtime & percobaan ulang",
-   "lead": "Pahami batas waktu permintaan, jeda percobaan ulang yang linear, jeda kredit, dan masa hidup sesi terlepas."
+   "lead": "Mengatur batas waktu permintaan HTTP, kurva percobaan ulang linear dengan jeda kuota, masa aktif proses latar saat diam, dan pemulihan koneksi."
   },
   "docs/tools": {
    "label": "Tool & batas",
-   "lead": "Atur batas keluaran yang dikembalikan dan batas kerja, dan bedakan dari lipatan tampilan atau izin."
+   "lead": "Mengatur batas tangkapan keluaran stdout dan stderr, batas pemotongan karakter, jumlah pemanggilan tool per giliran, dan aturan waktu tunggu izin."
   },
   "docs/terminal": {
    "label": "Terminal & kerja latar belakang",
-   "lead": "Bagaimana perintah pindah ke latar belakang, menerima masukan, dan melaporkan selesai atau hilang."
+   "lead": "Menjalankan perintah shell via terminal_use, mengelola proses latar dengan process_control, memantau kode keluar, dan menerima notifikasi mandiri."
   },
   "docs/web": {
    "label": "Pencarian & pengambilan web",
-   "lead": "Siapkan penyedia pencarian dan pembaca halaman terpisah tanpa mengubah tujuan secara diam-diam."
+   "lead": "Mengonfigurasi penyedia pencarian web dan pembacaan halaman terpisah, mengelola pin rute gateway, mengatur batas karakter, dan membaca markdown hasil."
   },
   "docs/appearance": {
    "label": "Tampilan",
-   "lead": "Pilih tema, tampilkan atau sembunyikan panel samping, dan pahami tampilan yang bergantung pada terminal."
+   "lead": "Memilih tema warna obsidian, amber, dan netral, mengatur kecepatan frame yang tersinkronisasi, sensitivitas gulir, dan mode tata letak responsif."
   },
   "docs/skills": {
    "label": "Skill",
-   "lead": "Temukan, aktifkan, dan kelola panduan yang dapat dipakai ulang tanpa menganggapnya sebagai otorisasi."
+   "lead": "Memasang, meninjau, dan menjalankan panduan skill di folder .rune/skills/: menemukan kapabilitas via tool, mengelola cakupan, dan menegakkan izin."
   },
   "docs/mcp": {
    "label": "Koneksi MCP",
-   "lead": "Tinjau server tool eksternal, cakupan, dan aksesnya sebelum menyambungkannya ke Rune."
+   "lead": "Menyambungkan server MCP eksternal via stdio atau SSE: membaca skema tool yang dideklarasikan, mengelola autentikasi, dan menegakkan izin eksekusi."
   },
   "docs/security": {
    "label": "Keamanan",
-   "lead": "Batas kepercayaan, mode izin, keterbatasan platform, dan batas pengurungan."
+   "lead": "Jaminan keamanan inti: isolasi kernel Landlock, pengurungan ruang kerja ketat, gerbang eksekusi tool tak terbantahkan, dan sensor token di log."
   },
   "docs/classifier": {
    "label": "Kebijakan pengklasifikasi",
-   "lead": "Tulis dan muat ulang kebijakan CLASSIFIER.md dan pahami kapan peninjauan AI benar-benar aktif."
+   "lead": "Menentukan batas keamanan otomatis menggunakan CLASSIFIER.md: menegakkan evaluasi aturan sebelum eksekusi perintah dan memeriksa bukti verifikasi."
   },
   "docs/privacy": {
    "label": "Privasi & data",
-   "lead": "Apa yang tetap di mesin Anda, apa yang dikirim ke penyedia, dan apa yang perlu ditinjau sebelum membagikan diagnostik."
+   "lead": "Desain privasi lokal: membuktikan apa yang tetap berada di komputer Anda, apa yang dikirim ke penyedia API, dan peniadaan total telemetri pihak luar."
   },
   "docs/credentials": {
    "label": "Kredensial",
-   "lead": "Gunakan UI pengisian kredensial, bedakan kunci yang tidak ada dari yang tidak tersedia, dan pulihkan dengan sengaja."
+   "lead": "Penyimpanan rahasia lokal yang aman: enkripsi kunci utama, kolom input terminal bertopeng, validasi kunci otomatis, dan prosedur pemulihan akun."
   },
   "docs/verification": {
    "label": "Verifikasi rilis",
-   "lead": "Verifikasi tanda tangan rilis dan checksum arsip, dan pahami batas kepercayaan kunci penandatangan."
+   "lead": "Memverifikasi integritas kriptografis rilis: memeriksa tanda tangan rilis ECDSA, mencocokkan checksum arsip SHA, dan mengaudit kunci rilis resmi."
   },
   "docs/architecture": {
    "label": "Arsitektur",
-   "lead": "Gambaran umum publik tentang frontend, engine lokal, penyedia model, eksekusi tool, dan data sesi."
+   "lead": "Arsitektur teknis engine Rust: loop antarmuka single-thread, jail eksekusi tool asinkron, penerjemahan dialek antar penyedia, dan registri lokal."
   },
   "docs/troubleshooting": {
    "label": "Pemecahan masalah",
-   "lead": "Diagnosis status sebenarnya sebelum mengubah batas waktu, penyedia, atau akses."
+   "lead": "Mendiagnosis batas waktu jaringan, penolakan autentikasi, masalah tampilan terminal, penolakan izin, dan kegagalan proses latar dengan /logs."
   }
  },
  "chapters": {

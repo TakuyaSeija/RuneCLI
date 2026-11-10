@@ -9,10 +9,12 @@ on a light plate. They are kept unmodified here as the source of every served
 file; `Brand/` is not embedded in the site binary, so only the derived copies in
 `UI/Static/Images/` reach a visitor. The light plate is kept for a future light
 surface; today the site is dark-only and nothing uses it.
-The site never re-colours them. The header and footer use the transparent one
-at 26 and 20 px; a browser tab needs the mark on its own plate, because a
-transparent gold swirl disappears on a light tab and turns to specks at 16 px,
-so the tab icons and the touch icon are downscales of the owner's dark plate.
+The site never re-colours them. The header and footer use the transparent mark
+at 26 and 20 px. Browser tabs use the transparent mark across four crisp
+downscales (128, 96, 32, and 16 px) so the icon sits cleanly and seamlessly on
+any browser tab without a dark box. The iOS touch icon retains the dark plate
+because iOS rounds corners and fills transparent areas with black on the home
+screen.
 
 `--check` writes nothing and reports whether the files on disk are exactly what
 this script produces (byte for byte), so a hand-edited asset is caught.
@@ -38,9 +40,10 @@ PLATE = "Logo-black.png"
 # name, source, size, what it is for
 DERIVED = [
     ("Logo.png", MASTER, 256, "header and footer mark, shown at 26 and 20 px (owner transparent original)"),
-    ("Icon.png", PLATE, 96, "tab icon for large/high-density tabs"),
-    ("Icon-32.png", PLATE, 32, "tab icon, standard"),
-    ("Icon-16.png", PLATE, 16, "tab icon, small"),
+    ("Icon-128.png", MASTER, 128, "tab icon, extra HD (128 px integer downscale)"),
+    ("Icon.png", MASTER, 96, "tab icon for large/high-density tabs"),
+    ("Icon-32.png", MASTER, 32, "tab icon, standard"),
+    ("Icon-16.png", MASTER, 16, "tab icon, small"),
 ]
 
 

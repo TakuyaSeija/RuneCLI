@@ -98,6 +98,13 @@ func (s *server) routes() http.Handler {
 			if p.Route == "" {
 				continue
 			}
+			if p.Route == "changelog" {
+				mux.HandleFunc("GET "+at+"/changelog", s.changelog(l))
+				mux.HandleFunc("GET "+at+"/changelog/{$}", redirectTo(at+"/changelog"))
+				mux.HandleFunc("GET "+at+"/changelog/{version}", s.changelog(l))
+				mux.HandleFunc("GET "+at+"/changelog/{version}/{$}", redirectTo(at+"/changelog/{version}"))
+				continue
+			}
 			mux.HandleFunc("GET "+at+"/"+p.Route, s.page(l, p.Route))
 			mux.HandleFunc("GET "+at+"/"+p.Route+"/{$}", redirectTo(at+"/"+p.Route))
 		}
@@ -137,6 +144,27 @@ func (s *server) page(l *locale, route string) http.HandlerFunc {
 		b, gz, err := s.rendered("page:"+l.Code+":"+route, func(c *Catalog) ([]byte, error) { return s.site.render(p, c) })
 		if err != nil {
 			log.Printf("render %s: %v", p.File, err)
+			http.Error(w, "Internal error", http.StatusInternalServerError)
+			return
+		}
+		writeBody(w, r, "text/html; charset=utf-8", "no-cache", b, gz)
+	}
+}
+
+func (s *server) changelog(l *locale) http.HandlerFunc {
+	p := s.site.pages[l.Code]["changelog"]
+	return func(w http.ResponseWriter, r *http.Request) {
+		ver := r.PathValue("version")
+		if ver == "" {
+			ver = r.URL.Query().Get("v")
+		}
+		ver = strings.TrimPrefix(ver, "v")
+		key := "changelog:" + l.Code + ":" + ver
+		b, gz, err := s.rendered(key, func(c *Catalog) ([]byte, error) {
+			return s.site.renderChangelog(p, c, ver)
+		})
+		if err != nil {
+			log.Printf("render changelog %s: %v", ver, err)
 			http.Error(w, "Internal error", http.StatusInternalServerError)
 			return
 		}
@@ -214,11 +242,27 @@ func (s *server) sitemap(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	// Every language of a page lists all the others and itself, so a search
+	// engine can pair them without reading the page (Google's sitemap form of
+	// hreflang). lastmod is written only where the words really change with a
+	// release, from that release's own date: a guessed date teaches a crawler
+	// to ignore every lastmod on the site.
+	lastmod := ""
+	if latest := s.catalog.get().Latest(); latest != nil {
+		lastmod = latest.Date
+	}
 	var b bytes.Buffer
-	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n" + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">` + "\n")
 	for _, l := range locales {
 		for _, p := range pages {
-			fmt.Fprintf(&b, "  <url><loc>%s%s</loc></url>\n", s.cfg.Origin, s.site.urlIn(l, p.Route))
+			fmt.Fprintf(&b, "  <url>\n    <loc>%s%s</loc>\n", s.cfg.Origin, s.site.urlIn(l, p.Route))
+			if lastmod != "" && (p.Route == "" || p.Route == "changelog") {
+				fmt.Fprintf(&b, "    <lastmod>%s</lastmod>\n", lastmod)
+			}
+			for _, alt := range locales {
+				fmt.Fprintf(&b, "    <xhtml:link rel=\"alternate\" hreflang=\"%s\" href=\"%s%s\"/>\n", alt.Code, s.cfg.Origin, s.site.urlIn(alt, p.Route))
+			}
+			fmt.Fprintf(&b, "    <xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"%s%s\"/>\n  </url>\n", s.cfg.Origin, s.site.urlIn(locales[0], p.Route))
 		}
 	}
 	b.WriteString("</urlset>\n")

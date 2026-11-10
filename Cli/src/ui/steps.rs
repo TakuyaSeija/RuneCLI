@@ -133,7 +133,21 @@ pub fn heading(tool: &Tool) -> String {
         "terminal_use" => {
             let cmds = commands(tool);
             if let Some(cmd) = cmds.first() {
-                format!("Run {cmd}")
+                let mut lines = cmd.lines().map(str::trim).filter(|l| !l.is_empty());
+                if let Some(first) = lines.next() {
+                    let has_more = lines.next().is_some();
+                    let trimmed_first = if first.chars().count() > 80 {
+                        let cut: String = first.chars().take(80).collect();
+                        format!("{cut}…")
+                    } else if has_more {
+                        format!("{first}…")
+                    } else {
+                        first.to_string()
+                    };
+                    format!("Run {trimmed_first}")
+                } else {
+                    "Running a command".to_string()
+                }
             } else {
                 "Running a command".to_string()
             }
@@ -774,6 +788,20 @@ mod tests {
     fn a_step_whose_action_has_not_arrived_still_says_something_true() {
         let t = Tool::new("c1".into(), "terminal_use".into(), String::new());
         assert_eq!(heading(&t), "Running a command");
+
+        let mut single = Tool::new("c2".into(), "terminal_use".into(), String::new());
+        single.args = Some(json!({"command": "cargo test --workspace"}));
+        assert_eq!(heading(&single), "Run cargo test --workspace");
+
+        let mut multiline = Tool::new("c3".into(), "terminal_use".into(), String::new());
+        multiline.args = Some(json!({
+            "command": "cd ~/Project/Atoryn\npython3 - <<'EOF'\nimport re,glob,sys\nprint('fixed')\nEOF"
+        }));
+        assert_eq!(heading(&multiline), "Run cd ~/Project/Atoryn…");
+        assert!(
+            !heading(&multiline).contains('\n'),
+            "heading must never leak newlines outside box"
+        );
     }
 
     #[test]

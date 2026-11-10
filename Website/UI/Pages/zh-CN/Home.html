@@ -32,14 +32,14 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="session-title">从空文件夹到测试全部通过。</h2>
-      <p class="lead">截取自一次真实会话的六个片段：Rune 在 {{.Demo.Recorded}} 内构建了一个音乐播放器。每一步操作、文件改动和统计数据均来自真实记录；流式输出、阅读节奏与 Ask 确认弹窗为演示模拟，原会话在 Full 模式下运行。</p>
+      <p class="lead">截取自一次真实会话的六个片段：RuneAgent 在 {{.Demo.Recorded}} 内构建了一个音乐播放器。每一步操作、文件改动和统计数据均来自真实记录；流式输出、阅读节奏与 Ask 确认弹窗为演示模拟，原会话在 Full 模式下运行。</p>
     </div>
     <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
       <div class="chapters" role="group" aria-label="录制会话的章节">
         {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="录制于 {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
       <div class="terminal-viewport" data-terminal-viewport>
-      <section class="term" aria-label="交互式演示：Rune 655 号录制会话节选，已按阅读节奏调整；渐进流式输出与 Ask 审批为模拟效果，非原始分块计时">
+      <section class="term" aria-label="交互式演示：RuneAgent 655 号录制会话节选，已按阅读节奏调整；渐进流式输出与 Ask 审批为模拟效果，非原始分块计时">
         <div class="tbar">
           <div class="tbar-ctrls" data-replay-controls hidden>
             <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="播放回放" title="播放">
@@ -116,7 +116,7 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="features-title">每一步操作都透明可见。</h2>
-      <p class="lead">模型负责提出方案，Rune 负责展示执行的命令、修改的文件与产生的费用，并把关键决定权交还给你。</p>
+      <p class="lead">模型负责提出方案，RuneAgent 负责展示执行的命令、修改的文件与产生的费用，并把关键决定权交还给你。</p>
     </div>
     <div class="feature-grid">
       <article class="feature feature-reach">
@@ -125,7 +125,7 @@
         <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
         <div class="feature-copy">
           <h3>权限边界由你决定。</h3>
-          <p>每个会话都在以下三种模式之一中运行。可通过 <code>/mode</code> 切换；Rune 默认以 Ask 模式启动。</p>
+          <p>每个会话都在以下三种模式之一中运行。可通过 <code>/mode</code> 切换；RuneAgent 默认以 Ask 模式启动。</p>
           <div class="modes">
             <label class="mode" for="mode-ask"><b>Ask</b><span>每次编辑文件、每次运行命令都会先询问你。</span></label>
             <label class="mode" for="mode-auto"><b>Auto</b><span>在工作区内自由操作；访问工作区外部或执行高风险命令时仍会询问。</span></label>
@@ -160,7 +160,7 @@
       <article class="feature feature-panel">
         <div class="feature-copy">
           <h3>你的模型，你的账户。</h3>
-          <p>从已配置提供商返回的模型列表中选择，或直接输入准确的模型 ID。Rune 会在运行过程中实时统计上下文、token 用量和花费。应用不绑定任何预置 API 额度。</p>
+          <p>从已配置提供商返回的模型列表中选择，或直接输入准确的模型 ID。RuneAgent 会在运行过程中实时统计上下文、token 用量和花费。应用不绑定任何预置 API 额度。</p>
         </div>
         <p class="feature-note">取自录制会话的真实 CLI 侧边栏画面。</p>
         <div class="cli-panel" role="group" aria-label="侧边栏的会话统计数据">

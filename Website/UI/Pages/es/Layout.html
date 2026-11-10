@@ -18,6 +18,7 @@
   <meta property="og:title" content="{{.Page.Title}}">
   <meta property="og:description" content="{{meta .Page.Lead}}">
   <meta property="og:url" content="{{.Canonical}}">
+  <link rel="icon" type="image/png" sizes="128x128" href="{{asset "Images/Icon-128.png"}}">
   <link rel="icon" type="image/png" sizes="96x96" href="{{asset "Images/Icon.png"}}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{asset "Images/Icon-32.png"}}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{asset "Images/Icon-16.png"}}">
@@ -63,7 +64,7 @@
   </main>
 
   <footer class="foot">
-    <div class="foot-row">
+    <div class="foot-row" data-nosnippet>
       <p class="foot-brand"><a class="foot-home" href="{{url ""}}">{{template "brand-mark"}}<span class="brand-name">RuneAgent</span></a><span class="foot-note">&copy; {{year}} Atoryn</span></p>
       <nav class="foot-links" aria-label="Más">
         <a class="foot-only" href="{{url "docs"}}">Docs</a>

@@ -1,20 +1,20 @@
 {
  "pages": {
   "": {
-   "title": "RuneAgent | ターミナルで動くコーディングエージェント",
-   "lead": "Atoryn Studio の RuneAgent は、選んだモデルでプロジェクトの中で作業します。ツールの結果は見える形で示され、権限は設定でき、ファイルの変更は確認できます。"
+   "title": "RuneAgent: ターミナルで動く AI コーディングエージェント",
+   "lead": "RuneAgent は、接続したモデルを使ってプロジェクトの計画、ファイル編集、コマンド実行を行います。すべてのステップとファイル変更を確認でき、どこまで任せるかはあなたが決められます。"
   },
   "changelog": {
-   "title": "変更履歴 | RuneAgent",
-   "lead": "公開された RuneAgent のすべてのリリース。"
+   "title": "RuneAgent リリース履歴：公式変更ログおよびバージョンノート",
+   "lead": "公開された RuneAgent の各ビルドに関する公式リリースノート。Linux、macOS、Windows における技術的変更、新機能、動作改善、修正内容を確認できます。"
   },
   "license": {
-   "title": "ライセンス | RuneAgent",
-   "lead": "RuneAgent が提供される際のライセンス。この翻訳は読むためのもので、拘束力を持つのは英語の本文です。"
+   "title": "RuneAgent ソフトウェア利用規約およびライセンス",
+   "lead": "Atoryn Studio が提供する RuneAgent バイナリの公式利用許諾契約およびライセンス条項です。"
   },
   "notfound": {
-   "title": "ページが見つかりません | RuneAgent",
-   "lead": "このページは存在しません。"
+   "title": "404: ページが見つかりません",
+   "lead": "お探しのページは Atoryn Studio に存在しません。"
   }
  },
  "groups": {
@@ -24,11 +24,11 @@
   "Extend": "拡張",
   "Trust & understand": "信頼と理解"
  },
- "docs_title": "{label} | RuneAgent ドキュメント",
+ "docs_title": "{label}：RuneAgent 公式ドキュメント",
  "docs": {
   "docs": {
    "label": "概要",
-   "lead": "Rune が何をし、モデルに何を送るのか、そして最初のセッションの始め方。"
+   "lead": "RuneAgent が何をし、モデルに何を送るのか、そして最初のセッションの始め方。"
   },
   "docs/install": {
    "label": "インストールとアップデート",
@@ -132,7 +132,7 @@
   },
   "docs/mcp": {
    "label": "MCP 接続",
-   "lead": "外部ツールサーバーを Rune に接続する前に、そのスコープとアクセスを確認します。"
+   "lead": "外部ツールサーバーを RuneAgent に接続する前に、そのスコープとアクセスを確認します。"
   },
   "docs/security": {
    "label": "セキュリティ",

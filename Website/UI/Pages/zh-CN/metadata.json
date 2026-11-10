@@ -1,20 +1,20 @@
 {
  "pages": {
   "": {
-   "title": "RuneAgent | 运行在终端里的编程智能体",
-   "lead": "Atoryn Studio 出品的 RuneAgent 在你的项目中使用你选择的模型工作：工具结果可见，权限可配置，文件改动可审阅。"
+   "title": "RuneAgent：终端里的 AI 编程智能体",
+   "lead": "RuneAgent 使用你接入的模型，在项目中制定计划、修改文件并执行命令。每一步操作和每处文件改动都清晰可见，权限范围由你决定。"
   },
   "changelog": {
-   "title": "更新日志 | RuneAgent",
-   "lead": "RuneAgent 已发布的每一个版本。"
+   "title": "RuneAgent 更新日志：版本发布历史与更新说明",
+   "lead": "RuneAgent 每个已发布版本的官方更新说明与技术变更记录。查阅面向 Linux、macOS 与 Windows 的新功能、行为优化及问题修复。"
   },
   "license": {
-   "title": "许可证 | RuneAgent",
-   "lead": "提供 RuneAgent 所依据的许可证；此译文仅供阅读，以英文文本为准。"
+   "title": "RuneAgent 软件许可证与使用条款",
+   "lead": "Atoryn Studio 发布的 RuneAgent 二进制官方软件许可证与使用条款。"
   },
   "notfound": {
-   "title": "找不到页面 | RuneAgent",
-   "lead": "此页面不存在。"
+   "title": "404：找不到页面",
+   "lead": "你所访问的页面在 Atoryn Studio 中不存在。"
   }
  },
  "groups": {
@@ -24,11 +24,11 @@
   "Extend": "扩展",
   "Trust & understand": "信任与理解"
  },
- "docs_title": "{label} | RuneAgent 文档",
+ "docs_title": "{label}：RuneAgent 官方文档",
  "docs": {
   "docs": {
    "label": "简介",
-   "lead": "Rune 做什么、会向模型发送什么，以及如何开始你的第一个会话。"
+   "lead": "RuneAgent 做什么、会向模型发送什么，以及如何开始你的第一个会话。"
   },
   "docs/install": {
    "label": "安装与更新",
@@ -132,7 +132,7 @@
   },
   "docs/mcp": {
    "label": "MCP 连接",
-   "lead": "在把外部工具服务器连接到 Rune 之前，审阅它们的范围与访问权限。"
+   "lead": "在把外部工具服务器连接到 RuneAgent 之前，审阅它们的范围与访问权限。"
   },
   "docs/security": {
    "label": "安全",

@@ -1,20 +1,20 @@
 {
  "pages": {
   "": {
-   "title": "RuneAgent | un agente de programación para tu terminal",
-   "lead": "RuneAgent, de Atoryn Studio, trabaja en tu proyecto con el modelo que elijas, con resultados de herramientas visibles, permisos configurables y cambios de archivos revisables."
+   "title": "RuneAgent: agente de programación con IA para tu terminal",
+   "lead": "RuneAgent planifica, edita y ejecuta comandos en tu proyecto con el modelo que conectes. Ves cada paso y cada cambio en los archivos, y tú decides hasta dónde puede llegar."
   },
   "changelog": {
-   "title": "Historial de versiones | RuneAgent",
-   "lead": "Cada versión publicada de RuneAgent."
+   "title": "Historial de Versiones de RuneAgent: Notas de Lanzamiento Oficiales",
+   "lead": "Notas de lanzamiento oficiales de cada compilación de RuneAgent. Consulta los cambios técnicos, nuevas funciones, mejoras y correcciones para Linux, macOS y Windows."
   },
   "license": {
-   "title": "Licencia | RuneAgent",
-   "lead": "La licencia con la que se ofrece RuneAgent, traducida para su lectura; el texto en inglés es el vinculante."
+   "title": "Licencia de RuneAgent: Acuerdo y Términos de Uso",
+   "lead": "Licencia oficial y términos de uso del software para los binarios de RuneAgent publicados por Atoryn Studio."
   },
   "notfound": {
-   "title": "Página no encontrada | RuneAgent",
-   "lead": "Esta página no existe."
+   "title": "404: Página no encontrada",
+   "lead": "La página que buscas no existe en Atoryn Studio."
   }
  },
  "groups": {
@@ -24,11 +24,11 @@
   "Extend": "Ampliar",
   "Trust & understand": "Confianza y comprensión"
  },
- "docs_title": "{label} | documentación de RuneAgent",
+ "docs_title": "{label}: Documentación Oficial de RuneAgent",
  "docs": {
   "docs": {
    "label": "Introducción",
-   "lead": "Qué hace Rune, qué envía a un modelo y cómo empezar tu primera sesión."
+   "lead": "Qué hace RuneAgent, qué envía a un modelo y cómo empezar tu primera sesión."
   },
   "docs/install": {
    "label": "Instalación y actualización",
@@ -132,7 +132,7 @@
   },
   "docs/mcp": {
    "label": "Conexiones MCP",
-   "lead": "Revisa los servidores de herramientas externos, sus alcances y su acceso antes de conectarlos a Rune."
+   "lead": "Revisa los servidores de herramientas externos, sus alcances y su acceso antes de conectarlos a RuneAgent."
   },
   "docs/security": {
    "label": "Seguridad",

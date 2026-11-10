@@ -30,12 +30,12 @@ type page struct {
 }
 
 var pages = append([]*page{
-	{Route: "", File: "Home", Title: "RuneAgent | a coding agent for your terminal",
-		Lead: "RuneAgent by Atoryn Studio works in your project with your chosen model, visible tool results, configurable permissions and reviewable file changes."},
-	{Route: "changelog", File: "Changelog", Title: "Changelog | RuneAgent",
-		Lead: "Every published release of RuneAgent."},
-	{Route: "license", File: "License", Title: "License | RuneAgent",
-		Lead: "The license under which RuneAgent is provided."},
+	{Route: "", File: "Home", Title: "RuneAgent: AI coding agent for your terminal",
+		Lead: "RuneAgent plans, edits and runs commands in your project using the model you connect. You see every step and file change, and you decide how far it may go."},
+	{Route: "changelog", File: "Changelog", Title: "RuneAgent Changelog: Official Release Notes and Version History",
+		Lead: "Documented release notes for every published RuneAgent build. Review technical changes, new capabilities, behavioral updates, and resolved fixes across Linux, macOS, and Windows."},
+	{Route: "license", File: "License", Title: "RuneAgent License: Software Agreement and Terms",
+		Lead: "The official software license and terms of use for RuneAgent binaries published by Atoryn Studio."},
 }, documentationPages()...)
 
 // site is everything rendered from the embedded UI: parsed once at start.
@@ -303,12 +303,13 @@ func (s *site) historyViews(cat *Catalog, l *locale) []*historyGroupView {
 }
 
 type pageData struct {
-	Page       *page
-	Env        string
-	Indexing   bool
-	Canonical  string
-	Origin     string
-	InstallCmd string
+	Page          *page
+	ActiveVersion string
+	Env           string
+	Indexing      bool
+	Canonical     string
+	Origin        string
+	InstallCmd    string
 	// Windows has no POSIX shell by default: its installer is a PowerShell script.
 	InstallCmdWindows string
 	// Parent is where the footer's "Atoryn" leads on this host.
@@ -348,6 +349,9 @@ func (s *site) data(p *page, cat *Catalog) pageData {
 		Demo:   s.demos[l.Code],
 		Locale: l,
 	}
+	if cat != nil && cat.Latest() != nil {
+		d.ActiveVersion = cat.Latest().Version
+	}
 	for _, other := range locales {
 		route := p.Route
 		if _, ok := s.pages[other.Code][route]; !ok {
@@ -383,6 +387,45 @@ func (s *site) render(p *page, cat *Catalog) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+func (s *site) changelogData(p *page, cat *Catalog, version string) pageData {
+	d := s.data(p, cat)
+	if cat == nil || len(cat.Releases) == 0 {
+		return d
+	}
+	var activeRel *Release
+	if version != "" {
+		vClean := strings.TrimPrefix(version, "v")
+		activeRel = cat.Find(vClean)
+	}
+	if activeRel == nil {
+		activeRel = cat.Latest()
+	}
+	if activeRel != nil {
+		d.ActiveVersion = activeRel.Version
+		if note := s.notesFor(p.Locale, activeRel.Version); note != nil && strings.TrimSpace(note.Title) != "" {
+			pCopy := *p
+			pCopy.Title = "RuneAgent " + activeRel.Version + ": " + note.Title
+			if len(note.Paragraphs) > 0 && strings.TrimSpace(note.Paragraphs[0]) != "" {
+				pCopy.Lead = note.Paragraphs[0]
+			}
+			d.Page = &pCopy
+		}
+		if version != "" {
+			d.Canonical = s.cfg.Origin + s.urlIn(p.Locale, "changelog/"+activeRel.Version)
+		}
+	}
+	return d
+}
+
+func (s *site) renderChangelog(p *page, cat *Catalog, version string) ([]byte, error) {
+	d := s.changelogData(p, cat, version)
+	var b bytes.Buffer
+	if err := p.tmpl.Execute(&b, d); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
+}
+
 // metaText is a lead as the head's description tags carry it. The browser tab,
 // search results and link previews show no em dash (owner, 2026-11-04); the
 // article itself keeps the lead as written.
@@ -392,7 +435,7 @@ func metaText(s string) string { return metaDashes.Replace(s) }
 
 func (s *site) renderNotFound(l *locale, cat *Catalog) []byte {
 	var b bytes.Buffer
-	p := &page{Route: "-", Title: "Not found | RuneAgent", Lead: "This page does not exist.", Locale: l}
+	p := &page{Route: "-", Title: "404: Page Not Found", Lead: "This page does not exist.", Locale: l}
 	if l != english {
 		t := l.text.Pages["notfound"]
 		p.Title, p.Lead = t.Title, t.Lead

@@ -61,6 +61,7 @@ type titled struct {
 }
 
 type labelled struct {
+	Title string `json:"title,omitempty"`
 	Label string `json:"label"`
 	Lead  string `json:"lead"`
 }
@@ -366,7 +367,11 @@ func (l *locale) localizedPages() ([]*page, []docGroup) {
 		} else if p.Section != "" {
 			d := l.text.Docs[p.Route]
 			cp.Label, cp.Lead, cp.Section = d.Label, d.Lead, l.text.Groups[p.Section]
-			cp.Title = strings.ReplaceAll(l.text.DocsTitle, "{label}", d.Label)
+			if d.Title != "" {
+				cp.Title = d.Title
+			} else {
+				cp.Title = strings.ReplaceAll(l.text.DocsTitle, "{label}", d.Label)
+			}
 		} else {
 			t := l.text.Pages[p.Route]
 			cp.Title, cp.Lead = t.Title, t.Lead

@@ -39,7 +39,7 @@
         {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="기록 시점: {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
       <div class="terminal-viewport" data-terminal-viewport>
-      <section class="term" aria-label="대화형 데모: 읽기 편한 속도로 구성된 Rune 세션 655 발췌본입니다. 순차 스트리밍과 Ask 승인 화면은 시뮬레이션이며 실제 청크 타이밍이 아닙니다">
+      <section class="term" aria-label="대화형 데모: 읽기 편한 속도로 구성된 RuneAgent 세션 655 발췌본입니다. 순차 스트리밍과 Ask 승인 화면은 시뮬레이션이며 실제 청크 타이밍이 아닙니다">
         <div class="tbar">
           <div class="tbar-ctrls" data-replay-controls hidden>
             <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="리플레이 재생" title="재생">

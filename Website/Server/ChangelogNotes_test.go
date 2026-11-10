@@ -146,3 +146,43 @@ func TestChangelogReadsInSectionsWithAnHonestSidebar(t *testing.T) {
 		}
 	}
 }
+
+// Each published version has its own distinct title and snippet when requested
+// directly or via query, so search engines and tools index the version's own
+// facts rather than a generic or lumped changelog label (owner, 2026-11-10).
+func TestChangelogServesVersionSpecificTitleAndSnippet(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.12.0", fakeRune("0.12.0"))
+	f.publish(t, "0.12.1", fakeRune("0.12.1"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+
+	v0120 := get(t, h, "GET", "/Studio/changelog/0.12.0").Body.String()
+	note0120 := englishNotes["0.12.0"]
+	if !strings.Contains(v0120, "<title>RuneAgent 0.12.0: "+html.EscapeString(note0120.Title)+"</title>") {
+		t.Errorf("0.12.0 title mismatch")
+	}
+	if !strings.Contains(v0120, html.EscapeString(note0120.Paragraphs[0])) {
+		t.Errorf("0.12.0 description does not carry its own paragraph")
+	}
+
+	v0121 := get(t, h, "GET", "/Studio/changelog/0.12.1").Body.String()
+	note0121 := englishNotes["0.12.1"]
+	if !strings.Contains(v0121, "<title>RuneAgent 0.12.1: "+html.EscapeString(note0121.Title)+"</title>") {
+		t.Errorf("0.12.1 title mismatch")
+	}
+	if !strings.Contains(v0121, html.EscapeString(note0121.Paragraphs[0])) {
+		t.Errorf("0.12.1 description does not carry its own paragraph")
+	}
+
+	// Default /Studio/changelog defaults to latest (0.12.1)
+	latest := get(t, h, "GET", "/Studio/changelog").Body.String()
+	if !strings.Contains(latest, "<title>RuneAgent 0.12.1: "+html.EscapeString(note0121.Title)+"</title>") {
+		t.Errorf("default changelog does not title the latest version")
+	}
+
+	// Query parameter ?v=0.12.0
+	query := get(t, h, "GET", "/Studio/changelog?v=0.12.0").Body.String()
+	if !strings.Contains(query, "<title>RuneAgent 0.12.0: "+html.EscapeString(note0120.Title)+"</title>") {
+		t.Errorf("query ?v=0.12.0 did not select 0.12.0")
+	}
+}

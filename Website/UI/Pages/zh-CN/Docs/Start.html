@@ -1,9 +1,9 @@
 {{define "article"}}
-<h2 id="what-rune-does">Rune 是什么</h2>
-<p>Rune 是直接运行在终端里的编程智能体。你只需描述期望的结果，模型便会提出行动方案，由 Rune 在同一段对话中读取文件、调用工具并展示执行结果。它使用你自行接入的模型账户工作，既不捆绑内置订阅，也不依赖 Atoryn 提供的模型。</p>
+<h2 id="what-rune-does">RuneAgent 是什么</h2>
+<p>RuneAgent 是直接运行在终端里的编程智能体。你只需描述期望的结果，模型便会提出行动方案，由 RuneAgent 在同一段对话中读取文件、调用工具并展示执行结果。它使用你自行接入的模型账户工作，既不捆绑内置订阅，也不依赖 Atoryn 提供的模型。</p>
 <p>程序本体与会话数据都保存在你自己的电脑上。但这<strong>并不</strong>意味着每次任务都在完全离线的状态下运行：你所选的模型提供商仍会收到完成请求所需的提示词、上下文及受支持的附件；终端命令和接入的外部服务同样可能使用网络。处理敏感资料前，请先阅读<a href="{{url "docs/privacy"}}">隐私与数据</a>。</p>
 <h2 id="start-in-a-project">在项目中启动</h2>
-<p>使用<a href="{{url "install"}}">首页</a>上的命令安装 Rune；具体步骤说明详见<a href="{{url "docs/install"}}">安装与更新</a>。随后打开你准备让 Rune 协助处理的项目文件夹。建议从一个已纳入版本控制的小型项目开始，并在启动前先检查项目中已有的未提交改动。</p>
+<p>使用<a href="{{url "install"}}">首页</a>上的命令安装 RuneAgent；具体步骤说明详见<a href="{{url "docs/install"}}">安装与更新</a>。随后打开你准备让 RuneAgent 协助处理的项目文件夹。建议从一个已纳入版本控制的小型项目开始，并在启动前先检查项目中已有的未提交改动。</p>
 <pre class="block"><code>cd path/to/your-workspace
 rune</code></pre>
 <p>你也可以直接传入目录路径启动：<code>rune path/to/your-workspace</code>。启动时的工作目录决定了文件访问、会话归属和项目引导说明的工作区边界。如果直接在整个用户主目录（home）下启动，所授予的工作区范围将远大于在单个代码仓库下启动。</p>

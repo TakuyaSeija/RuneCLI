@@ -1,20 +1,20 @@
 {
  "pages": {
   "": {
-   "title": "RuneAgent | un agent de programmation pour votre terminal",
-   "lead": "RuneAgent, d’Atoryn Studio, travaille dans votre projet avec le modèle de votre choix, avec des résultats d’outils visibles, des permissions configurables et des modifications de fichiers vérifiables."
+   "title": "RuneAgent : agent de programmation IA pour votre terminal",
+   "lead": "RuneAgent planifie, modifie vos fichiers et exécute des commandes dans votre projet avec le modèle que vous connectez. Vous voyez chaque étape et chaque modification, et vous décidez jusqu’où il peut aller."
   },
   "changelog": {
-   "title": "Journal des versions | RuneAgent",
-   "lead": "Chaque version publiée de RuneAgent."
+   "title": "Journal des Versions de RuneAgent : Notes Officielles et Historique",
+   "lead": "Notes de version officielles pour chaque build publié de RuneAgent. Découvrez les modifications techniques, nouvelles fonctionnalités, ajustements et correctifs pour Linux, macOS et Windows."
   },
   "license": {
-   "title": "Licence | RuneAgent",
-   "lead": "La licence sous laquelle RuneAgent est fourni, traduite pour la lecture ; seul le texte anglais fait foi."
+   "title": "Licence RuneAgent : Conditions d’Utilisation du Logiciel",
+   "lead": "Licence logicielle officielle et conditions d’utilisation pour les binaires RuneAgent publiés par Atoryn Studio."
   },
   "notfound": {
-   "title": "Page introuvable | RuneAgent",
-   "lead": "Cette page n’existe pas."
+   "title": "404 : Page introuvable",
+   "lead": "Cette page n’existe pas sur Atoryn Studio."
   }
  },
  "groups": {
@@ -24,11 +24,11 @@
   "Extend": "Étendre",
   "Trust & understand": "Confiance et compréhension"
  },
- "docs_title": "{label} | documentation de RuneAgent",
+ "docs_title": "{label} : Documentation Officielle RuneAgent",
  "docs": {
   "docs": {
    "label": "Introduction",
-   "lead": "Ce que fait Rune, ce qu’il envoie à un modèle et comment démarrer votre première session."
+   "lead": "Ce que fait RuneAgent, ce qu’il envoie à un modèle et comment démarrer votre première session."
   },
   "docs/install": {
    "label": "Installation et mise à jour",
@@ -132,7 +132,7 @@
   },
   "docs/mcp": {
    "label": "Connexions MCP",
-   "lead": "Examinez les serveurs d’outils externes, leur portée et leurs accès avant de les connecter à Rune."
+   "lead": "Examinez les serveurs d’outils externes, leur portée et leurs accès avant de les connecter à RuneAgent."
   },
   "docs/security": {
    "label": "Sécurité",

@@ -76,6 +76,12 @@ func TestEveryTabTitleIsItsOwnAndTheHeadHasNoEmDash(t *testing.T) {
 				if strings.Contains(text, "—") {
 					t.Errorf("%s: the head carries an em dash: %q", path, text)
 				}
+				// A search result shows the title as written, so it carries no
+				// pipe, and the description never quotes the footer (owner,
+				// 2026-11-10).
+				if strings.Contains(text, "|") || strings.Contains(text, "©") || strings.Contains(text, "&copy;") {
+					t.Errorf("%s: the head carries a pipe or a copyright mark: %q", path, text)
+				}
 				if m[1] != "" {
 					title = text
 				}

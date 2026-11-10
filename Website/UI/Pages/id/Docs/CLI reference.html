@@ -3,11 +3,11 @@
 <p>Jalankan perintah-perintah ini di shell sistem operasi Anda. Gunakan <code>rune -help</code> untuk melihat referensi biner yang terpasang di mesin Anda. Perintah yang menghubungi penyedia, mengubah akun, menghapus data, atau menjalankan server adalah operasi nyata, bukan sekadar flag diagnostik pasif.</p>
 <dl class="ref">
 <div><dt>rune [dir]</dt><dd>Membuka agen interaktif di ruang kerja saat ini atau direktori yang diberikan.</dd></div>
-<div><dt>rune -p "prompt"</dt><dd>Menjalankan satu prompt lalu mencetak balasan serta kemajuan perangkat tanpa antarmuka layar penuh. Permintaan izin akan ditolak alih-alih disetujui diam-diam karena tidak ada pengguna yang menjawab secara interaktif.</dd></div>
+<div><dt>rune -p "prompt"</dt><dd>Menjalankan satu prompt lalu mencetak balasan serta kemajuan tool tanpa antarmuka layar penuh. Permintaan izin akan ditolak alih-alih disetujui diam-diam karena tidak ada pengguna yang menjawab secara interaktif.</dd></div>
 <div><dt>-project &lt;dir&gt;</dt><dd>Memilih ruang kerja untuk perintah lain.</dd></div>
 <div><dt>-version · -help</dt><dd>Mencetak versi aplikasi atau referensi perintah.</dd></div>
-<div><dt>-settings · -tools</dt><dd>Memeriksa kontrol model yang berlaku atau daftar perangkat yang ditawarkan kepada agen.</dd></div>
-<div><dt>-read-only</dt><dd>Membatasi perangkat yang mengubah berkas atau sistem. Flag ini bukan jaminan bahwa tidak ada berkas yang dibaca atau tidak ada data yang dikirim.</dd></div>
+<div><dt>-settings · -tools</dt><dd>Memeriksa kontrol model yang berlaku atau daftar tool yang ditawarkan kepada agen.</dd></div>
+<div><dt>-read-only</dt><dd>Membatasi tool yang mengubah berkas atau sistem. Flag ini bukan jaminan bahwa tidak ada berkas yang dibaca atau tidak ada data yang dikirim.</dd></div>
 <div><dt>--no-color</dt><dd>Menonaktifkan warna. Variabel lingkungan NO_COLOR juga didukung.</dd></div>
 </dl>
 <h2 id="configuration">Konfigurasi</h2>
@@ -48,12 +48,12 @@
 <h2 id="extensions-and-diagnostics">Ekstensi dan diagnostik</h2>
 <dl class="ref">
 <div><dt>-skills [operation]</dt><dd>Mencantumkan, menampilkan, mengaktifkan, menonaktifkan, memasang, atau memuat ulang panduan tugas (skill). Pemasangan menerima folder atau arsip zip yang telah Anda tinjau lalu menempatkannya di proyek saat ini kecuali <code>--scope user</code> menjadikannya pribadi.</dd></div>
-<div><dt>-mcp [operation]</dt><dd>Mengelola, menyetujui, memvalidasi, dan menguji definisi perangkat eksternal. Koneksi MCP dapat menjalankan proses lokal atau menghubungi layanan jarak jauh; validasi saja belum berarti koneksi berhasil.</dd></div>
+<div><dt>-mcp [operation]</dt><dd>Mengelola, menyetujui, memvalidasi, dan menguji definisi tool eksternal. Koneksi MCP dapat menjalankan proses lokal atau menghubungi layanan jarak jauh; validasi saja belum berarti koneksi berhasil.</dd></div>
 <div><dt>--scope user|project|private-project</dt><dd>Memilih cakupan konfigurasi yang didukung untuk perubahan kapabilitas. Perubahan pada cakupan proyek bersama memengaruhi pengguna lain yang membuka proyek tersebut.</dd></div>
 <div><dt>-doctor</dt><dd>Menjalankan diagnostik, termasuk pemeriksaan konektivitas. Perintah ini dapat melakukan permintaan jaringan; tinjau keluarannya sebelum dibagikan.</dd></div>
 <div><dt>-db &lt;path&gt;</dt><dd>Menggunakan berkas penyimpanan mesin alternatif. Ini terpisah dari pemilihan folder home pengaturan secara keseluruhan dengan RUNE_HOME.</dd></div>
 <div><dt>-host</dt><dd>Menggunakan JSON per baris untuk integrasi antarmuka eksternal, bukan antarmuka interaktif. Mode ini bukan server jaringan publik.</dd></div>
-<div><dt>-script &lt;file&gt;</dt><dd>Memutar ulang skrip model tertulis. Skrip dapat mengusulkan pemanggilan perangkat nyata, jadi jangan pernah menjalankan skrip yang belum ditinjau pada pekerjaan asli.</dd></div>
+<div><dt>-script &lt;file&gt;</dt><dd>Memutar ulang skrip model tertulis. Skrip dapat mengusulkan pemanggilan tool nyata, jadi jangan pernah menjalankan skrip yang belum ditinjau pada pekerjaan asli.</dd></div>
 </dl>
 <p>Untuk penyiapan kapabilitas dan akses, lanjutkan ke <a href="{{url "docs/skills"}}">Skill</a> atau <a href="{{url "docs/mcp"}}">Koneksi MCP</a>. Jangan beralih ke mode Full atau menghapus data lokal hanya untuk mengakali suatu galat.</p>
 {{end}}

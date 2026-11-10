@@ -284,6 +284,7 @@ pub enum Field {
     SetupFormat,
     RemoveKey(String, usize),
     /// Give one key of a connection a new label.
+    #[allow(dead_code)]
     RenameKey(String, usize),
     /// Set the unreadable credential store aside and start a new one.
     NewCredentialStore,
@@ -840,6 +841,12 @@ impl Row {
     pub fn pickable(&self) -> bool {
         self.kind != Kind::Fact
     }
+    pub fn is_section_header(&self) -> bool {
+        self.value.is_empty() && self.kind == Kind::Fact
+    }
+    pub fn navigable(&self) -> bool {
+        !self.is_section_header()
+    }
 }
 
 pub fn rows(app: &App) -> Vec<Row> {
@@ -1391,7 +1398,7 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
                 else {
                     let options: Vec<_> = m.reasoning_options.as_ref().unwrap_or(&choices)
                         .iter().filter(|option| choices.contains(option)).cloned().collect();
-                    format!("{} · {}", if m.reasoning_enabled.unwrap_or(false) { "On" } else { "Off" }, options.join(", "))
+                    format!("{} · {}", if m.starts_thinking(api) { "On" } else { "Off" }, options.join(", "))
                 }
             }).unwrap_or_else(|| "Unsupported / unknown".into()),
         )
@@ -2177,7 +2184,7 @@ fn provider_rows(app: &App) -> Vec<Row> {
                         &k_name,
                         format!("{preview}   remove ↵"),
                     )
-                    .help("Removal requires confirmation. Esc keeps this key."),
+                    .help("Removal requires confirmation. Press Enter to review."),
                 );
             }
         } else {
@@ -2188,7 +2195,7 @@ fn provider_rows(app: &App) -> Vec<Row> {
                         &format!("Key {n}"),
                         "••••••••   remove ↵".into(),
                     )
-                    .help("Removal requires confirmation. Esc keeps this key."),
+                    .help("Removal requires confirmation. Press Enter to review."),
                 );
             }
         }
@@ -2443,7 +2450,7 @@ fn service_page(app: &App, name: &str) -> Vec<Row> {
                     &k_name,
                     format!("{preview}   remove ↵"),
                 )
-                .help("Removal requires confirmation. Esc keeps this key."),
+                .help("Removal requires confirmation. Press Enter to review."),
             );
         }
     }
@@ -4171,11 +4178,7 @@ fn layout(
             if i == selected {
                 selection_line = body.lines.len();
             }
-            let hit = if row.pickable() {
-                Hit::Settings(Target::Row(i))
-            } else {
-                Hit::None
-            };
+            let hit = Hit::Settings(Target::Row(i));
             for line in draw_row(row, i == selected && !state.tabs, inner, None) {
                 body.push_at(format!("  {line}"), hit);
             }
@@ -4280,7 +4283,8 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
         && row.note.is_empty()
         && (label == label.to_uppercase() || (row.help.is_empty() && value.is_empty()))
     {
-        let mut lines = vec![format!("{ACCENT}{BOLD}{label}{RESET}")];
+        let header_ink = if selected { TEXT } else { ACCENT };
+        let mut lines = vec![format!("{header_ink}{BOLD}{label}{RESET}")];
         if !value.is_empty() {
             lines.push(format!("{MUTED}{value}{RESET}"));
             lines.push(String::new());
@@ -4300,9 +4304,28 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
         ];
     }
     if !row.pickable() && label != label.to_uppercase() && !value.is_empty() {
-        let split_name = 24;
-        let name_col = ansi::pad(&ansi::truncate(&label, split_name), split_name);
-        let line1 = format!("  {MUTED}{name_col}{RESET}  {TEXT}{value}{RESET}");
+        let base_split = if width >= 100 {
+            32
+        } else if width >= 70 {
+            28
+        } else {
+            24
+        };
+        let split_name = if selected {
+            base_split.max(ansi::width(&label))
+        } else {
+            base_split
+        };
+        let name_col = if selected {
+            ansi::pad(&label, split_name)
+        } else {
+            ansi::pad(&ansi::truncate(&label, split_name), split_name)
+        };
+        let label_ink = if selected { ACCENT } else { MUTED };
+        let value_ink = if selected { ACCENT } else { TEXT };
+        let weight = if selected { BOLD } else { "" };
+        let line1 =
+            format!("  {label_ink}{weight}{name_col}{RESET}  {value_ink}{weight}{value}{RESET}");
         return vec![line1, String::new()];
     }
     let ink = if selected { TEXT } else { MUTED };
@@ -4316,10 +4339,33 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
         );
 
     let mut lines = if is_tabular && width >= 48 {
-        let split_name = 22;
-        let split_badge = 28;
-        let name_col = ansi::pad(&ansi::truncate(&label, split_name), split_name);
-        let badge_col = ansi::pad(&ansi::truncate(&value, split_badge), split_badge);
+        let base_split_name = if width >= 100 {
+            32
+        } else if width >= 70 {
+            26
+        } else {
+            22
+        };
+        let split_name = if selected {
+            base_split_name.max(ansi::width(&label))
+        } else {
+            base_split_name
+        };
+        let split_badge = if selected {
+            28.max(ansi::width(&value))
+        } else {
+            28
+        };
+        let name_col = if selected {
+            ansi::pad(&label, split_name)
+        } else {
+            ansi::pad(&ansi::truncate(&label, split_name), split_name)
+        };
+        let badge_col = if selected {
+            ansi::pad(&value, split_badge)
+        } else {
+            ansi::pad(&ansi::truncate(&value, split_badge), split_badge)
+        };
         let arrow = if matches!(row.kind, Kind::Navigate(_))
             && !value.ends_with('→')
             && !value.contains('→')
@@ -4385,10 +4431,25 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
         ) | Kind::Sidebar
     ) && width >= 54
     {
-        let split = 24;
-        vec![format!(
-            "{ACCENT}{mark} {ink}{weight}{}{RESET} {ACCENT}[ {TEXT}{value}{ACCENT} ]{RESET}",
+        let base_split = if width >= 100 {
+            32
+        } else if width >= 70 {
+            28
+        } else {
+            24
+        };
+        let split = if selected {
+            base_split.max(ansi::width(&label))
+        } else {
+            base_split
+        };
+        let label_text = if selected {
+            ansi::pad(&label, split)
+        } else {
             ansi::pad(&ansi::truncate(&label, split), split)
+        };
+        vec![format!(
+            "{ACCENT}{mark} {ink}{weight}{label_text}{RESET} {ACCENT}[ {TEXT}{value}{ACCENT} ]{RESET}",
         )]
     } else {
         let detail = if row.note.is_empty() {
@@ -4415,11 +4476,24 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
                 Kind::Model { .. } | Kind::RouteUse(..) | Kind::WebSelect(..)
             ) {
                 width.saturating_sub(32).clamp(24, 72)
+            } else if width >= 100 {
+                32
+            } else if width >= 70 {
+                28
             } else {
                 24
             }
         });
-        let name_col = ansi::pad(&ansi::truncate(&label, split_name), split_name);
+        let split = if selected {
+            split_name.max(ansi::width(&label))
+        } else {
+            split_name
+        };
+        let name_col = if selected {
+            ansi::pad(&label, split)
+        } else {
+            ansi::pad(&ansi::truncate(&label, split), split)
+        };
         if detail.is_empty() {
             vec![format!("{ACCENT}{mark} {ink}{weight}{label}{RESET}")]
         } else {
@@ -4710,11 +4784,15 @@ pub fn enter(app: &mut App, page: Page, d: &mut Driver) {
 
 fn settle(app: &mut App) {
     let rs = rows(app);
+    if rs.is_empty() {
+        app.preferences.location.row = 0;
+        return;
+    }
     if !rs
         .get(app.preferences.location.row)
-        .is_some_and(Row::pickable)
+        .is_some_and(Row::navigable)
     {
-        app.preferences.location.row = rs.iter().position(Row::pickable).unwrap_or(0);
+        app.preferences.location.row = rs.iter().position(Row::navigable).unwrap_or(0);
     }
 }
 
@@ -4726,13 +4804,13 @@ fn move_row(app: &mut App, by: i32) {
             .enumerate()
             .take(at)
             .rev()
-            .find(|(_, r)| r.pickable())
+            .find(|(_, r)| r.navigable())
             .map(|(i, _)| i)
     } else {
         rs.iter()
             .enumerate()
             .skip(at + 1)
-            .find(|(_, r)| r.pickable())
+            .find(|(_, r)| r.navigable())
             .map(|(i, _)| i)
     };
     if let Some(next) = next {
@@ -5021,7 +5099,7 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
         } else {
             rows(app)
                 .iter()
-                .position(Row::pickable)
+                .position(Row::navigable)
                 .is_none_or(|first| app.preferences.location.row <= first)
         };
         if *page != Page::Models && top {
@@ -5092,11 +5170,10 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
             Key::Home | Key::End if focus == ModelFocus::List => {
                 let rs = rows(app);
                 app.preferences.location.row = if *key == Key::Home {
-                    rs.iter().position(Row::pickable)
+                    rs.iter().position(Row::navigable).unwrap_or(0)
                 } else {
-                    rs.iter().rposition(Row::pickable)
-                }
-                .unwrap_or(0);
+                    rs.iter().rposition(Row::navigable).unwrap_or(0)
+                };
             }
             Key::PageUp | Key::PageDown => {
                 app.preferences.location.focus = ModelFocus::List;
@@ -5273,7 +5350,7 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
         }
         Key::End => {
             let rs = rows(app);
-            app.preferences.location.row = rs.iter().rposition(Row::pickable).unwrap_or(0);
+            app.preferences.location.row = rs.iter().rposition(Row::navigable).unwrap_or(0);
         }
         Key::PageUp | Key::PageDown => {
             for _ in 0..5 {
@@ -5981,16 +6058,7 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             .as_ref()
             .map(|p| p.key.clone())
             .unwrap_or_default(),
-        Field::RemoveKey(..) => {
-            // A destructive choice is made on buttons, never by pressing Enter
-            // on a plain line (owner, 2026-11-07).
-            choices = vec![
-                "Keep key".to_string(),
-                "Rename key".to_string(),
-                "Remove key".to_string(),
-            ];
-            "Keep key".to_string()
-        }
+        Field::RemoveKey(..) => String::new(),
         Field::RenameKey(name, position) => app.providers["providers"]
             .as_array()
             .into_iter()
@@ -6172,6 +6240,9 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
         }
         Field::KeyValue { .. } => {
             "Enter the API secret key (stored encrypted in ~/.rune/secrets.vault) ↵".into()
+        }
+        Field::RemoveKey(..) => {
+            "Select 'Remove key' and press Enter to confirm. Esc keeps this key.".into()
         }
         _ => row.help.clone(),
     };
@@ -6730,13 +6801,6 @@ fn save_editor(app: &mut App, d: &mut Driver) {
         }
         Field::RemoveKey(name, position) => {
             app.preferences.editor = None;
-            if text.trim() == "Rename key" {
-                edit_now(app, Field::RenameKey(name, position), "Key name", "");
-                return;
-            }
-            if text.trim() != "Remove key" {
-                return;
-            }
             send(
                 app,
                 d,
@@ -9418,6 +9482,38 @@ mod tests {
     }
 
     #[test]
+    fn key_removal_when_confirmed_sends_drop_key() {
+        let mut app = app();
+        let mut d = super::super::test_driver("preferences-remove-confirm");
+        app.preferences.navigate(Page::Provider("zeta".into()));
+        let row = rows(&app)
+            .into_iter()
+            .find(|r| matches!(r.kind, Kind::Edit(Field::RemoveKey(..))))
+            .unwrap();
+        open(&mut app, &row, &mut d);
+        assert_eq!(app.preferences.editor.as_ref().unwrap().button, 1);
+        // Move focus to Button 0 ("Remove key")
+        app.on_key(Key::Up, &mut d);
+        assert_eq!(app.preferences.editor.as_ref().unwrap().button, 0);
+        // Press Enter to confirm removal
+        app.on_key(Key::Enter, &mut d);
+        assert!(app.preferences.editor.is_none());
+        assert_eq!(
+            app.awaiting.len(),
+            1,
+            "Must have dispatched ProviderDropKey"
+        );
+        assert!(app.awaiting.values().any(|a| matches!(
+            a,
+            Awaiting::Preferences(Request {
+                operation: Operation::Registry(ref msg),
+                ..
+            }) if msg == "API key removed."
+        )));
+        d.engine.shutdown();
+    }
+
+    #[test]
     fn errors_are_actionable_without_exposing_provider_response_bodies() {
         let mut app = app();
         let origin = Page::Provider("zeta".into());
@@ -10077,6 +10173,11 @@ mod tests {
             .iter()
             .position(|r| matches!(r.kind, Kind::Edit(Field::ModelReasoning { .. })))
             .expect("Reasoning row");
+        assert!(
+            r[effort_row_idx].value.starts_with("On"),
+            "Model with thinking=true must start as On in summary, got: {}",
+            r[effort_row_idx].value
+        );
         assert!(r[effort_row_idx].value.contains("low"));
 
         // Open editor
@@ -11163,5 +11264,76 @@ mod tests {
         assert!(ids.contains(&"model-1"));
         assert!(ids.contains(&"model-2"));
         assert!(ids.contains(&"model-3"));
+    }
+
+    #[test]
+    fn model_config_navigates_to_read_only_pricing_facts_and_scrolls_to_bottom() {
+        let mut app = app();
+        let mut d = super::super::test_driver("model-config-walk-facts");
+        app.providers = serde_json::json!({
+            "providers": [
+                {
+                    "name": "prov",
+                    "models": [
+                        { "id": "m1", "context": 128000 }
+                    ]
+                }
+            ]
+        });
+        app.preferences.navigate(Page::ModelConfig {
+            provider: "prov".into(),
+            model: "m1".into(),
+        });
+        settle(&mut app);
+        let rs = rows(&app);
+        assert!(rs.len() > 15);
+        // Key::End moves to the last navigable row, which is the last Kind::Fact row
+        app.on_key(Key::End, &mut d);
+        let last_nav = rs.iter().rposition(Row::navigable).unwrap();
+        assert_eq!(app.preferences.location.row, last_nav);
+        assert_eq!(last_nav, rs.len() - 1);
+        assert!(matches!(rs[app.preferences.location.row].kind, Kind::Fact));
+
+        // When drawing this selected read-only row:
+        let lines = draw_row(&rs[app.preferences.location.row], true, 80, None);
+        let joined = lines.join("\n");
+        // Must NOT have chevron ❯
+        assert!(
+            !joined.contains('❯'),
+            "Read-only row must not draw chevron: {joined}"
+        );
+        // Must contain ACCENT styling
+        assert!(
+            joined.contains(&ACCENT.to_string()),
+            "Read-only focused row must use theme accent: {joined}"
+        );
+
+        d.engine.shutdown();
+    }
+
+    #[test]
+    fn row_labels_and_values_expand_without_truncation_when_focused() {
+        let row = Row::new(
+            Kind::Edit(Field::ModelCachedPrice {
+                provider: "prov".into(),
+                model: "m1".into(),
+            }),
+            "Cached read price ($/M tokens)",
+            "[ Unknown / not applicable ]".to_string(),
+        );
+        // Unselected at 54 width: truncated
+        let unselected = draw_row(&row, false, 54, None).join("\n");
+        assert!(
+            unselected.contains('…'),
+            "unfocused must be truncated: {unselected}"
+        );
+
+        // Selected at 54 width: fully expanded!
+        let selected = draw_row(&row, true, 54, None).join("\n");
+        assert!(
+            !selected.contains('…'),
+            "focused must NOT be truncated: {selected}"
+        );
+        assert!(selected.contains("Cached read price ($/M tokens)"));
     }
 }

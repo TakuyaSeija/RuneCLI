@@ -395,6 +395,16 @@
       if (updateUrl && location.hash !== "#v" + activeVer) {
         history.replaceState(null, "", "#v" + activeVer);
       }
+
+      const noteTitle = target.querySelector(".release-note-title")?.textContent?.trim();
+      const noteBody = target.querySelector(".release-note-body")?.textContent?.trim();
+      if (noteTitle) {
+        document.title = "RuneAgent " + activeVer + ": " + noteTitle;
+        const metaDesc = document.querySelector('meta[name="description"]');
+        if (metaDesc && noteBody) {
+          metaDesc.content = "RuneAgent " + activeVer + ": " + noteBody;
+        }
+      }
     };
 
     const onHash = () => {

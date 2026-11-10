@@ -32,14 +32,14 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="session-title">من مجلد فارغ إلى اختبارات ناجحة.</h2>
-      <p class="lead">ست لحظات من جلسة حقيقية واحدة بنى فيها Rune مشغل موسيقى خلال {{.Demo.Recorded}}. كل خطوة وملف ورقم مأخوذ من الجلسة الفعلية؛ بينما تمت محاكاة البث المتدرج وسرعة القراءة وموافقات وضع Ask، علماً أن الجلسة الأصلية عملت في وضع Full.</p>
+      <p class="lead">ست لحظات من جلسة حقيقية واحدة بنى فيها RuneAgent مشغل موسيقى خلال {{.Demo.Recorded}}. كل خطوة وملف ورقم مأخوذ من الجلسة الفعلية؛ بينما تمت محاكاة البث المتدرج وسرعة القراءة وموافقات وضع Ask، علماً أن الجلسة الأصلية عملت في وضع Full.</p>
     </div>
     <figure class="stage" data-demo data-schedule="{{.Demo.Schedule}}" data-mode="{{.Demo.Mode}}" data-context="{{.Demo.Context}}" data-idle="{{.Demo.Project}}">
       <div class="chapters" role="group" aria-label="فصول الجلسة المسجلة">
         {{range $i, $c := .Demo.Chapters}}<button type="button" class="chapter" data-chapter data-at="{{$c.At}}" title="سُجلت عند {{$c.Recorded}}"><span class="chapter-n">{{printf "%02d" (add $i 1)}}</span><span class="chapter-name">{{$c.Name}}</span><span class="chapter-time">{{$c.Recorded}}</span><progress class="chapter-bar" max="1" value="0" aria-hidden="true"></progress></button>{{end}}
       </div>
       <div class="terminal-viewport" data-terminal-viewport>
-      <section class="term" aria-label="عرض تفاعلي: مقتطف من جلسة Rune المسجلة رقم 655 مضبوط لسرعة القراءة؛ البث المتدرج وموافقات Ask محاكاة وليست توقيت أجزاء مقيساً">
+      <section class="term" aria-label="عرض تفاعلي: مقتطف من جلسة RuneAgent المسجلة رقم 655 مضبوط لسرعة القراءة؛ البث المتدرج وموافقات Ask محاكاة وليست توقيت أجزاء مقيساً">
         <div class="tbar">
           <div class="tbar-ctrls" data-replay-controls hidden>
             <button type="button" class="btn-tctrl" data-demo-pause aria-pressed="true" aria-label="تشغيل العرض" title="تشغيل">
@@ -116,7 +116,7 @@
   <div class="shell">
     <div class="intro">
       <h2 class="title" id="features-title">وكيل يعرض خطوات عمله بوضوح.</h2>
-      <p class="lead">يقترح النموذج الخطوات، ويعرض Rune ما يتم تشغيله وما تغير وتكلفته، ويترك القرارات المهمة بيدك.</p>
+      <p class="lead">يقترح النموذج الخطوات، ويعرض RuneAgent ما يتم تشغيله وما تغير وتكلفته، ويترك القرارات المهمة بيدك.</p>
     </div>
     <div class="feature-grid">
       <article class="feature feature-reach">
@@ -125,7 +125,7 @@
         <input class="sr mode-input" type="radio" name="reach-mode" id="mode-full">
         <div class="feature-copy">
           <h3>أنت تقرر حدود صلاحياته.</h3>
-          <p>تعمل كل جلسة في أحد ثلاثة أوضاع. اختر الوضع عبر الأمر <code>/mode</code>؛ ويبدأ Rune افتراضياً في وضع Ask.</p>
+          <p>تعمل كل جلسة في أحد ثلاثة أوضاع. اختر الوضع عبر الأمر <code>/mode</code>؛ ويبدأ RuneAgent افتراضياً في وضع Ask.</p>
           <div class="modes">
             <label class="mode" for="mode-ask"><b>Ask</b><span>يستأذن قبل كل تعديل، ويستأذن عند كل أمر في كل مرة.</span></label>
             <label class="mode" for="mode-auto"><b>Auto</b><span>يعمل بحرية داخل مساحة العمل، بينما يظل الوصول الخارجي والأوامر الحساسة بحاجة إلى إذنك.</span></label>
@@ -160,7 +160,7 @@
       <article class="feature feature-panel">
         <div class="feature-copy">
           <h3>نموذجك وحسابك.</h3>
-          <p>اختر من بين النماذج التي يوفرها مزودو الخدمة المضافون لديك، أو أدخل معرّف النموذج بدقة. يحسب Rune السياق والرموز والتكلفة أثناء عمله. ولا يأتي البرنامج برصيد API مدمج.</p>
+          <p>اختر من بين النماذج التي يوفرها مزودو الخدمة المضافون لديك، أو أدخل معرّف النموذج بدقة. يحسب RuneAgent السياق والرموز والتكلفة أثناء عمله. ولا يأتي البرنامج برصيد API مدمج.</p>
         </div>
         <p class="feature-note">اللوحة الجانبية كما يرسمها سطر الأوامر، من الجلسة المسجلة.</p>
         <div class="cli-panel" role="group" aria-label="أرقام الجلسة في اللوحة الجانبية">
