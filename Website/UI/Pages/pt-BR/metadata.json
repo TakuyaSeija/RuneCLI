@@ -179,6 +179,30 @@
   "and": "e"
  },
  "notes": {
+  "0.12.1": {
+   "title": "Ordem de mensagens de rede para ferramentas e temporizador persistente do lembrete de plano",
+   "paragraphs": [
+    "Um aviso do sistema inserido entre as chamadas de ferramentas do assistente e seus resultados podia violar regras estritas do protocolo de rede em endpoints da OpenAI e compatíveis com OpenAI, causando rejeição da solicitação. Todos os resultados de ferramentas agora são registrados antes de qualquer aviso de contexto ser emitido, a ordem de leitura normaliza transcrições históricas e o temporizador de tempo decorrido do lembrete de plano inicia de forma confiável na primeira chamada de ferramenta de sessões preexistentes."
+   ],
+   "points": [
+    {
+     "id": "tool-result-ordering",
+     "title": "Resultados de ferramentas precedem avisos de contexto",
+     "text": "Avisos do sistema (como lembretes de plano e avisos de loop) agora são adiados até que todas as chamadas de ferramentas de uma rodada do modelo tenham seus resultados registrados no banco de dados, garantindo conformidade estrita com o protocolo da OpenAI de que mensagens de ferramentas devem seguir diretamente os tool_calls sem mensagens de usuário intercaladas."
+    },
+    {
+     "id": "reading-order-normalization",
+     "title": "A ordem de leitura normaliza histórico intercalado",
+     "text": "A etapa de ordem de leitura da sessão agrupa os resultados de ferramentas diretamente após a mensagem de assistente correspondente antes de qualquer aviso de contexto intercalado, protegendo transcrições históricas e importadas contra rejeições de validação de protocolo."
+    },
+    {
+     "id": "wall-clock-timer-preexisting",
+     "title": "O temporizador de tempo decorrido inicia na primeira chamada",
+     "text": "Quando uma sessão é retomada com um plano já existente e `plan.reminder_seconds` está ativo, o relógio do temporizador começa a medir o tempo decorrido a partir da primeira chamada de ferramenta da sessão em vez de permanecer ocioso até que `track_tasks` seja reescrito."
+    }
+   ],
+   "summary": "Ordem de ferramentas e temporizador de plano"
+  },
   "0.12.0": {
    "title": "Um retry que se explica, um resumo que continua e uma instalação que já se usa",
    "paragraphs": [

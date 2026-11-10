@@ -179,6 +179,30 @@
   "and": "dan"
  },
  "notes": {
+  "0.12.1": {
+   "title": "Urutan pesan kawat untuk hasil tool dan timer pengingat plan yang persisten",
+   "paragraphs": [
+    "Pemberitahuan sistem yang disisipkan di antara pemanggilan tool milik asisten dan hasilnya dapat melanggar aturan protokol kawat ketat pada endpoint OpenAI dan OpenAI-compatible, menyebabkan permintaan ditolak. Seluruh hasil tool kini dicatat sebelum pemberitahuan konteks apa pun dimunculkan, urutan pembacaan menormalkan transkrip historis, dan timer jam pengingat plan andal dimulai sejak pemanggilan tool pertama pada sesi yang sudah ada sebelumnya."
+   ],
+   "points": [
+    {
+     "id": "tool-result-ordering",
+     "title": "Hasil tool mendahului pemberitahuan konteks",
+     "text": "Pemberitahuan sistem (seperti pengingat plan dan peringatan perulangan) kini ditunda hingga seluruh pemanggilan tool dalam satu putaran model selesai dicatat hasilnya di basis data, memastikan kepatuhan ketat terhadap protokol OpenAI bahwa pesan tool harus langsung menyusul tool_calls tanpa disela pesan user."
+    },
+    {
+     "id": "reading-order-normalization",
+     "title": "Urutan baca menormalkan riwayat berseling",
+     "text": "Tahap pengurutan baca sesi mengelompokkan hasil tool tepat setelah pesan asisten padanannya sebelum pemberitahuan konteks yang menyelingi, melindungi transkrip lama dan impor dari penolakan validasi protokol kawat."
+    },
+    {
+     "id": "wall-clock-timer-preexisting",
+     "title": "Timer jam mulai pada pemanggilan tool pertama",
+     "text": "Saat sesi dilanjutkan dengan plan yang sudah ada sebelumnya dan `plan.reminder_seconds` aktif, jam timer mulai menghitung waktu berlalu sejak pemanggilan tool pertama pada sesi tersebut alih-alih diam hingga `track_tasks` ditulis ulang."
+    }
+   ],
+   "summary": "Urutan pesan tool & timer plan"
+  },
   "0.12.0": {
    "title": "Retry yang menjelaskan dirinya, ringkasan yang bisa dilanjutkan, dan pemasangan yang langsung bisa dipakai",
    "paragraphs": [

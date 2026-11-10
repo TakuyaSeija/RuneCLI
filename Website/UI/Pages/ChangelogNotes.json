@@ -1,4 +1,28 @@
 {
+ "0.12.1": {
+  "title": "Wire message ordering for tool results and persistent plan reminder timer",
+  "paragraphs": [
+   "A system notice inserted between an assistant's tool calls and their results could violate strict wire formatting rules on OpenAI and OpenAI-compatible endpoints, causing request rejection. All tool results are now recorded before any context notices are emitted, reading order normalizes historical transcripts, and the plan reminder wall-clock timer reliably starts on the first tool call of preexisting sessions."
+  ],
+  "points": [
+   {
+    "id": "tool-result-ordering",
+    "title": "Tool results precede context notices",
+    "text": "System notices (such as plan reminders and loop warnings) are now deferred until all tool calls of a model round have their results recorded in the database, ensuring strict adherence to the OpenAI specification requirement that tool messages must directly follow assistant tool calls without intervening user messages."
+   },
+   {
+    "id": "reading-order-normalization",
+    "title": "Reading order normalizes interleaved history",
+    "text": "The session reading order pass groups tool results directly after their corresponding assistant message before any interleaved context notices, defending historical and imported transcripts against wire validation rejections."
+   },
+   {
+    "id": "wall-clock-timer-preexisting",
+    "title": "Wall-clock timer starts on first tool call",
+    "text": "When a session resumes with an already existing plan and `plan.reminder_seconds` is active, the timer clock begins tracking elapsed time from the first tool call of the session rather than remaining idle until `track_tasks` is rewritten."
+   }
+  ],
+  "summary": "Tool message ordering & plan reminder timer"
+ },
  "0.12.0": {
   "title": "A retry that explains itself, a summary that resumes, and an install you can use at once",
   "paragraphs": [

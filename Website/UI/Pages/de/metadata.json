@@ -179,6 +179,30 @@
   "and": "und"
  },
  "notes": {
+  "0.12.1": {
+   "title": "Drahtnachrichten-Reihenfolge für Tool-Ergebnisse und beständiger Planerinnerungs-Timer",
+   "paragraphs": [
+    "Eine zwischen den Tool-Aufrufen des Assistenten und ihren Ergebnissen eingefügte Systemmitteilung konnte strikte Drahtprotokollregeln auf OpenAI- und OpenAI-kompatiblen Endpunkten verletzen und zur Ablehnung von Anfragen führen. Alle Tool-Ergebnisse werden nun vor dem Ausgeben von Kontextmitteilungen protokolliert, die Lesereihenfolge normalisiert historische Transkripte und der Echtzeit-Timer für Planerinnerungen startet bei bestehenden Sitzungen zuverlässig beim ersten Tool-Aufruf."
+   ],
+   "points": [
+    {
+     "id": "tool-result-ordering",
+     "title": "Tool-Ergebnisse gehen Kontextmitteilungen voraus",
+     "text": "Systemmitteilungen (wie Planerinnerungen und Schleifenwarnungen) werden nun zurückgehalten, bis alle Tool-Aufrufe einer Modellrunde ihre Ergebnisse in der Datenbank verzeichnet haben, um die strikte OpenAI-Protokollanforderung einzuhalten, dass Tool-Nachrichten direkt ohne zwischenzeitliche Benutzernachrichten auf tool_calls folgen müssen."
+    },
+    {
+     "id": "reading-order-normalization",
+     "title": "Lesereihenfolge normalisiert verschachtelten Verlauf",
+     "text": "Der Lesereihenfolgen-Durchlauf der Sitzung gruppiert Tool-Ergebnisse direkt hinter die zugehörige Assistentennachricht vor verschachtelte Kontextmitteilungen und schützt historische sowie importierte Transkripte vor Protokollvalidierungsfehlern."
+    },
+    {
+     "id": "wall-clock-timer-preexisting",
+     "title": "Echtzeit-Timer startet beim ersten Tool-Aufruf",
+     "text": "Wenn eine Sitzung mit einem bereits vorhandenen Plan fortgesetzt wird und `plan.reminder_seconds` aktiv ist, beginnt der Timer ab dem ersten Tool-Aufruf der Sitzung die verstrichene Zeit zu messen, anstatt bis zum Neuschreiben von `track_tasks` untätig zu bleiben."
+    }
+   ],
+   "summary": "Tool-Reihenfolge & Plan-Timer"
+  },
   "0.12.0": {
    "title": "Ein Retry, der sich erklärt, eine Zusammenfassung, die fortsetzt, und eine Installation, die sofort nutzbar ist",
    "paragraphs": [

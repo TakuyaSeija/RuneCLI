@@ -179,6 +179,30 @@
   "and": "et"
  },
  "notes": {
+  "0.12.1": {
+   "title": "Ordre des messages réseau pour les outils et minuteur persistant du rappel de plan",
+   "paragraphs": [
+    "Un avis système inséré entre les appels d'outils de l'assistant et leurs résultats pouvait violer les règles strictes du protocole réseau sur les points de terminaison OpenAI et compatibles OpenAI, entraînant le rejet de la requête. Tous les résultats d'outils sont désormais enregistrés avant l'émission du moindre avis de contexte, l'ordre de lecture normalise les transcriptions historiques et le minuteur temporel du rappel de plan démarre de manière fiable dès le premier appel d'outil des sessions préexistantes."
+   ],
+   "points": [
+    {
+     "id": "tool-result-ordering",
+     "title": "Les résultats d'outils précèdent les avis de contexte",
+     "text": "Les avis système (tels que les rappels de plan et les avertissements de boucle) sont désormais différés jusqu'à ce que tous les appels d'outils d'une ronde du modèle aient consigné leurs résultats dans la base de données, garantissant le respect strict de l'exigence du protocole OpenAI selon laquelle les messages d'outils doivent suivre directement les tool_calls sans messages utilisateur intercalés."
+    },
+    {
+     "id": "reading-order-normalization",
+     "title": "L'ordre de lecture normalise l'historique entrelacé",
+     "text": "La passe d'ordre de lecture de session regroupe les résultats d'outils directement après leur message d'assistant correspondant avant tout avis de contexte intercalé, protégeant les transcriptions historiques et importées contre les rejets de validation du protocole."
+    },
+    {
+     "id": "wall-clock-timer-preexisting",
+     "title": "Le minuteur temporel démarre au premier appel d'outil",
+     "text": "Lorsqu'une session reprend avec un plan déjà existant et que `plan.reminder_seconds` est actif, l'horloge du minuteur commence à mesurer le temps écoulé dès le premier appel d'outil de la session au lieu de rester inactive jusqu'à ce que `track_tasks` soit réécrit."
+    }
+   ],
+   "summary": "Ordre des outils et minuteur de plan"
+  },
   "0.12.0": {
    "title": "Un retry qui s’explique, un résumé qui reprend, et une installation utilisable aussitôt",
    "paragraphs": [

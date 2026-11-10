@@ -179,6 +179,30 @@
   "and": "y"
  },
  "notes": {
+  "0.12.1": {
+   "title": "Orden de mensajes en cable para resultados de herramientas y temporizador persistente de recordatorio de plan",
+   "paragraphs": [
+    "Un aviso del sistema intercalado entre las llamadas a herramientas del asistente y sus resultados podía vulnerar las reglas estrictas del protocolo en endpoints de OpenAI y compatibles con OpenAI, provocando el rechazo de la solicitud. Todos los resultados de herramientas se registran ahora antes de emitir avisos de contexto, el orden de lectura normaliza transcripciones históricas y el temporizador de tiempo transcurrido del recordatorio de plan se inicia con fiabilidad en la primera llamada a herramienta de sesiones preexistentes."
+   ],
+   "points": [
+    {
+     "id": "tool-result-ordering",
+     "title": "Los resultados de herramientas preceden a los avisos de contexto",
+     "text": "Los avisos del sistema (como los recordatorios de plan y las advertencias de bucle) ahora se posponen hasta que todas las llamadas a herramientas de una ronda del modelo hayan registrado sus resultados en la base de datos, garantizando el cumplimiento estricto del protocolo de OpenAI de que los mensajes de herramientas deben seguir directamente a tool_calls sin mensajes de usuario intermedios."
+    },
+    {
+     "id": "reading-order-normalization",
+     "title": "El orden de lectura normaliza el historial intercalado",
+     "text": "El paso de orden de lectura de la sesión agrupa los resultados de herramientas directamente tras el mensaje del asistente correspondiente antes de cualquier aviso de contexto intercalado, protegiendo las transcripciones históricas e importadas de rechazos en la validación del protocolo."
+    },
+    {
+     "id": "wall-clock-timer-preexisting",
+     "title": "El temporizador de tiempo transcurrido inicia en la primera llamada",
+     "text": "Cuando una sesión se reanuda con un plan existente y `plan.reminder_seconds` está activo, el reloj del temporizador comienza a medir el tiempo transcurrido desde la primera llamada a herramienta de la sesión en lugar de permanecer inactivo hasta que se reescriba `track_tasks`."
+    }
+   ],
+   "summary": "Orden de herramientas y temporizador de plan"
+  },
   "0.12.0": {
    "title": "Un reintento que se explica, un resumen que continúa y una instalación que se usa al instante",
    "paragraphs": [
