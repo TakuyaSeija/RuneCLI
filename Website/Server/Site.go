@@ -234,8 +234,12 @@ func (s *site) asset(name string) (string, error) {
 func (s *site) url(route string) string { return s.urlIn(english, route) }
 
 // urlIn is a route's address in one locale: English at the base path, every
-// translation below its own code.
+// translation below its own code. Global endpoints (download, installers, signing-key)
+// live at the base path without a locale prefix.
 func (s *site) urlIn(l *locale, route string) string {
+	if route == "download" || route == "install.sh" || route == "install.ps1" || route == "releases.json" || route == "signing-key.pem" {
+		return s.cfg.BasePath + "/" + route
+	}
 	base := s.cfg.BasePath + l.prefix()
 	if route == "install" {
 		return base + "/#install"
@@ -337,7 +341,7 @@ func (s *site) data(p *page, cat *Catalog) pageData {
 		Origin:            s.cfg.Origin,
 		InstallCmd:        "curl -fsSL " + s.cfg.Origin + s.cfg.BasePath + "/install.sh | sh",
 		InstallCmdWindows: "irm " + s.cfg.Origin + s.cfg.BasePath + "/install.ps1 | iex",
-		Parent:            s.cfg.parent(),
+		Parent:            s.cfg.parentFor(l),
 		Catalog:           cat, Latest: cat.Latest(), SiteVersion: s.build,
 		Releases: s.releaseViews(cat, l), History: s.historyViews(cat, l),
 		DocGroups: s.groups[l.Code], DocVersion: documentedVersion,

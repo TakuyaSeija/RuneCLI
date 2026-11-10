@@ -107,6 +107,11 @@ func (s *server) routes() http.Handler {
 		mux.HandleFunc("GET "+at+"/security/{$}", redirectTo(at+"/docs/security"))
 		mux.HandleFunc("GET "+at+"/verification", redirectTo(at+"/docs/verification"))
 		mux.HandleFunc("GET "+at+"/verification/{$}", redirectTo(at+"/docs/verification"))
+		if l.Code != "en" {
+			mux.HandleFunc("GET "+at+"/install.sh", s.install)
+			mux.HandleFunc("GET "+at+"/install.ps1", s.installPS)
+			mux.HandleFunc("GET "+at+"/download/{version}/{file}", s.download)
+		}
 		mux.HandleFunc("GET "+at, redirectTo(at+"/"))
 	}
 	mux.HandleFunc("GET "+base+"/install.sh", s.install)

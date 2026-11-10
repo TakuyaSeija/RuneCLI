@@ -105,6 +105,33 @@ func (c *Config) parent() string {
 	return c.ParentURL
 }
 
+// parentFor is the footer's "Atoryn" destination for a specific locale.
+func (c *Config) parentFor(l *locale) string {
+	base := c.parent()
+	if l == nil || l.Code == "en" {
+		return base
+	}
+	if strings.HasSuffix(base, "/") {
+		return base + l.Code + "/"
+	}
+	return base + "/" + l.Code + "/"
+}
+
+// devHost returns the host/IP of the dev site without port.
+func (c *Config) devHost() string {
+	if u, err := url.Parse(c.Origin); err == nil && u.Hostname() != "" {
+		return u.Hostname()
+	}
+	if len(c.Hosts) > 0 {
+		h := c.Hosts[0]
+		if host, _, err := net.SplitHostPort(h); err == nil && host != "" {
+			return host
+		}
+		return h
+	}
+	return "192.168.18.10"
+}
+
 // checkListen accepts loopback only — and, for DEV, a private LAN address
 // (RFC 1918), never one routed from the internet. The public reaches PROD
 // exclusively through nginx and the tunnel.

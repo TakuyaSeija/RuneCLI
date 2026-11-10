@@ -4975,6 +4975,19 @@ fn the_plan_comes_back_between_calls_at_the_tool_cadence() {
         })
         .collect();
     assert_eq!(reminders.len(), 1, "{reminders:?}");
+    let reminder_idx = rows
+        .iter()
+        .position(|m| {
+            m.role == runeengine::store::sessions::Role::Context
+                && m.content.contains("Plan reminder")
+        })
+        .expect("reminder row present");
+    assert!(reminder_idx > 0);
+    assert_eq!(
+        rows[reminder_idx - 1].role,
+        runeengine::store::sessions::Role::Tool,
+        "a plan reminder row is placed after the tool result, never before it"
+    );
     assert!(
         reminders[0].content.contains("◐ reach the answer"),
         "{}",

@@ -37,7 +37,7 @@ PLATE = "Logo-black.png"
 
 # name, source, size, what it is for
 DERIVED = [
-    ("Logo.png", MASTER, 96, "header and footer mark, shown at 26 and 20 px (covers a 3x display)"),
+    ("Logo.png", MASTER, 256, "header and footer mark, shown at 26 and 20 px (owner transparent original)"),
     ("Icon.png", PLATE, 96, "tab icon for large/high-density tabs"),
     ("Icon-32.png", PLATE, 32, "tab icon, standard"),
     ("Icon-16.png", PLATE, 16, "tab icon, small"),

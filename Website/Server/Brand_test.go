@@ -47,7 +47,7 @@ func TestTheMarksHaveTheShapeTheMarkupPromises(t *testing.T) {
 		height     int
 		transluent bool
 	}{
-		{"Logo.png", 96, 96, true},
+		{"Logo.png", 256, 256, true},
 		{"Icon.png", 96, 96, true},
 		{"Icon-32.png", 32, 32, true},
 		{"Icon-16.png", 16, 16, true},

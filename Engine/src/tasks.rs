@@ -86,10 +86,12 @@ impl Tasks {
         }
         let mut state = panic::lock(&self.reminder);
         state.tools_since += 1;
-        let time_due = seconds_every > 0
-            && state
-                .last_ms
-                .is_some_and(|at| now_ms.saturating_sub(at) >= seconds_every * 1000);
+        let time_due = if seconds_every > 0 {
+            let last = *state.last_ms.get_or_insert(now_ms);
+            now_ms.saturating_sub(last) >= seconds_every * 1000
+        } else {
+            false
+        };
         let tools_due = tools_every > 0 && state.tools_since >= tools_every;
         if !(time_due || tools_due) {
             return Ok(None);
@@ -239,6 +241,30 @@ mod tests {
             .expect("30s elapsed since the plan was written");
         assert!(fired.contains("○ only"), "{fired}");
         assert_eq!(timed.reminder_due(other, base + 51_000).unwrap(), None);
+
+        // Regression test: when a plan was written in a previous session (Tasks::new
+        // starts with last_ms == None and Tasks::set is NOT called), the time trigger
+        // still starts on the first tool call and fires once the interval elapses.
+        let timed_preexisting = Tasks::new(timed.db.clone(), config.clone());
+        let pre_base = 100_000;
+        assert_eq!(
+            timed_preexisting.reminder_due(other, pre_base).unwrap(),
+            None,
+            "first call initializes timer, does not fire"
+        );
+        assert_eq!(
+            timed_preexisting
+                .reminder_due(other, pre_base + 20_000)
+                .unwrap(),
+            None,
+            "20s is less than 30s interval"
+        );
+        let pre_fired = timed_preexisting
+            .reminder_due(other, pre_base + 35_000)
+            .unwrap()
+            .expect("35s elapsed since the first call on preexisting plan");
+        assert!(pre_fired.contains("○ only"), "{pre_fired}");
+
         let _ = std::fs::remove_dir_all(&home);
     }
 

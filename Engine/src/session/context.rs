@@ -741,7 +741,9 @@ fn tell(rt: &Runtime, st: &SessionState, told: Told<'_>) -> Result<()> {
 
 /// The rows in the order the model reads them: a session's opening context
 /// right before the user request of the turn it was taken for, which is stored
-/// first (a promoted draft writes its request before any session state exists).
+/// first (a promoted draft writes its request before any session state exists),
+/// and any tool results immediately following their assistant call before
+/// interleaved context notices.
 /// Pure, so the same rows always come out in the same order.
 pub fn reading_order(mut rows: Vec<Message>) -> Vec<Message> {
     let mut i = 0;
@@ -762,7 +764,49 @@ pub fn reading_order(mut rows: Vec<Message>) -> Vec<Message> {
         }
         i += 1;
     }
-    rows
+
+    // A context row (loop warning, plan reminder, etc.) must never sit between
+    // an assistant message that called tools and the tool results answering
+    // them. If an older transcript or timing race interleaved a Role::Context
+    // row before matching Role::Tool rows, group all Tool rows directly after
+    // the Assistant message and place Context rows after them.
+    let mut out = Vec::with_capacity(rows.len());
+    let mut i = 0;
+    while i < rows.len() {
+        out.push(rows[i].clone());
+        if rows[i].role == Role::Assistant {
+            let has_calls = rows[i]
+                .tool_calls
+                .as_ref()
+                .and_then(|v| v.as_array())
+                .is_some_and(|arr| !arr.is_empty());
+            if has_calls {
+                let turn = rows[i].turn;
+                let mut j = i + 1;
+                let mut tools = Vec::new();
+                let mut contexts = Vec::new();
+                while j < rows.len()
+                    && rows[j].turn == turn
+                    && (rows[j].role == Role::Tool || rows[j].role == Role::Context)
+                {
+                    if rows[j].role == Role::Tool {
+                        tools.push(rows[j].clone());
+                    } else {
+                        contexts.push(rows[j].clone());
+                    }
+                    j += 1;
+                }
+                if !tools.is_empty() {
+                    out.extend(tools);
+                    out.extend(contexts);
+                    i = j;
+                    continue;
+                }
+            }
+        }
+        i += 1;
+    }
+    out
 }
 
 /// `AGENTS.md` at the workspace root, when the project has one: the block, and
@@ -982,6 +1026,31 @@ mod tests {
         ];
         let ids: Vec<i64> = reading_order(rows).iter().map(|r| r.id).collect();
         assert_eq!(ids, vec![1, 2, 3, 4, 5]);
+    }
+
+    /// A context notice (plan reminder, loop warning) must not be interleaved
+    /// between an assistant message that called tools and its tool results.
+    #[test]
+    fn interleaved_context_rows_are_shifted_after_tool_results() {
+        let mut assistant = row(3, 1, Role::Assistant, None);
+        assistant.tool_calls = Some(serde_json::json!([
+            {"id": "c1", "name": "inspect_file", "args": "{}"},
+            {"id": "c2", "name": "track_tasks", "args": "{}"}
+        ]));
+        let rows = vec![
+            row(1, 1, Role::Context, Some(ContextKind::Session)),
+            row(2, 1, Role::User, None),
+            assistant,
+            row(4, 1, Role::Context, Some(ContextKind::Plan)),
+            row(5, 1, Role::Tool, None),
+            row(6, 1, Role::Context, Some(ContextKind::Restore)),
+            row(7, 1, Role::Tool, None),
+            row(8, 2, Role::User, None),
+        ];
+        let ids: Vec<i64> = reading_order(rows).iter().map(|r| r.id).collect();
+        // The two Tool rows (5, 7) must directly follow Assistant (3),
+        // and Context rows (4, 6) must follow the tool rows:
+        assert_eq!(ids, vec![1, 2, 3, 5, 7, 4, 6, 8]);
     }
 
     #[test]

@@ -1631,6 +1631,8 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
         // and a call on its own is recorded before the next one starts — the
         // history reads exactly as if every call had run one by one.
         let mut next = 0;
+        let mut pending_loop_warnings = Vec::new();
+        let mut pending_plan_reminder = None;
         while next < calls.len() {
             let end = together(rt, st, &calls, next);
             let batch = &mut calls[next..end];
@@ -1670,9 +1672,7 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     // A repeated process_control is not a report being polled:
                     // there is no report left to ask for, only a wake to await.
                     let is_bg_poll = call.name == "process_control";
-                    let _ = super::context::loop_warning(
-                        rt, st, turn, &call.name, *times, firm, is_bg_poll,
-                    );
+                    pending_loop_warnings.push((call.name.clone(), *times, firm, is_bg_poll));
                 }
                 // The kind is a label beside the call, never text the model
                 // reads: only a failure carries one.
@@ -1691,11 +1691,11 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                 finished.explain_terminal_recovery(st, &call.name);
                 call::report(rt, st, &call.id, &finished)?;
 
-                // The plan, handed back at the boundary between calls before
-                // the model drifts from it (owner, 2026-11-09). The row is a
-                // <system_notice> of its own; tool results stay pure.
+                // Advance the plan reminder clock per completed tool call.
+                // The notice itself is emitted at the round boundary after all
+                // tool results are recorded to preserve wire protocol ordering.
                 if let Some(plan) = st.tasks.reminder_due(st.id, crate::store::now_ms())? {
-                    super::context::plan_reminder(rt, st, turn, &plan)?;
+                    pending_plan_reminder = Some(plan);
                 }
 
                 // The memory index was written: the next request checks it against
@@ -1744,6 +1744,17 @@ fn drive(rt: &Runtime, st: &SessionState, mut turn: i64) -> Result<(StopReason, 
                     crate::perm::classifier::invalidate(st);
                 }
             }
+        }
+
+        // Loop warnings and plan reminders belong at the boundary between model rounds,
+        // strictly after every tool call of the current turn has its Role::Tool row recorded.
+        // Interleaving a context row between an assistant's tool_calls and their tool results
+        // violates the wire protocol of OpenAI and other strict endpoints.
+        for (tool_name, times, firm, is_bg_poll) in pending_loop_warnings {
+            let _ = super::context::loop_warning(rt, st, turn, &tool_name, times, firm, is_bg_poll);
+        }
+        if let Some(plan) = pending_plan_reminder {
+            super::context::plan_reminder(rt, st, turn, &plan)?;
         }
 
         // A steer queued while the tools were running joins the conversation
