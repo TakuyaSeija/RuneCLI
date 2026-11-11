@@ -179,6 +179,30 @@
   "and": "和"
  },
  "notes": {
+  "0.12.3": {
+   "title": "仅限 Ctrl+O 切换侧边栏、XML 结构化提示词与工具输入规范化",
+   "paragraphs": [
+    "在空闲对话中按下 Esc 键不再隐藏侧边栏，使面板显示严格由 Ctrl+O、/panel 及 Appearance 设置控制。静态系统提示词与辅助子系统提示词现通过清晰的 XML 子标签组织规则，并将 `action` 参数说明唯一保留在工具模式内；会话标题生成会过滤对话式多行回复，同时交互工具支持灵活的问题格式规范化并拦截针对 `@memory/` 虚拟别名的终端命令。"
+   ],
+   "points": [
+    {
+     "id": "side-panel-toggle-only",
+     "title": "侧边栏仅通过 Ctrl+O 和 /panel 进行开关控制",
+     "text": "当没有覆盖层打开时按下 Esc 现仅清除页脚临时状态消息而不再关闭对话侧边栏，确保侧边栏开关严格统一由 Ctrl+O、/panel 或 Appearance 设置控制。"
+    },
+    {
+     "id": "structured-xml-prompts",
+     "title": "分层 XML 提示词与更严格的会话标题过滤",
+     "text": "系统提示词及用于压缩、策略分类、证据净化与会话命名的辅助指令现将规则分组到显式 XML 标签中，仅在工具参数模式中保留 `action` 指导，并在标题生成时过滤对话式开场白或多行回答。"
+    },
+    {
+     "id": "tool-normalization-and-memory-alias",
+     "title": "弹性问题格式规范化与 @memory/ 虚拟别名保护",
+     "text": "`ask_user_questions` 现支持换行符与制表符格式，并在校验前将扁平结构、单对象包装、纯文本选项与类型别名规范化；`terminal_use` 则拒绝访问 `@memory/` 虚拟别名的 shell 命令并引导使用内置文件工具。"
+    }
+   ],
+   "summary": "Ctrl+O 侧边栏控制、XML 提示词与输入规范化"
+  },
   "0.12.2": {
    "title": "终端预览后备保护、实时推理状态与设置导航",
    "paragraphs": [

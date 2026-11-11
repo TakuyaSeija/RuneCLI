@@ -179,6 +179,30 @@
   "and": "y"
  },
  "notes": {
+  "0.12.3": {
+   "title": "Panel lateral exclusivo por Ctrl+O, prompts XML estructurados y normalización de herramientas",
+   "paragraphs": [
+    "Pulsar Esc en una conversación inactiva ya no oculta el panel lateral, manteniendo su visibilidad estrictamente bajo Ctrl+O, /panel y los ajustes de Appearance. El prompt del sistema y los prompts auxiliares organizan ahora sus reglas en subsecciones XML claras con autoría única de `action` en el esquema, la generación de títulos filtra respuestas conversacionales y las herramientas normalizan formatos de preguntas flexibles bloqueando comandos de shell hacia `@memory/`."
+   ],
+   "points": [
+    {
+     "id": "side-panel-toggle-only",
+     "title": "El panel lateral se controla exclusivamente mediante Ctrl+O y /panel",
+     "text": "Pulsar Esc cuando no hay una vista superpuesta abierta ahora solo limpia el estado temporal del pie de página en lugar de cerrar el panel lateral, asegurando que su activación y desactivación dependan únicamente de Ctrl+O, /panel o Appearance."
+    },
+    {
+     "id": "structured-xml-prompts",
+     "title": "Prompts XML jerárquicos y filtrado más estricto de títulos",
+     "text": "El prompt del sistema y las instrucciones auxiliares de compactación, clasificación, sanitización de evidencias y títulos agrupan ahora sus reglas en etiquetas XML explícitas, mantienen la guía de `action` solo en los esquemas de parámetros y descartan respuestas conversacionales o multilínea en los títulos."
+    },
+    {
+     "id": "tool-normalization-and-memory-alias",
+     "title": "Normalización resiliente de preguntas y protección de @memory/",
+     "text": "`ask_user_questions` ahora admite saltos de línea y tabulaciones mientras normaliza estructuras planas, objetos individuales, opciones en texto y alias de tipo antes de validar, y `terminal_use` rechaza comandos dirigidos al alias virtual `@memory/` orientando hacia las herramientas de archivos."
+    }
+   ],
+   "summary": "Panel con Ctrl+O, prompts XML y normalización"
+  },
   "0.12.2": {
    "title": "Seguridad en la vista previa del terminal, estado de razonamiento activo y navegación en ajustes",
    "paragraphs": [

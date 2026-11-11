@@ -179,6 +179,30 @@
   "and": "dan"
  },
  "notes": {
+  "0.12.3": {
+   "title": "Kontrol panel samping khusus Ctrl+O, prompt XML terstruktur, dan normalisasi input tool",
+   "paragraphs": [
+    "Menekan tombol Esc saat percakapan diam kini tidak lagi menyembunyikan panel samping, menjaga kontrol visibilitas panel sepenuhnya melalui Ctrl+O, /panel, dan pengaturan Appearance. System prompt statis serta prompt subsistem auxiliar kini menata aturan ke dalam subbagian XML yang tegas dengan kontrak tunggal parameter `action` di skema tool, penamaan sesi menolak prosa balasan obrolan, dan tool interaktif menormalkan format pertanyaan sekaligus memblokir perintah shell ke alias virtual `@memory/`."
+   ],
+   "points": [
+    {
+     "id": "side-panel-toggle-only",
+     "title": "Panel samping hanya dihidupkan dan dimatikan lewat Ctrl+O atau /panel",
+     "text": "Menekan Esc saat tidak ada panel overlay yang terbuka kini hanya membersihkan status sementara di baris kaki tanpa menutup panel samping percakapan, sehingga kendali on/off panel samping murni lewat Ctrl+O, /panel, atau menu Appearance."
+    },
+    {
+     "id": "structured-xml-prompts",
+     "title": "Prompt XML hierarkis dan penyaringan ketat judul sesi",
+     "text": "System prompt utama serta instruksi auxiliar untuk pemadatan riwayat, classifier kebijakan, sanitizer bukti, dan penamaan sesi kini mengelompokkan aturan dalam tag XML eksplisit, menempatkan panduan `action` hanya di skema tool, serta menolak jawaban obrolan atau multibaris saat model menamai sesi."
+    },
+    {
+     "id": "tool-normalization-and-memory-alias",
+     "title": "Normalisasi pertanyaan fleksibel dan perlindungan alias virtual @memory/",
+     "text": "`ask_user_questions` kini menerima karakter baris baru dan tab sambil menormalkan struktur pertanyaan datar, pembungkus objek tunggal, opsi string, dan alias tipe sebelum validasi, sedangkan `terminal_use` menolak perintah yang menargetkan `@memory/` dengan arahan ke tool berkas bawaan."
+    }
+   ],
+   "summary": "Panel Ctrl+O, prompt XML & normalisasi tool"
+  },
   "0.12.2": {
    "title": "Keamanan preview terminal, status reasoning akurat, dan navigasi settings",
    "paragraphs": [

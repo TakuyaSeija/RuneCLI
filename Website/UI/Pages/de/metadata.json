@@ -179,6 +179,30 @@
   "and": "und"
  },
  "notes": {
+  "0.12.3": {
+   "title": "Seitenleisten-Umschaltung nur per Ctrl+O, XML-strukturierte Prompts und Tool-Normalisierung",
+   "paragraphs": [
+    "Das Drücken von Esc in einer ruhenden Unterhaltung schließt die Seitenleiste nicht mehr, sodass die Sichtbarkeit ausschließlich über Ctrl+O, /panel und Appearance gesteuert wird. System- und Hilfs-Prompts gliedern ihre Regeln nun in klare XML-Unterabschnitte mit alleiniger `action`-Vertragshoheit im Tool-Schema, die Sitzungsbenennung filtert Konversationsprosa aus, und interaktive Tools normalisieren flexible Frageformate sowie blockieren ungültige Shell-Zugriffe auf `@memory/`."
+   ],
+   "points": [
+    {
+     "id": "side-panel-toggle-only",
+     "title": "Seitenleiste wird ausschließlich über Ctrl+O und /panel umgeschaltet",
+     "text": "Ein Druck auf Esc ohne geöffnete Overlay-Ansicht löscht nur noch temporäre Statushinweise in der Fußzeile, statt die Seitenleiste zu schließen, sodass Ein- und Ausblenden strikt über Ctrl+O, /panel oder Appearance erfolgen."
+    },
+    {
+     "id": "structured-xml-prompts",
+     "title": "Hierarchische XML-Prompts und strengere Titelfilterung",
+     "text": "System-Prompt sowie Hilfsanweisungen für Komprimierung, Klassifizierung, Beweisextraktion und Sitzungstitel strukturieren Regeln in expliziten XML-Tags, belassen `action`-Hinweise allein in den Tool-Parametern und verwerfen mehrzeilige oder dialogische Antworten bei der Titelvergabe."
+    },
+    {
+     "id": "tool-normalization-and-memory-alias",
+     "title": "Robuste Fragenormalisierung und Schutz des virtuellen Alias @memory/",
+     "text": "`ask_user_questions` akzeptiert nun Zeilenumbrüche und Tabulatoren und normalisiert flache Frageschemata, Einzelobjekte, String-Optionen sowie Typ-Aliase vor der Prüfung; zudem lehnt `terminal_use` Befehle auf `@memory/` ab und verweist auf die integrierten Datei-Tools."
+    }
+   ],
+   "summary": "Ctrl+O-Seitenleiste, XML-Prompts & Tool-Normalisierung"
+  },
   "0.12.2": {
    "title": "Sicherheit der Terminal-Vorschau, genauer Reasoning-Status und Einstellungsnavigation",
    "paragraphs": [

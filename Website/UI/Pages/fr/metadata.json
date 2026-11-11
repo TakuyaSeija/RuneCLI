@@ -179,6 +179,30 @@
   "and": "et"
  },
  "notes": {
+  "0.12.3": {
+   "title": "Basculement du panneau latéral via Ctrl+O seul, prompts XML structurés et normalisation d'outils",
+   "paragraphs": [
+    "Appuyer sur Esc dans une conversation inactive ne ferme plus le panneau latéral, réservant son contrôle exclusivement à Ctrl+O, /panel et Appearance. Le prompt système et les prompts auxiliaires organisent désormais les règles en sous-sections XML claires avec contrat unique sur `action` dans le schéma, le titrage de session rejette les réponses conversationnelles, et les outils normalisent les formats de questions tout en bloquant l'accès shell à `@memory/`."
+   ],
+   "points": [
+    {
+     "id": "side-panel-toggle-only",
+     "title": "Le panneau latéral reste contrôlé exclusivement par Ctrl+O et /panel",
+     "text": "Appuyer sur Esc lorsqu'aucune vue superposée n'est ouverte efface uniquement le statut temporaire du pied de page au lieu de fermer le panneau latéral, garantissant que l'affichage ne bascule que par Ctrl+O, /panel ou Appearance."
+    },
+    {
+     "id": "structured-xml-prompts",
+     "title": "Prompts XML hiérarchiques et filtrage strict des titres de session",
+     "text": "Le prompt système et les instructions auxiliaires de compaction, classification, assainissement de preuves et titrage regroupent les règles sous des balises XML explicites, gardent l'indication `action` uniquement dans les schémas d'outils et rejettent les réponses multilignes ou conversationnelles comme titres."
+    },
+    {
+     "id": "tool-normalization-and-memory-alias",
+     "title": "Normalisation résiliente des questions et protection de @memory/",
+     "text": "`ask_user_questions` accepte désormais les sauts de ligne et tabulations tout en normalisant les formats plats, objets uniques, options textuelles et alias de types avant validation, tandis que `terminal_use` rejette les commandes ciblant l'alias virtuel `@memory/` en orientant vers les outils de fichiers."
+    }
+   ],
+   "summary": "Panneau Ctrl+O, prompts XML et normalisation"
+  },
   "0.12.2": {
    "title": "Sécurité de l'aperçu du terminal, état du raisonnement en direct et navigation dans les paramètres",
    "paragraphs": [

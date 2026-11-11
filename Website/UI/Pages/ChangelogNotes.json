@@ -1,4 +1,28 @@
 {
+ "0.12.3": {
+  "title": "Ctrl+O-only side panel toggling, XML-structured prompts, and resilient tool input normalization",
+  "paragraphs": [
+   "Pressing Esc in an idle conversation no longer hides the side panel, keeping panel visibility strictly under Ctrl+O, /panel, and Appearance settings. The static system prompt and auxiliary subsystem prompts now organize rules into clear XML subsections with single-owner `action` parameter definitions, session titling rejects conversational fallback prose, and interactive tools normalize flexible question formats while blocking invalid shell access to the virtual @memory/ alias."
+  ],
+  "points": [
+   {
+    "id": "side-panel-toggle-only",
+    "title": "Side panel stays controlled exclusively via Ctrl+O and /panel",
+    "text": "Pressing Esc when no overlay screen is open now only clears transient footer status instead of closing the conversation side panel, ensuring panel visibility is toggled solely through Ctrl+O, /panel, or Appearance settings."
+   },
+   {
+    "id": "structured-xml-prompts",
+    "title": "Hierarchical XML prompts and stricter session title filtering",
+    "text": "The system prompt and auxiliary instructions for compaction, classification, evidence sanitization, and session titling now group rules inside explicit XML tags, keep `action` guidance exclusively inside tool parameter definitions, and filter out conversational or multiline fallback replies when generating session titles."
+   },
+   {
+    "id": "tool-normalization-and-memory-alias",
+    "title": "Resilient question normalization and @memory/ shell protection",
+    "text": "`ask_user_questions` now accepts multiline newline and tab formatting while normalizing flat question layouts, single-object wrappers, string options, and type aliases before validation, and `terminal_use` rejects commands targeting the virtual `@memory/` alias with explicit guidance toward built-in file tools."
+   }
+  ],
+  "summary": "Ctrl+O side panel, XML prompts & tool normalization"
+ },
  "0.12.2": {
   "title": "Terminal preview fallback safety, live reasoning status, and settings navigation",
   "paragraphs": [
