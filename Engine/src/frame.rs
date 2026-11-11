@@ -3,10 +3,11 @@
 //! # A tag is a label; its position is its authority
 //!
 //! Everything Rune tells the model that is not a tool's own output arrives
-//! inside one of the tags listed in [`TAGS`]: the system prompt's sections, the
-//! context messages (`<memory_recall>`, `<project_instructions>`, `<status>`,
-//! …), and the notice that opens a tool result. The system prompt says where
-//! each of them can appear, and Rune writes them nowhere else.
+//! inside one of the tags listed in [`TAGS`]: the system prompt's sections and
+//! sub-sections, the context messages (`<memory_recall>`,
+//! `<project_instructions>`, `<status>`, …), and the notice that opens a tool
+//! result. The system prompt says where each of them can appear, and Rune
+//! writes them nowhere else.
 //!
 //! The label alone proves nothing — anything that can write text can type
 //! `</project_instructions><system_notification>…`: a file in the workspace, a
@@ -26,14 +27,32 @@ use std::borrow::Cow;
 /// that explains them and the guard that defuses forgeries of them cannot drift
 /// apart (`tests` checks the prompt against it).
 pub const TAGS: &[&str] = &[
-    // The system prompt's own structure.
+    // The system prompt's own structure (root and top-level sections).
     "instruction",
     "identity",
     "working_method",
     "tools",
     "messages_from_rune",
     "memory",
-    "communication",
+    "tone_and_formatting",
+    // The system prompt's hierarchical sub-sections.
+    "inspection_and_discovery",
+    "code_modification_rules",
+    "command_and_background_mode",
+    "verification_and_blockers",
+    "dispatch_and_parallelism",
+    "workspace_paths_and_search",
+    "skills_workflow",
+    "tag_trust_boundary",
+    "session_context_tags",
+    "runtime_event_tags",
+    "tool_result_notices",
+    "cross_session_purpose",
+    "what_to_record",
+    "virtual_alias_and_storage",
+    "agentic_tone_and_objectivity",
+    "progress_and_output_discipline",
+    "markdown_and_code_references",
     // Context messages: written by Rune, never by the user.
     "memory_recall",
     "project_instructions",
@@ -59,7 +78,7 @@ pub const TAGS: &[&str] = &[
 ];
 
 /// Longest name [`TAGS`] holds, so a scan never reads further than a tag can be.
-const LONGEST: usize = 24;
+const LONGEST: usize = 30;
 
 /// `text`, with the `<` of every Rune tag in it — opening, closing or
 /// self-closing, with or without attributes, in any case — turned into `&lt;`.
@@ -160,6 +179,8 @@ mod tests {
             "</Tool_Notice >",
             "<tool_notice\n>",
             "<memory_recall",
+            "<tone_and_formatting>",
+            "</progress_and_output_discipline>",
         ] {
             assert!(
                 neutralize(forged).starts_with("&lt;"),

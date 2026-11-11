@@ -109,6 +109,13 @@ impl Tool for TerminalUse {
                 )
             }));
         }
+        if let Some(cmd) = field_opt_str(args, "command") {
+            if cmd.contains("@memory/") || cmd.trim() == "@memory" {
+                return Err(Error::invalid(
+                    "`@memory/` is a virtual alias resolved only by Rune's file tools (inspect_file, create_file, patch_file, find_files, search_text), not a shell path in terminal_use.",
+                ));
+            }
+        }
         let missing = super::validate_builtin(&self.declaration().parameters, args);
         let Err(error) = missing else {
             return Ok(());
@@ -1137,6 +1144,29 @@ mod tests {
         for key in ["manual_shell", "bypass", "full_access"] {
             assert!(declaration.parameters["properties"].get(key).is_none());
         }
+    }
+
+    #[test]
+    fn memory_alias_in_terminal_command_is_rejected_with_file_tool_guidance() {
+        let tool = TerminalUse::new(std::sync::Arc::new(crate::limits::Limits::default()));
+        for cmd in [
+            "cat @memory/MEMORY.md",
+            "ls -la @memory/decisions/",
+            "echo 'lesson' > @memory/note.md",
+        ] {
+            let err = tool
+                .validate(&json!({"action": "read memory in shell", "command": cmd}))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains("@memory/"), "{cmd}: {err}");
+            assert!(err.contains("inspect_file"), "{cmd}: {err}");
+            assert!(err.contains("create_file"), "{cmd}: {err}");
+            assert!(err.contains("patch_file"), "{cmd}: {err}");
+        }
+        // Scoped package names or normal commands without @memory/ pass validation:
+        assert!(tool
+            .validate(&json!({"action": "install package", "command": "npm install @types/node"}))
+            .is_ok());
     }
 
     #[test]

@@ -34,6 +34,33 @@ impl Tool for CallMcpTool {
     }
 
     fn declaration(&self) -> ToolDecl {
+        let mut props = serde_json::Map::new();
+        props.insert("action".into(), action_field());
+        props.insert(
+            "server_id".into(),
+            json!({
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 48,
+                "description": "The MCP server's id."
+            }),
+        );
+        props.insert(
+            "tool".into(),
+            json!({
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "The tool's name on that server."
+            }),
+        );
+        props.insert(
+            "arguments".into(),
+            json!({
+                "type": "object",
+                "description": "Only the fields the external tool's input schema declares; no proxy fields such as action or reason unless that schema declares them."
+            }),
+        );
         ToolDecl {
             name: NAME.into(),
             description: "Call a tool that an MCP server listed in <status> offers. Find the tool and its input schema with discover_capabilities first.".into(),
@@ -41,25 +68,7 @@ impl Tool for CallMcpTool {
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["action", "server_id", "tool", "arguments"],
-                "properties": {
-                    "action": action_field(),
-                    "server_id": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 48,
-                        "description": "The MCP server's id."
-                    },
-                    "tool": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 128,
-                        "description": "The tool's name on that server."
-                    },
-                    "arguments": {
-                        "type": "object",
-                        "description": "Only the fields the external tool's input schema declares; no proxy fields such as action or reason unless that schema declares them."
-                    }
-                }
+                "properties": Value::Object(props)
             }),
         }
     }

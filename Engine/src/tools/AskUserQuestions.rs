@@ -83,7 +83,7 @@ impl Response for Reply {
                     && !answer
                         .custom
                         .chars()
-                        .any(|c| c.is_control() && c != '\n' && c != '\t')
+                        .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
                     && (answer.custom.is_empty() || !answer.custom.trim().is_empty())
                     && answer.selected.iter().all(|id| {
                         selected.insert(id) && question.options.iter().any(|o| &o.id == id)
@@ -103,31 +103,69 @@ impl Tool for AskUserQuestions {
     }
 
     fn declaration(&self) -> ToolDecl {
+        let mut opt_props = serde_json::Map::new();
+        opt_props.insert(
+            "label".into(),
+            json!({"type":"string","minLength":1,"description":"Short label naming the choice (2 to 6 words)."}),
+        );
+        opt_props.insert(
+            "description".into(),
+            json!({"type":"string","minLength":1,"description":"One concise sentence explaining what choosing this option means."}),
+        );
+
+        let mut q_props = serde_json::Map::new();
+        q_props.insert(
+            "question".into(),
+            json!({"type":"string","minLength":1,"description":"Write this first for each item: one direct question asking the user to decide."}),
+        );
+        q_props.insert(
+            "type".into(),
+            json!({"type":"string","enum":["single","multiple"],"description":"Selection mode — single: one choice; multiple: any number of choices."}),
+        );
+        q_props.insert(
+            "options".into(),
+            json!({
+                "type":"array",
+                "minItems":1,
+                "description":"The choices, ordered with the recommended choice first. End a recommended choice label with (Recommended).",
+                "items":{
+                    "type":"object",
+                    "additionalProperties":false,
+                    "required":["label","description"],
+                    "properties": Value::Object(opt_props)
+                }
+            }),
+        );
+        q_props.insert(
+            "title".into(),
+            json!({"type":"string","minLength":1,"description":"Optional short topic label naming the decision (1 to 3 words, not a sentence)."}),
+        );
+
+        let mut top_props = serde_json::Map::new();
+        top_props.insert("action".into(), action_field());
+        top_props.insert(
+            "questions".into(),
+            json!({
+                "type":"array",
+                "minItems":1,
+                "description":"The questions to present together in order.",
+                "items":{
+                    "type":"object",
+                    "additionalProperties":false,
+                    "required":["question","type","options"],
+                    "properties": Value::Object(q_props)
+                }
+            }),
+        );
+
         ToolDecl {
             name: self.name().into(),
-            description: "Ask the user for a decision or a missing requirement. Put every question in one call: the user answers them together. The user can always write an answer of their own.".into(),
+            description: "Ask the user for a decision or a missing requirement that cannot be resolved by inspecting the workspace. Put every question in one call: the user answers them together, and can always write an answer of their own.".into(),
             parameters: json!({
-                "type":"object","additionalProperties":false,
+                "type":"object",
+                "additionalProperties":false,
                 "required":["action","questions"],
-                "properties":{
-                    "action":action_field(),
-                    "questions":{"type":"array","minItems":1,"description":"The questions, in the order they are shown.","items":{
-                        "type":"object","additionalProperties":false,
-                        "required":["question","type","options"],
-                        "properties":{
-                            "title":{"type":"string","minLength":1,"description":"Optional short label naming the decision, not a sentence."},
-                            "question":{"type":"string","minLength":1,"description":"One direct question."},
-                            "type":{"type":"string","enum":["single","multiple"],"description":"single: one choice. multiple: any number of choices."},
-                            "options":{"type":"array","minItems":1,"description":"The choices, most recommended first. The label of a choice you recommend ends with (Recommended).","items":{
-                                "type":"object","additionalProperties":false,"required":["label","description"],
-                                "properties":{
-                                    "label":{"type":"string","minLength":1,"description":"A few words naming the choice."},
-                                    "description":{"type":"string","minLength":1,"description":"One line: what choosing it means."}
-                                }
-                            }}
-                        }
-                    }}
-                }
+                "properties": Value::Object(top_props)
             }),
         }
     }
@@ -139,7 +177,7 @@ impl Tool for AskUserQuestions {
     fn validate(&self, args: &Value) -> Result<()> {
         super::validate_builtin(&self.declaration().parameters, args)?;
         let mut questions: Vec<Question> = serde_json::from_value(args["questions"].clone())
-            .map_err(|_| Error::invalid("Invalid question form"))?;
+            .map_err(|e| Error::invalid(format!("Invalid question form: {e}")))?;
         prepare(&mut questions);
         for q in &questions {
             let mut labels = HashSet::new();
@@ -157,7 +195,11 @@ impl Tool for AskUserQuestions {
                 .map(String::as_str)
                 .chain(std::iter::once(args["action"].as_str().unwrap()))
             {
-                if text.trim().is_empty() || text.chars().any(char::is_control) {
+                if text.trim().is_empty()
+                    || text
+                        .chars()
+                        .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
+                {
                     return Err(Error::invalid(
                         "Question fields must be nonempty text without control characters",
                     ));
@@ -169,7 +211,7 @@ impl Tool for AskUserQuestions {
 
     fn run(&self, ctx: &mut ToolCtx<'_>, args: &Value) -> Result<Outcome> {
         let mut questions: Vec<Question> = serde_json::from_value(args["questions"].clone())
-            .map_err(|_| Error::invalid("Invalid question form"))?;
+            .map_err(|e| Error::invalid(format!("Invalid question form: {e}")))?;
         prepare(&mut questions);
         let req = ctx.questions.open(questions.clone());
         let total_q = questions.len();
@@ -511,6 +553,40 @@ mod tests {
             {"label":"automatic SYNC", "description":"Two."}
         ]);
         assert!(tool.validate(&twins).is_err());
+    }
+
+    #[test]
+    fn multiline_and_tab_question_fields_are_accepted_and_schema_order_is_locked() {
+        let tool = AskUserQuestions;
+        let decl = tool.declaration();
+        assert_eq!(decl.parameters["required"], json!(["action", "questions"]));
+        assert_eq!(
+            decl.parameters["properties"]["questions"]["items"]["required"],
+            json!(["question", "type", "options"])
+        );
+
+        let multiline = json!({
+            "action": "Ask user about formatting",
+            "questions": [{
+                "question": "Which configuration should we apply?\n\t1. Strict mode\r\n\t2. Relaxed mode",
+                "type": "single",
+                "options": [
+                    {"label": "Strict (Recommended)", "description": "Enforce all checks.\nRecommended for CI."},
+                    {"label": "Relaxed", "description": "Allow warnings.\tUseful locally."}
+                ]
+            }]
+        });
+        assert!(tool.validate(&multiline).is_ok());
+
+        let with_ansi = json!({
+            "action": "Ask user",
+            "questions": [{
+                "question": "Bad \u{1b}[31mANSI",
+                "type": "single",
+                "options": [{"label": "A", "description": "Desc"}]
+            }]
+        });
+        assert!(tool.validate(&with_ansi).is_err());
     }
 
     #[test]

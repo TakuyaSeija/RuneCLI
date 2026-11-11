@@ -1094,6 +1094,14 @@ pub fn ensure_action(args: &mut Value, tool: &dyn Tool) {
     adopt_action(args);
     if let Some(map) = args.as_object_mut() {
         map.remove("description");
+        if let Some(Value::String(said)) = map.get_mut("action") {
+            let cleaned: String = said
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .take(ACTION_MAX)
+                .collect();
+            *said = cleaned.trim().to_string();
+        }
     }
     if args
         .get("action")
@@ -1153,14 +1161,86 @@ pub fn canonical_args(tool: &dyn Tool, args: &mut Value) {
             }
         }
         "ask_user_questions" => {
+            if map.get("questions").is_some_and(Value::is_object) {
+                if let Some(obj) = map.remove("questions") {
+                    map.insert("questions".into(), Value::Array(vec![obj]));
+                }
+            }
+            if !map.contains_key("questions")
+                && (map.contains_key("question")
+                    || map.contains_key("prompt")
+                    || map.contains_key("text"))
+            {
+                let mut single = serde_json::Map::new();
+                for key in [
+                    "title", "label", "header", "question", "prompt", "text", "type", "options",
+                    "choices",
+                ] {
+                    if let Some(val) = map.remove(key) {
+                        single.insert(key.to_string(), val);
+                    }
+                }
+                map.insert(
+                    "questions".into(),
+                    Value::Array(vec![Value::Object(single)]),
+                );
+            }
             if let Some(list) = map.get_mut("questions").and_then(Value::as_array_mut) {
                 for question in list {
                     let Some(item) = question.as_object_mut() else {
                         continue;
                     };
                     fold_field(item, "label", "title");
-                    if item.get("type").is_none() {
-                        item.insert("type".into(), json!("single"));
+                    fold_field(item, "header", "title");
+                    fold_field(item, "prompt", "question");
+                    fold_field(item, "text", "question");
+                    if !item.contains_key("options") {
+                        if let Some(choices) = item.remove("choices") {
+                            item.insert("options".into(), choices);
+                        }
+                    }
+                    let folded_type = match item.get("type").and_then(Value::as_str).map(str::trim)
+                    {
+                        None | Some("") => Some("single"),
+                        Some("single_choice" | "radio" | "one") => Some("single"),
+                        Some("multi" | "multi_select" | "multiselect" | "checkbox" | "many") => {
+                            Some("multiple")
+                        }
+                        _ => None,
+                    };
+                    if let Some(kind) = folded_type {
+                        item.insert("type".into(), json!(kind));
+                    }
+                    if let Some(opts) = item.get_mut("options").and_then(Value::as_array_mut) {
+                        for opt in opts {
+                            if let Some(s) = opt
+                                .as_str()
+                                .map(str::trim)
+                                .filter(|s| !s.is_empty())
+                                .map(str::to_string)
+                            {
+                                *opt = json!({ "label": s.clone(), "description": s });
+                            } else if let Some(opt_map) = opt.as_object_mut() {
+                                fold_field(opt_map, "title", "label");
+                                fold_field(opt_map, "name", "label");
+                                fold_field(opt_map, "value", "label");
+                                let has_desc = opt_map
+                                    .get("description")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|d| !d.trim().is_empty());
+                                if !has_desc {
+                                    if let Some(lbl) = opt_map
+                                        .get("label")
+                                        .and_then(Value::as_str)
+                                        .map(str::trim)
+                                        .filter(|s| !s.is_empty())
+                                        .map(str::to_string)
+                                    {
+                                        opt_map.insert("description".into(), json!(lbl));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1287,7 +1367,7 @@ pub fn field_bool(item: &Value, key: &str, default: bool) -> bool {
 
 /// Short on purpose: this is read by every model on every request, and the two
 /// clauses say everything a longer instruction would.
-pub const ACTION_DESC: &str = "One short sentence: what you are about to do, and to what.";
+pub const ACTION_DESC: &str = "FILL THIS FIRST before any other field: one short present-tense sentence stating what you are about to do and to what.";
 
 /// Shared structure, not fifteen copies of the agent's writing instruction.
 /// The system prompt owns how `action` is written; every schema still requires
@@ -2041,6 +2121,53 @@ mod tests {
         assert!(
             untitled["questions"][0].get("title").is_none(),
             "{untitled}"
+        );
+        // Flat top-level question with string-array options and missing action:
+        let mut flat = json!({
+            "question": "Which database engine should we use?",
+            "type": "single_choice",
+            "options": ["PostgreSQL (Recommended)", "SQLite"]
+        });
+        canonical_args(ask.as_ref(), &mut flat);
+        ensure_action(&mut flat, ask.as_ref());
+        ask.validate(&flat).unwrap();
+        assert_eq!(flat["questions"][0]["type"], json!("single"));
+        assert_eq!(
+            flat["questions"][0]["options"][0]["label"],
+            json!("PostgreSQL (Recommended)")
+        );
+        assert_eq!(
+            flat["questions"][0]["options"][0]["description"],
+            json!("PostgreSQL (Recommended)")
+        );
+
+        // Single-object questions wrapper with multi_select, choices alias, and option missing description:
+        let mut single_obj = json!({
+            "description": "x".repeat(250),
+            "questions": {
+                "prompt": "Which targets should we build?",
+                "type": "multi_select",
+                "choices": [
+                    {"name": "Linux x64"},
+                    {"title": "macOS ARM64", "description": ""}
+                ]
+            }
+        });
+        canonical_args(ask.as_ref(), &mut single_obj);
+        ensure_action(&mut single_obj, ask.as_ref());
+        ask.validate(&single_obj).unwrap();
+        assert_eq!(
+            single_obj["action"].as_str().unwrap().chars().count(),
+            ACTION_MAX
+        );
+        assert_eq!(single_obj["questions"][0]["type"], json!("multiple"));
+        assert_eq!(
+            single_obj["questions"][0]["options"][0]["label"],
+            json!("Linux x64")
+        );
+        assert_eq!(
+            single_obj["questions"][0]["options"][1]["description"],
+            json!("macOS ARM64")
         );
     }
 

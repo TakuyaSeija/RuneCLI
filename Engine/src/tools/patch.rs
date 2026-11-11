@@ -34,7 +34,7 @@ impl Tool for PatchFile {
                     },
                     "old_str": {
                         "type": "string",
-                        "description": "The exact text to replace, spaces and line breaks included. Copy it from the most recent read or patch in this turn, since text recalled from memory rarely matches exactly, and include enough surrounding lines for it to appear exactly once."
+                        "description": "The exact text to replace, spaces and line breaks included (excluding the line-number prefix shown by inspect_file). Copy it from the most recent read or patch in this turn, since text recalled from memory rarely matches exactly, and include enough surrounding lines for it to appear exactly once."
                     },
                     "new_str": {
                         "type": "string",

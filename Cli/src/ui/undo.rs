@@ -871,7 +871,7 @@ mod tests {
     fn an_unreachable_diff_says_its_counts_are_the_ledgers_own_tally() {
         let mut app = app_with(files());
         app.session = Some(1);
-        let mut d = super::super::test_driver("undo-diff");
+        let mut d = super::super::test_driver("undo-diff-unreachable");
         key(&mut app, &Key::Alt('s'), &mut d);
         diffed(
             &mut app,

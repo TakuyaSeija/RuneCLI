@@ -36,7 +36,7 @@ impl Tool for InspectFile {
                 json!({
                     "path": {
                         "type": "string",
-                        "description": "The exact path of the file to read. A path the user or an earlier result has not given is best found first with find_files or search_text: a guessed path usually misses."
+                        "description": "The exact path of the file to read (workspace-relative, absolute, ~/..., or @memory/... for project memory notes). A path the user or an earlier result has not given is best found first with find_files or search_text: a guessed path usually misses."
                     },
                     "view_range": {
                         "type": "array",

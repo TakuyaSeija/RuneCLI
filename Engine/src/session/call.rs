@@ -191,13 +191,18 @@ pub fn run_direct(
     name: &str,
     args: &Value,
 ) -> Result<Outcome> {
+    let mut normalized = args.clone();
+    if let Ok(tool) = st.registry.get(name) {
+        crate::tools::canonical_args(tool.as_ref(), &mut normalized);
+        crate::tools::ensure_action(&mut normalized, tool.as_ref());
+    }
     run_as(
         rt,
         st,
         turn,
         id,
         name,
-        args,
+        &normalized,
         None,
         Company::Alone,
         crate::tools::Reader::Person,

@@ -419,7 +419,7 @@ fn manual_full_access_never_authorizes_the_models_next_terminal_call() {
     );
     let seen = h.probe.seen.lock().unwrap();
     let last = seen.last().unwrap();
-    assert!(last.system.contains("so do not repeat or bypass it"));
+    assert!(last.system.contains("do not repeat or bypass it"));
     assert!(!last
         .messages
         .iter()

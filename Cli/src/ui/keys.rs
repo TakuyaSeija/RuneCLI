@@ -584,11 +584,6 @@ impl App {
             Key::Esc => {
                 if self.panel != Panel::None {
                     self.show_panel(Panel::None);
-                } else if self.sidebar {
-                    // The same door Ctrl+O uses: the choice is written to
-                    // `rune.toml`, so every window and the next start agree
-                    // with it instead of this window alone hiding the panel.
-                    self.set_sidebar(false);
                 } else {
                     self.clear_status();
                 }
@@ -2538,17 +2533,30 @@ mod tests {
         d.engine.shutdown();
     }
 
-    /// Esc closes the side panel through the door Ctrl+O uses — the one that
-    /// also writes the choice down — not by flipping this window's flag, which
-    /// the next change of `rune.toml` would silently undo.
+    /// Esc does not close the side panel; toggling the side panel on and off is
+    /// handled exclusively via Ctrl+O (or /panel).
     #[test]
-    fn escape_hides_the_side_panel_through_the_shared_door() {
+    fn escape_preserves_side_panel_and_ctrl_o_toggles_it() {
         let mut d = test_driver("esc-sidebar");
         let mut app = App::for_test();
         app.sidebar = true;
         app.resync = false;
         app.on_key(Key::Esc, &mut d);
-        assert!(!app.sidebar);
+        assert!(app.sidebar, "Esc must not close the side panel");
+        assert!(
+            !app.resync,
+            "Esc does not repaint/hide sidebar when panel is Panel::None"
+        );
+
+        // Ctrl+O toggles the side panel off:
+        app.on_key(Key::Ctrl('o'), &mut d);
+        assert!(!app.sidebar, "Ctrl+O toggles the side panel off");
+        assert!(app.resync, "set_sidebar repaints the whole screen");
+
+        // Ctrl+O toggles the side panel on:
+        app.resync = false;
+        app.on_key(Key::Ctrl('o'), &mut d);
+        assert!(app.sidebar, "Ctrl+O toggles the side panel on");
         assert!(app.resync, "set_sidebar repaints the whole screen");
         d.engine.shutdown();
     }

@@ -106,6 +106,12 @@ try:
     for before, after, alive in results:
         assert all(alive), f"a window ended after Ctrl+O: {alive}"
         assert before != after, f"Ctrl+O did not flip ui.sidebar ({before} -> {after})"
+    before_esc = sidebar_value()
+    a.send(b"\x1b")  # Esc when idle must NOT close the side panel
+    time.sleep(1.0)
+    for w in windows:
+        w.drain()
+    assert sidebar_value() == before_esc, f"Esc must not close side panel ({before_esc} -> {sidebar_value()})"
     print("two windows: ok")
 finally:
     for w in windows:

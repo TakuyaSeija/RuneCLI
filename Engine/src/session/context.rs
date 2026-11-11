@@ -624,15 +624,15 @@ pub fn loop_warning(
 ) -> Result<()> {
     let guidance = if firm {
         if is_bg_poll {
-            " Its next state and output come in its own <system_notification>, so asking again brings nothing new. Independent work can go on meanwhile; with none left, ending the turn lets the notification start the next one."
+            "\n- Cause: Its next state and output come in its own <system_notification>, so asking again brings nothing new.\n- Action: Continue independent work if any remains; with none left, end your turn so the notification starts the next one."
         } else {
-            " Repeating it is unlikely to change the outcome; a different approach, a check of what it depends on, or a question to the person can move the work forward."
+            "\n- Action: Repeating the identical call is unlikely to change the outcome; inspect its dependencies, switch to a different approach, or ask the user."
         }
     } else {
         ""
     };
     let told = format!(
-        "Loop detected: {tool_name} has been called {times} times in this turn with the same arguments and outcome.{guidance}"
+        "- Loop detected: {tool_name} has been called {times} times in this turn with the same arguments and outcome.{guidance}"
     );
     let note = format!("Loop warning ({tool_name} x{times}); told via system_notice.");
     tell(
@@ -656,7 +656,7 @@ pub fn loop_warning(
 /// the plan when the path has moved on from it; otherwise carry on.
 pub fn plan_reminder(rt: &Runtime, st: &SessionState, turn: i64, plan: &str) -> Result<()> {
     let told = format!(
-        "Plan reminder — your current plan:\n{plan}\n\nCheck it against where you actually are: update it with track_tasks when your path has moved on from it; if it still matches, carry on and ignore this reminder."
+        "- Plan reminder (current checklist):\n{plan}\n- Action: Compare this checklist against your current progress; update it with track_tasks if your path has changed, or continue working if it still matches."
     );
     let note = "Plan reminder; told via system_notice.".to_string();
     tell(
