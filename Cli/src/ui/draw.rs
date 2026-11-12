@@ -682,7 +682,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
 
     let (
         Sink {
-            lines: footer,
+            lines: mut footer,
             owner: footer_hits,
             copy: mut footer_copy,
         },
@@ -820,18 +820,23 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
     }
 
     let mut lines: Vec<String> = Vec::with_capacity(rows);
+    // The blank row above the composer separates the chat from the input box;
+    // it is not the panel's to lose (owner, 2026-11-13). In a split frame the
+    // panel runs on through it down to the composer's top border.
+    let top_pad = footer.first().is_some_and(|l| l.is_empty());
+    let panel_extra = usize::from(split && top_pad);
     let right = if split {
         // The panel gets the content rows minus the heading it draws above the
         // plan, and it is told its height so it can decide what to hide and say
         // so. Measuring it here rather than letting `compose` slice the result
         // is the fix for the panel that cut items without a word: a cut made
         // downstream is a cut the thing being cut cannot know about.
-        let panel_rows = content_rows.saturating_sub(1);
+        let panel_rows = (content_rows + panel_extra).saturating_sub(1);
         let side = sidebar_content(app, right_w, panel_rows);
         // Published for the wheel: "is the pointer over the panel?" is a
         // geometry question, and this is the geometry the last frame used.
         app.sidebar_cols = Some((left_w as u16 + 2, cols as u16));
-        app.sidebar_last_row = content_rows as u16;
+        app.sidebar_last_row = (content_rows + panel_extra) as u16;
         side
     } else {
         app.sidebar_cols = None;
@@ -886,25 +891,59 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
         lines.push(line);
     }
     app.jump_hint = None;
-    if let Some((label, first)) = jump_hint(app, text_w) {
-        // Laid over the conversation's last row on screen, covering only its
-        // own columns and one blank on each side (owner, 2026-10-09): the rest
-        // of that row stays readable and clickable, and the side panel beside
-        // it keeps its row.
-        let at = content_rows - 1;
-        let row = ansi::overlay(&lefts[at], first as usize - 1, &label);
-        let right_row = right
-            .lines
-            .get(at)
-            .map(|r| ansi::tame(&r.replace(['\r', '\n'], " ")));
-        lines[at] = match &right_row {
-            Some(r) if split => beside(&row, left_w, r, right_w),
-            _ if split => beside(&row, left_w, "", right_w),
-            _ => row,
-        };
+    let hint = jump_hint(app, text_w);
+    if top_pad {
+        // The padding row: the jump hint (when up) on the chat side, directly
+        // above the input box, and the panel's own row beside it.
+        let left_pad = hint
+            .as_ref()
+            .map(|(label, first)| ansi::overlay("", *first as usize - 1, label))
+            .unwrap_or_default();
+        if split {
+            let raw_r = right
+                .lines
+                .get(content_rows)
+                .map(|s| s.replace(['\r', '\n'], " "))
+                .unwrap_or_default();
+            footer[0] = beside(&left_pad, left_w, &ansi::tame(&raw_r), right_w);
+            if let (Some(row), Some(right_spans)) =
+                (footer_copy.first_mut(), right.copy.get(content_rows))
+            {
+                let first = left_w + 2;
+                row.extend(right_spans.iter().map(|span| Span {
+                    columns: first + span.columns.start..(first + span.columns.end).min(cols),
+                    region: Region::Sidebar,
+                    source: span.source.clone(),
+                }));
+            }
+        } else {
+            footer[0] = left_pad;
+        }
+    }
+    if let Some((label, first)) = hint {
         let width = ansi::width(JUMP_HINT) as u16;
-        let screen_row = at as u16 + 1;
-        app.jump_hint = Some((screen_row, first + 1, first + width));
+        if top_pad {
+            let screen_row = content_rows as u16 + 1;
+            app.jump_hint = Some((screen_row, first + 1, first + width));
+        } else {
+            // Laid over the conversation's last row on screen, covering only its
+            // own columns and one blank on each side (owner, 2026-10-09): the rest
+            // of that row stays readable and clickable, and the side panel beside
+            // it keeps its row.
+            let at = content_rows - 1;
+            let row = ansi::overlay(&lefts[at], first as usize - 1, &label);
+            let right_row = right
+                .lines
+                .get(at)
+                .map(|r| ansi::tame(&r.replace(['\r', '\n'], " ")));
+            lines[at] = match &right_row {
+                Some(r) if split => beside(&row, left_w, r, right_w),
+                _ if split => beside(&row, left_w, "", right_w),
+                _ => row,
+            };
+            let screen_row = at as u16 + 1;
+            app.jump_hint = Some((screen_row, first + 1, first + width));
+        }
     }
     hits.extend(footer_hits);
     hits.resize(lines.len() + footer.len(), Hit::None);
@@ -2295,19 +2334,19 @@ fn format_tokens(n: u64) -> String {
     } else if n < 999_950 {
         let k = n as f64 / 1_000.0;
         if n % 1_000 < 50 || k >= 100.0 {
-            format!("{:.0}K", k)
+            format!("{:.0}k", k)
         } else {
-            format!("{:.1}K", k)
+            format!("{:.1}k", k)
         }
     } else {
         let m = n as f64 / 1_000_000.0;
         let cents = (m * 100.0).round() as u64;
         if cents.is_multiple_of(100) {
-            format!("{:.0}M", m)
+            format!("{:.0}m", m)
         } else if cents.is_multiple_of(10) {
-            format!("{:.1}M", m)
+            format!("{:.1}m", m)
         } else {
-            format!("{:.2}M", m)
+            format!("{:.2}m", m)
         }
     }
 }
@@ -2316,8 +2355,8 @@ fn render_turn_metrics(
     duration_ms: u64,
     tok_in: u64,
     tok_out: u64,
-    steps: usize,
-    status: &str,
+    _steps: usize,
+    _status: &str,
     completed_at_ms: i64,
 ) -> String {
     let secs = (duration_ms / 1000).max(1);
@@ -2334,11 +2373,6 @@ fn render_turn_metrics(
         format_tokens(tok_in),
         format_tokens(tok_out)
     );
-    let steps_str = if steps > 0 {
-        format!(" · {} {}", steps, if steps == 1 { "step" } else { "steps" })
-    } else {
-        String::new()
-    };
 
     let completed_secs = completed_at_ms / 1000;
     let comp_time = runeengine::platform::local_time(completed_secs);
@@ -2347,9 +2381,9 @@ fn render_turn_metrics(
         .map_or(0, |d| d.as_secs() as i64);
     let now_time = runeengine::platform::local_time(now_secs);
 
-    let time_status = match (comp_time, now_time) {
+    let time_str = match (comp_time, now_time) {
         (Some(c), Some(n)) if c.year == n.year && c.month == n.month && c.day == n.day => {
-            format!("{status} at {:02}:{:02}", c.hour, c.minute)
+            format!(" · at {:02}:{:02}", c.hour, c.minute)
         }
         (Some(c), _) => {
             const WEEKDAYS: [&str; 7] = [
@@ -2368,14 +2402,14 @@ fn render_turn_metrics(
             let wday_name = WEEKDAYS[wday % 7];
             let mon_name = MONTHS[(c.month.saturating_sub(1) as usize) % 12];
             format!(
-                "{status} {wday_name}, {mon_name} {}, {:02}:{:02}",
+                " · {wday_name}, {mon_name} {}, {:02}:{:02}",
                 c.day, c.hour, c.minute
             )
         }
-        _ => status.to_string(),
+        _ => String::new(),
     };
 
-    format!("  {MUTED}●{RESET} {FAINT}{dur_str} · {tok_str}{steps_str} · {time_status}{RESET}")
+    format!("  {MUTED}✾ {dur_str} · {tok_str}{time_str}{RESET}")
 }
 
 fn civil_weekday(y: i32, m: u32, d: u32) -> usize {
@@ -13319,31 +13353,19 @@ mod tests {
                     bad: false,
                 });
             }
-            // Some rows under it are the blank between two notices; the
-            // first one that holds text must show it on both sides.
-            let mut seen = false;
-            for _ in 0..6 {
-                app.scroll_by(true, 1);
-                let frame = compose(&mut app, 24, 140);
-                let (row, first, last) = app.jump_hint.expect("the hint is up");
-                let line = ansi::plain(&frame[row as usize - 1]);
-                let cols: Vec<char> = line.chars().collect();
-                assert_eq!(cols[first as usize - 2], ' ', "a blank before it: {line}");
-                assert_eq!(cols[last as usize], ' ', "a blank after it: {line}");
-                let before: String = cols[..first as usize - 2].iter().collect();
-                let after: String = cols[last as usize + 1..].iter().take(10).collect();
-                if before.contains("abcdefghij") {
-                    // Beside the panel the notice wraps before the hint ends;
-                    // full width, its row runs on past it.
-                    assert!(
-                        sidebar || after.chars().any(|c| c.is_ascii_lowercase()),
-                        "{sidebar}: right of it: {line}"
-                    );
-                    seen = true;
-                    break;
-                }
-            }
-            assert!(seen, "{sidebar}: the row under the hint never showed");
+            app.scroll_by(true, 1);
+            let frame = compose(&mut app, 24, 140);
+            let (row, first, last) = app.jump_hint.expect("the hint is up");
+            let line = ansi::plain(&frame[row as usize - 1]);
+            let cols: Vec<char> = line.chars().collect();
+            assert_eq!(cols[first as usize - 2], ' ', "a blank before it: {line}");
+            assert_eq!(cols[last as usize], ' ', "a blank after it: {line}");
+            // Sits on the composer's top padding row, directly above the composer border.
+            let next_line = ansi::plain(&frame[row as usize]);
+            assert!(
+                next_line.contains("╭─"),
+                "jump hint must sit directly above composer: {next_line}"
+            );
         }
     }
 
@@ -13382,8 +13404,9 @@ mod tests {
             let left_part: String = line.chars().take(chat).collect();
             assert!(left_part.contains(&format!(" {JUMP_HINT} ")), "{left_part}");
             assert_eq!(
-                row as usize, app.drawn_viewport,
-                "the chat's last row, just above the composer"
+                row as usize,
+                app.drawn_viewport + 1,
+                "on the composer's top padding row, just above the composer"
             );
 
             app.panel = Panel::Help;
@@ -13394,23 +13417,24 @@ mod tests {
 
     #[test]
     fn turn_metrics_formatting_and_render_accuracy() {
-        // Token formatting: small, K, and M
+        // Token formatting: small, k, and m
         assert_eq!(format_tokens(0), "0");
         assert_eq!(format_tokens(450), "450");
-        assert_eq!(format_tokens(1_200), "1.2K");
-        assert_eq!(format_tokens(12_400), "12.4K");
-        assert_eq!(format_tokens(950_000), "950K");
-        assert_eq!(format_tokens(1_050_000), "1.05M");
+        assert_eq!(format_tokens(1_200), "1.2k");
+        assert_eq!(format_tokens(12_400), "12.4k");
+        assert_eq!(format_tokens(950_000), "950k");
+        assert_eq!(format_tokens(1_050_000), "1.05m");
 
         // Render turn metrics string
         let rendered = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000);
         let plain = ansi::plain(&rendered);
-        assert!(plain.contains("●"), "must use calm bullet marker");
+        assert!(plain.contains("✾"), "must use florette marker");
+        assert!(!plain.contains("●"), "must not use bullet marker");
         assert!(!plain.contains("✻"), "must not use asterisk marker");
         assert!(plain.contains("Worked for 45s"));
-        assert!(plain.contains("12.4K in · 450 out"));
-        assert!(plain.contains("3 steps"));
-        assert!(plain.contains("done"));
+        assert!(plain.contains("12.4k in · 450 out"));
+        assert!(!plain.contains("3 steps"));
+        assert!(!plain.contains("done"));
         assert!(
             !plain.contains("AM") && !plain.contains("PM"),
             "must use pure 24h format"
@@ -13518,5 +13542,26 @@ mod tests {
         // At short height (8 rows), padding is omitted to preserve conversation space
         let (footer_short, _) = footer(&mut app, 8, 80);
         assert!(footer_short.lines[0].contains("╭─"));
+    }
+
+    #[test]
+    fn the_side_panel_runs_through_the_composer_padding_row() {
+        let mut app = test_app();
+        app.sidebar = true;
+        let frame = compose(&mut app, 24, 140);
+        let (first, _) = app.sidebar_cols.expect("split frame");
+        let border = frame
+            .iter()
+            .position(|l| ansi::plain(l).contains("╭─"))
+            .expect("composer border");
+        let pad = ansi::plain(&frame[border - 1]);
+        // `sidebar_cols.0` is the panel's first one-based column (left_w + 2);
+        // the divider sits at one-based left_w + 1, zero-based left_w.
+        let divider: String = pad.chars().skip(first as usize - 2).take(1).collect();
+        assert_eq!(divider, "│", "panel divider reaches the composer: {pad:?}");
+        assert_eq!(
+            app.sidebar_last_row as usize, border,
+            "the padding row is the panel's last row"
+        );
     }
 }

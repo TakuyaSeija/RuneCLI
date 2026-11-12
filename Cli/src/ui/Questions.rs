@@ -23,7 +23,6 @@ enum Target {
     Previous,
     Next,
     Submit,
-    ToggleCollapse,
 }
 
 struct Draft {
@@ -191,14 +190,12 @@ impl State {
         }
         self.scroll = None;
         match target {
-            Target::ToggleCollapse => {
-                self.collapsed = !self.collapsed;
-                return None;
-            }
             Target::Title(index) => {
+                if self.collapsed {
+                    return None;
+                }
                 self.current = index;
                 self.focus = Target::Title(index);
-                self.collapsed = false;
             }
             Target::Option(index) => {
                 self.focus = target;
@@ -274,10 +271,11 @@ impl State {
             return None;
         }
         if self.collapsed {
+            // Hidden means hidden: only Alt+H brings the wizard back (owner,
+            // 2026-11-13). Enter, Space and clicks never reopen it.
             match key {
                 Key::AltLeft | Key::Left | Key::ShiftTab => self.navigate(false),
                 Key::AltRight | Key::Right | Key::Tab => self.navigate(true),
-                Key::Enter | Key::Char(' ') => self.collapsed = false,
                 _ => {}
             }
             return None;
@@ -403,7 +401,6 @@ impl State {
                     Target::Next => Target::Submit,
                     Target::Submit => Target::Submit,
                     Target::CustomText { .. } => Target::Option(custom_idx),
-                    Target::ToggleCollapse => Target::Option(0),
                 };
             }
             Key::Enter => match self.focus {
@@ -960,19 +957,19 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
     } else if state.sending.is_some() {
         format!("{MUTED}Submitting answers…{RESET}")
     } else if state.focus == Target::Option(custom_idx) {
-        format!("{FAINT}↑↓ cursor/edge controls · Alt+←/→ questions · Alt+Enter new line · Tab controls · Esc 2x cancel{RESET}")
+        format!("{FAINT}↑↓ cursor/edge controls · Alt+←/→ questions · Alt+Enter new line · Tab controls · Alt+H hide · Esc 2x cancel{RESET}")
     } else if state.focus == Target::Submit {
         if can_submit {
-            format!("{TEXT}Enter submit answers · ← buttons · ↑ options · Esc 2x cancel{RESET}")
+            format!("{TEXT}Enter submit answers · ← buttons · ↑ options · Alt+H hide · Esc 2x cancel{RESET}")
         } else {
-            format!("{WARN}Answer all questions to submit ({answered_q}/{total_q} completed) · Esc 2x cancel{RESET}")
+            format!("{WARN}Answer all questions to submit ({answered_q}/{total_q} completed) · Alt+H hide · Esc 2x cancel{RESET}")
         }
     } else if matches!(state.focus, Target::Previous | Target::Next) {
-        format!("{FAINT}←→ buttons · Enter navigate question · ↑ back to options · Esc 2x cancel{RESET}")
+        format!("{FAINT}←→ buttons · Enter navigate question · ↑ back to options · Alt+H hide · Esc 2x cancel{RESET}")
     } else if matches!(state.focus, Target::Title(_)) {
-        format!("{FAINT}Alt+←/→ questions · Enter / ↓ options · Esc 2x cancel{RESET}")
+        format!("{FAINT}Alt+←/→ questions · Enter / ↓ options · Alt+H hide · Esc 2x cancel{RESET}")
     } else {
-        format!("{FAINT}Alt+←/→ questions · ↑↓ options · Space / Enter toggle · Tab buttons · Esc 2x cancel{RESET}")
+        format!("{FAINT}Alt+←/→ questions · ↑↓ options · Space / Enter toggle · Tab buttons · Alt+H hide · Esc 2x cancel{RESET}")
     };
 
     let mut out = Sink::default();
@@ -1003,24 +1000,16 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
     state.hits.clear();
 
     let answered_q = (0..total_q).filter(|i| state.complete(*i)).count();
-    let chevron = if state.collapsed { "▲" } else { "▼" };
-    let chevron_action = if state.collapsed {
-        "Alt+H expand"
-    } else {
-        "Alt+H hide"
-    };
 
     if state.collapsed {
         let label = if total_q > 1 {
-            format!("{chevron} Questions · {answered_q}/{total_q} answered [{chevron_action}]")
+            format!("Questions · {answered_q}/{total_q} answered")
         } else {
-            format!("{chevron} Questions [{chevron_action}]")
+            "Questions".to_string()
         };
-        let collapse_hit = state.hits.len();
-        state.hits.push(vec![(0..cols, Target::ToggleCollapse)]);
         out.chrome(
             draw::box_top(&ansi::truncate(&label, cols.saturating_sub(6)), cols),
-            Hit::Questions(collapse_hit),
+            Hit::None,
         );
         let tab_hit = state.hits.len();
         state.hits.push(tabs_row.controls);
@@ -1037,30 +1026,28 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
     let label = if total_q > 1 {
         if start > 0 || body.len() > budget {
             format!(
-                "{chevron} Questions · {answered_q}/{total_q} answered · {}–{}/{} [{chevron_action}]",
+                "Questions · {answered_q}/{total_q} answered · {}–{}/{}",
                 start + 1,
                 (start + budget).min(body.len()),
                 body.len()
             )
         } else {
-            format!("{chevron} Questions · {answered_q}/{total_q} answered [{chevron_action}]")
+            format!("Questions · {answered_q}/{total_q} answered")
         }
     } else if start > 0 || body.len() > budget {
         format!(
-            "{chevron} Questions · {}–{}/{} [{chevron_action}]",
+            "Questions · {}–{}/{}",
             start + 1,
             (start + budget).min(body.len()),
             body.len()
         )
     } else {
-        format!("{chevron} Questions [{chevron_action}]")
+        "Questions".to_string()
     };
 
-    let collapse_hit = state.hits.len();
-    state.hits.push(vec![(0..cols, Target::ToggleCollapse)]);
     out.chrome(
         draw::box_top(&ansi::truncate(&label, cols.saturating_sub(6)), cols),
-        Hit::Questions(collapse_hit),
+        Hit::None,
     );
 
     let hit = state.hits.len();
@@ -2000,8 +1987,9 @@ mod tests {
         assert!(!state.collapsed);
         let (sink_expanded, _) = render(&mut state, 80, 24);
         let plain_expanded = ansi::plain(&sink_expanded.lines.join("\n"));
-        assert!(plain_expanded.contains("▼"));
-        assert!(plain_expanded.contains("Alt+H hide"));
+        assert!(!plain_expanded.contains("▼"));
+        let (sink_wide, _) = render(&mut state, 120, 24);
+        assert!(ansi::plain(&sink_wide.lines.join("\n")).contains("Alt+H hide"));
         assert!(plain_expanded.contains("Pattern A"));
         assert!(sink_expanded.lines.len() >= 10);
 
@@ -2015,28 +2003,30 @@ mod tests {
         assert!(cursor.is_none());
         assert!(!state.overflows(), "collapsed wizard never overflows");
         let plain_collapsed = ansi::plain(&sink_collapsed.lines.join("\n"));
-        assert!(plain_collapsed.contains("▲"));
-        assert!(plain_collapsed.contains("Alt+H expand"));
+        assert!(!plain_collapsed.contains("▲"));
+        assert!(!plain_collapsed.contains("▼"));
         assert!(
             !plain_collapsed.contains("Pattern A"),
             "options must be hidden in collapsed view"
         );
 
-        // 4. While collapsed, typing characters does not mutate hidden options,
-        // and pressing Enter expands the wizard rather than blindly choosing/submitting.
+        // 4. While collapsed, nothing but Alt+H reopens it: typing, Enter,
+        // Space and a click on a question tab leave it hidden and touch no
+        // hidden option.
         assert!(state.key(&Key::Char('x')).is_none());
-        assert!(!state.drafts[0].chosen.iter().any(|&c| c));
         assert!(state.key(&Key::Enter).is_none());
-        assert!(!state.collapsed, "Enter while collapsed expands the wizard");
+        assert!(state.key(&Key::Char(' ')).is_none());
+        assert!(state.activate_at(Target::Title(0), None).is_none());
+        assert!(state.collapsed, "only Alt+H shows the wizard again");
+        assert!(!state.drafts[0].chosen.iter().any(|&c| c));
+        assert_eq!(render(&mut state, 80, 24).0.lines.len(), 3);
 
         // 5. Ctrl+H must NOT toggle collapse (it is a traditional Backspace code)
         state.key(&Key::Ctrl('h'));
-        assert!(!state.collapsed);
-
-        // 6. Collapse again, then click a question tab: must select tab and expand
-        state.key(&Key::Alt('h'));
         assert!(state.collapsed);
-        state.activate_at(Target::Title(0), None);
+
+        // 6. Alt+H shows it again, whole.
+        state.key(&Key::Alt('h'));
         assert!(!state.collapsed);
         let (sink_restored, _) = render(&mut state, 80, 24);
         assert!(sink_restored.lines.len() >= 10);

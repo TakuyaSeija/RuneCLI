@@ -20,8 +20,10 @@ fn emoji(cp: u32) -> bool {
         0x25fd..=0x25fe | 0x2b1b..=0x2b1c | 0x2b50 | 0x2b55 | 0x3030 | 0x303d | 0x3297 | 0x3299 | 0xfe0f
     ) && !matches!(cp,
         // Functional monochrome controls, not emoticons or decorative emoji.
+        // U+273E is the turn-metrics marker (owner, 2026-11-13): Emoji=No in
+        // Unicode emoji-data, always drawn as a plain text glyph.
         0x2315 | 0x2328 | 0x23ce | 0x23f4..=0x23f9 |
-        0x2610..=0x2612 | 0x2713 | 0x2717 | 0x276e | 0x276f
+        0x2610..=0x2612 | 0x2713 | 0x2717 | 0x273e | 0x276e | 0x276f
     )
 }
 
