@@ -56,6 +56,13 @@ fn signature(app: &App) -> Vec<String> {
             Block::Notice { text, bad } => format!("notice|{bad}|{text}"),
             Block::Notification { text, .. } => format!("notification|{text}"),
             Block::Divider { text } => format!("divider|{text}"),
+            Block::TurnMetrics {
+                tok_in,
+                tok_out,
+                steps,
+                status,
+                ..
+            } => format!("turn_metrics|{tok_in}|{tok_out}|{steps}|{status}"),
         });
     }
     // And what is drawn: the transcript as a person reads it, without what
@@ -103,15 +110,13 @@ fn signature(app: &App) -> Vec<String> {
     };
     debug_assert_eq!(clock("read a 1s"), clock("read a"));
     debug_assert_eq!(clock("read a 1m 05s"), clock("read a"));
-    out.push(format!(
-        "drawn|{}",
-        drawn
-            .lines
-            .iter()
-            .map(|l| clock(l))
-            .collect::<Vec<_>>()
-            .join("\n")
-    ));
+    let normalized_drawn = drawn
+        .lines
+        .iter()
+        .map(|l| clock(l))
+        .collect::<Vec<_>>()
+        .join("\n");
+    out.push(format!("drawn|{}", normalized_drawn.trim_end()));
     out.push(format!(
         "busy={} compacting={} label={:?}",
         app.busy,
@@ -956,12 +961,17 @@ fn write_titles_and_patch_failure_details_survive_finished_history_replay() {
             at: 1100,
         });
         let mut replay = window();
-        replay.load_history(&[
-            json!({"role":"assistant","content":"","turn":1,"tool_calls":[{"id":"c","name":name,"args":args}]}),
-            json!({"role":"tool","content":"result","turn":1,"tool_call_id":"c"}),
-        ], &[
-            json!({"id":"c","turn":1,"ok":ok,"summary":"result","status":detail["status"],"code":detail["code"],"started_at":1000,"ended_at":1100}),
-        ], &json!([]));
+        replay.load_history(
+            &[
+                json!({"role":"assistant","content":"","turn":1,"tool_calls":[{"id":"c","name":name,"args":args}]}),
+                json!({"role":"tool","content":"result","turn":1,"tool_call_id":"c"}),
+            ],
+            &[
+                json!({"id":"c","turn":1,"ok":ok,"summary":"result","status":detail["status"],"code":detail["code"],"started_at":1000,"ended_at":1100}),
+            ],
+            &json!([]),
+            &[],
+        );
         for app in [&mut live, &mut replay] {
             let tool = app.tool_by_id("c").unwrap();
             assert_eq!(steps::bullets(tool)[0].note, expected, "{name}: {detail}");

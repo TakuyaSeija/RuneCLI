@@ -118,12 +118,12 @@ pub const COMMANDS: [(&str, &str, &str); 25] = [
 /// `/tasks`, which is not called plan.
 pub fn matches(input: &str) -> Vec<&'static (&'static str, &'static str, &'static str)> {
     let needle_str = if let Some(rest) = input.strip_prefix('/') {
-        rest
-    } else if let Some(rest) = input.strip_prefix('?') {
-        if rest.is_empty() {
-            return COMMANDS.iter().filter(|c| c.0 == "help").collect();
+        if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
+            return Vec::new();
         }
         rest
+    } else if input == "?" {
+        return COMMANDS.iter().filter(|c| c.0 == "help").collect();
     } else {
         return Vec::new();
     };
@@ -133,13 +133,29 @@ pub fn matches(input: &str) -> Vec<&'static (&'static str, &'static str, &'stati
         None => (needle_str.trim().to_ascii_lowercase(), false),
     };
 
-    // If a space was typed after the command name (e.g. "/mode "),
-    // only match the exact command verb — do not match longer commands like "/model".
+    // Filesystem paths (e.g. "/usr/bin/env", "/home/user/model") are never slash commands.
+    if first_word.contains('/') {
+        return Vec::new();
+    }
+
+    // If a space was typed after the command name (e.g. "/mode " or "/se thinking=true"),
+    // only match if the command verb accepts arguments.
+    // If the command takes no arguments (e.g. "/help foo") or is unknown, return no match.
     if has_space && !first_word.is_empty() {
-        let exact: Vec<_> = COMMANDS.iter().filter(|c| c.0 == first_word).collect();
-        if !exact.is_empty() {
-            return exact;
+        let matching: Vec<_> = COMMANDS
+            .iter()
+            .filter(|c| {
+                (c.0 == first_word || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
+                    && !c.1.is_empty()
+            })
+            .collect();
+        if !matching.is_empty() {
+            if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
+                return vec![exact];
+            }
+            return matching;
         }
+        return Vec::new();
     }
 
     let mut hits: Vec<(u8, &'static (&str, &str, &str))> = COMMANDS
@@ -533,8 +549,18 @@ impl App {
             return;
         }
         if self.questions.is_some() {
+            let collapsed = self.questions.as_ref().is_some_and(|q| q.collapsed);
             if let Key::Mouse(m) = key {
                 self.on_mouse(m, d);
+            } else if collapsed && matches!(key, Key::Up | Key::Down | Key::PageUp | Key::PageDown)
+            {
+                let up = matches!(key, Key::Up | Key::PageUp);
+                let step = if matches!(key, Key::PageUp | Key::PageDown) {
+                    self.drawn_viewport.max(1) / 2 + 1
+                } else {
+                    1
+                };
+                self.scroll_by(up, step);
             } else if matches!(key, Key::PageUp | Key::PageDown)
                 && !self.questions.as_ref().is_some_and(|q| q.overflows())
             {
@@ -1163,7 +1189,35 @@ impl App {
         // Whether this keystroke was moving through the command list. Everything
         // else changes what has been typed, and therefore what the list holds.
         let choosing = matches!(key, Key::Up | Key::Down);
+        let shell_start = |s: &str| -> usize {
+            if runeengine::session::manual_shell::command(s).is_some() {
+                if s.starts_with("! ") && s.len() > 2 {
+                    2
+                } else {
+                    1
+                }
+            } else {
+                0
+            }
+        };
+        let initial_shell_start = shell_start(&self.input);
         match key {
+            Key::Backspace
+                if initial_shell_start > 0
+                    && self.cursor <= initial_shell_start
+                    && self
+                        .input_editor
+                        .selected(&self.input, self.cursor)
+                        .is_none() =>
+            {
+                self.input.drain(..initial_shell_start);
+                self.cursor = 0;
+                self.input_editor.observe(&self.input, self.cursor);
+            }
+            Key::Char(' ')
+                if initial_shell_start > 0
+                    && (self.input == "!" || self.input == "! ")
+                    && self.cursor <= initial_shell_start => {}
             Key::Paste(text) => {
                 // A paste that is nothing but paths to real files is a file
                 // being handed over, not text being typed. That is what dropping
@@ -1188,7 +1242,20 @@ impl App {
                     &mut self.cursor,
                     &key,
                     super::editing::Options::multiline(self.composer_width),
-                ) => {}
+                ) =>
+            {
+                let start = shell_start(&self.input);
+                if start > 0
+                    && self.cursor < start
+                    && self
+                        .input_editor
+                        .selected(&self.input, self.cursor)
+                        .is_none()
+                {
+                    self.input_editor
+                        .place(&self.input, &mut self.cursor, start);
+                }
+            }
             // While a command is being searched for, the arrows belong to the
             // list. There is nothing to scroll to that matters more than the
             // thing being chosen two rows below.
@@ -1205,15 +1272,21 @@ impl App {
                 }
             }
             Key::Up => {
+                let start = shell_start(&self.input);
                 if self
                     .input_editor
                     .vertical_step(&self.input, &mut self.cursor, self.composer_width, true)
                     .is_some()
                 {
                     // Moved up one row in multiline text, keeping desired column.
-                } else if self.cursor > 0 {
+                    if start > 0 && self.cursor < start {
+                        self.input_editor
+                            .place(&self.input, &mut self.cursor, start);
+                    }
+                } else if self.cursor > start {
                     // On top row: move to beginning of text.
-                    self.input_editor.place(&self.input, &mut self.cursor, 0);
+                    self.input_editor
+                        .place(&self.input, &mut self.cursor, start);
                 } else if !self.prompt_history.is_empty() || self.composition.draft.is_some() {
                     // Already at start on top row: recall previous history prompt.
                     self.history_prev();
@@ -1331,7 +1404,9 @@ impl App {
 
     /// Whether the composer is searching for a command right now.
     pub fn searching(&self) -> bool {
-        self.composer_visible() && !matches(&self.input).is_empty()
+        self.composer_visible()
+            && runeengine::session::manual_shell::command(&self.input).is_none()
+            && !matches(&self.input).is_empty()
     }
 
     /// The command the palette has under its cursor, written out in full.
@@ -1447,14 +1522,6 @@ impl App {
             self.slash(command, d);
             return;
         }
-        if let Some(command) = text.strip_prefix('?') {
-            self.input.clear();
-            self.input_editor.reset();
-            self.cursor = 0;
-            let cmd = if command.is_empty() { "help" } else { command };
-            self.slash(cmd, d);
-            return;
-        }
         // Some terminal/file-manager combinations paste or drop paths as ordinary
         // key events instead of bracketed paste. Re-run the canonical batch parser
         // at send time so these paths cannot leak into a chat message.
@@ -1533,11 +1600,6 @@ impl App {
         self.scroll = 0;
         self.scroll_anchor = None;
         self.glide = None;
-        // A new turn writes a new plan, so the old scroll position is a
-        // position in a list that no longer exists. Left alone, the panel would
-        // open halfway down a fresh plan, which reads as though the work had
-        // already been started.
-        self.reset_plan_scroll();
         self.composition.submits.push_back(super::composer::Submit {
             manual_shell,
             text,
@@ -2479,6 +2541,31 @@ mod tests {
         assert_eq!(
             app.scroll, chat,
             "a spent plan dragged the transcript along"
+        );
+        d.engine.shutdown();
+    }
+
+    #[test]
+    fn submit_preserves_side_panel_scroll_position() {
+        let mut d = test_driver("submit-plan-scroll");
+        let mut app = App::for_test();
+        app.session = Some(1);
+        app.sidebar = true;
+        app.tasks = (1..=30)
+            .map(|i| serde_json::json!({"position": i, "text": format!("task {i}"), "status": "todo"}))
+            .collect();
+        let _ = crate::ui::draw::compose_for_test(&mut app, 24, 120);
+
+        // User scrolled the side panel to view task at scroll position 5
+        app.plan_scroll = 5;
+        app.input = "analyze this".into();
+        app.cursor = app.input.len();
+
+        // Submitting prompt must NOT yank the side panel to the end
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(
+            app.plan_scroll, 5,
+            "submitting a prompt must preserve the user's side panel scroll position"
         );
         d.engine.shutdown();
     }
@@ -4980,6 +5067,44 @@ mod tests {
         assert_eq!(app.input, "/set ");
         assert_eq!(app.palette_row, 0);
         assert_eq!(app.panel, Panel::None, "must NOT open /settings");
+    }
+
+    #[test]
+    fn command_palette_trigger_requires_valid_command_intent() {
+        // 1. Valid command prefix: matches command
+        assert!(!matches("/attach").is_empty());
+        assert_eq!(matches("/attach")[0].0, "attach");
+
+        // 2. Command with argument requirement followed by space: matches command
+        assert!(!matches("/attach ").is_empty());
+        assert_eq!(matches("/attach ")[0].0, "attach");
+        assert!(!matches("/attach src").is_empty());
+
+        // 3. Command without argument requirement followed by space: no match (no command intent)
+        assert!(matches("/help foo").is_empty());
+        assert!(matches("/panel bar").is_empty());
+        assert!(matches("/quit now").is_empty());
+
+        // 4. Slash followed by whitespace or duplicate slashes: no match
+        assert!(matches("/ ").is_empty());
+        assert!(matches("/   ").is_empty());
+        assert!(matches("//").is_empty());
+        assert!(matches("///").is_empty());
+
+        // 5. Prose or filesystem paths containing slash: no match
+        assert!(matches("a/").is_empty());
+        assert!(matches("test /").is_empty());
+        assert!(matches("/usr/bin/env").is_empty());
+        assert!(matches("/home/user/model").is_empty());
+        assert!(matches("/var/log/syslog").is_empty());
+        assert!(matches("/m bar").is_empty());
+
+        // 6. Question mark prefix: ? alone matches help, ? with space or question text does not
+        assert_eq!(matches("?")[0].0, "help");
+        assert!(matches("? ").is_empty());
+        assert!(matches("??").is_empty());
+        assert!(matches("?help").is_empty());
+        assert!(matches("? why did this fail").is_empty());
     }
 
     #[test]

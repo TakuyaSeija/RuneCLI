@@ -77,6 +77,7 @@ pub fn from_store(
         "active_seconds": row.active_seconds,
         "settings": standing.settings,
         "usage": db.session_usage_before(session, first, &standing.prices)?,
+        "turn_usage": db.turn_usage_before(session, first)?,
         "tasks": db.tasks(session)?,
         "file_changes": standing.file_changes,
         "composer": db.jsonl.composer(session)?,

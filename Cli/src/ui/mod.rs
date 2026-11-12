@@ -491,6 +491,10 @@ pub struct App {
     /// is one the reader learns to skip past.
     warned_spend: bool,
     pub turn_started: Option<Instant>,
+    pub turn_start_block: usize,
+    pub turn_tok_in: u64,
+    pub turn_tok_out: u64,
+    pub turn_steps: usize,
     pub pending: Option<blocks::Ask>,
     pub questions: Option<questions::State>,
     pub tasks: Vec<Value>,
@@ -1674,6 +1678,10 @@ impl App {
             theme: theme_mode,
             warned_spend: false,
             turn_started: None,
+            turn_start_block: 0,
+            turn_tok_in: 0,
+            turn_tok_out: 0,
+            turn_steps: 0,
             pending: None,
             questions: None,
             tasks: Vec::new(),
@@ -2021,6 +2029,8 @@ impl App {
         let before = self.blocks.len();
         let mut at = 0;
         let mut removed_before_end = 0;
+        let mut removed_before_turn = 0;
+        let turn_start = self.turn_start_block;
         self.blocks.retain(|b| {
             let i = at;
             at += 1;
@@ -2029,6 +2039,9 @@ impl App {
             if empty && i < end {
                 removed_before_end += 1;
             }
+            if empty && i < turn_start {
+                removed_before_turn += 1;
+            }
             !empty
         });
         if self.blocks.len() != before {
@@ -2036,6 +2049,7 @@ impl App {
                 queued.first_user_block =
                     queued.first_user_block.saturating_sub(removed_before_end);
             }
+            self.turn_start_block = self.turn_start_block.saturating_sub(removed_before_turn);
             self.transcript_dirty = true;
         }
         self.round += 1;
@@ -2392,6 +2406,7 @@ impl App {
             view["history"].as_array().unwrap_or(&empty),
             view["toolcalls"].as_array().unwrap_or(&empty),
             &view["tasks"],
+            view["turn_usage"].as_array().unwrap_or(&empty),
         );
         for event in view["live"]["events"].as_array().unwrap_or(&empty) {
             if let Ok(event) = serde_json::from_value::<Event>(event.clone()) {
@@ -2446,7 +2461,36 @@ impl App {
     /// a lie about when things happened. What is still being said — the turn in
     /// flight — is not here: it arrives as the view's events and goes through
     /// the same handlers a live stream does.
-    fn load_history(&mut self, messages: &[Value], toolcalls: &[Value], tasks: &Value) {
+    fn extract_bg_task_id(tool: &Tool) -> String {
+        if let Some((_, rest)) = tool.summary.split_once("task: ") {
+            let id = rest.split([',', ')']).next().unwrap_or("").trim();
+            if !id.is_empty() {
+                return id.to_string();
+            }
+        }
+        if tool.id.starts_with("bg_") {
+            tool.id.clone()
+        } else {
+            "background task".to_string()
+        }
+    }
+
+    fn load_history(
+        &mut self,
+        messages: &[Value],
+        toolcalls: &[Value],
+        tasks: &Value,
+        turn_usage: &[Value],
+    ) {
+        let mut usage_by_turn = std::collections::HashMap::<i64, (u64, u64, i64)>::new();
+        for item in turn_usage {
+            if let Some(turn) = item["turn"].as_i64() {
+                let tok_in = item["tok_in"].as_u64().unwrap_or(0);
+                let tok_out = item["tok_out"].as_u64().unwrap_or(0);
+                let completed_at = item["completed_at"].as_i64().unwrap_or(0);
+                usage_by_turn.insert(turn, (tok_in, tok_out, completed_at));
+            }
+        }
         let mut tool_durations =
             std::collections::HashMap::<_, std::collections::VecDeque<_>>::new();
         for item in toolcalls {
@@ -2476,7 +2520,26 @@ impl App {
             .filter_map(|m| m["turn"].as_i64())
             .max()
             .unwrap_or(0);
-        for m in messages {
+        let mut current_turn: Option<i64> = None;
+        let mut turn_start_block = 0usize;
+        let mut turn_started_at = 0i64;
+        let mut turn_unfinished_work = false;
+        let mut turn_had_error = false;
+        for (idx, m) in messages.iter().enumerate() {
+            let turn = m["turn"].as_i64().unwrap_or(0);
+            if current_turn != Some(turn) {
+                current_turn = Some(turn);
+                turn_start_block = self.blocks.len();
+                turn_started_at = m["created_at"].as_i64().unwrap_or(0);
+                turn_unfinished_work = false;
+                turn_had_error = false;
+            }
+            if m["role"].as_str() == Some("user") && m["work"]["finished"] == Value::Bool(false) {
+                turn_unfinished_work = true;
+            }
+            if m["role"].as_str() == Some("error") {
+                turn_had_error = true;
+            }
             let text = m["content"].as_str().unwrap_or("").to_string();
             match m["role"].as_str().unwrap_or("") {
                 "user" => {
@@ -2644,6 +2707,55 @@ impl App {
                     self.blocks.push(Block::Notice { text, bad: true });
                 }
                 _ => {}
+            }
+            let next_turn = messages.get(idx + 1).and_then(|next| next["turn"].as_i64());
+            if turn > 0 && next_turn != Some(turn) {
+                let start_idx = turn_start_block.min(self.blocks.len());
+                let steps = self.blocks[start_idx..]
+                    .iter()
+                    .filter(|b| matches!(b, Block::Tool(_)))
+                    .count();
+                let has_usage = usage_by_turn.contains_key(&turn);
+                if has_usage || turn_had_error || turn_unfinished_work {
+                    let (tok_in, tok_out, usage_at) =
+                        usage_by_turn.get(&turn).copied().unwrap_or((0, 0, 0));
+                    let msg_at = m["created_at"].as_i64().unwrap_or(0);
+                    let completed_at_ms = if usage_at > 0 {
+                        usage_at.max(msg_at)
+                    } else if msg_at > 0 {
+                        msg_at
+                    } else {
+                        runeengine::store::now_ms()
+                    };
+                    let duration_ms = if turn_started_at > 0 && completed_at_ms >= turn_started_at {
+                        (completed_at_ms - turn_started_at) as u64
+                    } else {
+                        1000
+                    };
+                    let bg_task = self.blocks[start_idx..].iter().rev().find_map(|b| match b {
+                        Block::Tool(t) if t.state == ToolState::Backgrounded => {
+                            Some(Self::extract_bg_task_id(t))
+                        }
+                        _ => None,
+                    });
+                    let status = if turn_had_error {
+                        "failed".to_string()
+                    } else if let Some(id) = bg_task {
+                        format!("waiting for {id}")
+                    } else if turn_unfinished_work {
+                        "stopped by user".to_string()
+                    } else {
+                        "done".to_string()
+                    };
+                    self.blocks.push(Block::TurnMetrics {
+                        duration_ms,
+                        tok_in,
+                        tok_out,
+                        steps,
+                        status,
+                        completed_at_ms,
+                    });
+                }
             }
         }
 
@@ -3385,6 +3497,12 @@ impl App {
                 self.set_retry_status(None);
                 self.busy = true;
                 let now = runeengine::store::now_ms();
+                if self.turn_started.is_none() {
+                    self.turn_start_block = self.blocks.len();
+                    self.turn_tok_in = 0;
+                    self.turn_tok_out = 0;
+                    self.turn_steps = 0;
+                }
                 // The engine's clock, so a window that joins late counts from
                 // the same moment as the one that was here.
                 self.turn_started
@@ -3677,6 +3795,8 @@ impl App {
                 self.tok_in += input;
                 self.tok_out += output;
                 self.cache_in += cached;
+                self.turn_tok_in += input;
+                self.turn_tok_out += output;
                 self.input_tokens += input;
                 self.output_tokens += output;
                 self.cached_tokens += cached;
@@ -3779,6 +3899,61 @@ impl App {
                 self.notified.clear();
                 self.retry_status = None;
                 self.busy = false;
+                let now = Instant::now();
+                let now_epoch_ms = runeengine::store::now_ms();
+                let duration_ms = self
+                    .turn_started
+                    .map(|start| now.saturating_duration_since(start).as_millis() as u64)
+                    .unwrap_or(0);
+                let start_idx = self.turn_start_block.min(self.blocks.len());
+                let steps = self.blocks[start_idx..]
+                    .iter()
+                    .filter(|b| matches!(b, Block::Tool(_)))
+                    .count();
+
+                let bg_task = self.blocks[start_idx..].iter().rev().find_map(|b| match b {
+                    Block::Tool(t) if t.state == ToolState::Backgrounded => {
+                        Some(Self::extract_bg_task_id(t))
+                    }
+                    _ => None,
+                });
+                let had_error = self.blocks[start_idx..]
+                    .iter()
+                    .any(|b| matches!(b, Block::Notice { bad: true, .. }));
+                let status = match stop {
+                    runeengine::proto::StopReason::End => {
+                        if had_error {
+                            "failed".to_string()
+                        } else if let Some(id) = bg_task {
+                            format!("waiting for {id}")
+                        } else {
+                            "done".to_string()
+                        }
+                    }
+                    runeengine::proto::StopReason::Cancelled => "stopped by user".to_string(),
+                    runeengine::proto::StopReason::Refused => "refused".to_string(),
+                    runeengine::proto::StopReason::Failed => "failed".to_string(),
+                };
+
+                if self.turn_started.is_some()
+                    || duration_ms > 0
+                    || self.turn_tok_in > 0
+                    || self.turn_tok_out > 0
+                    || steps > 0
+                    || !matches!(stop, runeengine::proto::StopReason::End)
+                {
+                    self.push_block(Block::TurnMetrics {
+                        duration_ms,
+                        tok_in: self.turn_tok_in,
+                        tok_out: self.turn_tok_out,
+                        steps,
+                        status,
+                        completed_at_ms: now_epoch_ms,
+                    });
+                }
+                self.turn_tok_in = 0;
+                self.turn_tok_out = 0;
+                self.turn_steps = 0;
                 self.turn_started = None;
                 self.pending = None;
                 self.questions = None;
@@ -3866,7 +4041,6 @@ impl App {
                     bad: true,
                 });
                 self.busy = false;
-                self.turn_started = None;
                 self.pending = None;
                 self.questions = None;
                 self.label.clear();

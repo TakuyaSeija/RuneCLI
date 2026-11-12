@@ -462,6 +462,15 @@ pub enum Block {
     Divider {
         text: String,
     },
+    /// The completion metrics for a finished inference turn.
+    TurnMetrics {
+        duration_ms: u64,
+        tok_in: u64,
+        tok_out: u64,
+        steps: usize,
+        status: String,
+        completed_at_ms: i64,
+    },
 }
 
 /// A notification row as the model reads it: Rune's own line inside its tag,
@@ -607,6 +616,22 @@ impl Block {
                 4u8.hash(&mut h);
                 text.hash(&mut h);
                 bad.hash(&mut h);
+            }
+            Block::TurnMetrics {
+                duration_ms,
+                tok_in,
+                tok_out,
+                steps,
+                status,
+                completed_at_ms,
+            } => {
+                7u8.hash(&mut h);
+                duration_ms.hash(&mut h);
+                tok_in.hash(&mut h);
+                tok_out.hash(&mut h);
+                steps.hash(&mut h);
+                status.hash(&mut h);
+                completed_at_ms.hash(&mut h);
             }
         }
         h.finish()

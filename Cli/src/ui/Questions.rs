@@ -23,6 +23,7 @@ enum Target {
     Previous,
     Next,
     Submit,
+    ToggleCollapse,
 }
 
 struct Draft {
@@ -61,6 +62,7 @@ pub struct State {
     pub error: Option<String>,
     pub esc_armed: bool,
     pub esc_armed_at: Option<Instant>,
+    pub collapsed: bool,
 }
 
 impl State {
@@ -96,6 +98,7 @@ impl State {
             error: None,
             esc_armed: false,
             esc_armed_at: None,
+            collapsed: false,
         }
     }
 
@@ -108,7 +111,7 @@ impl State {
     /// fit, the list keeps them, because a list that scrolls away from its own
     /// cursor is a list the user has to chase.
     pub fn overflows(&self) -> bool {
-        self.visible_count > 0 && self.body_len > self.visible_count
+        !self.collapsed && self.visible_count > 0 && self.body_len > self.visible_count
     }
 
     /// One step of the card's own scroll — the wheel's gesture and the
@@ -188,9 +191,14 @@ impl State {
         }
         self.scroll = None;
         match target {
+            Target::ToggleCollapse => {
+                self.collapsed = !self.collapsed;
+                return None;
+            }
             Target::Title(index) => {
                 self.current = index;
                 self.focus = Target::Title(index);
+                self.collapsed = false;
             }
             Target::Option(index) => {
                 self.focus = target;
@@ -259,6 +267,19 @@ impl State {
 
     fn key(&mut self, key: &Key) -> Option<Reply> {
         if self.sending.is_some() {
+            return None;
+        }
+        if matches!(key, Key::Alt('h')) {
+            self.collapsed = !self.collapsed;
+            return None;
+        }
+        if self.collapsed {
+            match key {
+                Key::AltLeft | Key::Left | Key::ShiftTab => self.navigate(false),
+                Key::AltRight | Key::Right | Key::Tab => self.navigate(true),
+                Key::Enter | Key::Char(' ') => self.collapsed = false,
+                _ => {}
+            }
             return None;
         }
         let custom_idx = self.questions[self.current].options.len();
@@ -382,6 +403,7 @@ impl State {
                     Target::Next => Target::Submit,
                     Target::Submit => Target::Submit,
                     Target::CustomText { .. } => Target::Option(custom_idx),
+                    Target::ToggleCollapse => Target::Option(0),
                 };
             }
             Key::Enter => match self.focus {
@@ -981,31 +1003,64 @@ pub fn render(state: &mut State, cols: usize, height: usize) -> (Sink, Option<(u
     state.hits.clear();
 
     let answered_q = (0..total_q).filter(|i| state.complete(*i)).count();
+    let chevron = if state.collapsed { "▲" } else { "▼" };
+    let chevron_action = if state.collapsed {
+        "Alt+H expand"
+    } else {
+        "Alt+H hide"
+    };
+
+    if state.collapsed {
+        let label = if total_q > 1 {
+            format!("{chevron} Questions · {answered_q}/{total_q} answered [{chevron_action}]")
+        } else {
+            format!("{chevron} Questions [{chevron_action}]")
+        };
+        let collapse_hit = state.hits.len();
+        state.hits.push(vec![(0..cols, Target::ToggleCollapse)]);
+        out.chrome(
+            draw::box_top(&ansi::truncate(&label, cols.saturating_sub(6)), cols),
+            Hit::Questions(collapse_hit),
+        );
+        let tab_hit = state.hits.len();
+        state.hits.push(tabs_row.controls);
+        out.boxed(
+            "",
+            &ansi::truncate(&tabs_row.text, inner),
+            inner,
+            Hit::Questions(tab_hit),
+        );
+        out.chrome(draw::box_bottom(cols), Hit::None);
+        return (out, None);
+    }
+
     let label = if total_q > 1 {
         if start > 0 || body.len() > budget {
             format!(
-                "Questions · {answered_q}/{total_q} answered · {}–{}/{}",
+                "{chevron} Questions · {answered_q}/{total_q} answered · {}–{}/{} [{chevron_action}]",
                 start + 1,
                 (start + budget).min(body.len()),
                 body.len()
             )
         } else {
-            format!("Questions · {answered_q}/{total_q} answered")
+            format!("{chevron} Questions · {answered_q}/{total_q} answered [{chevron_action}]")
         }
     } else if start > 0 || body.len() > budget {
         format!(
-            "Questions · {}–{}/{}",
+            "{chevron} Questions · {}–{}/{} [{chevron_action}]",
             start + 1,
             (start + budget).min(body.len()),
             body.len()
         )
     } else {
-        "Questions".into()
+        format!("{chevron} Questions [{chevron_action}]")
     };
 
+    let collapse_hit = state.hits.len();
+    state.hits.push(vec![(0..cols, Target::ToggleCollapse)]);
     out.chrome(
         draw::box_top(&ansi::truncate(&label, cols.saturating_sub(6)), cols),
-        Hit::None,
+        Hit::Questions(collapse_hit),
     );
 
     let hit = state.hits.len();
@@ -1924,5 +1979,66 @@ mod tests {
             state.drafts[0].chosen[1],
             "subsequent clicks must keep custom option selected, not toggle off"
         );
+    }
+
+    #[test]
+    fn collapsible_question_wizard_toggles_and_saves_vertical_room() {
+        let question_json = json!([
+            {
+                "question": "What architecture pattern should be applied?",
+                "options": [
+                    {"label": "Pattern A", "description": "Long detailed description for A"},
+                    {"label": "Pattern B", "description": "Long detailed description for B"}
+                ],
+                "type": "single"
+            }
+        ]);
+        let questions: Vec<Question> = serde_json::from_value(question_json).unwrap();
+        let mut state = State::new("req-collapse".into(), questions);
+
+        // 1. Expanded by default
+        assert!(!state.collapsed);
+        let (sink_expanded, _) = render(&mut state, 80, 24);
+        let plain_expanded = ansi::plain(&sink_expanded.lines.join("\n"));
+        assert!(plain_expanded.contains("▼"));
+        assert!(plain_expanded.contains("Alt+H hide"));
+        assert!(plain_expanded.contains("Pattern A"));
+        assert!(sink_expanded.lines.len() >= 10);
+
+        // 2. Toggle collapse via Alt+H shortcut
+        state.key(&Key::Alt('h'));
+        assert!(state.collapsed);
+
+        // 3. Render collapsed state: only 3 lines (top border, tabs row, bottom border)
+        let (sink_collapsed, cursor) = render(&mut state, 80, 24);
+        assert_eq!(sink_collapsed.lines.len(), 3);
+        assert!(cursor.is_none());
+        assert!(!state.overflows(), "collapsed wizard never overflows");
+        let plain_collapsed = ansi::plain(&sink_collapsed.lines.join("\n"));
+        assert!(plain_collapsed.contains("▲"));
+        assert!(plain_collapsed.contains("Alt+H expand"));
+        assert!(
+            !plain_collapsed.contains("Pattern A"),
+            "options must be hidden in collapsed view"
+        );
+
+        // 4. While collapsed, typing characters does not mutate hidden options,
+        // and pressing Enter expands the wizard rather than blindly choosing/submitting.
+        assert!(state.key(&Key::Char('x')).is_none());
+        assert!(!state.drafts[0].chosen.iter().any(|&c| c));
+        assert!(state.key(&Key::Enter).is_none());
+        assert!(!state.collapsed, "Enter while collapsed expands the wizard");
+
+        // 5. Ctrl+H must NOT toggle collapse (it is a traditional Backspace code)
+        state.key(&Key::Ctrl('h'));
+        assert!(!state.collapsed);
+
+        // 6. Collapse again, then click a question tab: must select tab and expand
+        state.key(&Key::Alt('h'));
+        assert!(state.collapsed);
+        state.activate_at(Target::Title(0), None);
+        assert!(!state.collapsed);
+        let (sink_restored, _) = render(&mut state, 80, 24);
+        assert!(sink_restored.lines.len() >= 10);
     }
 }

@@ -400,12 +400,26 @@ pub fn spawn(tx: Sender<Key>) {
                     Ok(0) => break,
                     Ok(n) => {
                         pending.extend_from_slice(&buf[..n]);
+                        // When an unbracketed paste burst arrives across multiple
+                        // PTY chunks (e.g. Termux/Android clipboard wrapping every
+                        // 80 bytes with `\r`), coalesce immediately-ready chunks
+                        // before decoding so internal `\r` line breaks are never
+                        // mistaken for solitary `Key::Enter` presses at chunk edges.
+                        while (pending.len() > 1 || pending.ends_with(b"\r"))
+                            && pending.len() < 65_536
+                            && waiting(2)
+                        {
+                            match runeengine::platform::read_stdin(&mut buf) {
+                                Ok(0) | Err(_) => break,
+                                Ok(more) => pending.extend_from_slice(&buf[..more]),
+                            }
+                        }
                         // Decode by offset and drop the consumed bytes once: a
                         // burst of keys used to shift the whole buffer per key
                         // and take the sender lock per key (audit T10).
                         let mut at = 0;
                         while at < pending.len() {
-                            match decode(&pending[at..]) {
+                            match decode_at(&pending[at..], at) {
                                 Decoded::Need => break,
                                 Decoded::Skip(used) => at += used,
                                 Decoded::Key(key, used) => {
@@ -435,6 +449,7 @@ fn waiting(ms: i32) -> bool {
     runeengine::platform::wait_stdin(Some(std::time::Duration::from_millis(ms)), None)
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum Decoded {
     /// A key, and how many bytes it consumed.
     Key(Key, usize),
@@ -444,13 +459,28 @@ pub enum Decoded {
     Need,
 }
 
+#[allow(dead_code)]
 pub fn decode(bytes: &[u8]) -> Decoded {
+    decode_at(bytes, 0)
+}
+
+pub fn decode_at(bytes: &[u8], at: usize) -> Decoded {
     let Some(&first) = bytes.first() else {
         return Decoded::Need;
     };
     match first {
         0x1b => decode_escape(bytes),
         b'\r' if bytes.starts_with(b"\r\n") => Decoded::Key(Key::NewLine, 2),
+        b'\r'
+            if at > 0
+                && bytes.len() > 1
+                && !bytes[1..].starts_with(b"\x1b")
+                && bytes[1..]
+                    .iter()
+                    .any(|&b| b >= 0x20 || matches!(b, b'\t' | b'\r' | b'\n')) =>
+        {
+            Decoded::Key(Key::NewLine, 1)
+        }
         b'\r' => Decoded::Key(Key::Enter, 1),
         b'\n' => Decoded::Key(Key::NewLine, 1),
         b'\t' => Decoded::Key(Key::Tab, 1),
@@ -1082,6 +1112,26 @@ mod tests {
     #[test]
     fn an_unterminated_paste_waits_rather_than_sending_half_of_it() {
         assert!(matches!(decode(b"\x1b[200~half"), Decoded::Need));
+    }
+
+    #[test]
+    fn unbracketed_multiline_paste_decodes_newlines_without_premature_enter() {
+        // Solitary Enter keypress decodes as Key::Enter
+        assert_eq!(key(b"\r"), Key::Enter);
+
+        // When \r is at position > 0 and followed by text (internal line break of unbracketed paste),
+        // it decodes as Key::NewLine rather than Key::Enter
+        match decode_at(b"\rline2", 5) {
+            Decoded::Key(Key::NewLine, 1) => {}
+            other => panic!("expected Key::NewLine, got {other:?}"),
+        }
+
+        // When \r is at position 0 followed by text (e.g. Enter on a dialog followed immediately by typing),
+        // it retains Key::Enter
+        assert_eq!(key(b"\rline2"), Key::Enter);
+
+        // \r\n anywhere decodes as Key::NewLine
+        assert_eq!(key(b"\r\nline2"), Key::NewLine);
     }
 
     #[test]

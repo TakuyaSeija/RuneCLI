@@ -50,6 +50,14 @@ pub struct AggregateUsage {
     pub spend: f64,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TurnUsage {
+    pub turn: i64,
+    pub tok_in: u64,
+    pub tok_out: u64,
+    pub completed_at: i64,
+}
+
 impl Db {
     /// Record one measured request for every role, using the engine's price result.
     ///
@@ -92,6 +100,35 @@ impl Db {
         prices: &crate::settings::Prices,
     ) -> Result<SessionUsage> {
         self.session_usage_before(session_id, None, prices)
+    }
+
+    /// Per-turn agent token totals completed before `before`, so a reopened or
+    /// joining window reconstructs the exact per-turn metrics footer of each
+    /// historical turn.
+    pub fn turn_usage_before(
+        &self,
+        session_id: i64,
+        before: Option<i64>,
+    ) -> Result<Vec<TurnUsage>> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT turn, COALESCE(SUM(tok_in), 0), COALESCE(SUM(tok_out), 0), COALESCE(MAX(timestamp), 0) \
+             FROM token_usage \
+             WHERE session_id = ?1 AND (?2 IS NULL OR turn < ?2) AND role = 'agent' \
+             GROUP BY turn ORDER BY turn ASC",
+        )?;
+        let rows = stmt.query_map(params![session_id, before], |r| {
+            Ok(TurnUsage {
+                turn: r.get(0)?,
+                tok_in: r.get::<_, i64>(1)?.max(0) as u64,
+                tok_out: r.get::<_, i64>(2)?.max(0) as u64,
+                completed_at: r.get(3)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 
     /// [`Db::session_usage`] as it stood before turn `before`: the rows of

@@ -1749,6 +1749,30 @@ impl BlockMeasure {
                 shown: tool.displayed_counts(),
                 elapsed: tool.elapsed().as_secs(),
             },
+            Block::TurnMetrics {
+                duration_ms,
+                tok_in,
+                tok_out,
+                steps,
+                status,
+                completed_at_ms,
+            } => BlockMeasure {
+                kind: 7,
+                text: status.len() + (*tok_in as usize) + (*tok_out as usize),
+                output: (0, 0),
+                content: *steps,
+                summary: 0,
+                raw: *completed_at_ms as usize,
+                action: 0,
+                args: false,
+                detail: false,
+                ask: false,
+                bad: false,
+                open: false,
+                state: 0,
+                shown: (0, 0),
+                elapsed: *duration_ms / 1000,
+            },
         }
     }
 }
@@ -2099,7 +2123,8 @@ fn group(blocks: &[Block]) -> Vec<Group> {
             Block::User { .. }
             | Block::Notice { .. }
             | Block::Notification { .. }
-            | Block::Divider { .. } => {
+            | Block::Divider { .. }
+            | Block::TurnMetrics { .. } => {
                 flush(&mut run, &mut out);
                 out.push(Group::One(i));
             }
@@ -2239,10 +2264,129 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
             }
             sink.chrome(box_bottom(inner), Hit::None);
         }
+        Block::TurnMetrics {
+            duration_ms,
+            tok_in,
+            tok_out,
+            steps,
+            status,
+            completed_at_ms,
+        } => {
+            sink.blank();
+            let line = render_turn_metrics(
+                *duration_ms,
+                *tok_in,
+                *tok_out,
+                *steps,
+                status,
+                *completed_at_ms,
+            );
+            sink.push(line);
+        }
         Block::Thinking { .. } | Block::Tool(_) => {
             unreachable!("activities are drawn on the timeline")
         }
     }
+}
+
+fn format_tokens(n: u64) -> String {
+    if n < 1_000 {
+        format!("{n}")
+    } else if n < 999_950 {
+        let k = n as f64 / 1_000.0;
+        if n % 1_000 < 50 || k >= 100.0 {
+            format!("{:.0}K", k)
+        } else {
+            format!("{:.1}K", k)
+        }
+    } else {
+        let m = n as f64 / 1_000_000.0;
+        let cents = (m * 100.0).round() as u64;
+        if cents.is_multiple_of(100) {
+            format!("{:.0}M", m)
+        } else if cents.is_multiple_of(10) {
+            format!("{:.1}M", m)
+        } else {
+            format!("{:.2}M", m)
+        }
+    }
+}
+
+fn render_turn_metrics(
+    duration_ms: u64,
+    tok_in: u64,
+    tok_out: u64,
+    steps: usize,
+    status: &str,
+    completed_at_ms: i64,
+) -> String {
+    let secs = (duration_ms / 1000).max(1);
+    let dur_str = if secs < 60 {
+        format!("Worked for {secs}s")
+    } else if secs < 3600 {
+        format!("Worked for {}m {}s", secs / 60, secs % 60)
+    } else {
+        format!("Worked for {}h {}m", secs / 3600, (secs % 3600) / 60)
+    };
+
+    let tok_str = format!(
+        "{} in · {} out",
+        format_tokens(tok_in),
+        format_tokens(tok_out)
+    );
+    let steps_str = if steps > 0 {
+        format!(" · {} {}", steps, if steps == 1 { "step" } else { "steps" })
+    } else {
+        String::new()
+    };
+
+    let completed_secs = completed_at_ms / 1000;
+    let comp_time = runeengine::platform::local_time(completed_secs);
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let now_time = runeengine::platform::local_time(now_secs);
+
+    let time_status = match (comp_time, now_time) {
+        (Some(c), Some(n)) if c.year == n.year && c.month == n.month && c.day == n.day => {
+            format!("{status} at {:02}:{:02}", c.hour, c.minute)
+        }
+        (Some(c), _) => {
+            const WEEKDAYS: [&str; 7] = [
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+            ];
+            const MONTHS: [&str; 12] = [
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+            ];
+            let wday = civil_weekday(c.year, c.month, c.day);
+            let wday_name = WEEKDAYS[wday % 7];
+            let mon_name = MONTHS[(c.month.saturating_sub(1) as usize) % 12];
+            format!(
+                "{status} {wday_name}, {mon_name} {}, {:02}:{:02}",
+                c.day, c.hour, c.minute
+            )
+        }
+        _ => status.to_string(),
+    };
+
+    format!("  {MUTED}●{RESET} {FAINT}{dur_str} · {tok_str}{steps_str} · {time_status}{RESET}")
+}
+
+fn civil_weekday(y: i32, m: u32, d: u32) -> usize {
+    let t = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    let mut y = y;
+    if m < 3 {
+        y -= 1;
+    }
+    let m_idx = (m.saturating_sub(1) as usize) % 12;
+    let res = (y + y / 4 - y / 100 + y / 400 + t[m_idx] + d as i32) % 7;
+    res.rem_euclid(7) as usize
 }
 
 /// Which block a click on this transcript line reaches, if any.
@@ -4266,8 +4410,24 @@ fn footer(app: &mut App, rows: usize, cols: usize) -> (Sink, Option<(usize, usiz
             // in the row it belongs to instead. See [`super::settings`].
             None if app.panel == Panel::Settings => (Sink::default(), None),
             // The footer may never eat the conversation: on a short terminal a
-            // growing composer is a screen with nothing left to read.
-            None => composer(app, cols, rows.saturating_sub(3)),
+            // growing composer is a screen with nothing left to read. When space permits
+            // (rows >= 10), add 1 row of blank padding above the composer box for clean separation.
+            None => {
+                let pad = rows >= 10;
+                let available = if pad {
+                    rows.saturating_sub(4)
+                } else {
+                    rows.saturating_sub(3)
+                };
+                let (comp, cursor) = composer(app, cols, available);
+                let mut sink = Sink::default();
+                if pad {
+                    sink.blank();
+                }
+                sink.append(&comp);
+                let shifted_cursor = cursor.map(|(r, c)| (if pad { r + 1 } else { r }, c));
+                (sink, shifted_cursor)
+            }
         }
     };
     out.push(state_line(app, cols));
@@ -4379,12 +4539,26 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
     // [`App::composer_width`] and [`keys::cursor_up`].
     app.composer_width = text_w;
 
-    let projection = super::editor::Projection::plain(&app.input);
+    let manual_shell = runeengine::session::manual_shell::command(&app.input).is_some();
+    let shell_skip = if manual_shell {
+        if app.input.starts_with("! ") && app.input.len() > 2 {
+            2
+        } else {
+            1
+        }
+    } else {
+        0
+    };
+    let projection = super::editor::Projection::plain_from(&app.input, shell_skip);
     let at = projection.display_at(app.cursor);
     let rows = compose_rows(&projection.text, text_w);
-    let here = app
-        .input_editor
-        .row_index(&app.input, app.cursor, text_w, &rows, at);
+    let here = app.input_editor.row_index(
+        &app.input[shell_skip..],
+        app.cursor.saturating_sub(shell_skip),
+        text_w,
+        &rows,
+        at,
+    );
     // One row at least, and one is what an empty composer gets: the caret is a
     // single mark now, so a second row would be a blank line pretending to be
     // part of the question. More as the text grows, never more than the screen
@@ -4406,7 +4580,6 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
     let mut out = Sink::default();
     let mut cursor_target = None;
 
-    let manual_shell = runeengine::session::manual_shell::command(&app.input).is_some();
     let top_label = if manual_shell {
         format!("[ {WARN}Shell · full access once{RESET} ]")
     } else if !app.attached.is_empty() && cols < 50 {
@@ -4455,8 +4628,12 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
     }
 
     for n in 0..drawn {
-        let caret = if n == 0 {
-            format!("{ACCENT}{BOLD}{CARET}{}", ansi::RESET)
+        let caret = if first + n == 0 {
+            if manual_shell {
+                format!("{WARN}{BOLD}!{}", ansi::RESET)
+            } else {
+                format!("{ACCENT}{BOLD}{CARET}{}", ansi::RESET)
+            }
         } else {
             " ".to_string()
         };
@@ -4470,19 +4647,22 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
             let (before, _) = text.split_at(cut);
             cursor_target = Some((out.lines.len(), 5 + ansi::width(before)));
         }
-        let geometry = projection.row(*start, text, 5);
-        let body = format!(
-            "{USER}{}{RESET}",
-            geometry.styled(app.input_editor.selected(&app.input, app.cursor))
-        );
+        let row_geometry = projection.row(*start, text, 5);
+        let styled = row_geometry.styled(app.input_editor.selected(&app.input, app.cursor));
+        let body = format!("{USER}{styled}{RESET}");
         let mut line_content = format!("{caret} {body}");
         // Nothing typed yet: say what this is for, once.
-        if rows.len() == 1 && text.is_empty() && n == 0 {
-            line_content.push_str(&format!("{FAINT}ask, or / for commands{}", ansi::RESET));
+        if rows.len() == 1 && first + n == 0 && text.trim().is_empty() {
+            if manual_shell {
+                line_content =
+                    format!("{caret} {FAINT}type shell command (Enter to run once){RESET}");
+            } else if text.is_empty() {
+                line_content.push_str(&format!("{FAINT}ask, or / for commands{}", ansi::RESET));
+            }
         }
         let line = boxed(&line_content, inner_w);
         let hit = app.composer_hit_rows.len();
-        app.composer_hit_rows.push(projection.row(*start, text, 5));
+        app.composer_hit_rows.push(row_geometry);
         out.push_ranges(
             ansi::truncate(&line, cols),
             Hit::ComposerText(hit),
@@ -10286,6 +10466,54 @@ mod tests {
     }
 
     #[test]
+    fn composer_shell_mode_uses_bang_caret_without_duplicate_bang_in_body() {
+        let mut app = test_app();
+        // 1. Empty composer: normal caret
+        let (empty, _) = composer(&mut app, 80, 20);
+        let empty_rendered = empty.lines.join("\n");
+        assert!(ansi::plain(&empty_rendered).contains("›"));
+        assert!(!ansi::plain(&empty_rendered).contains("Shell · full access once"));
+
+        // 2. Typing '!': enters shell mode
+        app.input = "!".into();
+        app.cursor = 1;
+        let (shell_init, cursor_target) = composer(&mut app, 80, 20);
+        let shell_rendered = shell_init.lines.join("\n");
+        let plain = ansi::plain(&shell_rendered);
+        assert!(plain.contains("Shell · full access once"));
+        assert!(plain.contains("! type shell command (Enter to run once)"));
+        assert!(!plain.contains("›"));
+        assert!(!plain.contains("! !"));
+        assert!(cursor_target.is_some());
+
+        // 3. Typing '! echo test': single '!' caret and single-spaced 'echo test' body
+        app.input = "! echo test".into();
+        app.cursor = app.input.len();
+        let (shell_cmd, _) = composer(&mut app, 80, 20);
+        let cmd_rendered = shell_cmd.lines.join("\n");
+        let cmd_plain = ansi::plain(&cmd_rendered);
+        assert!(cmd_plain.contains("! echo test"));
+        assert!(!cmd_plain.contains("!  echo test"));
+        assert!(!cmd_plain.contains("›"));
+        assert!(!cmd_plain.contains("! !"));
+
+        // Verify mouse hit row maps accurately to original input offset
+        assert_eq!(app.composer_hit_rows.len(), 1);
+        let row = &app.composer_hit_rows[0];
+        // Col 5 corresponds to 'e' in 'echo test' (offset 2 in app.input)
+        assert_eq!(row.start, 2);
+        assert_eq!(row.caret_at(5), 2);
+
+        // 4. Backspace removing '!': returns to normal chat mode
+        app.input.clear();
+        app.cursor = 0;
+        let (back_normal, _) = composer(&mut app, 80, 20);
+        let normal_plain = ansi::plain(&back_normal.lines.join("\n"));
+        assert!(normal_plain.contains("›"));
+        assert!(!normal_plain.contains("Shell · full access once"));
+    }
+
+    #[test]
     fn editor_wrap_and_hit_projection_preserve_glyphs_source_and_visual_columns() {
         let samples = [
             "a界b e\u{301}z",
@@ -13162,5 +13390,133 @@ mod tests {
             let _ = compose(&mut app, 24, 140);
             assert!(app.jump_hint.is_none(), "not over an overlay");
         }
+    }
+
+    #[test]
+    fn turn_metrics_formatting_and_render_accuracy() {
+        // Token formatting: small, K, and M
+        assert_eq!(format_tokens(0), "0");
+        assert_eq!(format_tokens(450), "450");
+        assert_eq!(format_tokens(1_200), "1.2K");
+        assert_eq!(format_tokens(12_400), "12.4K");
+        assert_eq!(format_tokens(950_000), "950K");
+        assert_eq!(format_tokens(1_050_000), "1.05M");
+
+        // Render turn metrics string
+        let rendered = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000);
+        let plain = ansi::plain(&rendered);
+        assert!(plain.contains("●"), "must use calm bullet marker");
+        assert!(!plain.contains("✻"), "must not use asterisk marker");
+        assert!(plain.contains("Worked for 45s"));
+        assert!(plain.contains("12.4K in · 450 out"));
+        assert!(plain.contains("3 steps"));
+        assert!(plain.contains("done"));
+        assert!(
+            !plain.contains("AM") && !plain.contains("PM"),
+            "must use pure 24h format"
+        );
+    }
+
+    #[test]
+    fn turn_metrics_lifecycle_on_done_and_reset_across_turns() {
+        let mut app = test_app();
+        let now_ms = runeengine::store::now_ms();
+
+        // Turn 1 starts
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 1,
+            text: Some("prompt 1".into()),
+            notification: false,
+            media: Vec::new(),
+            at: now_ms,
+        });
+        assert_eq!(app.turn_tok_in, 0);
+        assert_eq!(app.turn_tok_out, 0);
+
+        // Turn 1 receives usage
+        app.on_event(runeengine::Event::Usage {
+            session: 1,
+            input: 1_200,
+            output: 450,
+            cached: 0,
+            cost: None,
+            details: Box::new(runeengine::provider::UsageDetails::default()),
+        });
+        assert_eq!(app.turn_tok_in, 1_200);
+        assert_eq!(app.turn_tok_out, 450);
+
+        // Mid-turn steer preserves turn metrics accumulation
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 1,
+            text: Some("steer prompt".into()),
+            notification: false,
+            media: Vec::new(),
+            at: now_ms + 1000,
+        });
+        assert_eq!(app.turn_tok_in, 1_200, "steer must not reset in tokens");
+        assert_eq!(app.turn_tok_out, 450, "steer must not reset out tokens");
+
+        // Turn 1 completes
+        app.on_event(runeengine::Event::Done {
+            session: 1,
+            turn: 1,
+            stop: runeengine::proto::StopReason::End,
+        });
+
+        // Verify Block::TurnMetrics was created
+        let last_block = app.blocks.last().expect("must push Block::TurnMetrics");
+        match last_block {
+            Block::TurnMetrics {
+                tok_in,
+                tok_out,
+                status,
+                ..
+            } => {
+                assert_eq!(*tok_in, 1_200);
+                assert_eq!(*tok_out, 450);
+                assert_eq!(status, "done");
+            }
+            _ => panic!("expected Block::TurnMetrics on Done"),
+        }
+
+        // Metrics for active turn are reset to 0
+        assert_eq!(app.turn_tok_in, 0);
+        assert_eq!(app.turn_tok_out, 0);
+
+        // Turn 2 starts afresh
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 2,
+            text: Some("prompt 2".into()),
+            notification: false,
+            media: Vec::new(),
+            at: now_ms + 5000,
+        });
+        app.on_event(runeengine::Event::Usage {
+            session: 1,
+            input: 500,
+            output: 100,
+            cached: 0,
+            cost: None,
+            details: Box::new(runeengine::provider::UsageDetails::default()),
+        });
+        assert_eq!(app.turn_tok_in, 500);
+        assert_eq!(app.turn_tok_out, 100);
+    }
+
+    #[test]
+    fn composer_top_padding_separates_chat_content_and_jump_hint() {
+        let mut app = test_app();
+        // At normal height (24 rows), footer has top padding row
+        let (footer_normal, _) = footer(&mut app, 24, 80);
+        assert!(footer_normal.lines.len() >= 5);
+        assert_eq!(footer_normal.lines[0], "");
+        assert!(footer_normal.lines[1].contains("╭─"));
+
+        // At short height (8 rows), padding is omitted to preserve conversation space
+        let (footer_short, _) = footer(&mut app, 8, 80);
+        assert!(footer_short.lines[0].contains("╭─"));
     }
 }

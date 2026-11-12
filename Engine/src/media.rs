@@ -938,8 +938,9 @@ pub fn parts_for_message(
                                 human_num(max_text_file_chars)
                             )));
                         } else {
+                            let safe_content = crate::frame::neutralize(&text_content);
                             out.push(Inlined::Text(format!(
-                                "\n<file_attachment path=\"{path}\" size=\"{size_str}\">\n{text_content}\n</file_attachment>\n"
+                                "\n<file_attachment path=\"{path}\" size=\"{size_str}\">\n{safe_content}\n</file_attachment>\n"
                             )));
                         }
                     }

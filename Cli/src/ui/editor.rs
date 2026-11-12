@@ -13,6 +13,15 @@ impl Projection {
         Self { text, source }
     }
 
+    pub fn plain_from(input: &str, skip_bytes: usize) -> Self {
+        let skipped = skip_bytes.min(input.len());
+        let (text, mut source) = ansi::editor_text(&input[skipped..]);
+        for offset in &mut source {
+            *offset += skipped;
+        }
+        Self { text, source }
+    }
+
     pub fn single_line(input: &str) -> Self {
         let mut projection = Self::plain(input);
         projection.text = projection.text.replace('\n', " ");

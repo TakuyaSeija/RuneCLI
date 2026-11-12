@@ -1370,7 +1370,7 @@ pub fn field_bool(item: &Value, key: &str, default: bool) -> bool {
 pub const ACTION_DESC: &str = "FILL THIS FIRST before any other field: one short present-tense sentence stating what you are about to do and to what.";
 
 /// Shared structure, not fifteen copies of the agent's writing instruction.
-/// The system prompt owns how `action` is written; every schema still requires
+/// `ACTION_DESC` owns exclusively how `action` is written; every schema requires
 /// it first and validates the same nonempty bounded string.
 pub fn action_field() -> Value {
     json!({
