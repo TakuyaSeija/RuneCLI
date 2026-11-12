@@ -400,26 +400,12 @@ pub fn spawn(tx: Sender<Key>) {
                     Ok(0) => break,
                     Ok(n) => {
                         pending.extend_from_slice(&buf[..n]);
-                        // When an unbracketed paste burst arrives across multiple
-                        // PTY chunks (e.g. Termux/Android clipboard wrapping every
-                        // 80 bytes with `\r`), coalesce immediately-ready chunks
-                        // before decoding so internal `\r` line breaks are never
-                        // mistaken for solitary `Key::Enter` presses at chunk edges.
-                        while (pending.len() > 1 || pending.ends_with(b"\r"))
-                            && pending.len() < 65_536
-                            && waiting(2)
-                        {
-                            match runeengine::platform::read_stdin(&mut buf) {
-                                Ok(0) | Err(_) => break,
-                                Ok(more) => pending.extend_from_slice(&buf[..more]),
-                            }
-                        }
                         // Decode by offset and drop the consumed bytes once: a
                         // burst of keys used to shift the whole buffer per key
                         // and take the sender lock per key (audit T10).
                         let mut at = 0;
                         while at < pending.len() {
-                            match decode_at(&pending[at..], at) {
+                            match decode_at(&pending[at..], &pending[..at]) {
                                 Decoded::Need => break,
                                 Decoded::Skip(used) => at += used,
                                 Decoded::Key(key, used) => {
@@ -461,10 +447,10 @@ pub enum Decoded {
 
 #[allow(dead_code)]
 pub fn decode(bytes: &[u8]) -> Decoded {
-    decode_at(bytes, 0)
+    decode_at(bytes, &[])
 }
 
-pub fn decode_at(bytes: &[u8], at: usize) -> Decoded {
+pub fn decode_at(bytes: &[u8], before: &[u8]) -> Decoded {
     let Some(&first) = bytes.first() else {
         return Decoded::Need;
     };
@@ -472,12 +458,15 @@ pub fn decode_at(bytes: &[u8], at: usize) -> Decoded {
         0x1b => decode_escape(bytes),
         b'\r' if bytes.starts_with(b"\r\n") => Decoded::Key(Key::NewLine, 2),
         b'\r'
-            if at > 0
+            if !before.is_empty()
+                && !before.contains(&0x1b)
+                && before.iter().any(|&b| b >= 0x20 || b == b'\t')
                 && bytes.len() > 1
                 && !bytes[1..].starts_with(b"\x1b")
                 && bytes[1..]
                     .iter()
-                    .any(|&b| b >= 0x20 || matches!(b, b'\t' | b'\r' | b'\n')) =>
+                    .take_while(|&&b| b != 0x1b)
+                    .any(|&b| b >= 0x20 || b == b'\t') =>
         {
             Decoded::Key(Key::NewLine, 1)
         }
@@ -1119,12 +1108,19 @@ mod tests {
         // Solitary Enter keypress decodes as Key::Enter
         assert_eq!(key(b"\r"), Key::Enter);
 
-        // When \r is at position > 0 and followed by text (internal line break of unbracketed paste),
-        // it decodes as Key::NewLine rather than Key::Enter
-        match decode_at(b"\rline2", 5) {
+        // When \r is preceded by printable text and followed by printable text
+        // (internal line break of unbracketed paste), it decodes as Key::NewLine
+        match decode_at(b"\rline2", b"line1") {
             Decoded::Key(Key::NewLine, 1) => {}
             other => panic!("expected Key::NewLine, got {other:?}"),
         }
+
+        // Consecutive Enter presses or control/escape sequences followed by \r
+        // must always remain Key::Enter (e.g. double-Enter confirmation in /undo)
+        assert_eq!(decode_at(b"\r\r", b""), Decoded::Key(Key::Enter, 1));
+        assert_eq!(decode_at(b"\r", b"\r"), Decoded::Key(Key::Enter, 1));
+        assert_eq!(decode_at(b"\r", b"\x1b[B"), Decoded::Key(Key::Enter, 1));
+        assert_eq!(decode_at(b"\r\r", b"\x1b[0n"), Decoded::Key(Key::Enter, 1));
 
         // When \r is at position 0 followed by text (e.g. Enter on a dialog followed immediately by typing),
         // it retains Key::Enter

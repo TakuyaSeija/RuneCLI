@@ -65,13 +65,17 @@ def quiet_frame(window, after, quiet=0.4, timeout=40):
     raise AssertionError("released frame\n--- screen ---\n" + window.screen.text())
 
 
+def has_reverse_sgr(data):
+    return re.search(rb"\x1b\[(?:0;)?7(?:;[\d;]+)?m", data) is not None
+
+
 def drag(window, first, last, expected):
     start = len(window.raw)
     y, x = first
     end_y, end_x = last
     window.send(f"\x1b[<0;{x};{y}M\x1b[<32;{end_x};{end_y}M".encode())
     # Wait for the actual painted selection, not just the event sent to stdin.
-    live.until(lambda: b"\x1b[7m" in bytes(window.raw[start:]), "drag highlight", window)
+    live.until(lambda: has_reverse_sgr(bytes(window.raw[start:])), "drag highlight", window)
     window.send(f"\x1b[<0;{end_x};{end_y}m".encode())
     live.until(lambda: copies(window, start), "OSC 52 clipboard payload", window)
     assert copies(window, start) == [expected], (expected, copies(window, start), window.screen.text())
@@ -87,8 +91,9 @@ def drag(window, first, last, expected):
         # output after the payload has paused.
         quiet_frame(window, released)
     else:
-        live.until(lambda: b"\x1b[5n" in released(), "released frame", window)
-    assert b"\x1b[7m" not in released(), "highlight survived copy release"
+        live.until(lambda: b"\x1b[?2026l\x1b[5n" in released(), "released frame", window)
+    last_frame = released().split(b"\x1b[?2026h")[-1]
+    assert not has_reverse_sgr(last_frame), "highlight survived copy release"
     ok(f"clipboard exact and highlight clears: {expected[:38]!r}")
 
 
