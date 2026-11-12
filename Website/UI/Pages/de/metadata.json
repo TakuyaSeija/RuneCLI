@@ -179,6 +179,30 @@
   "and": "und"
  },
  "notes": {
+  "0.12.4": {
+   "title": "Turn-Metriken-Fußzeile, Shell-Modus-Eingabeaufforderung, einklappbarer Frage-Assistent und mobile Einfüge-Robustheit",
+   "paragraphs": [
+    "Jeder abgeschlossene Inferenz-Turn zeigt nun eine eigene Metrik-Fußzeile mit Arbeitsdauer, kompakten Token-Zahlen, Werkzeugschritt-Zählern und Abschlusszeit im 24-Stunden-Format an, die auch bei Wiederaufnahme und über mehrere Fenster hinweg synchron bleibt. Das Eingabefeld verfügt über ein natives Shell-Modus-Symbol mit präzisen Cursor-Grenzen, der Frage-Assistent lässt sich zur Schonung der vertikalen Chat-Höhe einklappen, die Scroll-Position des Seitenbereichs bleibt beim Absenden erhalten und unformatierte Terminal-Einfügungen lösen kein vorzeitiges Senden mehr aus."
+   ],
+   "points": [
+    {
+     "id": "turn-metrics-footer",
+     "title": "Turn-Metriken-Fußzeile mit 24-Stunden-Abschlusszeit, kompakter Token-Zählung und Statusverfolgung",
+     "text": "Abgeschlossene Turns rendern einen ruhigen Statuspunkt, die Arbeitsdauer, kompakte Token-Summen (z. B. 12.4K in · 450 out), Werkzeugschritte, eine reine 24-Stunden-Abschlusszeit ohne AM/PM sowie ehrliche Statusangaben bei Hintergrund-Wartezeiten, Abbrüchen und Fehlern."
+    },
+    {
+     "id": "shell-mode-and-palette",
+     "title": "Shell-Modus-Symbol im Eingabefeld, saubere Cursor-Grenzen und Befehlsfilterung",
+     "text": "Das Tippen von `!` als erstes Zeichen schaltet die Eingabeaufforderung auf ein fettes bernsteinfarbenes `!` mit sauberem Abstand und exakter Tastaturnavigation um, während die Befehlspalette `/` bei Dateipfaden, Leerzeichen und Fragen nicht mehr fälschlich geöffnet wird."
+    },
+    {
+     "id": "collapsible-questions-and-paste",
+     "title": "Einklappbarer Frage-Assistent, Erhalt der Seitenbereich-Position und Einfüge-Robustheit",
+     "text": "`ask_user_questions`-Dialoge lassen sich nun mit Alt+H oder Header-Klick in eine kompakte 3-Zeilen-Leiste einklappen, das Absenden von Nachrichten behält die Scroll-Position des Seitenbereichs bei und unformatierte Termux-Einfügungen gelangen vollständig ohne vorzeitiges Absenden in das Eingabefeld."
+    }
+   ],
+   "summary": "Turn-Metriken-Fußzeile, Shell-Modus, einklappbarer Assistent & Einfüge-Robustheit"
+  },
   "0.12.3": {
    "title": "Seitenleisten-Umschaltung nur per Ctrl+O, XML-strukturierte Prompts und Tool-Normalisierung",
    "paragraphs": [

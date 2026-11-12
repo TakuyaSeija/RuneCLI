@@ -179,6 +179,30 @@
   "and": "y"
  },
  "notes": {
+  "0.12.4": {
+   "title": "Pie de página con métricas de turno, glifo en modo shell, asistente de preguntas plegable y robustez al pegar en móviles",
+   "paragraphs": [
+    "Cada turno de inferencia completado muestra ahora un pie de página dedicado con duración del trabajo, recuento compacto de tokens, pasos de herramientas y hora de finalización en formato de 24 horas, sincronizado al reanudar y entre múltiples ventanas. El compositor incluye un glifo nativo en modo shell con límites de cursor precisos, el asistente de preguntas se pliega para optimizar la altura vertical del chat, la posición de desplazamiento del panel lateral se conserva al enviar mensajes y el pegado sin formato de terminal ya no provoca envíos prematuros."
+   ],
+   "points": [
+    {
+     "id": "turn-metrics-footer",
+     "title": "Pie de métricas de turno con hora de 24 horas, conteo compacto de tokens y seguimiento de estado",
+     "text": "Los turnos completados muestran un punto de estado sereno, la duración del trabajo, totales compactos de tokens (p. ej. 12.4K in · 450 out), pasos de herramientas, hora exacta en formato de 24 horas sin AM/PM y estados fidedignos durante esperas en segundo plano, cancelaciones o errores."
+    },
+    {
+     "id": "shell-mode-and-palette",
+     "title": "Glifo de modo shell en compositor, límites de cursor exactos y filtrado en paleta de comandos",
+     "text": "Escribir `!` como primer carácter cambia el indicador del compositor a un `!` ámbar en negrita con espaciado limpio y navegación exacta, mientras que la paleta de comandos `/` no se activa con rutas del sistema de archivos, espacios ni oraciones interrogativas."
+    },
+    {
+     "id": "collapsible-questions-and-paste",
+     "title": "Asistente de preguntas plegable, conservación del desplazamiento lateral y pegado seguro",
+     "text": "Los cuadros de diálogo `ask_user_questions` ahora se pueden plegar con Alt+H o haciendo clic en el encabezado a una barra de 3 líneas para liberar espacio visual, el envío de mensajes mantiene la posición de desplazamiento del panel lateral y los pegados por ráfagas en Termux entran íntegros sin enviarse prematuramente."
+    }
+   ],
+   "summary": "Métricas de turno, glifo shell, asistente plegable y pegado seguro"
+  },
   "0.12.3": {
    "title": "Panel lateral exclusivo por Ctrl+O, prompts XML estructurados y normalización de herramientas",
    "paragraphs": [

@@ -179,6 +179,30 @@
   "and": "e"
  },
  "notes": {
+  "0.12.4": {
+   "title": "Rodapé de métricas de turno, prompt do modo shell no compositor, assistente dobrável e colagem móvel resiliente",
+   "paragraphs": [
+    "Cada turno de inferência concluído agora exibe um rodapé dedicado com duração do trabalho, contagens compactas de tokens, passos de ferramentas e horário de conclusão em formato de 24 horas, mantido fielmente ao retomar sessões e entre múltiplas janelas. O compositor traz um glifo nativo no modo shell com limites de cursor precisos, o assistente de perguntas é dobrável para preservar a altura vertical do chat, a rolagem do painel lateral é mantida ao enviar prompts e colagens sem escape no terminal não disparam mais envios prematuros."
+   ],
+   "points": [
+    {
+     "id": "turn-metrics-footer",
+     "title": "Rodapé de métricas de turno com horário de 24h, contagem compacta de tokens e rastreamento de status",
+     "text": "Turnos concluídos exibem um marcador de status discreto, duração do trabalho, totais compactos de tokens (ex.: 12.4K in · 450 out), contagem de passos, horário de conclusão em 24h sem AM/PM e estados fidedignos em esperas em segundo plano, cancelamentos ou falhas."
+    },
+    {
+     "id": "shell-mode-and-palette",
+     "title": "Glifo de modo shell no compositor, limites de cursor exatos e filtragem da paleta de comandos",
+     "text": "Digitar `!` como primeiro caractere alterna o prompt do compositor para um `!` âmbar em negrito com espaçamento limpo e navegação exata, enquanto a paleta de comandos `/` não é acionada por caminhos de arquivo, espaços vazios ou frases interrogativas."
+    },
+    {
+     "id": "collapsible-questions-and-paste",
+     "title": "Assistente de perguntas dobrável, preservação de rolagem lateral e colagem em rajada segura",
+     "text": "Os diálogos `ask_user_questions` agora podem ser recolhidos com Alt+H ou clique no cabeçalho em uma barra de 3 linhas para liberar espaço vertical, o envio de mensagens preserva a posição de rolagem do painel lateral e colagens em rajada no Termux entram íntegras sem submissão prematura."
+    }
+   ],
+   "summary": "Métricas de turno, prompt modo shell, assistente dobrável e colagem resiliente"
+  },
   "0.12.3": {
    "title": "Alternância do painel lateral exclusiva por Ctrl+O, prompts XML estruturados e normalização de ferramentas",
    "paragraphs": [

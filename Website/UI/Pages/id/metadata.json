@@ -179,6 +179,30 @@
   "and": "dan"
  },
  "notes": {
+  "0.12.4": {
+   "title": "Metrik footer turn, prompt mode shell composer, wizard collapsible, dan ketahanan paste mobile",
+   "paragraphs": [
+    "Setiap turn inferensi yang selesai kini menampilkan footer metrik dengan durasi kerja, jumlah token ringkas, penghitung langkah tool, dan jam selesai format 24 jam yang tetap konsisten saat resume maupun antar-jendela. Composer kini memiliki glyph prompt mode shell orisinal dengan batas navigasi kursor presisi, wizard pertanyaan dapat diciutkan demi menjaga ruang vertikal obrolan, posisi scroll side panel dipertahankan saat mengirim prompt, dan paste unbracketed tidak lagi memicu pengiriman prematur."
+   ],
+   "points": [
+    {
+     "id": "turn-metrics-footer",
+     "title": "Footer metrik turn dengan jam 24 jam, format token ringkas, dan pelacakan status",
+     "text": "Turn yang selesai merender bullet status tenang, durasi pengerjaan, total token format ringkas (mis. 12.4K in · 450 out), jumlah langkah tool, jam selesai 24 jam murni tanpa AM/PM, serta status jujur saat menunggu task background, dibatalkan, atau gagal."
+    },
+    {
+     "id": "shell-mode-and-palette",
+     "title": "Glyph mode shell di composer, batas kursor rapi, dan filter intensi palette /",
+     "text": "Mengetik `!` sebagai karakter pertama mengubah glyph composer menjadi tanda seru `!` tebal amber dengan spasi bersih dan batas kursor navigasi presisi, sementara command palette `/` menolak trigger pada path berkas, spasi kosong, dan kalimat tanya."
+    },
+    {
+     "id": "collapsible-questions-and-paste",
+     "title": "Wizard pertanyaan collapsible, preservasi scroll panel, dan ketahanan paste burst",
+     "text": "Modal `ask_user_questions` kini dapat diciutkan dengan Alt+H atau klik header menjadi tab ringkas 3 baris demi membebaskan ruang layar obrolan, pengiriman pesan mempertahankan posisi scroll side panel, dan paste burst unbracketed di Termux masuk utuh tanpa terkirim prematur."
+    }
+   ],
+   "summary": "Footer metrik turn, prompt mode shell, wizard collapsible & ketahanan paste"
+  },
   "0.12.3": {
    "title": "Kontrol panel samping khusus Ctrl+O, prompt XML terstruktur, dan normalisasi input tool",
    "paragraphs": [

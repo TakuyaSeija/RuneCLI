@@ -1,4 +1,28 @@
 {
+ "0.12.4": {
+  "title": "Turn metrics footer, shell mode composer prompt, collapsible questions, and mobile paste resilience",
+  "paragraphs": [
+   "Every finished inference turn now displays a dedicated metrics footer with work duration, compact token counts, tool step counters, and completion timestamps in 24-hour time across reloads and multi-window views. The composer features a native shell mode prompt glyph with precise editing boundaries, the question wizard collapses to preserve vertical chat space, side panel scroll positions are maintained during prompt submission, and unbracketed terminal pastes no longer trigger premature execution."
+  ],
+  "points": [
+   {
+    "id": "turn-metrics-footer",
+    "title": "Turn metrics footer with 24-hour completion time, compact token counting, and status tracking",
+    "text": "Finished turns now render a calm status bullet, elapsed work duration, compact token totals (e.g. 12.4K in · 450 out), tool step counts, exact 24-hour completion time without AM/PM, and honest status states across background waits, cancellations, and failures."
+   },
+   {
+    "id": "shell-mode-and-palette",
+    "title": "Shell mode composer glyph, editing boundaries, and slash command palette filtering",
+    "text": "Typing `!` as the first character switches the composer prompt to a bold amber `!` with clean body spacing and exact navigation boundaries, while the slash command palette `/` cleanly suppresses triggering on filesystem paths, whitespace, and question prompts."
+   },
+   {
+    "id": "collapsible-questions-and-paste",
+    "title": "Collapsible question wizard, side panel scroll preservation, and burst paste resilience",
+    "text": "`ask_user_questions` modals can now be collapsed with Alt+H or a header click into a 3-row summary tab to free conversation height, submitting chat prompts preserves side panel scroll position, and unbracketed Termux paste bursts enter cleanly without premature submission."
+   }
+  ],
+  "summary": "Turn metrics footer, shell mode prompt, collapsible wizard & paste resilience"
+ },
  "0.12.3": {
   "title": "Ctrl+O-only side panel toggling, XML-structured prompts, and resilient tool input normalization",
   "paragraphs": [
