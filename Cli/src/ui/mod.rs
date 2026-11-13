@@ -3942,14 +3942,31 @@ impl App {
                     || steps > 0
                     || !matches!(stop, runeengine::proto::StopReason::End)
                 {
-                    self.push_block(Block::TurnMetrics {
+                    let metrics = Block::TurnMetrics {
                         duration_ms,
                         tok_in: self.turn_tok_in,
                         tok_out: self.turn_tok_out,
                         steps,
                         status,
                         completed_at_ms: now_epoch_ms,
-                    });
+                    };
+                    if !matches!(stop, runeengine::proto::StopReason::End)
+                        && self.queued_prompt.is_none()
+                    {
+                        let insert_at = self
+                            .blocks
+                            .iter()
+                            .rposition(|b| !matches!(b, Block::User { .. }))
+                            .map_or(0, |i| i + 1);
+                        if insert_at < self.blocks.len() {
+                            self.blocks.insert(insert_at, metrics);
+                            self.transcript_dirty = true;
+                        } else {
+                            self.push_block(metrics);
+                        }
+                    } else {
+                        self.push_block(metrics);
+                    }
                 }
                 self.turn_tok_in = 0;
                 self.turn_tok_out = 0;

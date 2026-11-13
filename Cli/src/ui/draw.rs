@@ -676,7 +676,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
     }
 
     if app.searching() {
-        let total = super::keys::matches(&app.input).len();
+        let total = super::keys::matches_at(&app.input, app.cursor).len();
         app.adjust_palette_scroll(total);
     }
 
@@ -955,12 +955,18 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
     // and comes back the moment it closes. In a split frame it covers the
     // **left column only** — the panel beside it keeps every row, divider
     // included, rebuilt here from the same `right` rows the frame used.
+    //
+    // Where a top padding row separates the chat from the composer, the
+    // palette extends through it to sit directly against the composer's top
+    // border (owner, 2026-11-13). There is no blank gap between the palette
+    // and the input box; when the palette closes, the padding row returns.
     if app.searching() {
         let mut palette_sink = Sink::default();
-        palette(app, text_w, cols, content_rows, &mut palette_sink);
+        let avail_palette = content_rows + usize::from(top_pad);
+        palette(app, text_w, cols, avail_palette, &mut palette_sink);
         let n = palette_sink.lines.len();
-        if n > 0 && n <= content_rows {
-            let base = content_rows - n;
+        if n > 0 && n <= avail_palette {
+            let base = avail_palette - n;
             for (i, line) in palette_sink.lines.into_iter().enumerate() {
                 let at = base + i;
                 let covered = if split {
@@ -979,13 +985,29 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
                 } else {
                     line
                 };
-                lines[at] = ansi::truncate(&covered, cols);
-                hits[at] = palette_sink.owner[i];
-                copy[at].retain(|span| span.region == Region::Sidebar);
-                copy[at].extend(palette_sink.copy[i].iter().cloned().filter_map(|mut span| {
-                    span.columns.end = span.columns.end.min(text_w);
-                    (span.columns.start < span.columns.end).then_some(span)
-                }));
+                if at < content_rows {
+                    lines[at] = ansi::truncate(&covered, cols);
+                    hits[at] = palette_sink.owner[i];
+                    copy[at].retain(|span| span.region == Region::Sidebar);
+                    copy[at].extend(palette_sink.copy[i].iter().cloned().filter_map(|mut span| {
+                        span.columns.end = span.columns.end.min(text_w);
+                        (span.columns.start < span.columns.end).then_some(span)
+                    }));
+                } else {
+                    // at == content_rows: paints directly over the composer top padding row,
+                    // sitting flush against the composer border without an empty padding gap.
+                    footer[0] = ansi::truncate(&covered, cols);
+                    hits[content_rows] = palette_sink.owner[i];
+                    if let Some(target_spans) = footer_copy.first_mut() {
+                        target_spans.retain(|span| span.region == Region::Sidebar);
+                        target_spans.extend(palette_sink.copy[i].iter().cloned().filter_map(
+                            |mut span| {
+                                span.columns.end = span.columns.end.min(text_w);
+                                (span.columns.start < span.columns.end).then_some(span)
+                            },
+                        ));
+                    }
+                }
             }
         }
     }
@@ -4904,7 +4926,7 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
     if max_rows == 0 {
         return;
     }
-    let found = super::keys::matches(&app.input);
+    let found = super::keys::matches_at(&app.input, app.cursor);
     if found.is_empty() {
         return;
     }
@@ -6001,6 +6023,24 @@ mod tests {
             plan_rows_before, plan_rows_open,
             "the palette must not take rows from the panel\n--- before ---\n{before}\n--- open ---\n{open}"
         );
+    }
+
+    #[test]
+    fn slash_palette_sits_flush_against_composer_without_padding_gap() {
+        let mut app = test_app();
+        app.input = "/".into();
+        app.cursor = 1;
+        let frame = compose(&mut app, 24, 80);
+        let composer_border = frame
+            .iter()
+            .position(|l| ansi::plain(l).contains("╭─"))
+            .expect("composer border");
+        let line_above = ansi::plain(&frame[composer_border - 1]);
+        assert!(
+            line_above.contains("/") || line_above.contains("to walk"),
+            "line directly above composer must be a palette entry or walk hint, not blank padding: {line_above:?}"
+        );
+        assert!(!line_above.trim().is_empty(), "must not be blank padding");
     }
 
     /// A reader parked on a wrapped (multi-row) plan item is not dragged back

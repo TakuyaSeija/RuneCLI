@@ -937,15 +937,13 @@ impl ModelSettings {
             // No level chosen sends none ("Route default"), on every model
             // the router serves: the route applies its own, and a level filled
             // in for the person turned `…-high` routes down to it (owner,
-            // 2026-10-15). Off requests Low on an explicit cannot-disable
-            // route; `none` elsewhere requests disabled, but the router's
-            // executor may still change it (owner, 2026-10-25).
+            // 2026-10-15). When thinking is Off on 9router, omit `reasoning_effort`
+            // altogether so the route uses its own default rather than forcing
+            // `low` (which also caps maxOutputTokens to 8192 in 9router) or
+            // `none` (owner, 2026-11-13). An explicit effort is only sent once
+            // thinking is turned On and a level is chosen.
             let level = if !enabled {
-                Some(if m.is_some_and(ModelInfo::thinking_off_requests_low) {
-                    "low"
-                } else {
-                    "none"
-                })
+                None
             } else {
                 self.effort.as_deref().filter(|e| {
                     m.is_none_or(|m| m.effort_choices(p.api_kind()).iter().any(|v| v == *e))
@@ -1583,14 +1581,10 @@ mod tests {
             let mut settings = ModelSettings::for_provider(&router);
             settings.model = model.id.clone();
             settings.thinking = false;
-            // An old retained effort must not turn Off into a chosen level.
+            // An old retained effort must not turn Off into a chosen level,
+            // and Off on 9router omits reasoning_effort so the route default holds.
             settings.effort = Some("max".into());
-            let expected = if model.id == "cannot-disable" {
-                "low"
-            } else {
-                "none"
-            };
-            assert_eq!(settings.body(&router)["reasoning_effort"], expected);
+            assert!(settings.body(&router).get("reasoning_effort").is_none());
             assert!(settings.body(&router).get("reasoning").is_none());
             settings.thinking = true;
             settings.effort = None;
@@ -1634,7 +1628,7 @@ mod tests {
         settings.normalize_for_model(&router);
         assert_eq!(settings.body(&router)["reasoning_effort"], "high");
         settings.thinking = false;
-        assert_eq!(settings.body(&router)["reasoning_effort"], "low");
+        assert!(settings.body(&router).get("reasoning_effort").is_none());
     }
 
     /// Owner, 2026-10-15: every 9router model offers the levels the router
@@ -1746,12 +1740,12 @@ mod tests {
             );
         }
 
-        // A new session on an explicit cannot-disable route: Off requests Low.
+        // A new session starts Off and sends no reasoning_effort (route default).
         let mut s = ModelSettings::for_provider(&router);
         assert_eq!(s.model, "ag/gemini-3.8-flash-high");
         assert!(!s.thinking);
         assert_eq!(s.effort, None);
-        assert_eq!(s.body(&router)["reasoning_effort"], "low");
+        assert!(!s.body(&router).contains_key("reasoning_effort"));
 
         for id in [
             "ag/gemini-3.8-flash-high",
@@ -1760,17 +1754,9 @@ mod tests {
         ] {
             let info = router.model(id);
             s.model = id.into();
-            // Off is a choice even where the route cannot stop thinking.
+            // Off omits reasoning_effort so the route default holds.
             s.set("thinking", "false", info, "9router").unwrap();
-            assert_eq!(
-                s.body(&router)["reasoning_effort"],
-                if info.is_some_and(ModelInfo::thinking_off_requests_low) {
-                    "low"
-                } else {
-                    "none"
-                },
-                "{id}"
-            );
+            assert!(!s.body(&router).contains_key("reasoning_effort"), "{id}");
             // On with no level: nothing sent, the route decides.
             s.set("thinking", "true", info, "9router").unwrap();
             s.normalize_for_model(&router);

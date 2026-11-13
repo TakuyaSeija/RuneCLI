@@ -242,7 +242,7 @@ fn router_thinking(
             .as_deref()
             .filter(|e| model.effort_choices("9router").iter().any(|v| v == *e))?
     } else if model.thinking_off_requests_low() {
-        "low"
+        return None;
     } else {
         return Some(RouterThinking {
             thinking: json!({ "type": "disabled" }),
@@ -1070,15 +1070,12 @@ mod tests {
         // No level is the route's own: nothing is sent.
         let default = ask("cc/claude-sonnet-5-5", true, None);
         assert!(default.get("thinking").is_none(), "{default}");
-        // Off requests Low even when the person's offered subset starts at Max.
+        // Off on a cannot-disable route sends no thinking override (route default).
         let must = ask("cc/claude-opus-5-5", false, None);
-        assert_eq!(must["thinking"], json!({"type": "adaptive"}));
-        assert_eq!(must["output_config"], json!({"effort": "low"}));
+        assert!(must.get("thinking").is_none(), "{must}");
+        assert!(must.get("output_config").is_none(), "{must}");
         let budget = ask("cc/budget-cannot-disable", false, None);
-        assert_eq!(
-            budget["thinking"],
-            json!({"type":"enabled", "budget_tokens":1024})
-        );
+        assert!(budget.get("thinking").is_none(), "{budget}");
         assert!(budget.get("output_config").is_none());
         // The request is a Messages body at the same address.
         assert!(off.get("reasoning_effort").is_none());

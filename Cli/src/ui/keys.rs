@@ -106,63 +106,86 @@ pub const COMMANDS: [(&str, &str, &str); 25] = [
     ("quit", "", "leave"),
 ];
 
+type SlashEntry = &'static (&'static str, &'static str, &'static str);
+
 /// The commands that match what has been typed, best first.
 ///
-/// Empty unless the line starts with `/`, so ordinary prose never opens a list.
-/// Only the **first word** is searched: `/set temp` is still looking for `set`,
-/// and the rest of the line is the argument being written for it.
+/// Matches a leading `/` command (including `/verb args` for argument-taking
+/// commands) as well as any standalone `/prefix` token preceded by whitespace
+/// anywhere in the input (such as `"explain /sk"`), while ignoring attached
+/// paths/words (`"foo/bar"`, `"a/"`) and standalone slashes followed by space
+/// (`"foo / "` or `"/ "`).
 ///
 /// Three degrees of match, in this order: the verb starts with what was typed,
 /// the verb contains it, the description mentions it. That last one is what makes
 /// the list answer a question rather than a spelling — typing `plan` finds
 /// `/tasks`, which is not called plan.
-pub fn matches(input: &str) -> Vec<&'static (&'static str, &'static str, &'static str)> {
-    let needle_str = if let Some(rest) = input.strip_prefix('/') {
-        if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
-            return Vec::new();
-        }
-        rest
-    } else if input == "?" {
-        return COMMANDS.iter().filter(|c| c.0 == "help").collect();
-    } else {
-        return Vec::new();
-    };
+#[cfg(test)]
+pub fn matches(input: &str) -> Vec<SlashEntry> {
+    matches_at(input, input.len())
+}
 
-    let (first_word, has_space) = match needle_str.split_once(char::is_whitespace) {
-        Some((word, _)) => (word.to_ascii_lowercase(), true),
-        None => (needle_str.trim().to_ascii_lowercase(), false),
-    };
+pub fn matches_at(input: &str, cursor: usize) -> Vec<SlashEntry> {
+    active_slash_query(input, cursor).map_or_else(Vec::new, |(_, _, hits)| hits)
+}
 
-    // Filesystem paths (e.g. "/usr/bin/env", "/home/user/model") are never slash commands.
-    if first_word.contains('/') {
-        return Vec::new();
+fn active_slash_query(input: &str, cursor: usize) -> Option<(usize, usize, Vec<SlashEntry>)> {
+    let mut end = cursor.min(input.len());
+    while end > 0 && !input.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &input[..end];
+
+    if input == "?" && end == 1 {
+        return Some((0, 1, COMMANDS.iter().filter(|c| c.0 == "help").collect()));
     }
 
-    // If a space was typed after the command name (e.g. "/mode " or "/se thinking=true"),
-    // only match if the command verb accepts arguments.
-    // If the command takes no arguments (e.g. "/help foo") or is unknown, return no match.
-    if has_space && !first_word.is_empty() {
-        let matching: Vec<_> = COMMANDS
-            .iter()
-            .filter(|c| {
-                (c.0 == first_word || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
-                    && !c.1.is_empty()
-            })
-            .collect();
-        if !matching.is_empty() {
-            if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
-                return vec![exact];
+    // 1. Line-start command (supports `/verb args` for commands that accept arguments).
+    if let Some(rest) = before.strip_prefix('/') {
+        if !rest.starts_with('/') && !rest.starts_with(char::is_whitespace) {
+            if let Some((word, _)) = rest.split_once(char::is_whitespace) {
+                let first_word = word.to_ascii_lowercase();
+                if !first_word.is_empty() && !first_word.contains('/') {
+                    let matching: Vec<_> = COMMANDS
+                        .iter()
+                        .filter(|c| {
+                            (c.0 == first_word
+                                || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
+                                && !c.1.is_empty()
+                        })
+                        .collect();
+                    if !matching.is_empty() {
+                        if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
+                            return Some((0, end, vec![exact]));
+                        }
+                        return Some((0, end, matching));
+                    }
+                }
+            } else if !rest.contains('/') {
+                return Some((0, end, rank_commands(&rest.to_ascii_lowercase())));
             }
-            return matching;
         }
-        return Vec::new();
     }
 
+    // 2. Any standalone `/token` preceded by whitespace (including mid-sentence or after newline).
+    let word_start = before
+        .rfind(char::is_whitespace)
+        .and_then(|i| before[i..].chars().next().map(|ch| i + ch.len_utf8()))
+        .unwrap_or(0);
+    let word = &before[word_start..];
+    let rest = word.strip_prefix('/')?;
+    if rest.starts_with('/') || rest.contains('/') {
+        return None;
+    }
+    Some((word_start, end, rank_commands(&rest.to_ascii_lowercase())))
+}
+
+fn rank_commands(needle: &str) -> Vec<&'static (&'static str, &'static str, &'static str)> {
     let mut hits: Vec<(u8, &'static (&str, &str, &str))> = COMMANDS
         .iter()
-        .filter_map(|c| rank(c, &first_word).map(|r| (r, c)))
+        .filter_map(|c| rank(c, needle).map(|r| (r, c)))
         .collect();
-    if first_word.is_empty() {
+    if needle.is_empty() {
         hits.sort_by_key(|(rank, command)| (*rank, command.0));
     } else {
         hits.sort_by_key(|(rank, command)| (*rank, command.0.len(), command.0));
@@ -911,14 +934,11 @@ impl App {
             }
             super::draw::Hit::Palette(n) => {
                 self.palette_row = n;
-                if let Some(chosen) = self.chosen_command() {
-                    let completed = if chosen.ends_with(' ') {
-                        chosen
-                    } else {
-                        format!("{chosen} ")
-                    };
+                if let Some((completed, new_cursor)) = self.chosen_completion(true) {
                     self.input = completed;
-                    self.cursor = self.input.len();
+                    self.cursor = new_cursor;
+                    self.palette_row = 0;
+                    self.palette_scroll = 0;
                 }
             }
             super::draw::Hit::Attachments {
@@ -1087,7 +1107,11 @@ impl App {
             let Some(session) = self.session else {
                 return;
             };
-            self.queued_prompt = None;
+            // Keep `self.queued_prompt` until the engine either announces
+            // the queued message via `TurnStart` (`store_unanswered` or a
+            // raced turn) or rejects it via `Ack { ok: false }`. Wiping it
+            // here left its `Block::User` orphaned in `self.blocks`, so the
+            // engine's `TurnStart` drew the same message a second time.
             d.handle(Command::Cancel {
                 id: 0,
                 session,
@@ -1260,12 +1284,12 @@ impl App {
             // list. There is nothing to scroll to that matters more than the
             // thing being chosen two rows below.
             Key::Up if self.searching() => {
-                let count = matches(&self.input).len();
+                let count = matches_at(&self.input, self.cursor).len();
                 self.palette_row = self.palette_row.saturating_sub(1);
                 self.adjust_palette_scroll(count);
             }
             Key::Down if self.searching() => {
-                let count = matches(&self.input).len();
+                let count = matches_at(&self.input, self.cursor).len();
                 if count > 0 {
                     self.palette_row = (self.palette_row + 1).min(count - 1);
                     self.adjust_palette_scroll(count);
@@ -1313,20 +1337,20 @@ impl App {
             }
             Key::Tab => {
                 if self.searching() {
-                    if let Some(chosen) = self.chosen_command() {
+                    if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
                         if self.input == chosen {
-                            let count = matches(&self.input).len();
+                            let count = matches_at(&self.input, self.cursor).len();
                             if count > 1 {
                                 self.palette_row = (self.palette_row + 1) % count;
                                 self.adjust_palette_scroll(count);
-                                if let Some(next) = self.chosen_command() {
+                                if let Some((next, next_cursor)) = self.chosen_completion(false) {
                                     self.input = next;
-                                    self.cursor = self.input.len();
+                                    self.cursor = next_cursor;
                                 }
                             }
                         } else {
                             self.input = chosen;
-                            self.cursor = self.input.len();
+                            self.cursor = new_cursor;
                         }
                     }
                 } else {
@@ -1335,59 +1359,68 @@ impl App {
             }
             Key::Enter => {
                 if self.searching() {
-                    let hits = matches(&self.input);
-                    if let Some((verb, args_hint, _)) =
-                        hits.get(self.palette_row.min(hits.len().saturating_sub(1)))
-                    {
-                        let typed = self
-                            .input
-                            .strip_prefix('/')
-                            .or_else(|| self.input.strip_prefix('?'))
-                            .unwrap_or("");
-                        let (_, typed_args) = typed
-                            .split_once(char::is_whitespace)
-                            .map(|(v, r)| (v.trim(), r.trim()))
-                            .unwrap_or((typed.trim(), ""));
-
-                        // If the command takes or accepts arguments, and no arguments are typed yet:
-                        let opens_without_arguments = matches!(
-                            *verb,
-                            "logs" | "context" | "skills" | "mcp" | "model" | "provider"
-                        );
-                        if !args_hint.is_empty()
-                            && typed_args.is_empty()
-                            && !(opens_without_arguments && typed.trim() == *verb)
-                        {
-                            let cmd_prefix = format!("/{verb} ");
-                            if self.input != cmd_prefix {
-                                self.input = cmd_prefix;
-                                self.cursor = self.input.len();
+                    if let Some((start, _, hits)) = active_slash_query(&self.input, self.cursor) {
+                        if start > 0 {
+                            if let Some((completed, new_cursor)) = self.chosen_completion(true) {
+                                self.input = completed;
+                                self.cursor = new_cursor;
                                 self.palette_row = 0;
                                 self.palette_scroll = 0;
-                                let tip = self.usage_tip(verb);
-                                self.note(tip);
                                 return;
-                            } else {
-                                // Input is already "/<verb> " and Enter was pressed again without arguments:
-                                match *verb {
-                                    "model" | "provider" => {
-                                        // Open interactive selection screen
-                                    }
-                                    _ => {
-                                        // Retain "/<verb> " and refresh status bar tip
-                                        self.palette_row = 0;
-                                        self.palette_scroll = 0;
-                                        let tip = self.usage_tip(verb);
-                                        self.note(tip);
-                                        return;
+                            }
+                        } else if let Some((verb, args_hint, _)) =
+                            hits.get(self.palette_row.min(hits.len().saturating_sub(1)))
+                        {
+                            let typed = self
+                                .input
+                                .strip_prefix('/')
+                                .or_else(|| self.input.strip_prefix('?'))
+                                .unwrap_or("");
+                            let (_, typed_args) = typed
+                                .split_once(char::is_whitespace)
+                                .map(|(v, r)| (v.trim(), r.trim()))
+                                .unwrap_or((typed.trim(), ""));
+
+                            // If the command takes or accepts arguments, and no arguments are typed yet:
+                            let opens_without_arguments = matches!(
+                                *verb,
+                                "logs" | "context" | "skills" | "mcp" | "model" | "provider"
+                            );
+                            if !args_hint.is_empty()
+                                && typed_args.is_empty()
+                                && !(opens_without_arguments && typed.trim() == *verb)
+                            {
+                                let cmd_prefix = format!("/{verb} ");
+                                if self.input != cmd_prefix {
+                                    self.input = cmd_prefix;
+                                    self.cursor = self.input.len();
+                                    self.palette_row = 0;
+                                    self.palette_scroll = 0;
+                                    let tip = self.usage_tip(verb);
+                                    self.note(tip);
+                                    return;
+                                } else {
+                                    // Input is already "/<verb> " and Enter was pressed again without arguments:
+                                    match *verb {
+                                        "model" | "provider" => {
+                                            // Open interactive selection screen
+                                        }
+                                        _ => {
+                                            // Retain "/<verb> " and refresh status bar tip
+                                            self.palette_row = 0;
+                                            self.palette_scroll = 0;
+                                            let tip = self.usage_tip(verb);
+                                            self.note(tip);
+                                            return;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    if let Some(chosen) = self.chosen_command() {
+                    if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
                         self.input = chosen;
-                        self.cursor = self.input.len();
+                        self.cursor = new_cursor;
                     }
                 }
                 self.submit(d)
@@ -1406,26 +1439,50 @@ impl App {
     pub fn searching(&self) -> bool {
         self.composer_visible()
             && runeengine::session::manual_shell::command(&self.input).is_none()
-            && !matches(&self.input).is_empty()
+            && !matches_at(&self.input, self.cursor).is_empty()
     }
 
     /// The command the palette has under its cursor, written out in full.
+    #[cfg(test)]
     fn chosen_command(&self) -> Option<String> {
-        let hits = matches(&self.input);
+        self.chosen_completion(false).map(|(text, _)| text)
+    }
+
+    fn chosen_completion(&self, trailing_space: bool) -> Option<(String, usize)> {
+        let (start, end, hits) = active_slash_query(&self.input, self.cursor)?;
         let (verb, ..) = hits.get(self.palette_row.min(hits.len().saturating_sub(1)))?;
-        let typed = self
-            .input
-            .strip_prefix('/')
-            .or_else(|| self.input.strip_prefix('?'))?;
-        let args = typed
-            .split_once(char::is_whitespace)
-            .map(|(_, rest)| rest.trim())
-            .unwrap_or("");
-        Some(if args.is_empty() {
-            format!("/{verb}")
+        if start == 0 {
+            let typed = self
+                .input
+                .strip_prefix('/')
+                .or_else(|| self.input.strip_prefix('?'))?;
+            let args = typed
+                .split_once(char::is_whitespace)
+                .map(|(_, rest)| rest.trim())
+                .unwrap_or("");
+            let completed = if args.is_empty() {
+                if trailing_space {
+                    format!("/{verb} ")
+                } else {
+                    format!("/{verb}")
+                }
+            } else {
+                format!("/{verb} {args}")
+            };
+            let len = completed.len();
+            return Some((completed, len));
+        }
+        let replacement = if trailing_space {
+            format!("/{verb} ")
         } else {
-            format!("/{verb} {args}")
-        })
+            format!("/{verb}")
+        };
+        let mut out = String::with_capacity(self.input.len() + replacement.len());
+        out.push_str(&self.input[..start]);
+        out.push_str(&replacement);
+        out.push_str(&self.input[end..]);
+        let new_cursor = start + replacement.len();
+        Some((out, new_cursor))
     }
 
     /// Take these files along with the next question.
@@ -5091,9 +5148,15 @@ mod tests {
         assert!(matches("//").is_empty());
         assert!(matches("///").is_empty());
 
-        // 5. Prose or filesystem paths containing slash: no match
+        // 5. Prose or filesystem paths containing slash: attached slashes never match,
+        // while standalone slash tokens preceded by whitespace do match.
         assert!(matches("a/").is_empty());
-        assert!(matches("test /").is_empty());
+        assert!(matches("test /").len() == COMMANDS.len());
+        assert!(matches("fdafadasdasda / ").is_empty());
+        assert!(matches("fdafadasdasda / dasdasdas").is_empty());
+        assert_eq!(matches("fdafadasdasda / dasdasdas /sk")[0].0, "skill");
+        assert!(matches("fdafadasdasda / dasdasdas/").is_empty());
+        assert!(matches("fdafadasdasda / dasdasdas/sk").is_empty());
         assert!(matches("/usr/bin/env").is_empty());
         assert!(matches("/home/user/model").is_empty());
         assert!(matches("/var/log/syslog").is_empty());
@@ -5105,6 +5168,50 @@ mod tests {
         assert!(matches("??").is_empty());
         assert!(matches("?help").is_empty());
         assert!(matches("? why did this fail").is_empty());
+    }
+
+    #[test]
+    fn mid_text_slash_palette_completes_only_the_slash_token_without_erasing_prefix() {
+        let mut d = test_driver("mid-text-slash");
+        let mut app = App::for_test();
+
+        // Scenario 1: "fdafadasdasda /" opens palette
+        press(&mut app, &mut d, &typed("fdafadasdasda /"));
+        assert!(app.searching());
+
+        // Scenario 2: adding a space hides palette
+        press(&mut app, &mut d, &typed(" "));
+        assert!(!app.searching());
+
+        // Scenario 3: typing word after space keeps palette hidden
+        press(&mut app, &mut d, &typed("dasdasdas"));
+        assert!(!app.searching());
+
+        // Scenario 4: typing " /sk" reopens palette matching /skill then /skills
+        press(&mut app, &mut d, &typed(" /sk"));
+        assert!(app.searching());
+        assert_eq!(matches_at(&app.input, app.cursor)[0].0, "skill");
+
+        // Tab completes only "/sk" -> "/skill", preserving everything before it
+        press(&mut app, &mut d, &[Key::Tab]);
+        assert_eq!(app.input, "fdafadasdasda / dasdasdas /skill");
+        assert_eq!(app.cursor, app.input.len());
+
+        // Second Tab cycles to "/skills"
+        press(&mut app, &mut d, &[Key::Tab]);
+        assert_eq!(app.input, "fdafadasdasda / dasdasdas /skills");
+
+        // Enter on a mid-text token inserts trailing space & closes palette (does not submit yet)
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.input, "fdafadasdasda / dasdasdas /skills ");
+        assert!(!app.searching());
+        assert!(app.blocks.is_empty());
+
+        // Scenario 5 & 6: attached slash "dasdasdas/" or "dasdasdas/sk" does not open palette
+        press(&mut app, &mut d, &typed("dasdasdas/"));
+        assert!(!app.searching());
+        press(&mut app, &mut d, &typed("sk"));
+        assert!(!app.searching());
     }
 
     #[test]
@@ -5597,23 +5704,133 @@ mod tests {
     }
 
     #[test]
-    fn explicit_stop_clears_queued_prompt() {
-        let mut d = test_driver("submit-stop-clears");
-        let mut app = App::for_test_with(serde_json::json!({
-            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
-        }));
-        app.busy = true;
-        app.blocks.push(super::super::blocks::Block::Text {
-            text: "answer".into(),
-        });
-        press(&mut app, &mut d, &typed("queued message"));
-        press(&mut app, &mut d, &[Key::Enter]);
-        assert!(app.queued_prompt.is_some());
+    fn explicit_stop_does_not_duplicate_queued_prompt_across_agentic_phases() {
+        use runeengine::proto::{Event, StopReason};
 
-        // Pressing Esc twice triggers stop_or_quit which clears queued_prompt
-        press(&mut app, &mut d, &[Key::Esc]);
-        press(&mut app, &mut d, &[Key::Esc]);
-        assert!(app.queued_prompt.is_none());
+        for phase in [
+            "tool_running",
+            "streaming_text",
+            "streaming_thinking",
+            "pending_confirm",
+        ] {
+            let mut d = test_driver(&format!("stop-no-dup-{phase}"));
+            let mut app = App::for_test_with(serde_json::json!({
+                "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+            }));
+            let session = app.session.unwrap();
+            app.busy = true;
+            app.turn_started = Some(std::time::Instant::now());
+            match phase {
+                "tool_running" => {
+                    app.blocks.push(super::super::blocks::Block::Tool(Box::new(
+                        super::super::blocks::Tool::new(
+                            "call-1".into(),
+                            "terminal_use".into(),
+                            "Running".into(),
+                        ),
+                    )));
+                }
+                "streaming_text" => {
+                    app.blocks.push(super::super::blocks::Block::Text {
+                        text: "partial answer".into(),
+                    });
+                }
+                "streaming_thinking" => {
+                    app.blocks.push(super::super::blocks::Block::Thinking {
+                        text: "thinking...".into(),
+                        open: true,
+                        tokens: None,
+                        chase: None,
+                        round: Some(0),
+                    });
+                }
+                "pending_confirm" => {
+                    app.blocks.push(super::super::blocks::Block::Tool(Box::new(
+                        super::super::blocks::Tool::new(
+                            "call-1".into(),
+                            "terminal_use".into(),
+                            "Asking".into(),
+                        ),
+                    )));
+                }
+                _ => unreachable!(),
+            }
+
+            // 1. User sends a steer message while the agent is busy
+            press(&mut app, &mut d, &typed("queued message"));
+            press(&mut app, &mut d, &[Key::Enter]);
+            assert!(app.queued_prompt.is_some(), "{phase}");
+            assert_eq!(
+                app.blocks
+                    .iter()
+                    .filter(|b| matches!(b, super::super::blocks::Block::User { text, .. } if text == "queued message"))
+                    .count(),
+                1,
+                "{phase}: user block drawn once on submit"
+            );
+
+            if phase == "pending_confirm" {
+                app.pending = Some(super::super::blocks::Ask {
+                    req: "r1".into(),
+                    action: "terminal".into(),
+                    preview: "ls".into(),
+                    remember_as: None,
+                    reach: Vec::new(),
+                    local_services: false,
+                    full_access: false,
+                    reason: None,
+                });
+            }
+
+            // 2. User presses Esc twice to stop
+            press(&mut app, &mut d, &[Key::Esc]);
+            press(&mut app, &mut d, &[Key::Esc]);
+            assert!(
+                app.queued_prompt.is_some(),
+                "{phase}: queued_prompt stays until TurnStart adopts or Ack withdraws"
+            );
+
+            // 3. Simulate Engine `finish_run`: `store_unanswered` emits Composer/TurnStart, then Done(Cancelled)
+            app.on_event(Event::Composer {
+                session,
+                request: 0,
+                composer: Box::new(runeengine::store::composer::Composer {
+                    pending: vec![runeengine::store::composer::PendingPrompt {
+                        manual_shell: false,
+                        id: 99,
+                        message_id: None,
+                        text: "queued message".into(),
+                        media: Vec::new(),
+                    }],
+                    ..Default::default()
+                }),
+            });
+            app.on_event(Event::TurnStart {
+                session,
+                turn: 2,
+                text: Some("queued message".into()),
+                notification: false,
+                media: Vec::new(),
+                at: 0,
+            });
+            app.on_event(Event::Done {
+                session,
+                turn: 1,
+                stop: StopReason::Cancelled,
+            });
+
+            assert!(app.queued_prompt.is_none(), "{phase}");
+            assert!(!app.busy, "{phase}");
+            let user_count = app
+                .blocks
+                .iter()
+                .filter(|b| matches!(b, super::super::blocks::Block::User { text, .. } if text == "queued message"))
+                .count();
+            assert_eq!(
+                user_count, 1,
+                "{phase}: queued message must appear exactly once after Esc 2x, got {user_count}"
+            );
+        }
     }
 
     #[test]

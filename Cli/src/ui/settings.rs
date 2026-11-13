@@ -1237,11 +1237,11 @@ fn router_off_hint(
         return None;
     }
     Some(if model.is_some_and(|m| m.thinking_off_requests_low()) {
-        ("Off: requests Low", "This route reports that thinking cannot be disabled: Off requests Low, not zero thinking. Minimal is not offered. The router/provider may change the requested level.")
+        ("Off: route default", "This route reports that thinking cannot be disabled: Off omits reasoning_effort so the route uses its default. Minimal is not offered.")
     } else if model.is_some_and(|m| m.thinking_off_between_tools_only()) {
-        ("Off: between tools only", "On this route Off stops thinking between tool calls only; the model still thinks before it answers. Off is a request, not a guarantee of zero thinking.")
+        ("Off: between tools only", "On this route Off sends no reasoning_effort override; the route's own default or between-tools policy applies.")
     } else {
-        ("Off: request only", "Off requests disabled thinking. Even when the route reports that it can disable thinking, the router/provider may change this request; zero thinking is not guaranteed. Omitting the request would leave the route's default.")
+        ("Off: route default", "Off sends no reasoning_effort override, leaving the route's default. Turn Thinking on and choose an effort level to override it.")
     })
 }
 
@@ -1398,7 +1398,25 @@ fn model_config_rows(app: &App, provider: &str, model: &str) -> Vec<Row> {
                 else {
                     let options: Vec<_> = m.reasoning_options.as_ref().unwrap_or(&choices)
                         .iter().filter(|option| choices.contains(option)).cloned().collect();
-                    format!("{} · {}", if m.starts_thinking(api) { "On" } else { "Off" }, options.join(", "))
+                    let active = if app.provider() == provider && app.model() == model {
+                        let effort_opts: Vec<String> = if m.route_default_level(api) {
+                            std::iter::once(super::ROUTE_DEFAULT.to_string())
+                                .chain(options.iter().cloned())
+                                .collect()
+                        } else {
+                            options.clone()
+                        };
+                        app.effort_choice(&effort_opts)
+                    } else if !m.starts_thinking(api) {
+                        "off".to_string()
+                    } else if let Some(eff) = m.starting_effort(api) {
+                        eff
+                    } else if m.route_default_level(api) {
+                        super::ROUTE_DEFAULT.to_string()
+                    } else {
+                        "on".to_string()
+                    };
+                    format!("{active} · {}", options.join(", "))
                 }
             }).unwrap_or_else(|| "Unsupported / unknown".into()),
         )
@@ -8983,10 +9001,10 @@ mod tests {
         app.providers["providers"][1]["models"][0]["metadata"] =
             json!({"capabilities":{"reasoning":true,"thinkingCanDisable":false}});
         let (note, _) = row_note(&app);
-        assert!(!note.contains("requests Low"), "{note}");
+        assert!(!note.contains("route default"), "{note}");
         app.providers["providers"][1]["api"] = json!("9router");
         let (note, help) = row_note(&app);
-        assert!(note.contains("Off: requests Low"), "{note}");
+        assert!(note.contains("Off: route default"), "{note}");
         assert!(
             help.contains("cannot be disabled") && help.contains("Minimal is not offered"),
             "{help}"
@@ -8994,13 +9012,13 @@ mod tests {
         // Cannot-disable decides the request even if an off-type is also given.
         app.providers["providers"][1]["models"][0]["metadata"] = json!({"capabilities":{
             "reasoning":true,"thinkingCanDisable":false,"thinkingOffType":"between_tools"}});
-        assert!(row_note(&app).0.contains("requests Low"));
+        assert!(row_note(&app).0.contains("route default"));
         for capability in [json!(true), Value::Null] {
             app.providers["providers"][1]["models"][0]["metadata"] = json!({"capabilities":{
                 "reasoning":true,"thinkingCanDisable":capability}});
             let (note, help) = row_note(&app);
-            assert!(note.contains("Off: request only"), "{note}");
-            assert!(help.contains("zero thinking is not guaranteed"), "{help}");
+            assert!(note.contains("Off: route default"), "{note}");
+            assert!(help.contains("leaving the route's default"), "{help}");
         }
     }
 
@@ -9025,9 +9043,9 @@ mod tests {
             );
             assert!(
                 row.help.contains(if offers_minimal {
-                    "zero thinking is not guaranteed"
+                    "leaving the route's default"
                 } else {
-                    "Off requests Low"
+                    "omits reasoning_effort"
                 }),
                 "{}",
                 row.help
@@ -10101,7 +10119,11 @@ mod tests {
             .iter()
             .position(|r| matches!(r.kind, Kind::Edit(Field::ModelReasoning { .. })))
             .expect("Reasoning row");
-        assert!(r[thinking_row_idx].value.starts_with("On"));
+        assert!(
+            r[thinking_row_idx].value.starts_with("on · "),
+            "got: {}",
+            r[thinking_row_idx].value
+        );
 
         // Open editor
         app.preferences.location.row = thinking_row_idx;
@@ -10123,9 +10145,13 @@ mod tests {
             "Editor must immediately save and close on Enter over single-choice option"
         );
 
-        // Verify row now shows Disabled
+        // Verify row now shows off while keeping options
         let r_after = rows(&app);
-        assert!(r_after[thinking_row_idx].value.starts_with("Off"));
+        assert!(
+            r_after[thinking_row_idx].value.starts_with("off · "),
+            "got: {}",
+            r_after[thinking_row_idx].value
+        );
         assert!(
             app.lookup_model_info("openrouter", "test-thinking-model")
                 .unwrap()
@@ -10174,8 +10200,8 @@ mod tests {
             .position(|r| matches!(r.kind, Kind::Edit(Field::ModelReasoning { .. })))
             .expect("Reasoning row");
         assert!(
-            r[effort_row_idx].value.starts_with("On"),
-            "Model with thinking=true must start as On in summary, got: {}",
+            r[effort_row_idx].value.starts_with("low · "),
+            "Model with default_effort=low must show active effort first, got: {}",
             r[effort_row_idx].value
         );
         assert!(r[effort_row_idx].value.contains("low"));
