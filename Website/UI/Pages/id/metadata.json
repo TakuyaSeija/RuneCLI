@@ -1,1152 +1,1162 @@
 {
- "pages": {
-  "": {
-   "title": "RuneAgent: agen coding AI untuk terminal Anda",
-   "lead": "RuneAgent merencanakan, mengedit, dan menjalankan perintah di proyek Anda dengan model yang Anda sambungkan. Anda melihat setiap langkah dan perubahan berkas, dan Anda yang menentukan batas kerjanya."
+  "pages": {
+    "": {
+      "title": "RuneAgent: agen coding AI untuk terminal Anda",
+      "lead": "RuneAgent merencanakan, mengedit, dan menjalankan perintah di proyek Anda dengan model yang Anda sambungkan. Anda melihat setiap langkah dan perubahan berkas, dan Anda yang menentukan batas kerjanya."
+    },
+    "changelog": {
+      "title": "Catatan Rilis RuneAgent: Riwayat Versi dan Pembaruan Resmi",
+      "lead": "Catatan rilis resmi untuk setiap build RuneAgent yang diterbitkan. Pelajari perubahan teknis, kapabilitas baru, pembaruan perilaku, dan perbaikan untuk Linux, macOS, dan Windows."
+    },
+    "license": {
+      "title": "Lisensi RuneAgent: Ketentuan Penggunaan dan Hak Cipta",
+      "lead": "Lisensi perangkat lunak resmi dan ketentuan penggunaan untuk biner RuneAgent yang diterbitkan oleh Atoryn Studio."
+    },
+    "notfound": {
+      "title": "404: Halaman Tidak Ditemukan",
+      "lead": "Halaman yang Anda tuju tidak ditemukan di Atoryn Studio."
+    }
   },
-  "changelog": {
-   "title": "Catatan Rilis RuneAgent: Riwayat Versi dan Pembaruan Resmi",
-   "lead": "Catatan rilis resmi untuk setiap build RuneAgent yang diterbitkan. Pelajari perubahan teknis, kapabilitas baru, pembaruan perilaku, dan perbaikan untuk Linux, macOS, dan Windows."
+  "groups": {
+    "Get started": "Memulai",
+    "Use Rune": "Menggunakan Rune",
+    "Configure": "Konfigurasi",
+    "Extend": "Perluasan",
+    "Trust & understand": "Kepercayaan & pemahaman"
   },
-  "license": {
-   "title": "Lisensi RuneAgent: Ketentuan Penggunaan dan Hak Cipta",
-   "lead": "Lisensi perangkat lunak resmi dan ketentuan penggunaan untuk biner RuneAgent yang diterbitkan oleh Atoryn Studio."
-  },
-  "notfound": {
-   "title": "404: Halaman Tidak Ditemukan",
-   "lead": "Halaman yang Anda tuju tidak ditemukan di Atoryn Studio."
-  }
- },
- "groups": {
-  "Get started": "Memulai",
-  "Use Rune": "Menggunakan Rune",
-  "Configure": "Konfigurasi",
-  "Extend": "Perluasan",
-  "Trust & understand": "Kepercayaan & pemahaman"
- },
- "docs_title": "{label}: Dokumentasi Resmi RuneAgent",
- "docs": {
+  "docs_title": "{label}: Dokumentasi Resmi RuneAgent",
   "docs": {
-   "label": "Pengantar",
-   "lead": "Cara RuneAgent merencanakan tugas, memeriksa berkas, dan menjalankan perintah terminal dengan model Anda. Pahami alur prompt, batas eksekusi, dan sesi."
+    "docs": {
+      "label": "Pengantar",
+      "lead": "Cara RuneAgent merencanakan tugas, memeriksa berkas, dan menjalankan perintah terminal dengan model Anda. Pahami alur prompt, batas eksekusi, dan sesi."
+    },
+    "docs/install": {
+      "label": "Pasang & perbarui",
+      "lead": "Kebutuhan sistem, pemasang otomatis shell dan PowerShell, konfigurasi PATH, isolasi folder data, verifikasi pembaruan, dan langkah pencopotan bersih."
+    },
+    "docs/platforms": {
+      "label": "Dukungan platform",
+      "lead": "Paritas engine lintas platform di Linux glibc dan musl, macOS Apple Silicon dan Intel, serta Windows: perbedaan shell, PTY, dan eksekusi lokal."
+    },
+    "docs/interface": {
+      "label": "Antarmuka",
+      "lead": "Navigasi transkrip terpadu, lipatan visual, kotak pratinjau perintah, pencatatan panel samping, kartu izin, formulir pertanyaan, dan indikator status."
+    },
+    "docs/sessions": {
+      "label": "Sesi & konteks",
+      "lead": "Memulai, melanjutkan, dan beralih sesi proyek; memantau penggunaan token live; mengonfigurasi pemadatan konteks otomatis; dan menyimpan riwayat lokal."
+    },
+    "docs/commands": {
+      "label": "Perintah garis miring",
+      "lead": "Perintah percakapan interaktif: /mode untuk beralih mode izin, /undo untuk pemulihan berkas, /mcp untuk deteksi tool, dan /panel untuk panel samping."
+    },
+    "docs/cli": {
+      "label": "Referensi baris perintah",
+      "lead": "Flag baris perintah dan subperintah rune untuk prompt mandiri (-p), pemeriksaan pengaturan (-config), manajemen kredensial (-secrets), dan pemangkasan sesi."
+    },
+    "docs/keyboard": {
+      "label": "Papan ketik & mouse",
+      "lead": "Pintasan papan ketik terminal untuk navigasi, penyuntingan, Ctrl+O untuk panel, Ctrl+T untuk rencana, pembatalan Esc ganda, dan perilaku gulir mouse."
+    },
+    "docs/shell": {
+      "label": "Perintah manual",
+      "lead": "Menjalankan skrip shell manual langsung dengan awalan !: akses sandbox penuh satu kali, pratinjau konfirmasi interaktif, dan isolasi variabel lingkungan."
+    },
+    "docs/instructions": {
+      "label": "Instruksi & lampiran",
+      "lead": "Menyediakan aturan proyek via AGENTS.md, melampirkan berkas dan gambar, menetralkan injeksi prompt tak tepercaya, serta mengelola memori proyek."
+    },
+    "docs/memory": {
+      "label": "Memori",
+      "lead": "Arsitektur catatan proyek terstruktur dalam MEMORY.md: batasan anggaran byte, indeks riwayat yang kekal, dan pedoman mencatat keputusan arsitektur."
+    },
+    "docs/undo": {
+      "label": "Tinjau, urungkan & ulangi",
+      "lead": "Meninjau diff terpadu yang presisi, melacak mutasi per sesi, mengembalikan berkas ke kondisi awal dengan /undo, dan memahami batasan pemulihan sistem."
+    },
+    "docs/settings": {
+      "label": "Ringkasan pengaturan",
+      "lead": "Menavigasi bagian pengaturan: membedakan konfigurasi global rune.toml dari preferensi model per sesi, dan mengatur nilai bawaan tanpa menebak."
+    },
+    "docs/configuration": {
+      "label": "Berkas konfigurasi",
+      "lead": "Mengelola konfigurasi di rune.toml: memahami nilai bawaan pabrik, arsitektur muat ulang otomatis, aturan reset kunci, dan prioritas variabel lingkungan."
+    },
+    "docs/reference": {
+      "label": "Referensi pengaturan",
+      "lead": "Referensi lengkap setiap pengaturan rune.toml: nilai pabrik, tipe data yang valid, perilaku hot-reload, dan dampaknya terhadap runtime, tool, dan UI."
+    },
+    "docs/connections": {
+      "label": "Koneksi",
+      "lead": "Menambahkan dan mengelola akun penyedia model, memasukkan kredensial API ke penyimpanan terenkripsi, menguji koneksi live, dan memeriksa endpoint."
+    },
+    "docs/providers": {
+      "label": "Penyedia model",
+      "lead": "Mengenal 31 preset penyedia bawaan seperti Anthropic, OpenAI, DeepSeek, Ollama, dan Z.ai: alamat endpoint, kontrol thinking, dan cakupan kredensial."
+    },
+    "docs/models": {
+      "label": "Model & kapabilitas",
+      "lead": "Memilih pasangan model aktif, mengatur tingkat penalaran thinking, menyesuaikan batas konteks, dan menentukan tarif kustom untuk pelacakan biaya akurat."
+    },
+    "docs/generation": {
+      "label": "Generasi & penalaran",
+      "lead": "Mengatur tingkat penalaran, suhu sampling, batas token keluaran maksimum, serta visibilitas token thinking di OpenAI, Anthropic, dan gateway provider."
+    },
+    "docs/auxiliary": {
+      "label": "Model bantu",
+      "lead": "Mengonfigurasi model bantu terpisah untuk pemadatan riwayat latar belakang, evaluasi kebijakan keamanan via classifier, dan penamaan sesi otomatis."
+    },
+    "docs/runtime": {
+      "label": "Runtime & percobaan ulang",
+      "lead": "Mengatur batas waktu permintaan HTTP, kurva percobaan ulang linear dengan jeda kuota, masa aktif proses latar saat diam, dan pemulihan koneksi."
+    },
+    "docs/tools": {
+      "label": "Tool & batas",
+      "lead": "Mengatur batas tangkapan keluaran stdout dan stderr, batas pemotongan karakter, jumlah pemanggilan tool per giliran, dan aturan waktu tunggu izin."
+    },
+    "docs/terminal": {
+      "label": "Terminal & kerja latar belakang",
+      "lead": "Menjalankan perintah shell via terminal_use, mengelola proses latar dengan process_control, memantau kode keluar, dan menerima notifikasi mandiri."
+    },
+    "docs/web": {
+      "label": "Pencarian & pengambilan web",
+      "lead": "Mengonfigurasi penyedia pencarian web dan pembacaan halaman terpisah, mengelola pin rute gateway, mengatur batas karakter, dan membaca markdown hasil."
+    },
+    "docs/appearance": {
+      "label": "Tampilan",
+      "lead": "Memilih tema warna obsidian, amber, dan netral, mengatur kecepatan frame yang tersinkronisasi, sensitivitas gulir, dan mode tata letak responsif."
+    },
+    "docs/skills": {
+      "label": "Skill",
+      "lead": "Memasang, meninjau, dan menjalankan panduan skill di folder .rune/skills/: menemukan kapabilitas via tool, mengelola cakupan, dan menegakkan izin."
+    },
+    "docs/mcp": {
+      "label": "Koneksi MCP",
+      "lead": "Menyambungkan server MCP eksternal via stdio atau SSE: membaca skema tool yang dideklarasikan, mengelola autentikasi, dan menegakkan izin eksekusi."
+    },
+    "docs/security": {
+      "label": "Keamanan",
+      "lead": "Jaminan keamanan inti: isolasi kernel Landlock, pengurungan ruang kerja ketat, gerbang eksekusi tool tak terbantahkan, dan sensor token di log."
+    },
+    "docs/classifier": {
+      "label": "Kebijakan pengklasifikasi",
+      "lead": "Menentukan batas keamanan otomatis menggunakan CLASSIFIER.md: menegakkan evaluasi aturan sebelum eksekusi perintah dan memeriksa bukti verifikasi."
+    },
+    "docs/privacy": {
+      "label": "Privasi & data",
+      "lead": "Desain privasi lokal: membuktikan apa yang tetap berada di komputer Anda, apa yang dikirim ke penyedia API, dan peniadaan total telemetri pihak luar."
+    },
+    "docs/credentials": {
+      "label": "Kredensial",
+      "lead": "Penyimpanan rahasia lokal yang aman: enkripsi kunci utama, kolom input terminal bertopeng, validasi kunci otomatis, dan prosedur pemulihan akun."
+    },
+    "docs/verification": {
+      "label": "Verifikasi rilis",
+      "lead": "Memverifikasi integritas kriptografis rilis: memeriksa tanda tangan rilis ECDSA, mencocokkan checksum arsip SHA, dan mengaudit kunci rilis resmi."
+    },
+    "docs/architecture": {
+      "label": "Arsitektur",
+      "lead": "Arsitektur teknis engine Rust: loop antarmuka single-thread, jail eksekusi tool asinkron, penerjemahan dialek antar penyedia, dan registri lokal."
+    },
+    "docs/troubleshooting": {
+      "label": "Pemecahan masalah",
+      "lead": "Mendiagnosis batas waktu jaringan, penolakan autentikasi, masalah tampilan terminal, penolakan izin, dan kegagalan proses latar dengan /logs."
+    }
   },
-  "docs/install": {
-   "label": "Pasang & perbarui",
-   "lead": "Kebutuhan sistem, pemasang otomatis shell dan PowerShell, konfigurasi PATH, isolasi folder data, verifikasi pembaruan, dan langkah pencopotan bersih."
+  "chapters": {
+    "Plan": "Rencana",
+    "Build": "Bangun",
+    "Test": "Uji",
+    "Fix": "Perbaiki",
+    "Verify": "Verifikasi",
+    "Report": "Laporan"
   },
-  "docs/platforms": {
-   "label": "Dukungan platform",
-   "lead": "Paritas engine lintas platform di Linux glibc dan musl, macOS Apple Silicon dan Intel, serta Windows: perbedaan shell, PTY, dan eksekusi lokal."
+  "install_note": {
+    "none": "Belum ada rilis bertanda tangan yang diterbitkan. Saat ini perintah tersebut keluar tanpa memasang apa pun.",
+    "missing": "Rilis {version} tidak memiliki build {system} bertanda tangan. Perintah tersebut keluar tanpa memasang apa pun.",
+    "release": "Rilis {version}, terbit {date}, untuk {system} ({builds}).",
+    "beta": "Dukungan {system} masih beta.",
+    "and": "dan"
   },
-  "docs/interface": {
-   "label": "Antarmuka",
-   "lead": "Navigasi transkrip terpadu, lipatan visual, kotak pratinjau perintah, pencatatan panel samping, kartu izin, formulir pertanyaan, dan indikator status."
-  },
-  "docs/sessions": {
-   "label": "Sesi & konteks",
-   "lead": "Memulai, melanjutkan, dan beralih sesi proyek; memantau penggunaan token live; mengonfigurasi pemadatan konteks otomatis; dan menyimpan riwayat lokal."
-  },
-  "docs/commands": {
-   "label": "Perintah garis miring",
-   "lead": "Perintah percakapan interaktif: /mode untuk beralih mode izin, /undo untuk pemulihan berkas, /mcp untuk deteksi tool, dan /panel untuk panel samping."
-  },
-  "docs/cli": {
-   "label": "Referensi baris perintah",
-   "lead": "Flag baris perintah dan subperintah rune untuk prompt mandiri (-p), pemeriksaan pengaturan (-config), manajemen kredensial (-secrets), dan pemangkasan sesi."
-  },
-  "docs/keyboard": {
-   "label": "Papan ketik & mouse",
-   "lead": "Pintasan papan ketik terminal untuk navigasi, penyuntingan, Ctrl+O untuk panel, Ctrl+T untuk rencana, pembatalan Esc ganda, dan perilaku gulir mouse."
-  },
-  "docs/shell": {
-   "label": "Perintah manual",
-   "lead": "Menjalankan skrip shell manual langsung dengan awalan !: akses sandbox penuh satu kali, pratinjau konfirmasi interaktif, dan isolasi variabel lingkungan."
-  },
-  "docs/instructions": {
-   "label": "Instruksi & lampiran",
-   "lead": "Menyediakan aturan proyek via AGENTS.md, melampirkan berkas dan gambar, menetralkan injeksi prompt tak tepercaya, serta mengelola memori proyek."
-  },
-  "docs/memory": {
-   "label": "Memori",
-   "lead": "Arsitektur catatan proyek terstruktur dalam MEMORY.md: batasan anggaran byte, indeks riwayat yang kekal, dan pedoman mencatat keputusan arsitektur."
-  },
-  "docs/undo": {
-   "label": "Tinjau, urungkan & ulangi",
-   "lead": "Meninjau diff terpadu yang presisi, melacak mutasi per sesi, mengembalikan berkas ke kondisi awal dengan /undo, dan memahami batasan pemulihan sistem."
-  },
-  "docs/settings": {
-   "label": "Ringkasan pengaturan",
-   "lead": "Menavigasi bagian pengaturan: membedakan konfigurasi global rune.toml dari preferensi model per sesi, dan mengatur nilai bawaan tanpa menebak."
-  },
-  "docs/configuration": {
-   "label": "Berkas konfigurasi",
-   "lead": "Mengelola konfigurasi di rune.toml: memahami nilai bawaan pabrik, arsitektur muat ulang otomatis, aturan reset kunci, dan prioritas variabel lingkungan."
-  },
-  "docs/reference": {
-   "label": "Referensi pengaturan",
-   "lead": "Referensi lengkap setiap pengaturan rune.toml: nilai pabrik, tipe data yang valid, perilaku hot-reload, dan dampaknya terhadap runtime, tool, dan UI."
-  },
-  "docs/connections": {
-   "label": "Koneksi",
-   "lead": "Menambahkan dan mengelola akun penyedia model, memasukkan kredensial API ke penyimpanan terenkripsi, menguji koneksi live, dan memeriksa endpoint."
-  },
-  "docs/providers": {
-   "label": "Penyedia model",
-   "lead": "Mengenal 31 preset penyedia bawaan seperti Anthropic, OpenAI, DeepSeek, Ollama, dan Z.ai: alamat endpoint, kontrol thinking, dan cakupan kredensial."
-  },
-  "docs/models": {
-   "label": "Model & kapabilitas",
-   "lead": "Memilih pasangan model aktif, mengatur tingkat penalaran thinking, menyesuaikan batas konteks, dan menentukan tarif kustom untuk pelacakan biaya akurat."
-  },
-  "docs/generation": {
-   "label": "Generasi & penalaran",
-   "lead": "Mengatur tingkat penalaran, suhu sampling, batas token keluaran maksimum, serta visibilitas token thinking di OpenAI, Anthropic, dan gateway provider."
-  },
-  "docs/auxiliary": {
-   "label": "Model bantu",
-   "lead": "Mengonfigurasi model bantu terpisah untuk pemadatan riwayat latar belakang, evaluasi kebijakan keamanan via classifier, dan penamaan sesi otomatis."
-  },
-  "docs/runtime": {
-   "label": "Runtime & percobaan ulang",
-   "lead": "Mengatur batas waktu permintaan HTTP, kurva percobaan ulang linear dengan jeda kuota, masa aktif proses latar saat diam, dan pemulihan koneksi."
-  },
-  "docs/tools": {
-   "label": "Tool & batas",
-   "lead": "Mengatur batas tangkapan keluaran stdout dan stderr, batas pemotongan karakter, jumlah pemanggilan tool per giliran, dan aturan waktu tunggu izin."
-  },
-  "docs/terminal": {
-   "label": "Terminal & kerja latar belakang",
-   "lead": "Menjalankan perintah shell via terminal_use, mengelola proses latar dengan process_control, memantau kode keluar, dan menerima notifikasi mandiri."
-  },
-  "docs/web": {
-   "label": "Pencarian & pengambilan web",
-   "lead": "Mengonfigurasi penyedia pencarian web dan pembacaan halaman terpisah, mengelola pin rute gateway, mengatur batas karakter, dan membaca markdown hasil."
-  },
-  "docs/appearance": {
-   "label": "Tampilan",
-   "lead": "Memilih tema warna obsidian, amber, dan netral, mengatur kecepatan frame yang tersinkronisasi, sensitivitas gulir, dan mode tata letak responsif."
-  },
-  "docs/skills": {
-   "label": "Skill",
-   "lead": "Memasang, meninjau, dan menjalankan panduan skill di folder .rune/skills/: menemukan kapabilitas via tool, mengelola cakupan, dan menegakkan izin."
-  },
-  "docs/mcp": {
-   "label": "Koneksi MCP",
-   "lead": "Menyambungkan server MCP eksternal via stdio atau SSE: membaca skema tool yang dideklarasikan, mengelola autentikasi, dan menegakkan izin eksekusi."
-  },
-  "docs/security": {
-   "label": "Keamanan",
-   "lead": "Jaminan keamanan inti: isolasi kernel Landlock, pengurungan ruang kerja ketat, gerbang eksekusi tool tak terbantahkan, dan sensor token di log."
-  },
-  "docs/classifier": {
-   "label": "Kebijakan pengklasifikasi",
-   "lead": "Menentukan batas keamanan otomatis menggunakan CLASSIFIER.md: menegakkan evaluasi aturan sebelum eksekusi perintah dan memeriksa bukti verifikasi."
-  },
-  "docs/privacy": {
-   "label": "Privasi & data",
-   "lead": "Desain privasi lokal: membuktikan apa yang tetap berada di komputer Anda, apa yang dikirim ke penyedia API, dan peniadaan total telemetri pihak luar."
-  },
-  "docs/credentials": {
-   "label": "Kredensial",
-   "lead": "Penyimpanan rahasia lokal yang aman: enkripsi kunci utama, kolom input terminal bertopeng, validasi kunci otomatis, dan prosedur pemulihan akun."
-  },
-  "docs/verification": {
-   "label": "Verifikasi rilis",
-   "lead": "Memverifikasi integritas kriptografis rilis: memeriksa tanda tangan rilis ECDSA, mencocokkan checksum arsip SHA, dan mengaudit kunci rilis resmi."
-  },
-  "docs/architecture": {
-   "label": "Arsitektur",
-   "lead": "Arsitektur teknis engine Rust: loop antarmuka single-thread, jail eksekusi tool asinkron, penerjemahan dialek antar penyedia, dan registri lokal."
-  },
-  "docs/troubleshooting": {
-   "label": "Pemecahan masalah",
-   "lead": "Mendiagnosis batas waktu jaringan, penolakan autentikasi, masalah tampilan terminal, penolakan izin, dan kegagalan proses latar dengan /logs."
+  "notes": {
+    "0.12.4": {
+      "title": "Baris turn yang lebih tenang, palet slash di dalam kalimat, dan Off yang membiarkan rute apa adanya",
+      "summary": "Metrik turn lebih tenang, palet di tengah kalimat, wizard hanya Alt+H, Off 9router tanpa level paksaan",
+      "paragraphs": [
+        "Build ini merapikan hal-hal kecil yang membuat layar berbicara menimpa percakapan. Turn yang selesai kini berbicara dalam satu baris redup dengan penanda florette, bukan bullet yang terbaca seperti teks jawaban; baris kosong di atas composer hanya milik percakapan sementara side panel menembusnya; token slash yang diketik di tengah kalimat membuka palet tanpa memotong kalimatnya; form pertanyaan hanya disembunyikan dan ditampilkan lewat shortcut-nya; dan menghentikan turn setelah mengantrekan pesan tidak lagi menggambar pesan itu dua kali. Pada 9router, Off kini tidak mengirim level penalaran sama sekali, sehingga rute yang tidak bisa diminta berhenti berpikir tetap memakai nilai bawaannya alih-alih dipaksa turun ke Low."
+      ],
+      "points": [
+        {
+          "id": "turn-metrics-footer",
+          "title": "Baris turn redup, dibaca sebagai metadata bukan sebagai prosa",
+          "text": "Penandanya florette dengan tinta redup, jumlah token memakai huruf kecil k dan m, dan ekor step serta status dihapus: satu baris yang menyebut lama kerja, pemakaian token, dan waktu selesai dalam format 24 jam."
+        },
+        {
+          "id": "composer-padding-and-panel",
+          "title": "Hanya percakapan yang mendapat baris kosong di atas composer",
+          "text": "Pada frame terpisah, side panel dan garis pembatasnya menembus baris itu sampai batas composer, dan petunjuk lompat duduk di baris itu tepat di atas input alih-alih menutupi baris terakhir chat. Palet slash kini juga mencapai batas composer tanpa baris kosong di antaranya."
+        },
+        {
+          "id": "slash-palette-in-sentences",
+          "title": "Token slash di tengah kalimat membuka palet tanpa memakan kalimatnya",
+          "text": "Token /kata yang berdiri sendiri setelah spasi membuka daftar perintah di posisi kursor mana pun; Tab hanya menyelesaikan token itu dan membiarkan kata sebelumnya utuh; Enter tetap mengirim kalimat apa adanya, dan teks yang menempel seperti path atau kata bergaris miring tidak pernah membukanya."
+        },
+        {
+          "id": "questions-collapse-shortcut",
+          "title": "Form pertanyaan hanya disembunyikan dan ditampilkan lewat shortcut-nya",
+          "text": "Alt+H menciutkan dan memulihkan form; chevron, klik pada judul, dan petunjuk dalam kurung di header dihapus, sehingga membaca judul tidak pernah membukanya kembali, dan shortcut-nya tercantum bersama yang lain di bagian bawah."
+        },
+        {
+          "id": "router-off-and-single-stop",
+          "title": "Off di 9router tidak mengirim level, dan turn yang dihentikan menggambar pesan antreannya sekali",
+          "text": "Off tidak lagi meminta Low atau flag nonaktif pada 9router, sehingga rute memakai nilai bawaan dan plafon output-nya sendiri; Settings Alt+C menampilkan level yang benar-benar dipakai di samping daftar opsi; dan pesan yang diantrekan saat agen bekerja lalu dihentikan dengan Esc dua kali muncul tepat satu kali."
+        }
+      ]
+    },
+    "0.12.3": {
+      "title": "Kontrol panel samping khusus Ctrl+O, prompt XML terstruktur, dan normalisasi input tool",
+      "paragraphs": [
+        "Menekan tombol Esc saat percakapan diam kini tidak lagi menyembunyikan panel samping, menjaga kontrol visibilitas panel sepenuhnya melalui Ctrl+O, /panel, dan pengaturan Appearance. System prompt statis serta prompt subsistem auxiliar kini menata aturan ke dalam subbagian XML yang tegas dengan kontrak tunggal parameter `action` di skema tool, penamaan sesi menolak prosa balasan obrolan, dan tool interaktif menormalkan format pertanyaan sekaligus memblokir perintah shell ke alias virtual `@memory/`."
+      ],
+      "points": [
+        {
+          "id": "side-panel-toggle-only",
+          "title": "Panel samping hanya dihidupkan dan dimatikan lewat Ctrl+O atau /panel",
+          "text": "Menekan Esc saat tidak ada panel overlay yang terbuka kini hanya membersihkan status sementara di baris kaki tanpa menutup panel samping percakapan, sehingga kendali on/off panel samping murni lewat Ctrl+O, /panel, atau menu Appearance."
+        },
+        {
+          "id": "structured-xml-prompts",
+          "title": "Prompt XML hierarkis dan penyaringan ketat judul sesi",
+          "text": "System prompt utama serta instruksi auxiliar untuk pemadatan riwayat, classifier kebijakan, sanitizer bukti, dan penamaan sesi kini mengelompokkan aturan dalam tag XML eksplisit, menempatkan panduan `action` hanya di skema tool, serta menolak jawaban obrolan atau multibaris saat model menamai sesi."
+        },
+        {
+          "id": "tool-normalization-and-memory-alias",
+          "title": "Normalisasi pertanyaan fleksibel dan perlindungan alias virtual @memory/",
+          "text": "`ask_user_questions` kini menerima karakter baris baru dan tab sambil menormalkan struktur pertanyaan datar, pembungkus objek tunggal, opsi string, dan alias tipe sebelum validasi, sedangkan `terminal_use` menolak perintah yang menargetkan `@memory/` dengan arahan ke tool berkas bawaan."
+        }
+      ],
+      "summary": "Panel Ctrl+O, prompt XML & normalisasi tool"
+    },
+    "0.12.2": {
+      "title": "Keamanan preview terminal, status reasoning akurat, dan navigasi settings",
+      "paragraphs": [
+        "Judul langkah terminal kini terlindungi dari kebocoran skrip multiline saat deskripsi action terlambat di-stream, ringkasan reasoning model secara akurat mencerminkan status aktif katalog dan sesi, penghapusan key koneksi berjalan bersih saat dikonfirmasi, dan navigasi daftar settings dapat melintasi baris read-only dengan aksen tema serta ekspansi penuh saat difokuskan."
+      ],
+      "points": [
+        {
+          "id": "terminal-heading-preview",
+          "title": "Judul terminal tidak membocorkan skrip multiline",
+          "text": "Saat model menjalankan `terminal_use` dengan skrip multiline dan deskripsi action datang terlambat atau tidak ada, judul langkah kini membatasi preview secara rapi ke baris perintah pertama dengan tanda elipsis, mencegah kode skrip mentah tumpah ke luar kotak terminal."
+        },
+        {
+          "id": "reasoning-summary-status",
+          "title": "Status thinking akurat pada pengaturan model",
+          "text": "Tampilan konfigurasi model pada Settings kini membaca status efektif `starts_thinking` alih-alih setelan kosong, secara benar menampilkan dukungan reasoning sebagai On untuk model yang aktif thinking-nya dari katalog atau adapter."
+        },
+        {
+          "id": "connection-drop-key",
+          "title": "Penghapusan API key berjalan saat konfirmasi",
+          "text": "Memilih tombol konfirmasi untuk menghapus API key kini langsung mengeksekusi perintah drop key, memperbaiki kendala pencocokan teks yang sebelumnya menggagalkan penghapusan."
+        },
+        {
+          "id": "settings-read-only-navigation",
+          "title": "Navigasi baris read-only dan ekspansi fokus",
+          "text": "Navigasi keyboard dan scroll mouse di Settings kini dapat menelusuri baris informasi tarif dan fakta hingga paling bawah dengan warna aksen tema, tanpa chevron interaktif, dan memperluas label yang terpotong secara penuh saat difokuskan."
+        }
+      ],
+      "summary": "Preview terminal, status reasoning & navigasi settings"
+    },
+    "0.12.1": {
+      "title": "Urutan pesan kawat untuk hasil tool dan timer pengingat plan yang persisten",
+      "paragraphs": [
+        "Pemberitahuan sistem yang disisipkan di antara pemanggilan tool milik asisten dan hasilnya dapat melanggar aturan protokol kawat ketat pada endpoint OpenAI dan OpenAI-compatible, menyebabkan permintaan ditolak. Seluruh hasil tool kini dicatat sebelum pemberitahuan konteks apa pun dimunculkan, urutan pembacaan menormalkan transkrip historis, dan timer jam pengingat plan andal dimulai sejak pemanggilan tool pertama pada sesi yang sudah ada sebelumnya."
+      ],
+      "points": [
+        {
+          "id": "tool-result-ordering",
+          "title": "Hasil tool mendahului pemberitahuan konteks",
+          "text": "Pemberitahuan sistem (seperti pengingat plan dan peringatan perulangan) kini ditunda hingga seluruh pemanggilan tool dalam satu putaran model selesai dicatat hasilnya di basis data, memastikan kepatuhan ketat terhadap protokol OpenAI bahwa pesan tool harus langsung menyusul tool_calls tanpa disela pesan user."
+        },
+        {
+          "id": "reading-order-normalization",
+          "title": "Urutan baca menormalkan riwayat berseling",
+          "text": "Tahap pengurutan baca sesi mengelompokkan hasil tool tepat setelah pesan asisten padanannya sebelum pemberitahuan konteks yang menyelingi, melindungi transkrip lama dan impor dari penolakan validasi protokol kawat."
+        },
+        {
+          "id": "wall-clock-timer-preexisting",
+          "title": "Timer jam mulai pada pemanggilan tool pertama",
+          "text": "Saat sesi dilanjutkan dengan plan yang sudah ada sebelumnya dan `plan.reminder_seconds` aktif, jam timer mulai menghitung waktu berlalu sejak pemanggilan tool pertama pada sesi tersebut alih-alih diam hingga `track_tasks` ditulis ulang."
+        }
+      ],
+      "summary": "Urutan pesan tool & timer plan"
+    },
+    "0.12.0": {
+      "title": "Retry yang menjelaskan dirinya, ringkasan yang bisa dilanjutkan, dan pemasangan yang langsung bisa dipakai",
+      "paragraphs": [
+        "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan utuh lebih dulu dan menyimpan progres per batch, dan endpoint kustom diberi tahu protokol kawatnya secara eksplisit. Dukungan gambar pada gateway OpenAI-compatible kini dikenali, laporan biaya nol tidak lagi membekukan pelacakan spend, skrip pemasang langsung aktif di shell yang sama tanpa mengedit file profil, dan nilai internal penjaga sistem kini menjadi konstanta alih-alih pengaturan."
+      ],
+      "summary": "Retry, pemadatan & pemasang",
+      "sections": [
+        {
+          "id": "model-providers",
+          "title": "Penyedia model & dukungan gambar",
+          "points": [
+            {
+              "id": "custom-provider",
+              "title": "Custom provider menamai format kawatnya",
+              "text": "Preset koneksi kustom diganti nama dari `compatible` menjadi `Custom provider`, dan kini memilih protokol kawat secara eksplisit: OpenAI-compatible (`/chat/completions` dengan token Bearer) atau Anthropic-compatible (`/v1/messages` dengan `x-api-key`)."
+            },
+            {
+              "id": "vision-declaration",
+              "title": "Vision dideklarasikan di katalog",
+              "text": "Endpoint yang mendeklarasikan kemampuan multimodal sebagaimana gateway OpenAI-compatible biasa — `supported_parameters` menamai `vision` (DeepRelay dan lainnya) — kini memiliki dukungan vision yang dikenali di katalog model, alih-alih keliru dilaporkan 'support is not published'. Endpoint yang tidak menerbitkan apa pun tentang modelnya tetap jujur 'not published', dan Alt+C › Modalities adalah tempat kamu mendeklarasikannya sendiri (lihat di bawah)."
+            },
+            {
+              "id": "zero-cost-pricing",
+              "title": "Laporan biaya nol menjaga harga",
+              "text": "Saat endpoint melaporkan biaya pemakaian nol (mis. model tercakup paket di DeepRelay yang mengembalikan `usage.cost: 0`), harga model yang kamu atur di Settings dipertahankan alih-alih ditimpa nol, sehingga pelacakan spend tetap akurat lintas sesi."
+            },
+            {
+              "id": "model-modalities",
+              "title": "Modalities yang bisa kamu deklarasikan per model",
+              "text": "Gateway yang /models-nya tidak mengatakan apa pun tentang modelnya tidak pernah bisa menerima gambar: Rune menolak setiap lampiran dengan 'support is not published' karena memang tidak ada yang menerbitkannya. Alt+C (Settings › Models › Modalities) kini membiarkan kamu mendeklarasikan input sebuah model — text, image, audio, video, file — dengan apa yang katalog terbitkan mengisinya bila ada, dan deklarasi mu berdiri di tempat katalog diam. Modalitas yang kamu nyatakan ditandai milikmu, jadi refresh katalog tidak pernah mengambilnya kembali, dan jenis di luar kosakata bersama ditolak."
+            },
+            {
+              "id": "reasoning-editor-evidence",
+              "title": "Alt+C membuka di atas bukti",
+              "text": "Editor reasoning dulu membuka dengan hanya Off yang tercentang untuk model yang kata katalog berpikir, dan mengonfirmasinya tanpa mengubah apa pun menuliskan Off itu sebagai pilihanmu — karena itu thinking harus dinyalakan model demi model. Editor kini membuka di atas bukti yang diterbitkan: level yang katalog daftar tercentang, dan apa yang sesi baru mulai adalah yang editor tunjukkan. Enter tanpa menyentuh apa pun tidak menulis apa-apa — bukti tetap jadi default — dan hanya perubahan nyata yang disimpan sebagai milikmu. Bentuk katalog xAI (`capabilities.reasoning_effort`, `capabilities.default_reasoning_effort`) dibaca di samping bentuk OpenRouter."
+            }
+          ]
+        },
+        {
+          "id": "key-rotation",
+          "title": "Rotasi kunci & ketahanan",
+          "points": [
+            {
+              "id": "per-key-allowance",
+              "title": "Tiap kunci punya jatah sendiri",
+              "text": "Retry kini memberi setiap kunci jatah tersendiri (`retry.attempts_per_key`, sepuluh secara default) di samping anggaran seluruh panggilan (`retry.max_attempts`). Kunci yang habis langsung menyerahkan giliran, dan ring berputar sampai jatah global habis."
+            },
+            {
+              "id": "status-names-key",
+              "title": "Baris status menamai kuncinya",
+              "text": "Baris status menyebut kunci dan kedua hitungan, misalnya `Key A · attempt 3 of 10 · 21/100000`, dan setiap rotasi kunci mencatat satu baris di transkrip."
+            },
+            {
+              "id": "no-cooldown",
+              "title": "Kunci yang habis langsung menyerahkan giliran",
+              "text": "Rotasi kunci tidak lagi memakai cooldown tertunda (`retry.credit_cooldown` dipensiunkan di format 29); kunci yang habis langsung memberi jalan ke kunci berikutnya tanpa menghantam rate-limit dengan tunggu nol, dan kunci yang baru ditambahkan tersinkron lintas jendela konkuren tanpa membuka ulang Rune."
+            },
+            {
+              "id": "rename-keys",
+              "title": "Kunci berganti nama tanpa diketik ulang",
+              "text": "Kunci koneksi bisa diganti nama langsung di Settings (`Rename key`) tanpa menghapus dan memasukkan ulang kredensialnya."
+            }
+          ]
+        },
+        {
+          "id": "compaction",
+          "title": "Pemadatan sesi",
+          "points": [
+            {
+              "id": "one-summary-first",
+              "title": "Satu ringkasan sebelum batching",
+              "text": "Kompaksi mengirim satu permintaan ringkasan penuh lebih dulu untuk menjaga konteks percakapan, mundur ke model aktif bila jendelanya lebih besar, dan memecah batch hanya bila provider menolak ukuran payloadnya."
+            },
+            {
+              "id": "resumable-batches",
+              "title": "Batch yang bisa dilanjutkan",
+              "text": "Kompaksi ber-batch melaporkan kemajuan langsung (`batch N · M sources left`), menyimpan carry yang bisa dilanjutkan setelah setiap batch selesai sehingga pekerjaan yang dibatalkan tetap tersimpan, dan mencatat siapa yang memulai pembatalan."
+            }
+          ]
+        },
+        {
+          "id": "tool-execution",
+          "title": "Eksekusi alat & keluaran",
+          "points": [
+            {
+              "id": "no-empty-boxes",
+              "title": "Tidak ada kotak kosong sebelum argumen",
+              "text": "Kotak eksekusi tool ditahan sampai argumen datarnya alih-alih berkedip sebagai kotak perintah kosong, dan teks model yang degenerate di field aksi disaring sehingga tidak pernah menjadi judul langkah."
+            },
+            {
+              "id": "output-ceiling-reserved",
+              "title": "Plafon cocok dengan yang dicadangkan",
+              "text": "Plafon keluaran yang diminta menyamakan token yang dicadangkan oleh anggaran konteks; bila provider menolak permintaan karena melewati batas keluarannya (mis. router penghemat token atau endpoint DeepSeek), plafon otomatis diturunkan untuk permintaan berikutnya di semua peran."
+            },
+            {
+              "id": "notification-tag",
+              "title": "Notifikasi menampilkan tag-nya",
+              "text": "Sebuah system notification menampilkan tag `<system_notification>`-nya di UI terminal untuk membedakan status Rune dari data proses, keluaran tugas digambar di bawah judul `Task_Output` yang bersih, dan baris status notifikasi tidak lagi memakan jatah preview 4 baris."
+            }
+          ]
+        },
+        {
+          "id": "session-view",
+          "title": "Tampilan sesi & file",
+          "points": [
+            {
+              "id": "file-change-stable",
+              "title": "File yang tersentuh tetap terdaftar di setiap mode",
+              "text": "Panel FILES CHANGED tersaring oleh mode izin yang berlaku: file yang ditulis saat full access menyala lenyap dari daftar di mode ask dan muncul kembali di full. Panel ini fakta, bukan izin. File yang sesi sentuh kini tetap terdaftar di setiap mode — dilaporkan dari hitungan rekaman milik mesin sendiri selama path-nya tak terjangkau, dan diff persisnya kembali begitu path terjangkau lagi. Tampilan diffnya mengatakannya dalam kata-kata alih-alih gagal, dan mengembalikan file tetap ditolak di luar jangkauan yang dibutuhkannya."
+            }
+          ]
+        },
+        {
+          "id": "plan-reminders",
+          "title": "Pengingat plan",
+          "points": [
+            {
+              "id": "plan-reminder",
+              "title": "Plan kembali di antara panggilan",
+              "text": "Giliran panjang bisa menyimpang dari plan yang memulainya: plan ditulis sekali, dan tak ada yang mengembalikannya. Di batas antara panggilan tool, Rune kini mengembalikan plan ke agen sebagai system notice — setelah sejumlah panggilan (`plan.reminder_tools`, default delapan) atau setelah waktu berlalu (`plan.reminder_seconds`, default lima belas menit), mana yang kena dulu. Pengingat meminta pemeriksaan, bukan ritual: perbarui plan dengan track_tasks saat jalanmu sudah melebar darinya, lanjutkan dan abaikan saat masih sesuai. Keduanya hidup di rune.toml dan mati di nol; menulis ulang plan memulai ulang kedua jam."
+            }
+          ]
+        },
+        {
+          "id": "runtime-constants",
+          "title": "Konstanta runtime & konfigurasi",
+          "points": [
+            {
+              "id": "fixed-constants",
+              "title": "Tiga puluh tiga konstanta keluar dari settings",
+              "text": "Tiga puluh tiga konstanta runtime internal (`FIXED`) dipisahkan dari setelan pengguna: `-config set` dan `reset` menolaknya, nilai lama di `rune.toml` diabaikan dan dibersihkan saat upgrade ke format 30 tanpa menyentuh komentar, dan referensi settings turun dari 116 ke 85 setelan yang benar-benar bisa diubah."
+            },
+            {
+              "id": "diagnostics-explain",
+              "title": "Diagnostik menamai yang tetap",
+              "text": "`-config check` melaporkan konstanta legacy yang terbawa dan diabaikan dari `rune.toml`, dan `-config explain` menandai dengan jelas konstanta runtime yang bersifat tetap."
+            }
+          ]
+        },
+        {
+          "id": "installer",
+          "title": "Pemasang multi-platform",
+          "points": [
+            {
+              "id": "sourced-path",
+              "title": "Pasang dan pakai di jendela yang sama",
+              "text": "Pasang dan langsung pakai di terminal aktif: di bash, zsh, dan shell POSIX, installer menambahkan foldernya ke PATH shell pemanggil dalam mode sourced (`. <(curl ...)`), sehingga `rune` bisa menyala di jendela yang sama tanpa me-restart shell."
+            },
+            {
+              "id": "install-path-promise",
+              "title": "Janji path pemasangan ditepati",
+              "text": "Biner dipasang ke `~/.local/bin/rune` (atau `RUNE_INSTALL_DIR`); saat folder itu tidak ada di PATH, installer menautkannya ke folder yang sudah ada di PATH atau mencetak satu baris export yang menyelesaikannya — profil shell tidak pernah disunting. Di Windows, PATH sesi aktif dan PATH pengguna di registry diatur."
+            },
+            {
+              "id": "installer-report",
+              "title": "Installer yang melapor dan memperlihatkan",
+              "text": "Installer melaporkan persis apa yang ia ubah dan ke mana biner diletakkan, memeriksa konfigurasi shell yang ada sebelum menyarankan baris setup, dan menampilkan bar unduhan langsung dengan ukuran, laju transfer, dan sisa waktu. Antarmuka installer terpadu lintas platform: branding ASCII identik, langkah status, dan kotak Ready yang sama di Linux, macOS, dan Windows. Perbaikan bug kompatibilitas shell: bug clobber kode-keluar trap EXIT di zsh yang memunculkan laporan Ready palsu dihilangkan, dan panggilan `set +m` non-interaktif yang mematikan shell posh dihapus."
+            }
+          ]
+        }
+      ],
+      "points": []
+    },
+    "0.7.8": {
+      "title": "Linux di semua distribusi, dan perbaikan terminal di tepinya",
+      "paragraphs": [
+        "Rune berhenti bergantung pada satu baseline glibc. Loader runtime mandiri membuat satu build yang sama dapat dijalankan di semua distribusi Linux utama, dan perilaku terminal serta web fetch diselaraskan dengan yang benar-benar dipakai orang."
+      ],
+      "points": [
+        {
+          "id": "runtime-loader",
+          "title": "Satu build untuk semua distro Linux",
+          "text": "Sekarang ini sebuah build Rune bergantung pada versi glibc mesin yang membangunnya, jadi biner bisa menolak menyala di distro lain. Runtime loader mandiri membawa bagian yang mungkin tidak dimiliki sistem, dan build yang sama kini menyala di semua distro Linux utama tanpa rebuild per distro."
+        },
+        {
+          "id": "tmux-palette",
+          "title": "Warna benar di dalam tmux",
+          "text": "Di dalam tmux palet 256-warna dibaca pada offset yang salah, sehingga teks keluar dengan warna tetangganya. Palet kini diindeks seperti yang tmux laporkan, dan penyorotan sintaks di dalam pane tmux tergambar dengan warna persis yang UI pilih."
+        },
+        {
+          "id": "web-fetch-cookies",
+          "title": "Cookie sesi dibawa oleh web_fetch",
+          "text": "Halaman yang menutup kontennya di balik cookie sesi menjawab fetch dengan layar login, bukan halamannya. web_fetch kini menyimpan cookie sesi yang diberikan sebuah respons dan mengirimnya pada permintaan lanjutan fetch yang sama, jadi halaman yang butuh sesi terbaca seperti halaman lain."
+        }
+      ],
+      "sections": [],
+      "summary": "Satu build untuk semua Linux"
+    },
+    "0.8.0": {
+      "title": "Dua puluh preset model dan satu normalisasi dialek",
+      "paragraphs": [
+        "Katalog penyedia bertambah menjadi dua puluh profil model terkalibrasi, dengan ruang untuk endpoint lokal milik Anda sendiri. Di belakangnya ada satu lapisan normalisasi, sehingga endpoint OpenAI, Anthropic, atau gateway yang kompatibel dijelaskan dengan cara yang sama."
+      ],
+      "points": [
+        {
+          "id": "model-presets",
+          "title": "Dua puluh preset model terkalibrasi",
+          "text": "Katalog provider hanya membawa segelintir profil dan sisanya dibiarkan ke tala tangan. Dua puluh preset terkalibrasi menutup provider yang benar-benar dipakai orang, masing-masing dengan jendela konteks, plafon keluaran, dan kontrol thinking yang diketahui, dan satu entri khusus menerima endpoint lokal milikmu sendiri di sampingnya."
+        },
+        {
+          "id": "dialect-normalisation",
+          "title": "Satu normalisasi untuk setiap dialek API",
+          "text": "Endpoint OpenAI, endpoint Anthropic, dan gateway compatible masing-masing berbicara dialek yang sedikit berbeda, dan setiap lapisan tool harus tahu sedang bicara dengan yang mana. Satu lapisan normalisasi kini mendeskripsikannya dengan cara yang sama di hulu, jadi menambah provider tidak lagi mengajari kode lainnya kosakata baru."
+        }
+      ],
+      "sections": [],
+      "summary": "20 preset, satu dialek"
+    },
+    "0.8.1": {
+      "title": "Pemilih sesi menunjuk baris yang benar",
+      "paragraphs": [
+        "Dua gangguan navigasi hilang: kursor di pemilih sesi bergeser satu baris, dan navigasi papan ketik bisa berhenti terlalu cepat saat menelusuri prompt dan sesi lama."
+      ],
+      "points": [
+        {
+          "id": "picker-caret",
+          "title": "Pemilih sesi menyorot baris yang tepat",
+          "text": "Pemilih sesi menghitung baris tersorot dengan indeks nol-basis padahal daftar digambar satu-basis, jadi caret duduk satu baris dari sesi yang dinamainya. Indeksnya kini cocok dengan gambar, dan sorotan mendarat di baris yang dimaksud kursor."
+        },
+        {
+          "id": "archive-navigation",
+          "title": "Menjelajah arsip mencapai setiap halaman",
+          "text": "Navigasi papan ketik lewat prompt dan sesi lama berhenti di batas halaman, bukan melangkah ke halaman berikutnya, membuat entri terlama tak terjangkau papan ketik. Penjelajahan kini melintasi halaman, dan setiap entri arsip terjangkau tanpa mouse."
+        }
+      ],
+      "sections": [],
+      "summary": "Perbaikan pemilih sesi"
+    },
+    "0.8.9": {
+      "title": "Pemadatan menjaga arsitektur, antrean menjaga urutannya",
+      "paragraphs": [
+        "Riwayat lama kini dibersihkan tanpa kehilangan fakta yang menjadi dasar sebuah sesi, dan antrean masuk menjaga urutan kronologisnya walaupun beberapa jendela terminal bertindak bersamaan."
+      ],
+      "points": [
+        {
+          "id": "compaction-architecture",
+          "title": "Kompaksi menjaga fakta tempat sesi berdiri",
+          "text": "Menghapus riwayat kedaluwarsa juga menghapus fakta arsitektur yang dipakai sesi untuk bernalar, menyisakan model menebak bentuk kode yang sudah dipetakan. Kompaksi kini menyimpan fakta-fakta itu sementara detail kedaluwarsa pergi, jadi sesi lama tetap tahu sedang mengerjakan apa."
+        },
+        {
+          "id": "admission-order",
+          "title": "Admisi memegang urutannya di bawah banyak jendela",
+          "text": "Beberapa jendela terminal yang mengirim pekerjaan bersamaan bisa mengacak antrean, sehingga prompt yang dikirim belakangan bisa mulai lebih dulu. Antrean admisi memegang urutan kronologis di bawah konkurensi, dan prompt dimulai sesuai urutan pengirimannya."
+        }
+      ],
+      "sections": [],
+      "summary": "Kompaksi & urutan admisi"
+    },
+    "0.9.0": {
+      "title": "Prompt yang dikirim langsung dikenali",
+      "paragraphs": [
+        "Antrean masuk tidak lagi membiarkan orang menunggu dalam diam. Prompt dikenali seketika, sebelum mesin memulai pekerjaan berat pada giliran itu, dan sesi bertahan melewati restart daemon atau host lewat jurnal peristiwa yang abadi."
+      ],
+      "points": [
+        {
+          "id": "prompt-ack",
+          "title": "Prompt terkirim langsung dijawab",
+          "text": "Mengirim prompt menyisakan jendela sunyi sampai mesin selesai menyiapkan diri — terbaca seperti macet. Prompt kini diakui begitu di-admit, sebelum kerja berat giliran dimulai, dan jendela menunjukkan apa yang terjadi di sela-selanya."
+        },
+        {
+          "id": "journal-resume",
+          "title": "Sesi bertahan lewat restart",
+          "text": "Restart daemon atau host dulu mengakhiri sesi untuk selamanya. Riwayat sesi kini hidup di jurnal event yang tak dapat diubah, dan resume memutar ulang persis apa yang terekam, jadi restart hanya berbiaya restart itu sendiri."
+        }
+      ],
+      "sections": [],
+      "summary": "Ack prompt & resume jurnal"
+    },
+    "0.9.1": {
+      "title": "Niat peluncuran dari tugasnya, dan thinking yang bisa diatur",
+      "paragraphs": [
+        "Apakah sebuah perintah berjalan di depan atau di latar kini diputuskan lewat perencanaan dari ketergantungan tugas itu sendiri, bukan dari nama alat. Rilis yang sama juga membuka pengaturan thinking milik model: mati, atau tingkat effort rendah, lewat gateway."
+      ],
+      "points": [
+        {
+          "id": "launch-intent",
+          "title": "Latar-depan atau latar adalah keputusan planning",
+          "text": "Apakah perintah berjalan di latar-depan atau latar dulu diputuskan oleh tool yang dipilih model, bukan oleh kebutuhan tugasnya. Niat peluncuran kini diturunkan dari ketergantungan tugas itu sendiri — panggilan yang hasilnya dibutuhkan berikutnya tetap latar-depan; pekerjaan yang bisa lanjut tanpa jawaban langsung masuk latar."
+        },
+        {
+          "id": "thinking-controls",
+          "title": "Thinking yang bisa kamu atur lewat gateway",
+          "text": "Thinking sebuah model tidak bisa diarahkan: ia berjalan pada default gateway atau tidak sama sekali. Kontrol reasoning kini mematikan thinking atau memilih level rendah lewat gateway, dan sesi menyimpan pilihan itu sampai kamu mengubahnya."
+        }
+      ],
+      "sections": [],
+      "summary": "Niat peluncuran & thinking"
+    },
+    "0.9.2": {
+      "title": "Seleksi mouse berperilaku seperti terminal",
+      "paragraphs": [
+        "Memilih teks dengan mouse lalu menyalinnya kini mengikuti kebiasaan terminal itu sendiri, termasuk membatalkan seleksi, dengan kursor menjaga koordinatnya dan tanpa hiasan aneh di layar."
+      ],
+      "points": [
+        {
+          "id": "mouse-selection",
+          "title": "Seleksi mouse mengikuti aturan terminal",
+          "text": "Seleksi mouse berperilaku seperti field teks, bukan terminal: seleksinya tidak bersih sebagaimana terminal membersihkannya, dan copy mengambil batas yang tidak kamu pilih. Seleksi, copy, dan clear kini mengikuti konvensi terminal itu sendiri."
+        },
+        {
+          "id": "caret-stability",
+          "title": "Caret yang bertahan di tempatnya",
+          "text": "Seleksi bisa menyeret caret keluar koordinatnya dan menyisakan chrome liar di layar. Caret kini memegang koordinat stabil dan layar tanpa artefak — di frame yang sama dan di tempat yang kamu tinggalkan."
+        }
+      ],
+      "sections": [],
+      "summary": "Seleksi mouse gaya terminal"
+    },
+    "0.9.3": {
+      "title": "Skrip manual, dan referensi yang bisa dibuka",
+      "paragraphs": [
+        "Tanda `!` yang eksplisit menjalankan seluruh skrip multiline melalui gerbang izin dengan akses penuh untuk panggilan itu saja, dan tautan atau rujukan berkas pada output perintah dapat diperiksa dan dibuka di peramban hanya bila Anda memintanya."
+      ],
+      "points": [
+        {
+          "id": "manual-scripts",
+          "title": "Satu `!` menjalankan seluruh script",
+          "text": "Sebuah `!` manual dulu menjalankan satu baris, sehingga rangkaian shell multi-langkah harus dikonfirmasi baris demi baris. Sebuah `!` yang eksplisit kini menjalankan seluruh script multiline melalui gate izin, dengan akses penuh untuk panggilan itu saja, dan classifier serta sanitizer sengaja dilewati untuknya — layar mengatakannya sebelum berjalan."
+        },
+        {
+          "id": "reference-opening",
+          "title": "Referensi terbuka hanya saat kamu minta",
+          "text": "Tautan atau referensi file yang tercetak di keluaran perintah dulu teks polos, atau lebih buruk, terbuka pada klik yang tidak kamu maksud. Mengklik referensi kini menunjukkan seluruh tujuannya lebih dulu; tautan HTTP(S) terbuka di browser hanya pada Open atau Enter eksplisit, dan referensi file tetap copy-only."
+        }
+      ],
+      "sections": [],
+      "summary": "Script manual & tautan"
+    },
+    "0.9.4": {
+      "title": "Pratinjau menampilkan seluruh skrip",
+      "paragraphs": [
+        "Sebelum skrip `!` manual dikonfirmasi, Anda melihat semua barisnya, bukan hanya baris pertama yang dipendekkan. Skrip itu juga mempertahankan konteks percakapan dan direktori kerja yang mendahuluinya."
+      ],
+      "points": [
+        {
+          "id": "script-preview",
+          "title": "Preview menunjukkan setiap baris",
+          "text": "Sebelum script manual dikonfirmasi kamu hanya melihat satu baris terpendek, jadi yang kamu setujui bukan yang kamu jalankan. Preview kini menunjukkan semua baris script persis seperti yang akan dieksekusi."
+        },
+        {
+          "id": "context-and-cwd",
+          "title": "Perintah manual memegang konteksnya",
+          "text": "Sebuah `!` manual dulu berjalan lepas dari percakapan dan direktori tempat kamu bekerja. Ia kini memegang konteks sebelumnya dan direktori kerja aktif, jadi perintah cepat mendarat di tempatmu dan AI membaca sesi yang sama dengan yang kamu lihat."
+        }
+      ],
+      "sections": [],
+      "summary": "Preview script utuh"
+    },
+    "0.9.5": {
+      "title": "Output latar punya tempat sendiri",
+      "paragraphs": [
+        "Proses yang berjalan dan menunggu kini mengalirkan stdout dan stderr ke berkas lognya sendiri, dan mesin mengenali prompt interaktif pada sesi PTY Linux alih-alih membiarkannya tampak seperti diam."
+      ],
+      "points": [
+        {
+          "id": "output-logs",
+          "title": "Keluaran latar mendarat di lognya sendiri",
+          "text": "Proses yang berjalan dan menunggu menghasilkan keluaran yang tak bisa dibaca siapa pun kemudian — ia lenyap bersama terminal. Proses yang berjalan dan menunggu kini mengalirkan stdout dan stderr ke file log khusus, dan path lognya dinamai di tempat keluaran diminta."
+        },
+        {
+          "id": "input-wait",
+          "title": "Prompt interaktif dikenali, bukan dianggap sunyi",
+          "text": "Di sesi PTY Linux, prompt interaktif terlihat seperti sunyi: prosesnya sehat dan menungguimu, dan mesin tidak bisa membedakannya. Tunggu input-yang-diketik kini terdeteksi, dilaporkan sebagai fakta, dan `process_control` adalah cara menjawabnya."
+        }
+      ],
+      "sections": [],
+      "summary": "Log latar & tunggu input"
+    },
+    "0.9.6": {
+      "title": "Composer menampilkan pratinjau saat Anda mengetik",
+      "paragraphs": [
+        "Baris pertama prompt tampil di composer saat Anda mengetik, dan penempatan kursor serta pembungkusan lunak diperbaiki untuk terminal lebar maupun sempit."
+      ],
+      "points": [
+        {
+          "id": "composer-preview",
+          "title": "Composer menunjukkan baris pertama saat kamu mengetik",
+          "text": "Composer tidak memberi petunjuk apa pun tentang prompt panjang sampai ia dikirim. Baris preview pertama kini dialirkan ke composer saat kamu mengetik, jadi instruksi panjang terlihat benar sebelum Enter."
+        },
+        {
+          "id": "cursor-wrap",
+          "title": "Kursor benar di layar lebar dan sempit",
+          "text": "Penempatan kursor dan soft-wrap salah di kedua ujung rentang lebar — terminal lebar menaruh kursor sebelum teks, yang sempit membungkus melewati tepi. Keduanya diperbaiki, dan menyunting terasa sama di lebar mana pun."
+        }
+      ],
+      "sections": [],
+      "summary": "Preview langsung composer"
+    },
+    "0.9.7": {
+      "title": "Baris baru digambar, bukan dilompati",
+      "paragraphs": [
+        "Composer multiline kini menulis penanda baris baru yang eksplisit alih-alih membiarkan pemisah baris mentah menggeser terminal, dan menempelkan perintah shell multiline ke editor tetap responsif."
+      ],
+      "points": [
+        {
+          "id": "newline-preview",
+          "title": "Baris baru digambar, tidak dilompati",
+          "text": "Composer multiline membiarkan pergantian baris mentah menggeser kursor terminal, sehingga baris-baris awal menggulir pergi saat mengetik. Composer kini menulis penanda baris-baru eksplisit (↵) di tempat satu baris berakhir, dan apa yang kamu tulis tetap di tempatnya."
+        },
+        {
+          "id": "paste-responsiveness",
+          "title": "Paste tetap responsif",
+          "text": "Menempel perintah shell multiline membuat editor macet selagi diukur dan digambar ulang. Paste kini responsif, dan blok yang ditempel dipreview utuh sebelum dikirim."
+        }
+      ],
+      "sections": [],
+      "summary": "Penanda baris-baru"
+    },
+    "0.9.8": {
+      "title": "Yang tidak diketahui tetap tidak diketahui",
+      "paragraphs": [
+        "Jumlah byte yang tidak terverifikasi kini diperlakukan sebagai tidak diketahui, bukan diubah menjadi tebakan kapasitas model, dan panduan latar mesin menjelaskan mengapa loop polling shell membuang token serta cara menunggu notifikasi."
+      ],
+      "points": [
+        {
+          "id": "context-truth",
+          "title": "Tidak diketahui tetap tidak diketahui dalam hitungan konteks",
+          "text": "Hitungan byte yang tidak pernah diverifikasi dikonversi menjadi kapasitas model tebakan, dan meter mengukur angka yang tidak pernah diukur siapa pun. Akuntansi konteks ketat kini memperlakukan hitungan tak terverifikasi sebagai tidak diketahui — meter menampilkan tanpa batang, bukan batang tampak-otoritatif yang mengukur nol."
+        },
+        {
+          "id": "background-guidance",
+          "title": "Petunjuk yang menjelaskan kenapa polling berbiaya",
+          "text": "Model mem-poll pekerjaan shell yang sudah berjalan di latar, membayar permintaan untuk mempelajari nol. Petunjuk latar mesin kini menjelaskan kenapa loop polling memboroskan token dan bahwa notifikasi membawa jawabannya, jadi model menunggunya alih-alih bertanya lagi."
+        }
+      ],
+      "sections": [],
+      "summary": "Hitungan konteks jujur"
+    },
+    "0.9.9": {
+      "title": "Satu pemilik per instruksi, dan footer yang menepati janji",
+      "paragraphs": [
+        "Setiap blok instruksi sistem kini punya satu pemilik, sehingga dua sumber tidak bisa lagi saling bertentangan. Footer terminal mempertahankan pembatalan Esc yang siap, hitungan retry, dan kartu konfirmasi izin selama semuanya masih relevan."
+      ],
+      "points": [
+        {
+          "id": "instruction-ownership",
+          "title": "Satu pemilik per blok instruksi",
+          "text": "Dua sumber bisa memegang blok instruksi sistem yang sama dan saling bertentangan di tengah sesi, dan model mengikuti yang datang terakhir. Tiap blok kini punya satu pemilik, dan petunjuk tidak lagi berbolak-balik antar versinya."
+        },
+        {
+          "id": "footer-promises",
+          "title": "Footer yang menepati janjinya",
+          "text": "Footer bisa menjatuhkan Esc yang diarmed, hitungan mundur retry yang berjalan, atau konfirmasi izin saat semuanya masih berlaku, menyisakan keadaan yang layar bantah. Footer kini mempertahankan semuanya tampak selama masih armed, di setiap jendela."
+        }
+      ],
+      "sections": [],
+      "summary": "Pemilik instruksi & footer"
+    },
+    "0.10.0": {
+      "title": "Pemberitahuan pembaruan tetap terlihat",
+      "paragraphs": [
+        "Ketika build baru diambil alih saat Anda bekerja, pemberitahuannya tetap menempel di tampilan sesi aktif alih-alih hilang saat layar digambar ulang, dan seluruh gerbang uji mulai berjalan di mesin Linux, macOS, dan Windows sungguhan."
+      ],
+      "points": [
+        {
+          "id": "update-notice",
+          "title": "Notice pembaruan tetap tersemat",
+          "text": "Build baru yang diserahkan di tengah sesi mengumumkan dirinya lalu lenyap bersama redraw berikutnya, dan notice harus ditangkap sedang kerja. Ia kini bertahan tersemat di tampilan sesi aktif sampai kamu menindaklanjutinya."
+        },
+        {
+          "id": "cross-platform-gate",
+          "title": "Gate berjalan di mesin nyata",
+          "text": "macOS dan Windows dulu hanya dicek tipenya, tak pernah dijalankan. Seluruh gate tes kini berjalan di mesin Linux, macOS (Apple silicon dan Intel), dan Windows nyata, sehingga regresi platform tertangkap sebelum rilis, bukan setelah terpasang."
+        }
+      ],
+      "sections": [],
+      "summary": "Notice pembaruan tersemat"
+    },
+    "0.10.1": {
+      "title": "Bantuan resmi tidak bisa ditimpa",
+      "paragraphs": [
+        "Skill bantuan resmi kini dipasang di tempat yang tidak bisa ditutupi atau ditimpa skill milik pengguna. Direktori upgrade lama dipangkas otomatis agar tidak lagi memenuhi disk."
+      ],
+      "points": [
+        {
+          "id": "help-isolation",
+          "title": "Help resmi tidak bisa dibayangi",
+          "text": "Skill help resmi terpasang di ruang yang sama dengan skill pribadi, sehingga skill milikmu dengan nama sama diam-diam menggantikannya. Ia kini terpasang di tempat yang tidak bisa dibayangi atau ditimpa skill pribadi, dan install serta update menolak paket yang mencoba merebut namanya."
+        },
+        {
+          "id": "upgrade-pruning",
+          "title": "Direktori upgrade lama dipangkas",
+          "text": "Setiap upgrade meninggalkan direktorinya, dan disk terisi satu format demi satu format. Direktori upgrade lama dipangkas otomatis begitu tak ada proses berjalan yang memegangnya, dan revisi saat ini tidak pernah dibuang."
+        }
+      ],
+      "sections": [],
+      "summary": "Isolasi help & pemangkasan"
+    },
+    "0.10.3": {
+      "title": "Output terminal mengatakan apa yang dikatakan program",
+      "paragraphs": [
+        "Gema input shell dipisahkan dari apa yang benar-benar dicetak program, sehingga hasil yang disalin hanya memuat output program itu, dan kalimat aksi sebuah alat mempertahankan deskripsinya saat streaming agar panggilannya tetap dapat diaudit."
+      ],
+      "points": [
+        {
+          "id": "echo-separation",
+          "title": "Yang program katakan, bukan yang kamu ketik",
+          "text": "Echo input shell dan keluaran nyata program mendarat dalam satu aliran, jadi hasil yang disalin membawa kembali perintahmu sendiri. Echo kini dipisahkan, dan hasil yang disalin hanya berisi yang program cetak."
+        },
+        {
+          "id": "action-descriptions",
+          "title": "Kalimat aksi tetap bisa diaudit selama streaming",
+          "text": "Kalimat aksi sebuah tool bisa kehilangan deskripsinya saat panggilan mengalir, menyisakan langkah yang tak bisa diaudit kemudian. Deskripsi kini dipertahankan sepanjang aliran, dan setiap langkah terbaca sebagai apa yang dilakukannya."
+        }
+      ],
+      "sections": [],
+      "summary": "Keluaran terminal bersih"
+    },
+    "0.10.4": {
+      "title": "Kesalahan memakai kata aslinya, dan pengulangan dihitung",
+      "paragraphs": [
+        "`/logs` menampilkan teks kesalahan asli dari penyedia di samping status giliran mesin alih-alih memparafrasenya, dan panggilan yang sama yang dibuat berulang kali dikenali sebelum menghabiskan anggaran permintaan."
+      ],
+      "points": [
+        {
+          "id": "logs-original-errors",
+          "title": "`/logs` mempertahankan kata asli provider",
+          "text": "`/logs` memparafrase error provider sebelum menampilkannya, jadi kata yang kamu tempel ke pencarian atau laporan bug adalah kata Rune, bukan provider. Teks error asli kini duduk di samping status giliran mesin, tanpa diubah."
+        },
+        {
+          "id": "repeat-tracking",
+          "title": "Pengulangan dihitung sebelum berbiaya",
+          "text": "Panggilan sama yang diulang terus tidak disadari sampai anggaran permintaan menunjukkannya. Panggilan identik beruntun kini dilacak dan ditandai sebelum anggaran habis, dengan jumlahnya disebut di notice."
+        }
+      ],
+      "sections": [],
+      "summary": "Error asli, hitungan repeat"
+    },
+    "0.10.5": {
+      "title": "Menunggu bukan berarti mengulang",
+      "paragraphs": [
+        "Loop guard kini membedakan menunggu notifikasi proses dari mengulang perintah yang terus gagal, dan kegagalan sebuah alat datang bersama langkah pemulihan yang sesuai kategorinya."
+      ],
+      "points": [
+        {
+          "id": "wait-vs-loop",
+          "title": "Menunggu bukan berarti looping",
+          "text": "Loop guard dulu memperlakukan menunggu notifikasi latar seperti mengulang perintah yang gagal terus, dan memarahi model karena menunggu dengan benar. Keduanya kini dibedakan: menunggu notifikasi dijawab oleh notifikasinya, dan hanya pengulangan sungguhan yang diperingatkan."
+        },
+        {
+          "id": "recovery-advice",
+          "title": "Saran pemulihan di setiap kegagalan",
+          "text": "Kegagalan tool dulu datang sebagai error polos, dan model harus mengarang sendiri langkah pemulihannya. Diagnostik kini membawa saran pemulihan yang cocok dengan kategori kegagalan, sehingga panggilan berikutnya mencoba hal yang benar, bukan yang sama."
+        }
+      ],
+      "sections": [],
+      "summary": "Tunggu vs loop, saran pulih"
+    },
+    "0.10.6": {
+      "title": "Hasil alat adalah data, peringatan adalah notice",
+      "paragraphs": [
+        "Hasil alat kini hanya membawa datanya sendiri; peringatan pengulangan datang sebagai notice sistem, dengan jeda yang makin melebar, dan ia memberi tahu apa yang harus dilakukan: berhenti mem-polling tugas latar, atau ubah pendekatan."
+      ],
+      "points": [
+        {
+          "id": "pure-results",
+          "title": "Hasil tool hanya membawa datanya",
+          "text": "Peringatan repetisi dijahit ke dalam hasil tool, jadi model membaca nasihat di dalam yang seharusnya keluaran perintah. Hasil tool kini data murni; peringatan jalan sebagai baris `<system_notice>` pada cadence yang melebar, di tempat seharusnya."
+        },
+        {
+          "id": "actionable-warnings",
+          "title": "Peringatan yang menyebut langkahnya",
+          "text": "Peringatan loop dulu hanya menamai pengulangannya lalu berhenti. Ia kini membawa langkah yang cocok: berhenti mem-poll tugas latar dan tunggu notifikasinya, atau ubah pendekatan dan coba hal lain."
+        }
+      ],
+      "sections": [],
+      "summary": "Hasil murni, notice"
+    },
+    "0.10.7": {
+      "title": "Plafon output berasal dari penyedia",
+      "paragraphs": [
+        "Plafon output gateway kini dibaca dari `max_tokens` milik penyedia, bukan dari anggaran thinking yang rendah, yang sebelumnya memotong jawaban panjang. Penyelesaian lebih dari sepuluh ribu token kini selesai normal."
+      ],
+      "points": [
+        {
+          "id": "output-ceiling",
+          "title": "Plafon datang dari provider",
+          "text": "Plafon keluaran sebuah gateway dulu diambil dari budget thinking yang rendah, dan jawaban panjang terpotong pada ukuran yang tidak pernah disengaja provider. Plafon kini dibaca dari `max_tokens` milik provider sendiri, dan jawaban berjalan sampai panjang yang endpoint izinkan."
+        },
+        {
+          "id": "long-completions",
+          "title": "Completions panjang selesai",
+          "text": "Completions terukur gagal di 8.188 token. Dengan plafon yang benar, completions terverifikasi lebih dari sepuluh ribu token selesai normal alih-alih berhenti di tengah kalimat."
+        }
+      ],
+      "sections": [],
+      "summary": "Plafon keluaran provider"
+    },
+    "0.10.9": {
+      "title": "Memori, alias, dan cookie",
+      "paragraphs": [
+        "Prompt memori proyek kini menyatakan dengan jelas untuk apa memori dan bahwa ia dipertahankan antar sesi. Argumen alat menerima alias yang benar-benar diketik orang, path yang salah mendapat kandidat terdekat, dan web fetch membawa cookie sesi melewati redirect dengan sendirinya."
+      ],
+      "points": [
+        {
+          "id": "memory-prompt",
+          "title": "Memory menyebut untuk apa ia ada",
+          "text": "Prompt memori tidak pernah menyebut bahwa catatan bertahan melewati sesi, jadi model menulis ringkasan alih-alih pengalaman. Ia kini menyatakan terus terang untuk apa memori ada dan bahwa ia disimpan lintas sesi, dan sebuah catatan layak ada bila mencatat sebabnya."
+        },
+        {
+          "id": "argument-aliases",
+          "title": "Argumen menerima yang orang ketik",
+          "text": "Argumen tool menolak alias yang benar-benar diketik orang (`rm` untuk `remove`, `del` untuk `delete`), dan path salah kembali sebagai kegagalan polos. Alias kini diterima, path salah menamai kandidat terdekat, dan teks `action` di-clamp ke batasnya."
+        },
+        {
+          "id": "fetch-cookies",
+          "title": "Cookie mengikuti redirect",
+          "text": "Fetch yang melewati redirect kehilangan cookie sesinya, dan halaman di balik redirect menjawab dengan login. web_fetch membawa cookie sesi melintasi redirect dengan sendirinya, tanpa header manual."
+        }
+      ],
+      "sections": [],
+      "summary": "Memory, alias, cookie"
+    },
+    "0.10.10": {
+      "title": "Lebih sedikit polling sia-sia, kesalahan berkas lebih jelas",
+      "paragraphs": [
+        "System prompt kini menjelaskan apa yang menjadi ketergantungan tugas latar, sehingga model berhenti mem-polling pekerjaan yang sudah berjalan. Alat berkas menjawab path yang salah dengan kandidat terdekat dan menolak patch basi dengan panduan, bukan kegagalan kosong."
+      ],
+      "points": [
+        {
+          "id": "background-dependencies",
+          "title": "Prompt menjelaskan ketergantungan tugas latar",
+          "text": "Prompt sistem tidak pernah menyebut apa yang digantungkan sebuah tugas latar, jadi model mem-poll pekerjaan yang sudah berjalan dan membayar permintaan untuk mempelajari nol. Prompt kini menjelaskan ketergantungannya, dan poll yang sia-sia berhenti."
+        },
+        {
+          "id": "file-error-guidance",
+          "title": "Error file yang menunjuk ke tempat berguna",
+          "text": "Path salah gagal dengan path itu sendiri di-echo kembali, dan patch usang gagal tanpa apa pun selain kegagalan. File tool kini menjawab dengan kandidat terdekat yang ada, dan patch usang menjelaskan apa yang harus dibaca ulang alih-alih menolak diam-diam."
+        }
+      ],
+      "sections": [],
+      "summary": "Poll kurang, error jelas"
+    },
+    "0.11.0": {
+      "title": "Tidak ada header kosong di atas respons kosong",
+      "paragraphs": [
+        "Respons yang dialirkan dan dimulai dengan spasi atau baris kosong dulu menggambar header `Response` kosong. Header kini hanya digambar bila ada teks, dan byte-nya tetap lewat tanpa diubah, tanpa regex dan tanpa pemangkasan yang merusak."
+      ],
+      "points": [
+        {
+          "id": "no-empty-header",
+          "title": "Tidak ada header kosong di atas respons kosong",
+          "text": "Respons yang dialirkan dan diawali whitespace atau baris kosong menggambar header `Response` tanpa isi, dan layar memperlihatkan judul tanpa badan. Header kini digambar hanya bila ada teks di bawahnya."
+        },
+        {
+          "id": "byte-fidelity",
+          "title": "Byte lewat tanpa disentuh",
+          "text": "Perbaikannya bisa saja memangkas atau menulis ulang aliran, dan pemangkasan lossy akan mengubah apa yang model benar-benar katakan. Tidak ada yang ditulis ulang: tanpa regex, tanpa pemangkasan lossy, dan byte persis yang dibawa respons tetap sampai ke layar."
+        }
+      ],
+      "sections": [],
+      "summary": "Tanpa header respons kosong"
+    },
+    "0.11.1": {
+      "title": "Jawaban yang berulang dihentikan saat streaming",
+      "paragraphs": [
+        "Mesin kini mengenali respons yang mengulang satu unit pendek terus-menerus dan menghentikannya saat tiba, tanpa plafon panjang token. Anda lalu ditanya, lewat formulir yang sudah Anda kenal, apakah teks sebelum pengulangan dipertahankan atau pesannya dibuang."
+      ],
+      "points": [
+        {
+          "id": "repetition-guard",
+          "title": "Jawaban yang berulang dihentikan saat mengalir",
+          "text": "Model yang mengulang satu unit pendek selamanya dulu mengalir sampai permintaannya mati karena ukurannya sendiri. Mesin kini mengenali pengulangannya — satu unit eksak 1–64 byte, minimal 4 KiB dan 16 pengulangan, atau 16 KiB untuk unit whitespace — dan menghentikannya saat ia tiba, tanpa plafon panjang token."
+        },
+        {
+          "id": "keep-or-discard",
+          "title": "Simpan yang tertulis, atau buang",
+          "text": "Respons yang dihentikan menyisakan pertanyaan apa yang disimpan tanpa jawaban di layar. Form klarifikasi yang sudah kamu kenal menanyakan apakah menyimpan teks yang tertulis sebelum pengulangan atau membuang pesannya; tanpa jawaban ia disimpan, dan hanya Discard eksplisit yang membuangnya."
+        },
+        {
+          "id": "no-false-positives",
+          "title": "Data nyata tidak pernah dikira loop",
+          "text": "Baris minified, data URI base64, hash, pemisah tabel, dan aturan Markdown semuanya terlihat seperti repetisi bagi penghitung naif. Aturan byte membaca struktur, dan tak satu pun dari itu dihentikan; kecepatan streaming normal tak berubah."
+        }
+      ],
+      "sections": [],
+      "summary": "Penjaga repetisi"
+    },
+    "0.11.2": {
+      "title": "Celah yang tidak lagi menggantung",
+      "paragraphs": [
+        "Respons selaan meninggalkan baris kosong yang menggantung, sehingga panggilan alat berikutnya terdorong ke bawah layar. Baris kosong di ujung kini dipangkas dan jarak antar-panggilan alat menjadi satu tinggi yang konsisten."
+      ],
+      "points": [
+        {
+          "id": "no-dangling-gaps",
+          "title": "Respons selaan tidak menyisakan celah",
+          "text": "Respons selaan meninggalkan baris kosong menggantung, dan tiap celah mendorong panggilan tool berikutnya turun di layar. Baris kosong di ekor dipangkas di renderer, dan ruang setelah respons selaan tinggal nol."
+        },
+        {
+          "id": "uniform-spacing",
+          "title": "Satu spine yang konsisten antar panggilan",
+          "text": "Jarak antara satu panggilan tool dan berikutnya bergantung pada apa yang diakhiri respons sebelumnya. Spine kini satu jarak yang konsisten, dan transkrip berisi banyak panggilan terbaca rata alih-alih menyebar."
+        }
+      ],
+      "sections": [],
+      "summary": "Tanpa celah menggantung"
+    },
+    "0.11.3": {
+      "title": "Satu alat untuk proses latar",
+      "paragraphs": [
+        "Pekerjaan latar dikelola satu alat `process_control` dengan aksi `type` dan `stop`. Dua alat lama dihapus, sehingga ada satu tempat untuk melihat dan tidak ada lagi pilihan parameter yang membingungkan, dan upgrade format 28 membawa catatan sesi lama dengan mulus."
+      ],
+      "points": [
+        {
+          "id": "one-background-tool",
+          "title": "Satu tool untuk proses latar",
+          "text": "Pekerjaan latar dikelola dua tool dengan argumen yang tumpang-tindih, dan memilih di antaranya adalah tebakan. Satu tool `process_control` dengan aksi `type` dan `stop` mengerjakan keduanya kini, dan hanya ada satu tempat untuk dicari."
+        },
+        {
+          "id": "legacy-tools-removed",
+          "title": "Duo ambigu itu pergi",
+          "text": "`terminal_input` dan `kill_task` masih terdeklarasi di samping tool baru, jadi model bisa memilih jalur legacy dan separuh parameternya tak bermakna di sana. Keduanya dihapus, dan ambiguitasnya bersamaannya."
+        },
+        {
+          "id": "format-28-upgrade",
+          "title": "Sesi lama terbawa",
+          "text": "Sesi yang terekam di bawah tool lama harus selamat dari perubahan. Satu langkah upgrade format-28 memindahkan rekaman sesi lama ke tool terpadu sekali, dan satu rekaman rusak tidak pernah menggagalkan langkahnya."
+        }
+      ],
+      "sections": [],
+      "summary": "Satu tool latar"
+    },
+    "0.11.4": {
+      "title": "Notifikasi yang membawa output-nya sendiri",
+      "paragraphs": [
+        "Akhir sebuah tugas latar kini datang sebagai satu notifikasi mandiri: bagaimana ia berakhir, pid-nya, dan output yang belum diberikan kepada Anda, sudah di-defuse dan dibatasi. Ini menggantikan roundtrip bangun tambahan yang dulu mengambil detail itu, dan sebuah stop kini mencapai seluruh pohon proses."
+      ],
+      "points": [
+        {
+          "id": "self-contained-notifications",
+          "title": "Notifikasi membawa keluarannya sendiri",
+          "text": "Akhir tugas latar dulu hanya mengumumkan dirinya dan membuat model bertanya lagi untuk keluarannya — satu roundtrip wake-up per tugas. Notifikasi kini membawa keluaran yang belum kamu terima — dinetralkan dan dibatasi — di dalam event itu sendiri."
+        },
+        {
+          "id": "one-packet-metadata",
+          "title": "Semuanya tiba dalam satu paket",
+          "text": "Bagaimana tugas berakhir, kode keluarnya, dan baris-baris terbarunya menempuh jawaban terpisah. Metadata, exit code, dan baris terbaru kini tiba dalam satu paket, dan panggilan wake tambahan hilang."
+        },
+        {
+          "id": "tree-termination",
+          "title": "Stop mencapai seluruh pohon",
+          "text": "Menghentikan tugas dulu membunuh proses yang kamu namai dan membiarkan anak-anaknya berjalan. Stop kini mengakhiri seluruh pohon proses, dan tak ada yang ia mulai bertahan hidup."
+        }
+      ],
+      "sections": [],
+      "summary": "Notifikasi bawa keluaran"
+    },
+    "0.11.5": {
+      "title": "Mulai pertama, dan pola path Windows",
+      "paragraphs": [
+        "Dua kesalahan yang ditemukan di mesin sungguhan sudah diperbaiki: pada mulai pertama, skill bantuan resmi memeriksa dirinya sementara sesi sedang dibuat, dan di Windows pola path yang berakhir dengan titik atau spasi tidak ditangani. Suite smoke juga memeriksa mulai di lingkungan bersih pada setiap platform."
+      ],
+      "points": [
+        {
+          "id": "first-start-race",
+          "title": "Start pertama tidak lagi membalap dirinya",
+          "text": "Pada start pertama, skill help resmi memverifikasi dirinya saat sesi masih dibuat, dan keduanya bertabrakan. Verifikasi menunggu sesi ada kini, dan start pertama adalah start bersih."
+        },
+        {
+          "id": "windows-path-patterns",
+          "title": "Path Windows berakhiran titik atau spasi",
+          "text": "Di Windows, pola path yang berakhiran titik atau spasa salah ditangani, dan file yang namanya berakhiran begitu tak bisa dicocokkan. Polanya kini ditangani, dan file itu ditemukan seperti file lain."
+        },
+        {
+          "id": "clean-start-smoke",
+          "title": "Smoke suite memulai dari bersih",
+          "text": "Smoke suite menguji upgrade tapi tidak pernah start pertama di mesin polos. Start lingkungan bersih dicek di POSIX dan Windows kini, dan rilis tidak bisa keluar tanpa membuktikannya."
+        }
+      ],
+      "sections": [],
+      "summary": "Start pertama & path Windows"
+    },
+    "0.11.6": {
+      "title": "Apa yang boleh dilakukan skrip manual, dinyatakan jelas",
+      "paragraphs": [
+        "Layar shell manual kini menjelaskan batas eksekusi sebuah perintah `!` dengan kata-kata: akses apa yang dimilikinya, dan bahwa classifier serta sanitizer dilewati untuk panggilan itu. Perkataannya sesuai dengan yang terjadi di shell POSIX dan di Windows ConPTY."
+      ],
+      "points": [
+        {
+          "id": "manual-boundary-words",
+          "title": "Apa yang boleh dilakukan script manual, dalam kata-kata",
+          "text": "Layar shell manual menjalankan perintah `!` tanpa menyebut akses apa yang dibawanya, jadi batasnya sesuatu yang harus sudah kamu tahu lebih dulu. Layar kini menjelaskan batas eksekusinya dalam kata-kata: akses penuh untuk panggilan itu, tercatat jelas."
+        },
+        {
+          "id": "bypass-semantics",
+          "title": "Bypass-nya disebut, bukan ditemukan",
+          "text": "Classifier dan sanitizer dilewati untuk satu panggilan manual — memang begitu rancangannya — dan tak ada di layar yang mengakuinya. Redaksinya kini menyebut persis itu, dan cocok dengan yang terjadi di shell POSIX maupun Windows ConPTY."
+        }
+      ],
+      "sections": [],
+      "summary": "Batas manual dalam kata"
+    },
+    "0.11.7": {
+      "title": "Sebuah pikiran tidak dibelah teks sesudahnya",
+      "paragraphs": [
+        "Reasoning bisa tiba berselang-seling dengan jawaban, sehingga satu kalimat pemikiran terpotong oleh kata pertama balasan. Delta reasoning kini dievaluasi sebelum delta teks, dan fragmen satu putaran digabung, menjaga batas bersih sebelum teks final."
+      ],
+      "points": [
+        {
+          "id": "reasoning-before-text",
+          "title": "Pikiran tidak dipecah oleh jawaban",
+          "text": "Delta reasoning dan delta teks datang berselang-seli, jadi kata-kata pertama jawaban memotong separuh kalimat thinking. Reasoning kini dievaluasi persis sebelum teks, dan satu pikiran terbaca utuh sebelum jawaban dimulai."
+        },
+        {
+          "id": "round-coalescing",
+          "title": "Pecahan pikiran menyatu ke round-nya",
+          "text": "Pecahan satu round thinking datang sebagai blok terpisah, masing-masing dengan header sendiri di layar. Pecahan kini digabung per round, dan satu round thinking adalah satu blok."
+        },
+        {
+          "id": "handover-ack",
+          "title": "Sesi anak diakui sebelum dilepas",
+          "text": "Handover multi-hop melepas host induk sebelum sesi anak mengakui rekaman barunya, dan kecelakaan di sela itu kehilangan handover. Anak mengakui lebih dulu kini, dan induk melepas hanya sesudahnya."
+        }
+      ],
+      "sections": [],
+      "summary": "Thinking tetap utuh"
+    },
+    "0.11.8": {
+      "title": "Berganti mode saat streaming tidak lagi menggambar ulang footer",
+      "paragraphs": [
+        "Mengubah mode izin saat respons dialirkan dulu menghitung ulang prioritas dan menyusun ulang footer tanpa alasan. Notice status yang sedang Anda baca kini bertahan melewati pergantian itu, dan janji footer tetap utuh di setiap jendela."
+      ],
+      "points": [
+        {
+          "id": "no-midstream-reflow",
+          "title": "Ganti mode berhenti menggambar ulang footer",
+          "text": "Mengubah mode izin saat respons mengalir menghitung ulang prioritas dan menggambar ulang kolom footer tanpa alasan, dan layar melompat di bawah teks yang kamu baca. Pergantian tak lagi memicu reflow, dan aliran tetap di tempatnya."
+        },
+        {
+          "id": "notice-survival",
+          "title": "Notice status selamat dari pergantian",
+          "text": "Notice status yang sedang kamu baca bisa dihapus oleh ganti mode itu sendiri. Notice aktif kini dipertahankan lewat peralihan di tengah aliran, dan yang sudah disampaikan tetap tersampaikan."
+        },
+        {
+          "id": "priority-promises",
+          "title": "Janji footer berlaku di setiap jendela",
+          "text": "Pembatalan Esc, retry linier, dan dialog konfirmasi bisa kehilangan prioritasnya di satu jendela sementara jendela lain memegangnya. Janji-janji itu memegang prioritas di setiap jendela kini, dan tak ada jendela yang tertinggal."
+        }
+      ],
+      "sections": [],
+      "summary": "Footer stabil di tengah aliran"
+    },
+    "0.11.9": {
+      "title": "Pola path bergrup, dicari dalam satu panggilan",
+      "paragraphs": [
+        "find_files dan filter include pada search_text kini mengekspansi alternatif kurung kurawal dalam sebuah path, termasuk grup bersarang, bersama alternatif `|`. Pola seperti `*.{ts,tsx}` menjadi satu panggilan atas satu penelusuran direktori, bukan beberapa, dan tidak ada skema penyedia yang diubah untuk itu."
+      ],
+      "points": [
+        {
+          "id": "brace-expansion",
+          "title": "Pola berkelompok meluas secara native",
+          "text": "Pola seperti `*.{ts,tsx}` dulu diberikan ke filesystem sebagai teks literal dan tidak mencocokkan apa pun. Alternatif brace — termasuk kelompok bersarang — dan alternatif `|` meluas secara native kini, di mesin, sebelum walk dimulai."
+        },
+        {
+          "id": "one-call-search",
+          "title": "Satu panggilan, satu walk",
+          "text": "Mencari pola berkelompok berarti satu panggilan per alternatif, masing-masing berjalan menyapu pohon yang sama. find_files dan filter include milik search_text mencari pola berkelompok dalam satu panggilan atas satu walk kini."
+        },
+        {
+          "id": "no-declaration-change",
+          "title": "Yang lain tak perlu berubah",
+          "text": "Perubahan sedalam ini bisa saja menyentuh deklarasi tool atau format basis data. Ia tidak: peluasan terjadi di mesin, tak ada deklarasi provider yang berubah, dan tak ada format basis data yang pindah."
+        }
+      ],
+      "sections": [],
+      "summary": "Pola path berkelompok"
+    }
   }
- },
- "chapters": {
-  "Plan": "Rencana",
-  "Build": "Bangun",
-  "Test": "Uji",
-  "Fix": "Perbaiki",
-  "Verify": "Verifikasi",
-  "Report": "Laporan"
- },
- "install_note": {
-  "none": "Belum ada rilis bertanda tangan yang diterbitkan. Saat ini perintah tersebut keluar tanpa memasang apa pun.",
-  "missing": "Rilis {version} tidak memiliki build {system} bertanda tangan. Perintah tersebut keluar tanpa memasang apa pun.",
-  "release": "Rilis {version}, terbit {date}, untuk {system} ({builds}).",
-  "beta": "Dukungan {system} masih beta.",
-  "and": "dan"
- },
- "notes": {
-  "0.12.4": {
-   "title": "Metrik footer turn, prompt mode shell composer, wizard collapsible, dan ketahanan paste mobile",
-   "paragraphs": [
-    "Setiap turn inferensi yang selesai kini menampilkan footer metrik dengan durasi kerja, jumlah token ringkas, penghitung langkah tool, dan jam selesai format 24 jam yang tetap konsisten saat resume maupun antar-jendela. Composer kini memiliki glyph prompt mode shell orisinal dengan batas navigasi kursor presisi, wizard pertanyaan dapat diciutkan demi menjaga ruang vertikal obrolan, posisi scroll side panel dipertahankan saat mengirim prompt, dan paste unbracketed tidak lagi memicu pengiriman prematur."
-   ],
-   "points": [
-    {
-     "id": "turn-metrics-footer",
-     "title": "Footer metrik turn dengan jam 24 jam, format token ringkas, dan pelacakan status",
-     "text": "Turn yang selesai merender bullet status tenang, durasi pengerjaan, total token format ringkas (mis. 12.4K in · 450 out), jumlah langkah tool, jam selesai 24 jam murni tanpa AM/PM, serta status jujur saat menunggu task background, dibatalkan, atau gagal."
-    },
-    {
-     "id": "shell-mode-and-palette",
-     "title": "Glyph mode shell di composer, batas kursor rapi, dan filter intensi palette /",
-     "text": "Mengetik `!` sebagai karakter pertama mengubah glyph composer menjadi tanda seru `!` tebal amber dengan spasi bersih dan batas kursor navigasi presisi, sementara command palette `/` menolak trigger pada path berkas, spasi kosong, dan kalimat tanya."
-    },
-    {
-     "id": "collapsible-questions-and-paste",
-     "title": "Wizard pertanyaan collapsible, preservasi scroll panel, dan ketahanan paste burst",
-     "text": "Modal `ask_user_questions` kini dapat diciutkan dengan Alt+H atau klik header menjadi tab ringkas 3 baris demi membebaskan ruang layar obrolan, pengiriman pesan mempertahankan posisi scroll side panel, dan paste burst unbracketed di Termux masuk utuh tanpa terkirim prematur."
-    }
-   ],
-   "summary": "Footer metrik turn, prompt mode shell, wizard collapsible & ketahanan paste"
-  },
-  "0.12.3": {
-   "title": "Kontrol panel samping khusus Ctrl+O, prompt XML terstruktur, dan normalisasi input tool",
-   "paragraphs": [
-    "Menekan tombol Esc saat percakapan diam kini tidak lagi menyembunyikan panel samping, menjaga kontrol visibilitas panel sepenuhnya melalui Ctrl+O, /panel, dan pengaturan Appearance. System prompt statis serta prompt subsistem auxiliar kini menata aturan ke dalam subbagian XML yang tegas dengan kontrak tunggal parameter `action` di skema tool, penamaan sesi menolak prosa balasan obrolan, dan tool interaktif menormalkan format pertanyaan sekaligus memblokir perintah shell ke alias virtual `@memory/`."
-   ],
-   "points": [
-    {
-     "id": "side-panel-toggle-only",
-     "title": "Panel samping hanya dihidupkan dan dimatikan lewat Ctrl+O atau /panel",
-     "text": "Menekan Esc saat tidak ada panel overlay yang terbuka kini hanya membersihkan status sementara di baris kaki tanpa menutup panel samping percakapan, sehingga kendali on/off panel samping murni lewat Ctrl+O, /panel, atau menu Appearance."
-    },
-    {
-     "id": "structured-xml-prompts",
-     "title": "Prompt XML hierarkis dan penyaringan ketat judul sesi",
-     "text": "System prompt utama serta instruksi auxiliar untuk pemadatan riwayat, classifier kebijakan, sanitizer bukti, dan penamaan sesi kini mengelompokkan aturan dalam tag XML eksplisit, menempatkan panduan `action` hanya di skema tool, serta menolak jawaban obrolan atau multibaris saat model menamai sesi."
-    },
-    {
-     "id": "tool-normalization-and-memory-alias",
-     "title": "Normalisasi pertanyaan fleksibel dan perlindungan alias virtual @memory/",
-     "text": "`ask_user_questions` kini menerima karakter baris baru dan tab sambil menormalkan struktur pertanyaan datar, pembungkus objek tunggal, opsi string, dan alias tipe sebelum validasi, sedangkan `terminal_use` menolak perintah yang menargetkan `@memory/` dengan arahan ke tool berkas bawaan."
-    }
-   ],
-   "summary": "Panel Ctrl+O, prompt XML & normalisasi tool"
-  },
-  "0.12.2": {
-   "title": "Keamanan preview terminal, status reasoning akurat, dan navigasi settings",
-   "paragraphs": [
-    "Judul langkah terminal kini terlindungi dari kebocoran skrip multiline saat deskripsi action terlambat di-stream, ringkasan reasoning model secara akurat mencerminkan status aktif katalog dan sesi, penghapusan key koneksi berjalan bersih saat dikonfirmasi, dan navigasi daftar settings dapat melintasi baris read-only dengan aksen tema serta ekspansi penuh saat difokuskan."
-   ],
-   "points": [
-    {
-     "id": "terminal-heading-preview",
-     "title": "Judul terminal tidak membocorkan skrip multiline",
-     "text": "Saat model menjalankan `terminal_use` dengan skrip multiline dan deskripsi action datang terlambat atau tidak ada, judul langkah kini membatasi preview secara rapi ke baris perintah pertama dengan tanda elipsis, mencegah kode skrip mentah tumpah ke luar kotak terminal."
-    },
-    {
-     "id": "reasoning-summary-status",
-     "title": "Status thinking akurat pada pengaturan model",
-     "text": "Tampilan konfigurasi model pada Settings kini membaca status efektif `starts_thinking` alih-alih setelan kosong, secara benar menampilkan dukungan reasoning sebagai On untuk model yang aktif thinking-nya dari katalog atau adapter."
-    },
-    {
-     "id": "connection-drop-key",
-     "title": "Penghapusan API key berjalan saat konfirmasi",
-     "text": "Memilih tombol konfirmasi untuk menghapus API key kini langsung mengeksekusi perintah drop key, memperbaiki kendala pencocokan teks yang sebelumnya menggagalkan penghapusan."
-    },
-    {
-     "id": "settings-read-only-navigation",
-     "title": "Navigasi baris read-only dan ekspansi fokus",
-     "text": "Navigasi keyboard dan scroll mouse di Settings kini dapat menelusuri baris informasi tarif dan fakta hingga paling bawah dengan warna aksen tema, tanpa chevron interaktif, dan memperluas label yang terpotong secara penuh saat difokuskan."
-    }
-   ],
-   "summary": "Preview terminal, status reasoning & navigasi settings"
-  },
-  "0.12.1": {
-   "title": "Urutan pesan kawat untuk hasil tool dan timer pengingat plan yang persisten",
-   "paragraphs": [
-    "Pemberitahuan sistem yang disisipkan di antara pemanggilan tool milik asisten dan hasilnya dapat melanggar aturan protokol kawat ketat pada endpoint OpenAI dan OpenAI-compatible, menyebabkan permintaan ditolak. Seluruh hasil tool kini dicatat sebelum pemberitahuan konteks apa pun dimunculkan, urutan pembacaan menormalkan transkrip historis, dan timer jam pengingat plan andal dimulai sejak pemanggilan tool pertama pada sesi yang sudah ada sebelumnya."
-   ],
-   "points": [
-    {
-     "id": "tool-result-ordering",
-     "title": "Hasil tool mendahului pemberitahuan konteks",
-     "text": "Pemberitahuan sistem (seperti pengingat plan dan peringatan perulangan) kini ditunda hingga seluruh pemanggilan tool dalam satu putaran model selesai dicatat hasilnya di basis data, memastikan kepatuhan ketat terhadap protokol OpenAI bahwa pesan tool harus langsung menyusul tool_calls tanpa disela pesan user."
-    },
-    {
-     "id": "reading-order-normalization",
-     "title": "Urutan baca menormalkan riwayat berseling",
-     "text": "Tahap pengurutan baca sesi mengelompokkan hasil tool tepat setelah pesan asisten padanannya sebelum pemberitahuan konteks yang menyelingi, melindungi transkrip lama dan impor dari penolakan validasi protokol kawat."
-    },
-    {
-     "id": "wall-clock-timer-preexisting",
-     "title": "Timer jam mulai pada pemanggilan tool pertama",
-     "text": "Saat sesi dilanjutkan dengan plan yang sudah ada sebelumnya dan `plan.reminder_seconds` aktif, jam timer mulai menghitung waktu berlalu sejak pemanggilan tool pertama pada sesi tersebut alih-alih diam hingga `track_tasks` ditulis ulang."
-    }
-   ],
-   "summary": "Urutan pesan tool & timer plan"
-  },
-  "0.12.0": {
-   "title": "Retry yang menjelaskan dirinya, ringkasan yang bisa dilanjutkan, dan pemasangan yang langsung bisa dipakai",
-   "paragraphs": [
-    "Rate limit dulu mengubah satu permintaan menjadi deretan angka yang tidak bisa dibaca, dan ringkasan sesi panjang bisa berjalan bermenit-menit lalu membuang hasilnya saat dibatalkan. Kini retry membawa dua jatah terpisah dan menyebut key yang sedang memakainya, compaction meminta satu ringkasan utuh lebih dulu dan menyimpan progres per batch, dan endpoint kustom diberi tahu protokol kawatnya secara eksplisit. Dukungan gambar pada gateway OpenAI-compatible kini dikenali, laporan biaya nol tidak lagi membekukan pelacakan spend, skrip pemasang langsung aktif di shell yang sama tanpa mengedit file profil, dan nilai internal penjaga sistem kini menjadi konstanta alih-alih pengaturan."
-   ],
-   "summary": "Retry, pemadatan & pemasang",
-   "sections": [
-    {
-     "id": "model-providers",
-     "title": "Penyedia model & dukungan gambar",
-     "points": [
-      {
-       "id": "custom-provider",
-       "title": "Custom provider menamai format kawatnya",
-       "text": "Preset koneksi kustom diganti nama dari `compatible` menjadi `Custom provider`, dan kini memilih protokol kawat secara eksplisit: OpenAI-compatible (`/chat/completions` dengan token Bearer) atau Anthropic-compatible (`/v1/messages` dengan `x-api-key`)."
-      },
-      {
-       "id": "vision-declaration",
-       "title": "Vision dideklarasikan di katalog",
-       "text": "Endpoint yang mendeklarasikan kemampuan multimodal sebagaimana gateway OpenAI-compatible biasa — `supported_parameters` menamai `vision` (DeepRelay dan lainnya) — kini memiliki dukungan vision yang dikenali di katalog model, alih-alih keliru dilaporkan 'support is not published'. Endpoint yang tidak menerbitkan apa pun tentang modelnya tetap jujur 'not published', dan Alt+C › Modalities adalah tempat kamu mendeklarasikannya sendiri (lihat di bawah)."
-      },
-      {
-       "id": "zero-cost-pricing",
-       "title": "Laporan biaya nol menjaga harga",
-       "text": "Saat endpoint melaporkan biaya pemakaian nol (mis. model tercakup paket di DeepRelay yang mengembalikan `usage.cost: 0`), harga model yang kamu atur di Settings dipertahankan alih-alih ditimpa nol, sehingga pelacakan spend tetap akurat lintas sesi."
-      },
-      {
-       "id": "model-modalities",
-       "title": "Modalities yang bisa kamu deklarasikan per model",
-       "text": "Gateway yang /models-nya tidak mengatakan apa pun tentang modelnya tidak pernah bisa menerima gambar: Rune menolak setiap lampiran dengan 'support is not published' karena memang tidak ada yang menerbitkannya. Alt+C (Settings › Models › Modalities) kini membiarkan kamu mendeklarasikan input sebuah model — text, image, audio, video, file — dengan apa yang katalog terbitkan mengisinya bila ada, dan deklarasi mu berdiri di tempat katalog diam. Modalitas yang kamu nyatakan ditandai milikmu, jadi refresh katalog tidak pernah mengambilnya kembali, dan jenis di luar kosakata bersama ditolak."
-      },
-      {
-       "id": "reasoning-editor-evidence",
-       "title": "Alt+C membuka di atas bukti",
-       "text": "Editor reasoning dulu membuka dengan hanya Off yang tercentang untuk model yang kata katalog berpikir, dan mengonfirmasinya tanpa mengubah apa pun menuliskan Off itu sebagai pilihanmu — karena itu thinking harus dinyalakan model demi model. Editor kini membuka di atas bukti yang diterbitkan: level yang katalog daftar tercentang, dan apa yang sesi baru mulai adalah yang editor tunjukkan. Enter tanpa menyentuh apa pun tidak menulis apa-apa — bukti tetap jadi default — dan hanya perubahan nyata yang disimpan sebagai milikmu. Bentuk katalog xAI (`capabilities.reasoning_effort`, `capabilities.default_reasoning_effort`) dibaca di samping bentuk OpenRouter."
-      }
-     ]
-    },
-    {
-     "id": "key-rotation",
-     "title": "Rotasi kunci & ketahanan",
-     "points": [
-      {
-       "id": "per-key-allowance",
-       "title": "Tiap kunci punya jatah sendiri",
-       "text": "Retry kini memberi setiap kunci jatah tersendiri (`retry.attempts_per_key`, sepuluh secara default) di samping anggaran seluruh panggilan (`retry.max_attempts`). Kunci yang habis langsung menyerahkan giliran, dan ring berputar sampai jatah global habis."
-      },
-      {
-       "id": "status-names-key",
-       "title": "Baris status menamai kuncinya",
-       "text": "Baris status menyebut kunci dan kedua hitungan, misalnya `Key A · attempt 3 of 10 · 21/100000`, dan setiap rotasi kunci mencatat satu baris di transkrip."
-      },
-      {
-       "id": "no-cooldown",
-       "title": "Kunci yang habis langsung menyerahkan giliran",
-       "text": "Rotasi kunci tidak lagi memakai cooldown tertunda (`retry.credit_cooldown` dipensiunkan di format 29); kunci yang habis langsung memberi jalan ke kunci berikutnya tanpa menghantam rate-limit dengan tunggu nol, dan kunci yang baru ditambahkan tersinkron lintas jendela konkuren tanpa membuka ulang Rune."
-      },
-      {
-       "id": "rename-keys",
-       "title": "Kunci berganti nama tanpa diketik ulang",
-       "text": "Kunci koneksi bisa diganti nama langsung di Settings (`Rename key`) tanpa menghapus dan memasukkan ulang kredensialnya."
-      }
-     ]
-    },
-    {
-     "id": "compaction",
-     "title": "Pemadatan sesi",
-     "points": [
-      {
-       "id": "one-summary-first",
-       "title": "Satu ringkasan sebelum batching",
-       "text": "Kompaksi mengirim satu permintaan ringkasan penuh lebih dulu untuk menjaga konteks percakapan, mundur ke model aktif bila jendelanya lebih besar, dan memecah batch hanya bila provider menolak ukuran payloadnya."
-      },
-      {
-       "id": "resumable-batches",
-       "title": "Batch yang bisa dilanjutkan",
-       "text": "Kompaksi ber-batch melaporkan kemajuan langsung (`batch N · M sources left`), menyimpan carry yang bisa dilanjutkan setelah setiap batch selesai sehingga pekerjaan yang dibatalkan tetap tersimpan, dan mencatat siapa yang memulai pembatalan."
-      }
-     ]
-    },
-    {
-     "id": "tool-execution",
-     "title": "Eksekusi alat & keluaran",
-     "points": [
-      {
-       "id": "no-empty-boxes",
-       "title": "Tidak ada kotak kosong sebelum argumen",
-       "text": "Kotak eksekusi tool ditahan sampai argumen datarnya alih-alih berkedip sebagai kotak perintah kosong, dan teks model yang degenerate di field aksi disaring sehingga tidak pernah menjadi judul langkah."
-      },
-      {
-       "id": "output-ceiling-reserved",
-       "title": "Plafon cocok dengan yang dicadangkan",
-       "text": "Plafon keluaran yang diminta menyamakan token yang dicadangkan oleh anggaran konteks; bila provider menolak permintaan karena melewati batas keluarannya (mis. router penghemat token atau endpoint DeepSeek), plafon otomatis diturunkan untuk permintaan berikutnya di semua peran."
-      },
-      {
-       "id": "notification-tag",
-       "title": "Notifikasi menampilkan tag-nya",
-       "text": "Sebuah system notification menampilkan tag `<system_notification>`-nya di UI terminal untuk membedakan status Rune dari data proses, keluaran tugas digambar di bawah judul `Task_Output` yang bersih, dan baris status notifikasi tidak lagi memakan jatah preview 4 baris."
-      }
-     ]
-    },
-    {
-     "id": "session-view",
-     "title": "Tampilan sesi & file",
-     "points": [
-      {
-       "id": "file-change-stable",
-       "title": "File yang tersentuh tetap terdaftar di setiap mode",
-       "text": "Panel FILES CHANGED tersaring oleh mode izin yang berlaku: file yang ditulis saat full access menyala lenyap dari daftar di mode ask dan muncul kembali di full. Panel ini fakta, bukan izin. File yang sesi sentuh kini tetap terdaftar di setiap mode — dilaporkan dari hitungan rekaman milik mesin sendiri selama path-nya tak terjangkau, dan diff persisnya kembali begitu path terjangkau lagi. Tampilan diffnya mengatakannya dalam kata-kata alih-alih gagal, dan mengembalikan file tetap ditolak di luar jangkauan yang dibutuhkannya."
-      }
-     ]
-    },
-    {
-     "id": "plan-reminders",
-     "title": "Pengingat plan",
-     "points": [
-      {
-       "id": "plan-reminder",
-       "title": "Plan kembali di antara panggilan",
-       "text": "Giliran panjang bisa menyimpang dari plan yang memulainya: plan ditulis sekali, dan tak ada yang mengembalikannya. Di batas antara panggilan tool, Rune kini mengembalikan plan ke agen sebagai system notice — setelah sejumlah panggilan (`plan.reminder_tools`, default delapan) atau setelah waktu berlalu (`plan.reminder_seconds`, default lima belas menit), mana yang kena dulu. Pengingat meminta pemeriksaan, bukan ritual: perbarui plan dengan track_tasks saat jalanmu sudah melebar darinya, lanjutkan dan abaikan saat masih sesuai. Keduanya hidup di rune.toml dan mati di nol; menulis ulang plan memulai ulang kedua jam."
-      }
-     ]
-    },
-    {
-     "id": "runtime-constants",
-     "title": "Konstanta runtime & konfigurasi",
-     "points": [
-      {
-       "id": "fixed-constants",
-       "title": "Tiga puluh tiga konstanta keluar dari settings",
-       "text": "Tiga puluh tiga konstanta runtime internal (`FIXED`) dipisahkan dari setelan pengguna: `-config set` dan `reset` menolaknya, nilai lama di `rune.toml` diabaikan dan dibersihkan saat upgrade ke format 30 tanpa menyentuh komentar, dan referensi settings turun dari 116 ke 85 setelan yang benar-benar bisa diubah."
-      },
-      {
-       "id": "diagnostics-explain",
-       "title": "Diagnostik menamai yang tetap",
-       "text": "`-config check` melaporkan konstanta legacy yang terbawa dan diabaikan dari `rune.toml`, dan `-config explain` menandai dengan jelas konstanta runtime yang bersifat tetap."
-      }
-     ]
-    },
-    {
-     "id": "installer",
-     "title": "Pemasang multi-platform",
-     "points": [
-      {
-       "id": "sourced-path",
-       "title": "Pasang dan pakai di jendela yang sama",
-       "text": "Pasang dan langsung pakai di terminal aktif: di bash, zsh, dan shell POSIX, installer menambahkan foldernya ke PATH shell pemanggil dalam mode sourced (`. <(curl ...)`), sehingga `rune` bisa menyala di jendela yang sama tanpa me-restart shell."
-      },
-      {
-       "id": "install-path-promise",
-       "title": "Janji path pemasangan ditepati",
-       "text": "Biner dipasang ke `~/.local/bin/rune` (atau `RUNE_INSTALL_DIR`); saat folder itu tidak ada di PATH, installer menautkannya ke folder yang sudah ada di PATH atau mencetak satu baris export yang menyelesaikannya — profil shell tidak pernah disunting. Di Windows, PATH sesi aktif dan PATH pengguna di registry diatur."
-      },
-      {
-       "id": "installer-report",
-       "title": "Installer yang melapor dan memperlihatkan",
-       "text": "Installer melaporkan persis apa yang ia ubah dan ke mana biner diletakkan, memeriksa konfigurasi shell yang ada sebelum menyarankan baris setup, dan menampilkan bar unduhan langsung dengan ukuran, laju transfer, dan sisa waktu. Antarmuka installer terpadu lintas platform: branding ASCII identik, langkah status, dan kotak Ready yang sama di Linux, macOS, dan Windows. Perbaikan bug kompatibilitas shell: bug clobber kode-keluar trap EXIT di zsh yang memunculkan laporan Ready palsu dihilangkan, dan panggilan `set +m` non-interaktif yang mematikan shell posh dihapus."
-      }
-     ]
-    }
-   ],
-   "points": []
-  },
-  "0.7.8": {
-   "title": "Linux di semua distribusi, dan perbaikan terminal di tepinya",
-   "paragraphs": [
-    "Rune berhenti bergantung pada satu baseline glibc. Loader runtime mandiri membuat satu build yang sama dapat dijalankan di semua distribusi Linux utama, dan perilaku terminal serta web fetch diselaraskan dengan yang benar-benar dipakai orang."
-   ],
-   "points": [
-    {
-     "id": "runtime-loader",
-     "title": "Satu build untuk semua distro Linux",
-     "text": "Sekarang ini sebuah build Rune bergantung pada versi glibc mesin yang membangunnya, jadi biner bisa menolak menyala di distro lain. Runtime loader mandiri membawa bagian yang mungkin tidak dimiliki sistem, dan build yang sama kini menyala di semua distro Linux utama tanpa rebuild per distro."
-    },
-    {
-     "id": "tmux-palette",
-     "title": "Warna benar di dalam tmux",
-     "text": "Di dalam tmux palet 256-warna dibaca pada offset yang salah, sehingga teks keluar dengan warna tetangganya. Palet kini diindeks seperti yang tmux laporkan, dan penyorotan sintaks di dalam pane tmux tergambar dengan warna persis yang UI pilih."
-    },
-    {
-     "id": "web-fetch-cookies",
-     "title": "Cookie sesi dibawa oleh web_fetch",
-     "text": "Halaman yang menutup kontennya di balik cookie sesi menjawab fetch dengan layar login, bukan halamannya. web_fetch kini menyimpan cookie sesi yang diberikan sebuah respons dan mengirimnya pada permintaan lanjutan fetch yang sama, jadi halaman yang butuh sesi terbaca seperti halaman lain."
-    }
-   ],
-   "sections": [],
-   "summary": "Satu build untuk semua Linux"
-  },
-  "0.8.0": {
-   "title": "Dua puluh preset model dan satu normalisasi dialek",
-   "paragraphs": [
-    "Katalog penyedia bertambah menjadi dua puluh profil model terkalibrasi, dengan ruang untuk endpoint lokal milik Anda sendiri. Di belakangnya ada satu lapisan normalisasi, sehingga endpoint OpenAI, Anthropic, atau gateway yang kompatibel dijelaskan dengan cara yang sama."
-   ],
-   "points": [
-    {
-     "id": "model-presets",
-     "title": "Dua puluh preset model terkalibrasi",
-     "text": "Katalog provider hanya membawa segelintir profil dan sisanya dibiarkan ke tala tangan. Dua puluh preset terkalibrasi menutup provider yang benar-benar dipakai orang, masing-masing dengan jendela konteks, plafon keluaran, dan kontrol thinking yang diketahui, dan satu entri khusus menerima endpoint lokal milikmu sendiri di sampingnya."
-    },
-    {
-     "id": "dialect-normalisation",
-     "title": "Satu normalisasi untuk setiap dialek API",
-     "text": "Endpoint OpenAI, endpoint Anthropic, dan gateway compatible masing-masing berbicara dialek yang sedikit berbeda, dan setiap lapisan tool harus tahu sedang bicara dengan yang mana. Satu lapisan normalisasi kini mendeskripsikannya dengan cara yang sama di hulu, jadi menambah provider tidak lagi mengajari kode lainnya kosakata baru."
-    }
-   ],
-   "sections": [],
-   "summary": "20 preset, satu dialek"
-  },
-  "0.8.1": {
-   "title": "Pemilih sesi menunjuk baris yang benar",
-   "paragraphs": [
-    "Dua gangguan navigasi hilang: kursor di pemilih sesi bergeser satu baris, dan navigasi papan ketik bisa berhenti terlalu cepat saat menelusuri prompt dan sesi lama."
-   ],
-   "points": [
-    {
-     "id": "picker-caret",
-     "title": "Pemilih sesi menyorot baris yang tepat",
-     "text": "Pemilih sesi menghitung baris tersorot dengan indeks nol-basis padahal daftar digambar satu-basis, jadi caret duduk satu baris dari sesi yang dinamainya. Indeksnya kini cocok dengan gambar, dan sorotan mendarat di baris yang dimaksud kursor."
-    },
-    {
-     "id": "archive-navigation",
-     "title": "Menjelajah arsip mencapai setiap halaman",
-     "text": "Navigasi papan ketik lewat prompt dan sesi lama berhenti di batas halaman, bukan melangkah ke halaman berikutnya, membuat entri terlama tak terjangkau papan ketik. Penjelajahan kini melintasi halaman, dan setiap entri arsip terjangkau tanpa mouse."
-    }
-   ],
-   "sections": [],
-   "summary": "Perbaikan pemilih sesi"
-  },
-  "0.8.9": {
-   "title": "Pemadatan menjaga arsitektur, antrean menjaga urutannya",
-   "paragraphs": [
-    "Riwayat lama kini dibersihkan tanpa kehilangan fakta yang menjadi dasar sebuah sesi, dan antrean masuk menjaga urutan kronologisnya walaupun beberapa jendela terminal bertindak bersamaan."
-   ],
-   "points": [
-    {
-     "id": "compaction-architecture",
-     "title": "Kompaksi menjaga fakta tempat sesi berdiri",
-     "text": "Menghapus riwayat kedaluwarsa juga menghapus fakta arsitektur yang dipakai sesi untuk bernalar, menyisakan model menebak bentuk kode yang sudah dipetakan. Kompaksi kini menyimpan fakta-fakta itu sementara detail kedaluwarsa pergi, jadi sesi lama tetap tahu sedang mengerjakan apa."
-    },
-    {
-     "id": "admission-order",
-     "title": "Admisi memegang urutannya di bawah banyak jendela",
-     "text": "Beberapa jendela terminal yang mengirim pekerjaan bersamaan bisa mengacak antrean, sehingga prompt yang dikirim belakangan bisa mulai lebih dulu. Antrean admisi memegang urutan kronologis di bawah konkurensi, dan prompt dimulai sesuai urutan pengirimannya."
-    }
-   ],
-   "sections": [],
-   "summary": "Kompaksi & urutan admisi"
-  },
-  "0.9.0": {
-   "title": "Prompt yang dikirim langsung dikenali",
-   "paragraphs": [
-    "Antrean masuk tidak lagi membiarkan orang menunggu dalam diam. Prompt dikenali seketika, sebelum mesin memulai pekerjaan berat pada giliran itu, dan sesi bertahan melewati restart daemon atau host lewat jurnal peristiwa yang abadi."
-   ],
-   "points": [
-    {
-     "id": "prompt-ack",
-     "title": "Prompt terkirim langsung dijawab",
-     "text": "Mengirim prompt menyisakan jendela sunyi sampai mesin selesai menyiapkan diri — terbaca seperti macet. Prompt kini diakui begitu di-admit, sebelum kerja berat giliran dimulai, dan jendela menunjukkan apa yang terjadi di sela-selanya."
-    },
-    {
-     "id": "journal-resume",
-     "title": "Sesi bertahan lewat restart",
-     "text": "Restart daemon atau host dulu mengakhiri sesi untuk selamanya. Riwayat sesi kini hidup di jurnal event yang tak dapat diubah, dan resume memutar ulang persis apa yang terekam, jadi restart hanya berbiaya restart itu sendiri."
-    }
-   ],
-   "sections": [],
-   "summary": "Ack prompt & resume jurnal"
-  },
-  "0.9.1": {
-   "title": "Niat peluncuran dari tugasnya, dan thinking yang bisa diatur",
-   "paragraphs": [
-    "Apakah sebuah perintah berjalan di depan atau di latar kini diputuskan lewat perencanaan dari ketergantungan tugas itu sendiri, bukan dari nama alat. Rilis yang sama juga membuka pengaturan thinking milik model: mati, atau tingkat effort rendah, lewat gateway."
-   ],
-   "points": [
-    {
-     "id": "launch-intent",
-     "title": "Latar-depan atau latar adalah keputusan planning",
-     "text": "Apakah perintah berjalan di latar-depan atau latar dulu diputuskan oleh tool yang dipilih model, bukan oleh kebutuhan tugasnya. Niat peluncuran kini diturunkan dari ketergantungan tugas itu sendiri — panggilan yang hasilnya dibutuhkan berikutnya tetap latar-depan; pekerjaan yang bisa lanjut tanpa jawaban langsung masuk latar."
-    },
-    {
-     "id": "thinking-controls",
-     "title": "Thinking yang bisa kamu atur lewat gateway",
-     "text": "Thinking sebuah model tidak bisa diarahkan: ia berjalan pada default gateway atau tidak sama sekali. Kontrol reasoning kini mematikan thinking atau memilih level rendah lewat gateway, dan sesi menyimpan pilihan itu sampai kamu mengubahnya."
-    }
-   ],
-   "sections": [],
-   "summary": "Niat peluncuran & thinking"
-  },
-  "0.9.2": {
-   "title": "Seleksi mouse berperilaku seperti terminal",
-   "paragraphs": [
-    "Memilih teks dengan mouse lalu menyalinnya kini mengikuti kebiasaan terminal itu sendiri, termasuk membatalkan seleksi, dengan kursor menjaga koordinatnya dan tanpa hiasan aneh di layar."
-   ],
-   "points": [
-    {
-     "id": "mouse-selection",
-     "title": "Seleksi mouse mengikuti aturan terminal",
-     "text": "Seleksi mouse berperilaku seperti field teks, bukan terminal: seleksinya tidak bersih sebagaimana terminal membersihkannya, dan copy mengambil batas yang tidak kamu pilih. Seleksi, copy, dan clear kini mengikuti konvensi terminal itu sendiri."
-    },
-    {
-     "id": "caret-stability",
-     "title": "Caret yang bertahan di tempatnya",
-     "text": "Seleksi bisa menyeret caret keluar koordinatnya dan menyisakan chrome liar di layar. Caret kini memegang koordinat stabil dan layar tanpa artefak — di frame yang sama dan di tempat yang kamu tinggalkan."
-    }
-   ],
-   "sections": [],
-   "summary": "Seleksi mouse gaya terminal"
-  },
-  "0.9.3": {
-   "title": "Skrip manual, dan referensi yang bisa dibuka",
-   "paragraphs": [
-    "Tanda `!` yang eksplisit menjalankan seluruh skrip multiline melalui gerbang izin dengan akses penuh untuk panggilan itu saja, dan tautan atau rujukan berkas pada output perintah dapat diperiksa dan dibuka di peramban hanya bila Anda memintanya."
-   ],
-   "points": [
-    {
-     "id": "manual-scripts",
-     "title": "Satu `!` menjalankan seluruh script",
-     "text": "Sebuah `!` manual dulu menjalankan satu baris, sehingga rangkaian shell multi-langkah harus dikonfirmasi baris demi baris. Sebuah `!` yang eksplisit kini menjalankan seluruh script multiline melalui gate izin, dengan akses penuh untuk panggilan itu saja, dan classifier serta sanitizer sengaja dilewati untuknya — layar mengatakannya sebelum berjalan."
-    },
-    {
-     "id": "reference-opening",
-     "title": "Referensi terbuka hanya saat kamu minta",
-     "text": "Tautan atau referensi file yang tercetak di keluaran perintah dulu teks polos, atau lebih buruk, terbuka pada klik yang tidak kamu maksud. Mengklik referensi kini menunjukkan seluruh tujuannya lebih dulu; tautan HTTP(S) terbuka di browser hanya pada Open atau Enter eksplisit, dan referensi file tetap copy-only."
-    }
-   ],
-   "sections": [],
-   "summary": "Script manual & tautan"
-  },
-  "0.9.4": {
-   "title": "Pratinjau menampilkan seluruh skrip",
-   "paragraphs": [
-    "Sebelum skrip `!` manual dikonfirmasi, Anda melihat semua barisnya, bukan hanya baris pertama yang dipendekkan. Skrip itu juga mempertahankan konteks percakapan dan direktori kerja yang mendahuluinya."
-   ],
-   "points": [
-    {
-     "id": "script-preview",
-     "title": "Preview menunjukkan setiap baris",
-     "text": "Sebelum script manual dikonfirmasi kamu hanya melihat satu baris terpendek, jadi yang kamu setujui bukan yang kamu jalankan. Preview kini menunjukkan semua baris script persis seperti yang akan dieksekusi."
-    },
-    {
-     "id": "context-and-cwd",
-     "title": "Perintah manual memegang konteksnya",
-     "text": "Sebuah `!` manual dulu berjalan lepas dari percakapan dan direktori tempat kamu bekerja. Ia kini memegang konteks sebelumnya dan direktori kerja aktif, jadi perintah cepat mendarat di tempatmu dan AI membaca sesi yang sama dengan yang kamu lihat."
-    }
-   ],
-   "sections": [],
-   "summary": "Preview script utuh"
-  },
-  "0.9.5": {
-   "title": "Output latar punya tempat sendiri",
-   "paragraphs": [
-    "Proses yang berjalan dan menunggu kini mengalirkan stdout dan stderr ke berkas lognya sendiri, dan mesin mengenali prompt interaktif pada sesi PTY Linux alih-alih membiarkannya tampak seperti diam."
-   ],
-   "points": [
-    {
-     "id": "output-logs",
-     "title": "Keluaran latar mendarat di lognya sendiri",
-     "text": "Proses yang berjalan dan menunggu menghasilkan keluaran yang tak bisa dibaca siapa pun kemudian — ia lenyap bersama terminal. Proses yang berjalan dan menunggu kini mengalirkan stdout dan stderr ke file log khusus, dan path lognya dinamai di tempat keluaran diminta."
-    },
-    {
-     "id": "input-wait",
-     "title": "Prompt interaktif dikenali, bukan dianggap sunyi",
-     "text": "Di sesi PTY Linux, prompt interaktif terlihat seperti sunyi: prosesnya sehat dan menungguimu, dan mesin tidak bisa membedakannya. Tunggu input-yang-diketik kini terdeteksi, dilaporkan sebagai fakta, dan `process_control` adalah cara menjawabnya."
-    }
-   ],
-   "sections": [],
-   "summary": "Log latar & tunggu input"
-  },
-  "0.9.6": {
-   "title": "Composer menampilkan pratinjau saat Anda mengetik",
-   "paragraphs": [
-    "Baris pertama prompt tampil di composer saat Anda mengetik, dan penempatan kursor serta pembungkusan lunak diperbaiki untuk terminal lebar maupun sempit."
-   ],
-   "points": [
-    {
-     "id": "composer-preview",
-     "title": "Composer menunjukkan baris pertama saat kamu mengetik",
-     "text": "Composer tidak memberi petunjuk apa pun tentang prompt panjang sampai ia dikirim. Baris preview pertama kini dialirkan ke composer saat kamu mengetik, jadi instruksi panjang terlihat benar sebelum Enter."
-    },
-    {
-     "id": "cursor-wrap",
-     "title": "Kursor benar di layar lebar dan sempit",
-     "text": "Penempatan kursor dan soft-wrap salah di kedua ujung rentang lebar — terminal lebar menaruh kursor sebelum teks, yang sempit membungkus melewati tepi. Keduanya diperbaiki, dan menyunting terasa sama di lebar mana pun."
-    }
-   ],
-   "sections": [],
-   "summary": "Preview langsung composer"
-  },
-  "0.9.7": {
-   "title": "Baris baru digambar, bukan dilompati",
-   "paragraphs": [
-    "Composer multiline kini menulis penanda baris baru yang eksplisit alih-alih membiarkan pemisah baris mentah menggeser terminal, dan menempelkan perintah shell multiline ke editor tetap responsif."
-   ],
-   "points": [
-    {
-     "id": "newline-preview",
-     "title": "Baris baru digambar, tidak dilompati",
-     "text": "Composer multiline membiarkan pergantian baris mentah menggeser kursor terminal, sehingga baris-baris awal menggulir pergi saat mengetik. Composer kini menulis penanda baris-baru eksplisit (↵) di tempat satu baris berakhir, dan apa yang kamu tulis tetap di tempatnya."
-    },
-    {
-     "id": "paste-responsiveness",
-     "title": "Paste tetap responsif",
-     "text": "Menempel perintah shell multiline membuat editor macet selagi diukur dan digambar ulang. Paste kini responsif, dan blok yang ditempel dipreview utuh sebelum dikirim."
-    }
-   ],
-   "sections": [],
-   "summary": "Penanda baris-baru"
-  },
-  "0.9.8": {
-   "title": "Yang tidak diketahui tetap tidak diketahui",
-   "paragraphs": [
-    "Jumlah byte yang tidak terverifikasi kini diperlakukan sebagai tidak diketahui, bukan diubah menjadi tebakan kapasitas model, dan panduan latar mesin menjelaskan mengapa loop polling shell membuang token serta cara menunggu notifikasi."
-   ],
-   "points": [
-    {
-     "id": "context-truth",
-     "title": "Tidak diketahui tetap tidak diketahui dalam hitungan konteks",
-     "text": "Hitungan byte yang tidak pernah diverifikasi dikonversi menjadi kapasitas model tebakan, dan meter mengukur angka yang tidak pernah diukur siapa pun. Akuntansi konteks ketat kini memperlakukan hitungan tak terverifikasi sebagai tidak diketahui — meter menampilkan tanpa batang, bukan batang tampak-otoritatif yang mengukur nol."
-    },
-    {
-     "id": "background-guidance",
-     "title": "Petunjuk yang menjelaskan kenapa polling berbiaya",
-     "text": "Model mem-poll pekerjaan shell yang sudah berjalan di latar, membayar permintaan untuk mempelajari nol. Petunjuk latar mesin kini menjelaskan kenapa loop polling memboroskan token dan bahwa notifikasi membawa jawabannya, jadi model menunggunya alih-alih bertanya lagi."
-    }
-   ],
-   "sections": [],
-   "summary": "Hitungan konteks jujur"
-  },
-  "0.9.9": {
-   "title": "Satu pemilik per instruksi, dan footer yang menepati janji",
-   "paragraphs": [
-    "Setiap blok instruksi sistem kini punya satu pemilik, sehingga dua sumber tidak bisa lagi saling bertentangan. Footer terminal mempertahankan pembatalan Esc yang siap, hitungan retry, dan kartu konfirmasi izin selama semuanya masih relevan."
-   ],
-   "points": [
-    {
-     "id": "instruction-ownership",
-     "title": "Satu pemilik per blok instruksi",
-     "text": "Dua sumber bisa memegang blok instruksi sistem yang sama dan saling bertentangan di tengah sesi, dan model mengikuti yang datang terakhir. Tiap blok kini punya satu pemilik, dan petunjuk tidak lagi berbolak-balik antar versinya."
-    },
-    {
-     "id": "footer-promises",
-     "title": "Footer yang menepati janjinya",
-     "text": "Footer bisa menjatuhkan Esc yang diarmed, hitungan mundur retry yang berjalan, atau konfirmasi izin saat semuanya masih berlaku, menyisakan keadaan yang layar bantah. Footer kini mempertahankan semuanya tampak selama masih armed, di setiap jendela."
-    }
-   ],
-   "sections": [],
-   "summary": "Pemilik instruksi & footer"
-  },
-  "0.10.0": {
-   "title": "Pemberitahuan pembaruan tetap terlihat",
-   "paragraphs": [
-    "Ketika build baru diambil alih saat Anda bekerja, pemberitahuannya tetap menempel di tampilan sesi aktif alih-alih hilang saat layar digambar ulang, dan seluruh gerbang uji mulai berjalan di mesin Linux, macOS, dan Windows sungguhan."
-   ],
-   "points": [
-    {
-     "id": "update-notice",
-     "title": "Notice pembaruan tetap tersemat",
-     "text": "Build baru yang diserahkan di tengah sesi mengumumkan dirinya lalu lenyap bersama redraw berikutnya, dan notice harus ditangkap sedang kerja. Ia kini bertahan tersemat di tampilan sesi aktif sampai kamu menindaklanjutinya."
-    },
-    {
-     "id": "cross-platform-gate",
-     "title": "Gate berjalan di mesin nyata",
-     "text": "macOS dan Windows dulu hanya dicek tipenya, tak pernah dijalankan. Seluruh gate tes kini berjalan di mesin Linux, macOS (Apple silicon dan Intel), dan Windows nyata, sehingga regresi platform tertangkap sebelum rilis, bukan setelah terpasang."
-    }
-   ],
-   "sections": [],
-   "summary": "Notice pembaruan tersemat"
-  },
-  "0.10.1": {
-   "title": "Bantuan resmi tidak bisa ditimpa",
-   "paragraphs": [
-    "Skill bantuan resmi kini dipasang di tempat yang tidak bisa ditutupi atau ditimpa skill milik pengguna. Direktori upgrade lama dipangkas otomatis agar tidak lagi memenuhi disk."
-   ],
-   "points": [
-    {
-     "id": "help-isolation",
-     "title": "Help resmi tidak bisa dibayangi",
-     "text": "Skill help resmi terpasang di ruang yang sama dengan skill pribadi, sehingga skill milikmu dengan nama sama diam-diam menggantikannya. Ia kini terpasang di tempat yang tidak bisa dibayangi atau ditimpa skill pribadi, dan install serta update menolak paket yang mencoba merebut namanya."
-    },
-    {
-     "id": "upgrade-pruning",
-     "title": "Direktori upgrade lama dipangkas",
-     "text": "Setiap upgrade meninggalkan direktorinya, dan disk terisi satu format demi satu format. Direktori upgrade lama dipangkas otomatis begitu tak ada proses berjalan yang memegangnya, dan revisi saat ini tidak pernah dibuang."
-    }
-   ],
-   "sections": [],
-   "summary": "Isolasi help & pemangkasan"
-  },
-  "0.10.3": {
-   "title": "Output terminal mengatakan apa yang dikatakan program",
-   "paragraphs": [
-    "Gema input shell dipisahkan dari apa yang benar-benar dicetak program, sehingga hasil yang disalin hanya memuat output program itu, dan kalimat aksi sebuah alat mempertahankan deskripsinya saat streaming agar panggilannya tetap dapat diaudit."
-   ],
-   "points": [
-    {
-     "id": "echo-separation",
-     "title": "Yang program katakan, bukan yang kamu ketik",
-     "text": "Echo input shell dan keluaran nyata program mendarat dalam satu aliran, jadi hasil yang disalin membawa kembali perintahmu sendiri. Echo kini dipisahkan, dan hasil yang disalin hanya berisi yang program cetak."
-    },
-    {
-     "id": "action-descriptions",
-     "title": "Kalimat aksi tetap bisa diaudit selama streaming",
-     "text": "Kalimat aksi sebuah tool bisa kehilangan deskripsinya saat panggilan mengalir, menyisakan langkah yang tak bisa diaudit kemudian. Deskripsi kini dipertahankan sepanjang aliran, dan setiap langkah terbaca sebagai apa yang dilakukannya."
-    }
-   ],
-   "sections": [],
-   "summary": "Keluaran terminal bersih"
-  },
-  "0.10.4": {
-   "title": "Kesalahan memakai kata aslinya, dan pengulangan dihitung",
-   "paragraphs": [
-    "`/logs` menampilkan teks kesalahan asli dari penyedia di samping status giliran mesin alih-alih memparafrasenya, dan panggilan yang sama yang dibuat berulang kali dikenali sebelum menghabiskan anggaran permintaan."
-   ],
-   "points": [
-    {
-     "id": "logs-original-errors",
-     "title": "`/logs` mempertahankan kata asli provider",
-     "text": "`/logs` memparafrase error provider sebelum menampilkannya, jadi kata yang kamu tempel ke pencarian atau laporan bug adalah kata Rune, bukan provider. Teks error asli kini duduk di samping status giliran mesin, tanpa diubah."
-    },
-    {
-     "id": "repeat-tracking",
-     "title": "Pengulangan dihitung sebelum berbiaya",
-     "text": "Panggilan sama yang diulang terus tidak disadari sampai anggaran permintaan menunjukkannya. Panggilan identik beruntun kini dilacak dan ditandai sebelum anggaran habis, dengan jumlahnya disebut di notice."
-    }
-   ],
-   "sections": [],
-   "summary": "Error asli, hitungan repeat"
-  },
-  "0.10.5": {
-   "title": "Menunggu bukan berarti mengulang",
-   "paragraphs": [
-    "Loop guard kini membedakan menunggu notifikasi proses dari mengulang perintah yang terus gagal, dan kegagalan sebuah alat datang bersama langkah pemulihan yang sesuai kategorinya."
-   ],
-   "points": [
-    {
-     "id": "wait-vs-loop",
-     "title": "Menunggu bukan berarti looping",
-     "text": "Loop guard dulu memperlakukan menunggu notifikasi latar seperti mengulang perintah yang gagal terus, dan memarahi model karena menunggu dengan benar. Keduanya kini dibedakan: menunggu notifikasi dijawab oleh notifikasinya, dan hanya pengulangan sungguhan yang diperingatkan."
-    },
-    {
-     "id": "recovery-advice",
-     "title": "Saran pemulihan di setiap kegagalan",
-     "text": "Kegagalan tool dulu datang sebagai error polos, dan model harus mengarang sendiri langkah pemulihannya. Diagnostik kini membawa saran pemulihan yang cocok dengan kategori kegagalan, sehingga panggilan berikutnya mencoba hal yang benar, bukan yang sama."
-    }
-   ],
-   "sections": [],
-   "summary": "Tunggu vs loop, saran pulih"
-  },
-  "0.10.6": {
-   "title": "Hasil alat adalah data, peringatan adalah notice",
-   "paragraphs": [
-    "Hasil alat kini hanya membawa datanya sendiri; peringatan pengulangan datang sebagai notice sistem, dengan jeda yang makin melebar, dan ia memberi tahu apa yang harus dilakukan: berhenti mem-polling tugas latar, atau ubah pendekatan."
-   ],
-   "points": [
-    {
-     "id": "pure-results",
-     "title": "Hasil tool hanya membawa datanya",
-     "text": "Peringatan repetisi dijahit ke dalam hasil tool, jadi model membaca nasihat di dalam yang seharusnya keluaran perintah. Hasil tool kini data murni; peringatan jalan sebagai baris `<system_notice>` pada cadence yang melebar, di tempat seharusnya."
-    },
-    {
-     "id": "actionable-warnings",
-     "title": "Peringatan yang menyebut langkahnya",
-     "text": "Peringatan loop dulu hanya menamai pengulangannya lalu berhenti. Ia kini membawa langkah yang cocok: berhenti mem-poll tugas latar dan tunggu notifikasinya, atau ubah pendekatan dan coba hal lain."
-    }
-   ],
-   "sections": [],
-   "summary": "Hasil murni, notice"
-  },
-  "0.10.7": {
-   "title": "Plafon output berasal dari penyedia",
-   "paragraphs": [
-    "Plafon output gateway kini dibaca dari `max_tokens` milik penyedia, bukan dari anggaran thinking yang rendah, yang sebelumnya memotong jawaban panjang. Penyelesaian lebih dari sepuluh ribu token kini selesai normal."
-   ],
-   "points": [
-    {
-     "id": "output-ceiling",
-     "title": "Plafon datang dari provider",
-     "text": "Plafon keluaran sebuah gateway dulu diambil dari budget thinking yang rendah, dan jawaban panjang terpotong pada ukuran yang tidak pernah disengaja provider. Plafon kini dibaca dari `max_tokens` milik provider sendiri, dan jawaban berjalan sampai panjang yang endpoint izinkan."
-    },
-    {
-     "id": "long-completions",
-     "title": "Completions panjang selesai",
-     "text": "Completions terukur gagal di 8.188 token. Dengan plafon yang benar, completions terverifikasi lebih dari sepuluh ribu token selesai normal alih-alih berhenti di tengah kalimat."
-    }
-   ],
-   "sections": [],
-   "summary": "Plafon keluaran provider"
-  },
-  "0.10.9": {
-   "title": "Memori, alias, dan cookie",
-   "paragraphs": [
-    "Prompt memori proyek kini menyatakan dengan jelas untuk apa memori dan bahwa ia dipertahankan antar sesi. Argumen alat menerima alias yang benar-benar diketik orang, path yang salah mendapat kandidat terdekat, dan web fetch membawa cookie sesi melewati redirect dengan sendirinya."
-   ],
-   "points": [
-    {
-     "id": "memory-prompt",
-     "title": "Memory menyebut untuk apa ia ada",
-     "text": "Prompt memori tidak pernah menyebut bahwa catatan bertahan melewati sesi, jadi model menulis ringkasan alih-alih pengalaman. Ia kini menyatakan terus terang untuk apa memori ada dan bahwa ia disimpan lintas sesi, dan sebuah catatan layak ada bila mencatat sebabnya."
-    },
-    {
-     "id": "argument-aliases",
-     "title": "Argumen menerima yang orang ketik",
-     "text": "Argumen tool menolak alias yang benar-benar diketik orang (`rm` untuk `remove`, `del` untuk `delete`), dan path salah kembali sebagai kegagalan polos. Alias kini diterima, path salah menamai kandidat terdekat, dan teks `action` di-clamp ke batasnya."
-    },
-    {
-     "id": "fetch-cookies",
-     "title": "Cookie mengikuti redirect",
-     "text": "Fetch yang melewati redirect kehilangan cookie sesinya, dan halaman di balik redirect menjawab dengan login. web_fetch membawa cookie sesi melintasi redirect dengan sendirinya, tanpa header manual."
-    }
-   ],
-   "sections": [],
-   "summary": "Memory, alias, cookie"
-  },
-  "0.10.10": {
-   "title": "Lebih sedikit polling sia-sia, kesalahan berkas lebih jelas",
-   "paragraphs": [
-    "System prompt kini menjelaskan apa yang menjadi ketergantungan tugas latar, sehingga model berhenti mem-polling pekerjaan yang sudah berjalan. Alat berkas menjawab path yang salah dengan kandidat terdekat dan menolak patch basi dengan panduan, bukan kegagalan kosong."
-   ],
-   "points": [
-    {
-     "id": "background-dependencies",
-     "title": "Prompt menjelaskan ketergantungan tugas latar",
-     "text": "Prompt sistem tidak pernah menyebut apa yang digantungkan sebuah tugas latar, jadi model mem-poll pekerjaan yang sudah berjalan dan membayar permintaan untuk mempelajari nol. Prompt kini menjelaskan ketergantungannya, dan poll yang sia-sia berhenti."
-    },
-    {
-     "id": "file-error-guidance",
-     "title": "Error file yang menunjuk ke tempat berguna",
-     "text": "Path salah gagal dengan path itu sendiri di-echo kembali, dan patch usang gagal tanpa apa pun selain kegagalan. File tool kini menjawab dengan kandidat terdekat yang ada, dan patch usang menjelaskan apa yang harus dibaca ulang alih-alih menolak diam-diam."
-    }
-   ],
-   "sections": [],
-   "summary": "Poll kurang, error jelas"
-  },
-  "0.11.0": {
-   "title": "Tidak ada header kosong di atas respons kosong",
-   "paragraphs": [
-    "Respons yang dialirkan dan dimulai dengan spasi atau baris kosong dulu menggambar header `Response` kosong. Header kini hanya digambar bila ada teks, dan byte-nya tetap lewat tanpa diubah, tanpa regex dan tanpa pemangkasan yang merusak."
-   ],
-   "points": [
-    {
-     "id": "no-empty-header",
-     "title": "Tidak ada header kosong di atas respons kosong",
-     "text": "Respons yang dialirkan dan diawali whitespace atau baris kosong menggambar header `Response` tanpa isi, dan layar memperlihatkan judul tanpa badan. Header kini digambar hanya bila ada teks di bawahnya."
-    },
-    {
-     "id": "byte-fidelity",
-     "title": "Byte lewat tanpa disentuh",
-     "text": "Perbaikannya bisa saja memangkas atau menulis ulang aliran, dan pemangkasan lossy akan mengubah apa yang model benar-benar katakan. Tidak ada yang ditulis ulang: tanpa regex, tanpa pemangkasan lossy, dan byte persis yang dibawa respons tetap sampai ke layar."
-    }
-   ],
-   "sections": [],
-   "summary": "Tanpa header respons kosong"
-  },
-  "0.11.1": {
-   "title": "Jawaban yang berulang dihentikan saat streaming",
-   "paragraphs": [
-    "Mesin kini mengenali respons yang mengulang satu unit pendek terus-menerus dan menghentikannya saat tiba, tanpa plafon panjang token. Anda lalu ditanya, lewat formulir yang sudah Anda kenal, apakah teks sebelum pengulangan dipertahankan atau pesannya dibuang."
-   ],
-   "points": [
-    {
-     "id": "repetition-guard",
-     "title": "Jawaban yang berulang dihentikan saat mengalir",
-     "text": "Model yang mengulang satu unit pendek selamanya dulu mengalir sampai permintaannya mati karena ukurannya sendiri. Mesin kini mengenali pengulangannya — satu unit eksak 1–64 byte, minimal 4 KiB dan 16 pengulangan, atau 16 KiB untuk unit whitespace — dan menghentikannya saat ia tiba, tanpa plafon panjang token."
-    },
-    {
-     "id": "keep-or-discard",
-     "title": "Simpan yang tertulis, atau buang",
-     "text": "Respons yang dihentikan menyisakan pertanyaan apa yang disimpan tanpa jawaban di layar. Form klarifikasi yang sudah kamu kenal menanyakan apakah menyimpan teks yang tertulis sebelum pengulangan atau membuang pesannya; tanpa jawaban ia disimpan, dan hanya Discard eksplisit yang membuangnya."
-    },
-    {
-     "id": "no-false-positives",
-     "title": "Data nyata tidak pernah dikira loop",
-     "text": "Baris minified, data URI base64, hash, pemisah tabel, dan aturan Markdown semuanya terlihat seperti repetisi bagi penghitung naif. Aturan byte membaca struktur, dan tak satu pun dari itu dihentikan; kecepatan streaming normal tak berubah."
-    }
-   ],
-   "sections": [],
-   "summary": "Penjaga repetisi"
-  },
-  "0.11.2": {
-   "title": "Celah yang tidak lagi menggantung",
-   "paragraphs": [
-    "Respons selaan meninggalkan baris kosong yang menggantung, sehingga panggilan alat berikutnya terdorong ke bawah layar. Baris kosong di ujung kini dipangkas dan jarak antar-panggilan alat menjadi satu tinggi yang konsisten."
-   ],
-   "points": [
-    {
-     "id": "no-dangling-gaps",
-     "title": "Respons selaan tidak menyisakan celah",
-     "text": "Respons selaan meninggalkan baris kosong menggantung, dan tiap celah mendorong panggilan tool berikutnya turun di layar. Baris kosong di ekor dipangkas di renderer, dan ruang setelah respons selaan tinggal nol."
-    },
-    {
-     "id": "uniform-spacing",
-     "title": "Satu spine yang konsisten antar panggilan",
-     "text": "Jarak antara satu panggilan tool dan berikutnya bergantung pada apa yang diakhiri respons sebelumnya. Spine kini satu jarak yang konsisten, dan transkrip berisi banyak panggilan terbaca rata alih-alih menyebar."
-    }
-   ],
-   "sections": [],
-   "summary": "Tanpa celah menggantung"
-  },
-  "0.11.3": {
-   "title": "Satu alat untuk proses latar",
-   "paragraphs": [
-    "Pekerjaan latar dikelola satu alat `process_control` dengan aksi `type` dan `stop`. Dua alat lama dihapus, sehingga ada satu tempat untuk melihat dan tidak ada lagi pilihan parameter yang membingungkan, dan upgrade format 28 membawa catatan sesi lama dengan mulus."
-   ],
-   "points": [
-    {
-     "id": "one-background-tool",
-     "title": "Satu tool untuk proses latar",
-     "text": "Pekerjaan latar dikelola dua tool dengan argumen yang tumpang-tindih, dan memilih di antaranya adalah tebakan. Satu tool `process_control` dengan aksi `type` dan `stop` mengerjakan keduanya kini, dan hanya ada satu tempat untuk dicari."
-    },
-    {
-     "id": "legacy-tools-removed",
-     "title": "Duo ambigu itu pergi",
-     "text": "`terminal_input` dan `kill_task` masih terdeklarasi di samping tool baru, jadi model bisa memilih jalur legacy dan separuh parameternya tak bermakna di sana. Keduanya dihapus, dan ambiguitasnya bersamaannya."
-    },
-    {
-     "id": "format-28-upgrade",
-     "title": "Sesi lama terbawa",
-     "text": "Sesi yang terekam di bawah tool lama harus selamat dari perubahan. Satu langkah upgrade format-28 memindahkan rekaman sesi lama ke tool terpadu sekali, dan satu rekaman rusak tidak pernah menggagalkan langkahnya."
-    }
-   ],
-   "sections": [],
-   "summary": "Satu tool latar"
-  },
-  "0.11.4": {
-   "title": "Notifikasi yang membawa output-nya sendiri",
-   "paragraphs": [
-    "Akhir sebuah tugas latar kini datang sebagai satu notifikasi mandiri: bagaimana ia berakhir, pid-nya, dan output yang belum diberikan kepada Anda, sudah di-defuse dan dibatasi. Ini menggantikan roundtrip bangun tambahan yang dulu mengambil detail itu, dan sebuah stop kini mencapai seluruh pohon proses."
-   ],
-   "points": [
-    {
-     "id": "self-contained-notifications",
-     "title": "Notifikasi membawa keluarannya sendiri",
-     "text": "Akhir tugas latar dulu hanya mengumumkan dirinya dan membuat model bertanya lagi untuk keluarannya — satu roundtrip wake-up per tugas. Notifikasi kini membawa keluaran yang belum kamu terima — dinetralkan dan dibatasi — di dalam event itu sendiri."
-    },
-    {
-     "id": "one-packet-metadata",
-     "title": "Semuanya tiba dalam satu paket",
-     "text": "Bagaimana tugas berakhir, kode keluarnya, dan baris-baris terbarunya menempuh jawaban terpisah. Metadata, exit code, dan baris terbaru kini tiba dalam satu paket, dan panggilan wake tambahan hilang."
-    },
-    {
-     "id": "tree-termination",
-     "title": "Stop mencapai seluruh pohon",
-     "text": "Menghentikan tugas dulu membunuh proses yang kamu namai dan membiarkan anak-anaknya berjalan. Stop kini mengakhiri seluruh pohon proses, dan tak ada yang ia mulai bertahan hidup."
-    }
-   ],
-   "sections": [],
-   "summary": "Notifikasi bawa keluaran"
-  },
-  "0.11.5": {
-   "title": "Mulai pertama, dan pola path Windows",
-   "paragraphs": [
-    "Dua kesalahan yang ditemukan di mesin sungguhan sudah diperbaiki: pada mulai pertama, skill bantuan resmi memeriksa dirinya sementara sesi sedang dibuat, dan di Windows pola path yang berakhir dengan titik atau spasi tidak ditangani. Suite smoke juga memeriksa mulai di lingkungan bersih pada setiap platform."
-   ],
-   "points": [
-    {
-     "id": "first-start-race",
-     "title": "Start pertama tidak lagi membalap dirinya",
-     "text": "Pada start pertama, skill help resmi memverifikasi dirinya saat sesi masih dibuat, dan keduanya bertabrakan. Verifikasi menunggu sesi ada kini, dan start pertama adalah start bersih."
-    },
-    {
-     "id": "windows-path-patterns",
-     "title": "Path Windows berakhiran titik atau spasi",
-     "text": "Di Windows, pola path yang berakhiran titik atau spasa salah ditangani, dan file yang namanya berakhiran begitu tak bisa dicocokkan. Polanya kini ditangani, dan file itu ditemukan seperti file lain."
-    },
-    {
-     "id": "clean-start-smoke",
-     "title": "Smoke suite memulai dari bersih",
-     "text": "Smoke suite menguji upgrade tapi tidak pernah start pertama di mesin polos. Start lingkungan bersih dicek di POSIX dan Windows kini, dan rilis tidak bisa keluar tanpa membuktikannya."
-    }
-   ],
-   "sections": [],
-   "summary": "Start pertama & path Windows"
-  },
-  "0.11.6": {
-   "title": "Apa yang boleh dilakukan skrip manual, dinyatakan jelas",
-   "paragraphs": [
-    "Layar shell manual kini menjelaskan batas eksekusi sebuah perintah `!` dengan kata-kata: akses apa yang dimilikinya, dan bahwa classifier serta sanitizer dilewati untuk panggilan itu. Perkataannya sesuai dengan yang terjadi di shell POSIX dan di Windows ConPTY."
-   ],
-   "points": [
-    {
-     "id": "manual-boundary-words",
-     "title": "Apa yang boleh dilakukan script manual, dalam kata-kata",
-     "text": "Layar shell manual menjalankan perintah `!` tanpa menyebut akses apa yang dibawanya, jadi batasnya sesuatu yang harus sudah kamu tahu lebih dulu. Layar kini menjelaskan batas eksekusinya dalam kata-kata: akses penuh untuk panggilan itu, tercatat jelas."
-    },
-    {
-     "id": "bypass-semantics",
-     "title": "Bypass-nya disebut, bukan ditemukan",
-     "text": "Classifier dan sanitizer dilewati untuk satu panggilan manual — memang begitu rancangannya — dan tak ada di layar yang mengakuinya. Redaksinya kini menyebut persis itu, dan cocok dengan yang terjadi di shell POSIX maupun Windows ConPTY."
-    }
-   ],
-   "sections": [],
-   "summary": "Batas manual dalam kata"
-  },
-  "0.11.7": {
-   "title": "Sebuah pikiran tidak dibelah teks sesudahnya",
-   "paragraphs": [
-    "Reasoning bisa tiba berselang-seling dengan jawaban, sehingga satu kalimat pemikiran terpotong oleh kata pertama balasan. Delta reasoning kini dievaluasi sebelum delta teks, dan fragmen satu putaran digabung, menjaga batas bersih sebelum teks final."
-   ],
-   "points": [
-    {
-     "id": "reasoning-before-text",
-     "title": "Pikiran tidak dipecah oleh jawaban",
-     "text": "Delta reasoning dan delta teks datang berselang-seli, jadi kata-kata pertama jawaban memotong separuh kalimat thinking. Reasoning kini dievaluasi persis sebelum teks, dan satu pikiran terbaca utuh sebelum jawaban dimulai."
-    },
-    {
-     "id": "round-coalescing",
-     "title": "Pecahan pikiran menyatu ke round-nya",
-     "text": "Pecahan satu round thinking datang sebagai blok terpisah, masing-masing dengan header sendiri di layar. Pecahan kini digabung per round, dan satu round thinking adalah satu blok."
-    },
-    {
-     "id": "handover-ack",
-     "title": "Sesi anak diakui sebelum dilepas",
-     "text": "Handover multi-hop melepas host induk sebelum sesi anak mengakui rekaman barunya, dan kecelakaan di sela itu kehilangan handover. Anak mengakui lebih dulu kini, dan induk melepas hanya sesudahnya."
-    }
-   ],
-   "sections": [],
-   "summary": "Thinking tetap utuh"
-  },
-  "0.11.8": {
-   "title": "Berganti mode saat streaming tidak lagi menggambar ulang footer",
-   "paragraphs": [
-    "Mengubah mode izin saat respons dialirkan dulu menghitung ulang prioritas dan menyusun ulang footer tanpa alasan. Notice status yang sedang Anda baca kini bertahan melewati pergantian itu, dan janji footer tetap utuh di setiap jendela."
-   ],
-   "points": [
-    {
-     "id": "no-midstream-reflow",
-     "title": "Ganti mode berhenti menggambar ulang footer",
-     "text": "Mengubah mode izin saat respons mengalir menghitung ulang prioritas dan menggambar ulang kolom footer tanpa alasan, dan layar melompat di bawah teks yang kamu baca. Pergantian tak lagi memicu reflow, dan aliran tetap di tempatnya."
-    },
-    {
-     "id": "notice-survival",
-     "title": "Notice status selamat dari pergantian",
-     "text": "Notice status yang sedang kamu baca bisa dihapus oleh ganti mode itu sendiri. Notice aktif kini dipertahankan lewat peralihan di tengah aliran, dan yang sudah disampaikan tetap tersampaikan."
-    },
-    {
-     "id": "priority-promises",
-     "title": "Janji footer berlaku di setiap jendela",
-     "text": "Pembatalan Esc, retry linier, dan dialog konfirmasi bisa kehilangan prioritasnya di satu jendela sementara jendela lain memegangnya. Janji-janji itu memegang prioritas di setiap jendela kini, dan tak ada jendela yang tertinggal."
-    }
-   ],
-   "sections": [],
-   "summary": "Footer stabil di tengah aliran"
-  },
-  "0.11.9": {
-   "title": "Pola path bergrup, dicari dalam satu panggilan",
-   "paragraphs": [
-    "find_files dan filter include pada search_text kini mengekspansi alternatif kurung kurawal dalam sebuah path, termasuk grup bersarang, bersama alternatif `|`. Pola seperti `*.{ts,tsx}` menjadi satu panggilan atas satu penelusuran direktori, bukan beberapa, dan tidak ada skema penyedia yang diubah untuk itu."
-   ],
-   "points": [
-    {
-     "id": "brace-expansion",
-     "title": "Pola berkelompok meluas secara native",
-     "text": "Pola seperti `*.{ts,tsx}` dulu diberikan ke filesystem sebagai teks literal dan tidak mencocokkan apa pun. Alternatif brace — termasuk kelompok bersarang — dan alternatif `|` meluas secara native kini, di mesin, sebelum walk dimulai."
-    },
-    {
-     "id": "one-call-search",
-     "title": "Satu panggilan, satu walk",
-     "text": "Mencari pola berkelompok berarti satu panggilan per alternatif, masing-masing berjalan menyapu pohon yang sama. find_files dan filter include milik search_text mencari pola berkelompok dalam satu panggilan atas satu walk kini."
-    },
-    {
-     "id": "no-declaration-change",
-     "title": "Yang lain tak perlu berubah",
-     "text": "Perubahan sedalam ini bisa saja menyentuh deklarasi tool atau format basis data. Ia tidak: peluasan terjadi di mesin, tak ada deklarasi provider yang berubah, dan tak ada format basis data yang pindah."
-    }
-   ],
-   "sections": [],
-   "summary": "Pola path berkelompok"
-  }
- }
 }

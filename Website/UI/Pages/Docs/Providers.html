@@ -79,7 +79,7 @@
 
 <h2 id="on-this-computer">Models on this computer</h2>
 <p><strong>Ollama</strong> serves local models from this computer on port 11434, with no key. This is a different service from Ollama's cloud web search. A local model keeps prompts on your machine, but web tools, auxiliary jobs and commands can still contact other services.</p>
-<p><strong>9router</strong> is a router app that runs on your computer, on port 20128 by default, and forwards requests to the upstream accounts you set up in it. One connection serves every model it offers. For Claude Code's models (<code>cc/…</code>), Rune uses 9router's Anthropic-style door by itself, so their cache and thinking counts arrive; there is nothing to set up. Off is a request: when a route reports that thinking cannot be disabled, Off asks for Low instead.</p>
+<p><strong>9router</strong> is a router app that runs on your computer, on port 20128 by default, and forwards requests to the upstream accounts you set up in it. One connection serves every model it offers. For Claude Code's models (<code>cc/…</code>), Rune uses 9router's Anthropic-style door by itself, so their cache and thinking counts arrive; there is nothing to set up. Off sends no reasoning level at all: the route keeps its own default, and choosing a level after turning thinking on is what overrides it.</p>
 <p>A preset's local address is a default, not proof that the service runs on your machine. Start the service first; Rune's test request tells you whether it answered.</p>
 
 <h2 id="keys">Keys and accounts</h2>

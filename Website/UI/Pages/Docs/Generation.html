@@ -8,7 +8,7 @@
 <div><dt>On / effort</dt><dd>Enable supported reasoning or choose an offered level. Greater effort can increase latency and token cost without guaranteeing a better answer.</dd></div>
 <div><dt>Route default</dt><dd>Where offered, leave reasoning control to the route. This is neither Off nor a particular positive effort level.</dd></div>
 </dl>
-<p>On 9router, a route explicitly reporting that thinking cannot be disabled receives Low for an Off request; Minimal is excluded from the effective choices, even if an older saved option contains it. Routes that can disable thinking receive a disable request, but executors may still change it. Check the explanation beside the control instead of inferring behavior from the model ID.</p>
+<p>On 9router, Off sends no level at all, so the route keeps its own default; choosing a level with thinking on is the only thing that overrides it.</p>
 <p>Thinking shown as text is counted in words; a route reporting thinking tokens can show those reported tokens instead. Rune does not invent a token estimate. No visible thought does not prove reasoning was disabled: some endpoints do not return it.</p>
 <h2 id="sampling">Sampling</h2>
 <div class="table-wrap"><table class="data"><thead><tr><th>Control</th><th>Purpose and usual range</th></tr></thead><tbody>

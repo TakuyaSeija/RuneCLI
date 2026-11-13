@@ -8,7 +8,7 @@
 <div><dt>On / effort</dt><dd>Mengaktifkan penalaran yang didukung atau memilih tingkat upaya yang tersedia. Upaya yang lebih tinggi dapat menambah latensi dan biaya token tanpa menjamin jawaban yang lebih baik.</dd></div>
 <div><dt>Route default</dt><dd>Bila tersedia, menyerahkan pengaturan penalaran kepada rute penyedia. Pilihan ini bukan Off maupun tingkat upaya positif tertentu.</dd></div>
 </dl>
-<p>Pada 9router, rute yang secara eksplisit melaporkan bahwa penalaran tidak dapat dinonaktifkan akan menerima nilai Low saat Anda memilih Off; opsi Minimal dikecualikan dari pilihan efektif meskipun opsi lama yang tersimpan pernah memuatnya. Rute yang mengizinkan penonaktifan penalaran akan menerima permintaan nonaktif, namun eksekutor di sisi penyedia tetap dapat mengubahnya. Baca keterangan di samping kontrol alih-alih menebak perilaku dari ID model.</p>
+<p>Pada 9router, Off tidak mengirim level apa pun: rute memakai nilai bawaannya, hanya level yang Anda pilih saat penalaran menyala yang menggantikannya, opsi Minimal tetap dikecualikan pada rute yang tidak dapat mematikan penalaran, dan pada rute yang dapat mematikannya pun Off tidak lagi mengirim permintaan nonaktif. Baca keterangan di samping kontrol alih-alih menebak perilaku dari ID model.</p>
 <p>Penalaran yang ditampilkan sebagai teks dihitung dalam satuan kata; rute yang melaporkan jumlah token penalaran dapat menampilkan angka token tersebut. Rune tidak pernah mengarang perkiraan jumlah token. Tidak adanya teks penalaran yang tampil bukan bukti bahwa penalaran mati: beberapa endpoint memang tidak mengembalikan teks penalaran.</p>
 <h2 id="sampling">Sampling</h2>
 <div class="table-wrap"><table class="data"><thead><tr><th>Kontrol</th><th>Tujuan dan rentang umum</th></tr></thead><tbody>

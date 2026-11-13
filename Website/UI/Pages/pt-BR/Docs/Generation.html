@@ -8,7 +8,7 @@
 <div><dt>On / esforço</dt><dd>Ativa o raciocínio suportado ou escolhe um nível oferecido. Maior esforço pode aumentar a latência e o custo em tokens sem garantir uma resposta melhor.</dd></div>
 <div><dt>Route default</dt><dd>Quando oferecido, deixa o controle de raciocínio a cargo da rota. Não equivale nem a Off nem a um nível de esforço positivo específico.</dd></div>
 </dl>
-<p>No 9router, uma rota que informa explicitamente que o raciocínio não pode ser desativado recebe Low quando você pede Off; o nível Minimal é excluído das opções efetivas, mesmo que uma configuração salva anteriormente o contenha. Rotas capazes de desativar o raciocínio recebem a solicitação de desativação, mas os executores ainda podem alterá-la. Leia a explicação ao lado do controle em vez de deduzir o comportamento pelo ID do modelo.</p>
+<p>No 9router, Off não envia nível algum: a rota mantém o próprio padrão, apenas um nível escolhido com o raciocínio ativo o substitui, o nível Minimal continua excluído nas rotas que não permitem desativar o raciocínio e, mesmo onde permitem, Off não envia mais solicitação de desativação. Leia a explicação ao lado do controle em vez de deduzir o comportamento pelo ID do modelo.</p>
 <p>O raciocínio exibido como texto é contado em palavras; uma rota que informa tokens de raciocínio pode exibir esses tokens reportados. O Rune não inventa uma estimativa de tokens. A ausência de pensamento visível não prova que o raciocínio foi desativado: alguns endpoints não retornam esse texto.</p>
 <h2 id="sampling">Amostragem</h2>
 <div class="table-wrap"><table class="data"><thead><tr><th>Controle</th><th>Finalidade e intervalo habitual</th></tr></thead><tbody>
