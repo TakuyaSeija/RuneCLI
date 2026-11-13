@@ -1877,8 +1877,11 @@ mod tests {
                 let (_, body) = shape(&req, &cfg).unwrap();
                 if api == "9router" {
                     assert!(body.get("reasoning").is_none(), "{body}");
+                    // Off leaves the route's own default alone: no level is sent.
+                    assert!(body.get("reasoning_effort").is_none(), "{body}");
+                } else {
+                    assert_eq!(body["reasoning_effort"], "none");
                 }
-                assert_eq!(body["reasoning_effort"], "none");
             }
         }
     }

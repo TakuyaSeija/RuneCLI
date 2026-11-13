@@ -130,54 +130,82 @@ pub fn matches_at(input: &str, cursor: usize) -> Vec<SlashEntry> {
 }
 
 fn active_slash_query(input: &str, cursor: usize) -> Option<(usize, usize, Vec<SlashEntry>)> {
-    let mut end = cursor.min(input.len());
-    while end > 0 && !input.is_char_boundary(end) {
-        end -= 1;
-    }
-    let before = &input[..end];
-
-    if input == "?" && end == 1 {
+    if input == "?" {
         return Some((0, 1, COMMANDS.iter().filter(|c| c.0 == "help").collect()));
     }
-
-    // 1. Line-start command (supports `/verb args` for commands that accept arguments).
-    if let Some(rest) = before.strip_prefix('/') {
-        if !rest.starts_with('/') && !rest.starts_with(char::is_whitespace) {
-            if let Some((word, _)) = rest.split_once(char::is_whitespace) {
-                let first_word = word.to_ascii_lowercase();
-                if !first_word.is_empty() && !first_word.contains('/') {
-                    let matching: Vec<_> = COMMANDS
-                        .iter()
-                        .filter(|c| {
-                            (c.0 == first_word
-                                || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
-                                && !c.1.is_empty()
-                        })
-                        .collect();
-                    if !matching.is_empty() {
-                        if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
-                            return Some((0, end, vec![exact]));
-                        }
-                        return Some((0, end, matching));
-                    }
-                }
-            } else if !rest.contains('/') {
-                return Some((0, end, rank_commands(&rest.to_ascii_lowercase())));
-            }
+    // 1. The line's own command — `/verb` or `/verb args` for the verbs that
+    // take arguments. Read from the whole line, as it always was: the rest of
+    // the line is the argument being written for the verb.
+    if let Some(rest) = input.strip_prefix('/') {
+        if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
+            return None;
         }
+        let (first_word, has_space) = match rest.split_once(char::is_whitespace) {
+            Some((word, _)) => (word.to_ascii_lowercase(), true),
+            None => (rest.trim().to_ascii_lowercase(), false),
+        };
+        // Filesystem paths (e.g. "/usr/bin/env") are never slash commands.
+        if first_word.contains('/') {
+            return None;
+        }
+        if has_space && !first_word.is_empty() {
+            let matching: Vec<_> = COMMANDS
+                .iter()
+                .filter(|c| {
+                    (c.0 == first_word || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
+                        && !c.1.is_empty()
+                })
+                .collect();
+            if matching.is_empty() {
+                return None;
+            }
+            if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
+                return Some((0, input.len(), vec![exact]));
+            }
+            return Some((0, input.len(), matching));
+        }
+        let hits = rank_commands(&first_word);
+        return (!hits.is_empty()).then_some((0, input.len(), hits));
     }
-
-    // 2. Any standalone `/token` preceded by whitespace (including mid-sentence or after newline).
-    let word_start = before
-        .rfind(char::is_whitespace)
-        .and_then(|i| before[i..].chars().next().map(|ch| i + ch.len_utf8()))
-        .unwrap_or(0);
-    let word = &before[word_start..];
-    let rest = word.strip_prefix('/')?;
+    // 2. A `/token` standing on its own inside the sentence — typed at the
+    // cursor, wherever that is (owner, 2026-11-13). Only the word is read; the
+    // prose around it is never touched.
+    let (start, end) = word_at(input, cursor)?;
+    let rest = input[start..end].strip_prefix('/')?;
     if rest.starts_with('/') || rest.contains('/') {
         return None;
     }
-    Some((word_start, end, rank_commands(&rest.to_ascii_lowercase())))
+    let hits = rank_commands(&rest.to_ascii_lowercase());
+    (!hits.is_empty()).then_some((start, end, hits))
+}
+
+/// The word the cursor is on or, at the end of the text, the one it just
+/// finished typing. `None` when the cursor has been moved off a word — after a
+/// space, where nothing is half-written.
+fn word_at(input: &str, cursor: usize) -> Option<(usize, usize)> {
+    let cursor = cursor.min(input.len());
+    let space = char::is_whitespace;
+    match input[cursor..].chars().next() {
+        Some(c) if !c.is_whitespace() => {
+            let inside = input[..cursor]
+                .chars()
+                .next_back()
+                .is_some_and(|p| !space(p));
+            let start = if inside {
+                input[..cursor].rfind(space).map_or(0, |i| i + 1)
+            } else {
+                cursor
+            };
+            let end = input[cursor..]
+                .find(space)
+                .map_or(input.len(), |i| cursor + i);
+            Some((start, end))
+        }
+        _ => {
+            let start = input[..cursor].rfind(space).map_or(0, |i| i + 1);
+            (start < cursor).then_some((start, cursor))
+        }
+    }
 }
 
 fn rank_commands(needle: &str) -> Vec<&'static (&'static str, &'static str, &'static str)> {
@@ -1358,17 +1386,12 @@ impl App {
                 }
             }
             Key::Enter => {
-                if self.searching() {
-                    if let Some((start, _, hits)) = active_slash_query(&self.input, self.cursor) {
-                        if start > 0 {
-                            if let Some((completed, new_cursor)) = self.chosen_completion(true) {
-                                self.input = completed;
-                                self.cursor = new_cursor;
-                                self.palette_row = 0;
-                                self.palette_scroll = 0;
-                                return;
-                            }
-                        } else if let Some((verb, args_hint, _)) =
+                if let Some((start, _, hits)) = active_slash_query(&self.input, self.cursor) {
+                    // A `/token` inside a sentence is prose being written, not a
+                    // command being chosen: Enter sends the message as typed and
+                    // Tab is what completes the token (owner, 2026-11-13).
+                    if start == 0 {
+                        if let Some((verb, args_hint, _)) =
                             hits.get(self.palette_row.min(hits.len().saturating_sub(1)))
                         {
                             let typed = self
@@ -1417,10 +1440,10 @@ impl App {
                                 }
                             }
                         }
-                    }
-                    if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
-                        self.input = chosen;
-                        self.cursor = new_cursor;
+                        if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
+                            self.input = chosen;
+                            self.cursor = new_cursor;
+                        }
                     }
                 }
                 self.submit(d)
@@ -5173,7 +5196,9 @@ mod tests {
     #[test]
     fn mid_text_slash_palette_completes_only_the_slash_token_without_erasing_prefix() {
         let mut d = test_driver("mid-text-slash");
-        let mut app = App::for_test();
+        let mut app = App::for_test_with(serde_json::json!({
+            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+        }));
 
         // Scenario 1: "fdafadasdasda /" opens palette
         press(&mut app, &mut d, &typed("fdafadasdasda /"));
@@ -5201,11 +5226,13 @@ mod tests {
         press(&mut app, &mut d, &[Key::Tab]);
         assert_eq!(app.input, "fdafadasdasda / dasdasdas /skills");
 
-        // Enter on a mid-text token inserts trailing space & closes palette (does not submit yet)
+        // Enter sends the sentence as typed: a mid-text token is prose, never a
+        // command being chosen (the text is not completed behind the user).
         press(&mut app, &mut d, &[Key::Enter]);
-        assert_eq!(app.input, "fdafadasdasda / dasdasdas /skills ");
-        assert!(!app.searching());
-        assert!(app.blocks.is_empty());
+        assert!(app.blocks.iter().any(
+            |b| matches!(b, super::super::blocks::Block::User { text, .. }
+                if text == "fdafadasdasda / dasdasdas /skills")
+        ));
 
         // Scenario 5 & 6: attached slash "dasdasdas/" or "dasdasdas/sk" does not open palette
         press(&mut app, &mut d, &typed("dasdasdas/"));

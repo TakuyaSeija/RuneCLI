@@ -212,11 +212,8 @@ impl RouterThinking {
 /// into them (9router 0.5.104 source, read 2026-10-23), since this door
 /// passes the request through as written (owner, 2026-10-23):
 ///
-/// - Off is `disabled`, said aloud: the door applies the route's own thinking
-///   to a request that names none (measured on `cc/claude-sonnet-5-5` and
-///   `cc/claude-haiku-5-5`). A route that cannot stop thinking
-///   (`thinking_off_requests_low`) is asked for Low instead (a request,
-///   never a guarantee of the upstream's actual thinking).
+/// - Off sends nothing: the route's own default holds, never a `disabled`
+///   or a Low the route did not ask for (owner, 2026-11-13).
 /// - A level on a `claude-adaptive` route is `adaptive` with
 ///   `output_config.effort` (`minimal`, a level Claude does not name, asks
 ///   for `low`, as the router does); a budget there is not read (measured).
@@ -237,18 +234,13 @@ fn router_thinking(
     if model.reasoning_support() != Some(true) {
         return None;
     }
-    let level = if s.thinking || model.thinking_required {
-        s.effort
-            .as_deref()
-            .filter(|e| model.effort_choices("9router").iter().any(|v| v == *e))?
-    } else if model.thinking_off_requests_low() {
+    if !(s.thinking || model.thinking_required) {
         return None;
-    } else {
-        return Some(RouterThinking {
-            thinking: json!({ "type": "disabled" }),
-            effort: None,
-        });
-    };
+    }
+    let level = s
+        .effort
+        .as_deref()
+        .filter(|e| model.effort_choices("9router").iter().any(|v| v == *e))?;
     let adaptive = model
         .metadata
         .pointer("/capabilities/thinkingFormat")
@@ -1051,9 +1043,9 @@ mod tests {
             };
             body(&req, &cfg)
         };
-        // Off is said aloud: the door thinks on its own otherwise.
+        // Off sends nothing: the route's own default holds (owner, 2026-11-13).
         let off = ask("cc/claude-sonnet-5-5", false, None);
-        assert_eq!(off["thinking"], json!({"type": "disabled"}));
+        assert!(off.get("thinking").is_none(), "{off}");
         assert!(off.get("output_config").is_none());
         // A level on an adaptive route is its effort; minimal is Claude's low.
         let high = ask("cc/claude-sonnet-5-5", true, Some("high"));

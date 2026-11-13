@@ -156,8 +156,8 @@ def main():
         assert f"{ROUTE} ·" in title.replace("\x1b", ""), f"a level is shown beside the route: {title!r}"
         calls = live.ask(window, provider, "first question", live.text("Answer one."), expect="Answer one.")
         body = calls[-1]["body"]
-        assert body.get("reasoning_effort") == "low" and "reasoning" not in body, body
-        passed.append("a cannot-disable 9router route starts Off: no chosen level shown, Low requested")
+        assert "reasoning_effort" not in body and "reasoning" not in body, body
+        passed.append("a cannot-disable 9router route starts Off: no chosen level shown, no level requested")
 
         window.type("/thinking on")
         window.send(b"\r")

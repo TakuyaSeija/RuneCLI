@@ -1856,7 +1856,8 @@ mod tests {
         assert!(!body.contains_key("reasoning"), "{body:?}");
         s.thinking = false;
         let body = s.body(&router);
-        assert_eq!(body["reasoning_effort"], serde_json::json!("none"));
+        // Off leaves the route's default alone on 9router (owner, 2026-11-13).
+        assert!(!body.contains_key("reasoning_effort"), "{body:?}");
         assert!(!body.contains_key("reasoning"), "{body:?}");
 
         let mut openrouter = preset("openrouter").unwrap().build("");

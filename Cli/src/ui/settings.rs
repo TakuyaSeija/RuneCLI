@@ -1239,7 +1239,7 @@ fn router_off_hint(
     Some(if model.is_some_and(|m| m.thinking_off_requests_low()) {
         ("Off: route default", "This route reports that thinking cannot be disabled: Off omits reasoning_effort so the route uses its default. Minimal is not offered.")
     } else if model.is_some_and(|m| m.thinking_off_between_tools_only()) {
-        ("Off: between tools only", "On this route Off sends no reasoning_effort override; the route's own default or between-tools policy applies.")
+        ("Off: between tools only", "On this route Off sends no reasoning_effort override, and the model still thinks before it answers; the route's own between-tools policy applies.")
     } else {
         ("Off: route default", "Off sends no reasoning_effort override, leaving the route's default. Turn Thinking on and choose an effort level to override it.")
     })

@@ -162,37 +162,21 @@ fn router_off_and_route_default_reach_both_http_doors_as_requests() {
     }
     let requests = server.join().unwrap();
     for (door, group) in requests.chunks_exact(6).enumerate() {
-        for (capability, pair) in [Some(false), Some(true), None]
+        for (_capability, pair) in [Some(false), Some(true), None]
             .into_iter()
             .zip(group.chunks_exact(2))
         {
             let off = &pair[0];
             let default = &pair[1];
             if door == 0 {
-                assert_eq!(
-                    off["reasoning_effort"],
-                    if capability == Some(false) {
-                        "low"
-                    } else {
-                        "none"
-                    }
-                );
+                // Off sends no level at all: the route's default holds (owner, 2026-11-13).
+                assert!(off.get("reasoning_effort").is_none(), "{off}");
                 assert!(off.get("reasoning").is_none());
                 assert!(default.get("reasoning_effort").is_none());
             } else {
-                assert_eq!(
-                    off["thinking"]["type"],
-                    if capability == Some(false) {
-                        "adaptive"
-                    } else {
-                        "disabled"
-                    }
-                );
-                if capability == Some(false) {
-                    assert_eq!(off["output_config"]["effort"], "low");
-                } else {
-                    assert!(off.get("output_config").is_none());
-                }
+                // Off on the Messages door sends no thinking override either.
+                assert!(off.get("thinking").is_none(), "{off}");
+                assert!(off.get("output_config").is_none(), "{off}");
                 assert!(default.get("thinking").is_none());
             }
         }
