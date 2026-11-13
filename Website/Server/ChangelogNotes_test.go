@@ -2,6 +2,7 @@ package main
 
 import (
 	"html"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -184,5 +185,47 @@ func TestChangelogServesVersionSpecificTitleAndSnippet(t *testing.T) {
 	query := get(t, h, "GET", "/Studio/changelog?v=0.12.0").Body.String()
 	if !strings.Contains(query, "<title>RuneAgent 0.12.0: "+html.EscapeString(note0120.Title)+"</title>") {
 		t.Errorf("query ?v=0.12.0 did not select 0.12.0")
+	}
+}
+
+// Choosing another language on a version's page keeps that version: the menu
+// and the head's alternates name the version being read, so a reader who
+// switched version first never lands back on the newest one (owner, 2026-11-13).
+func TestLanguageMenuKeepsTheChangelogVersion(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.12.0", fakeRune("0.12.0"))
+	f.publish(t, "0.12.1", fakeRune("0.12.1"))
+	h := newTestServer(t, testConfig(f.dir)).routes()
+	item := regexp.MustCompile(`<a class="lang-item" href="([^"]+)" hreflang="([^"]+)" lang="[^"]+"( aria-current="true")? translate="no">`)
+	alt := regexp.MustCompile(`<link rel="alternate" hreflang="([^"]+)" href="([^"]+)">`)
+
+	for _, path := range []string{"/Studio/changelog/0.12.0", "/Studio/changelog?v=0.12.0"} {
+		body := get(t, h, "GET", path).Body.String()
+		items := item.FindAllStringSubmatch(body, -1)
+		if len(items) != len(locales) {
+			t.Fatalf("%s: %d language entries, want %d", path, len(items), len(locales))
+		}
+		for i, other := range locales {
+			want := "/Studio" + other.prefix() + "/changelog/0.12.0"
+			if items[i][1] != want || items[i][2] != other.Code {
+				t.Errorf("%s: menu entry %v, want %s at %s", path, items[i][1:], other.Code, want)
+			}
+		}
+		alts := alt.FindAllStringSubmatch(body, -1)
+		if len(alts) != len(locales)+1 {
+			t.Fatalf("%s: %d alternates, want %d", path, len(alts), len(locales)+1)
+		}
+		for i, other := range locales {
+			want := "http://127.0.0.1:1/Studio" + other.prefix() + "/changelog/0.12.0"
+			if alts[i][2] != want {
+				t.Errorf("%s: alternate %v, want %s", path, alts[i][2], want)
+			}
+		}
+	}
+
+	// The unversioned changelog still points at the unversioned page.
+	base := get(t, h, "GET", "/Studio/changelog").Body.String()
+	if !strings.Contains(base, `<a class="lang-item" href="/Studio/id/changelog" hreflang="id"`) {
+		t.Errorf("the base changelog's language menu no longer points at the base page")
 	}
 }

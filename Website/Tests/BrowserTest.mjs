@@ -173,6 +173,26 @@ try {
   assert.equal(await evaluate(`document.querySelectorAll('.docs-group[open]').length`), 2);
   await navigate('/Studio/docs/models');
   assert.equal(await evaluate(`document.querySelectorAll('.docs-group[open]').length`), 2, 'a chapter the reader opened closed when they moved on');
+  // The chapters are opened while the page is still being parsed, so a new
+  // article never paints them closed and then pops them open (owner, 2026-11-13):
+  // Restore.js applies the same list before the deferred Site.js runs.
+  const probe = await send('Page.addScriptToEvaluateOnNewDocument', { source: `
+    window.__parseGroups = null;
+    new MutationObserver(() => {
+      Promise.resolve().then(() => {
+        if (document.readyState !== 'loading') return;
+        const groups = [...document.querySelectorAll('details.docs-group')];
+        if (groups.length) window.__parseGroups = groups.map((g) => g.open);
+      });
+    }).observe(document, { childList: true, subtree: true });
+  ` });
+  await navigate('/Studio/docs/settings');
+  await navigate('/Studio/docs/models');
+  const parsed = await evaluate('window.__parseGroups');
+  const settled = await evaluate(`[...document.querySelectorAll('details.docs-group')].map((g) => g.open)`);
+  await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: probe.identifier });
+  assert(parsed && parsed.filter(Boolean).length >= 2, `chapters closed while parsing: ${JSON.stringify(parsed)}`);
+  assert.deepEqual(parsed, settled, `sidebar changed after the first paint: ${JSON.stringify(parsed)} -> ${JSON.stringify(settled)}`);
   // A short closing section is still reached: at the end of the page the last entry is current.
   await navigate('/Studio/license');
   await evaluate(`window.scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'})`); await frame(); await frame();

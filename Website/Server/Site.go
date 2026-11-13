@@ -412,6 +412,13 @@ func (s *site) changelogData(p *page, cat *Catalog, version string) pageData {
 		}
 		if version != "" {
 			d.Canonical = s.cfg.Origin + s.urlIn(p.Locale, "changelog/"+activeRel.Version)
+			// The language menu and the head's alternates name this same version
+			// in every language, so choosing one keeps the reader on the version
+			// they are reading (owner, 2026-11-13).
+			d.Locales = nil
+			for _, other := range locales {
+				d.Locales = append(d.Locales, localeLink{locale: other, Href: s.urlIn(other, "changelog/"+activeRel.Version), Current: other == p.Locale})
+			}
 		}
 	}
 	return d

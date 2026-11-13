@@ -27,13 +27,16 @@
   };
   if (groups.length) {
     const opened = stored(OPENED, []);
-    for (const group of groups) {
-      const title = group.querySelector("summary").textContent.trim();
-      if (opened.includes(title)) group.open = true;
+    // A chapter is remembered by where it sits, not by its words: the same
+    // chapter keeps its place when the reader chooses another language
+    // (owner, 2026-11-13). The manual and the changelog keep separate lists.
+    const kind = document.querySelector(".changelog-panels") ? "changelog:" : "docs:";
+    groups.forEach((group, index) => {
+      if (opened.includes(kind + index)) group.open = true;
       group.addEventListener("toggle", () => {
-        remember(OPENED, groups.filter((one) => one.open).map((one) => one.querySelector("summary").textContent.trim()));
+        remember(OPENED, groups.flatMap((one, at) => (one.open ? [kind + at] : [])));
       });
-    }
+    });
   }
   // Any link that leads to another page of this site remembers where the
   // reader was; the next page starts there and glides to its top, so no article
@@ -44,13 +47,15 @@
   const sidebar = document.querySelector(".docs-sidebar");
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
   // Choosing a language is not leaving the article: the reader stays exactly
-  // where they were, as on atoryn.com (owner, 2026-11-05). Every other link
-  // starts a new page where the reader was and glides to its top.
+  // where they were, as on atoryn.com (owner, 2026-11-05), and the sidebar
+  // keeps its own place too (owner, 2026-11-13). Every other link starts a new
+  // page where the reader was and glides to its top.
   for (const link of document.querySelectorAll("a[hreflang]")) {
     if (!(link instanceof HTMLAnchorElement)) continue;
     link.addEventListener("click", (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       remember(LANG, Math.round(window.scrollY));
+      if (sidebar) remember(SIDEBAR_SCROLL, Math.round(sidebar.scrollTop));
     });
   }
   for (const link of document.querySelectorAll("a[href]")) {
@@ -363,9 +368,11 @@
       });
     };
 
+    const serverVersion = () => (panels.find((p) => p.classList.contains("is-active")) || panels[0]).dataset.version;
+
     const showVersion = (ver, updateUrl) => {
       let target = panels.find((p) => p.dataset.version === ver);
-      if (!target && panels.length) target = panels[0];
+      if (!target && panels.length) target = panels.find((p) => p.classList.contains("is-active")) || panels[0];
       if (!target) return;
 
       panels.forEach((p) => {
@@ -396,6 +403,19 @@
         history.replaceState(null, "", "#v" + activeVer);
       }
 
+      // A version chosen inside the page lives in the hash only. The language
+      // menu names it in the address as well, so choosing another language
+      // keeps the version being read (owner, 2026-11-13).
+      if (/^#v\d/.test(location.hash)) {
+        for (const link of document.querySelectorAll("a[hreflang]")) {
+          if (!(link instanceof HTMLAnchorElement)) continue;
+          const dest = new URL(link.href, location.href);
+          const path = dest.pathname.replace(/\/changelog(?:\/[^/]+)?$/, "/changelog/" + activeVer);
+          if (path === dest.pathname) continue;
+          link.setAttribute("href", path + dest.search);
+        }
+      }
+
       const noteTitle = target.querySelector(".release-note-title")?.textContent?.trim();
       const noteBody = target.querySelector(".release-note-body")?.textContent?.trim();
       if (noteTitle) {
@@ -412,7 +432,7 @@
       if (hash) {
         showVersion(hash, false);
       } else if (panels.length) {
-        showVersion(panels[0].dataset.version, false);
+        showVersion(serverVersion(), false);
       }
     };
 
@@ -420,7 +440,7 @@
     if (location.hash) {
       onHash();
     } else if (panels.length) {
-      showVersion(panels[0].dataset.version, false);
+      showVersion(serverVersion(), false);
     }
 
     [...navLinks, ...pageNavLinks].forEach((link) => {
