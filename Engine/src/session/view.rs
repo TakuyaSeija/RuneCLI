@@ -79,6 +79,7 @@ pub fn from_store(
         "usage": db.session_usage_before(session, first, &standing.prices)?,
         "turn_usage": db.turn_usage_before(session, first)?,
         "tasks": db.tasks(session)?,
+        "background_tasks": st.background.snapshot().1,
         "file_changes": standing.file_changes,
         "composer": db.jsonl.composer(session)?,
         "history": history,
@@ -97,6 +98,9 @@ pub fn overlay(view: &mut Value, account: &Account) -> Result<()> {
     }
     if let Some(Event::Tasks { tasks, .. }) = account.last("tasks") {
         view["tasks"] = serde_json::to_value(tasks)?;
+    }
+    if let Some(Event::BackgroundTasks { tasks, .. }) = account.last("background_tasks") {
+        view["background_tasks"] = serde_json::to_value(tasks)?;
     }
     if let Some(Event::FileChanges { changes, .. }) = account.last("file_changes") {
         view["file_changes"] = serde_json::to_value(changes)?;

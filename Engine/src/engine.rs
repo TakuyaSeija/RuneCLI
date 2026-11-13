@@ -939,6 +939,15 @@ impl Engine {
                 Ok(Some(json!({ "tasks": db.tasks(session)? })))
             }
 
+            Command::SessionShells { session, .. } => {
+                let s = self.resume(session)?;
+                let (running, shells) = s.state.background.shells_detail();
+                Ok(Some(json!({
+                    "running": running,
+                    "shells": shells,
+                })))
+            }
+
             Command::SessionRename { session, title, .. } => {
                 let db = panic::lock(&self.rt.db);
                 if !db.rename_session(session, &title)? {
@@ -2414,6 +2423,14 @@ impl Engine {
                 });
             }
         }
+        let (running, bg_tasks) = s.state.background.snapshot();
+        if !bg_tasks.is_empty() {
+            self.emit(Event::BackgroundTasks {
+                session: s.id(),
+                running,
+                tasks: bg_tasks,
+            });
+        }
     }
 
     fn ack(events: &crate::session::live::Bus, id: u64, result: Result<Option<Value>>) {
@@ -2716,6 +2733,18 @@ impl crate::session::background::SessionWakeNotifier for EngineNotifier {
                 let _busy = busy;
                 let _ = crate::session::turn::run_queued(&rt, &state);
             }
+        });
+    }
+
+    fn changed(&self) {
+        let Some(state) = self.state.upgrade() else {
+            return;
+        };
+        let (running, tasks) = state.background.snapshot();
+        let _ = self.rt.events.send(Event::BackgroundTasks {
+            session: state.id,
+            running,
+            tasks,
         });
     }
 }

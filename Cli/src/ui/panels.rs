@@ -24,6 +24,7 @@ pub fn document(app: &App, width: usize) -> super::panel_view::Document {
         Panel::Undo | Panel::Redo => return super::undo::document(app, width),
         Panel::Context => context_document(app, width),
         Panel::Logs => logs_document(app, width),
+        Panel::Shells => shells_document(app, width),
         Panel::Link => {
             let mut doc = super::panel_view::Document::plain(render(app, width));
             doc.from_top = true;
@@ -47,6 +48,7 @@ pub fn render(app: &App, width: usize) -> Sink {
         Panel::Undo | Panel::Redo => return super::undo::document(app, width).sink,
         Panel::Logs => out.append(&logs_document(app, width).sink),
         Panel::Context => out.append(&context_document(app, width).sink),
+        Panel::Shells => out.append(&shells_document(app, width).sink),
         Panel::Capabilities => {
             out.append(&title(
                 "CAPABILITIES",
@@ -148,6 +150,9 @@ fn hint(app: &App) -> String {
         Panel::Logs => {
             "↑↓/wheel choose · Enter details · PgUp/PgDn read open details · /logs all|warn|error · Esc close"
                 .into()
+        }
+        Panel::Shells => {
+            "↑↓/wheel choose · Enter live output · PgUp/PgDn scroll output · Esc close".into()
         }
         // A panel with nothing to choose takes no keys, so the composer is still
         // live underneath it — which is what a person does next after reading
@@ -884,8 +889,220 @@ fn logs_document(app: &App, width: usize) -> super::panel_view::Document {
 /// The two panels that do have rows keep their keys: `↑↓` where there is
 /// something to choose, and the settings letters, which are the whole of that
 /// screen's interface.
+struct ShellEntry {
+    task_id: String,
+    pid: i32,
+    command: String,
+    out_file: String,
+    started_at: i64,
+    finished_at: Option<i64>,
+    status: String,
+    exit_code: Option<i32>,
+    capture_note: Option<String>,
+    tail: String,
+}
+
+fn shell_entries(app: &App) -> Vec<ShellEntry> {
+    if !app.shells_detail.is_empty() {
+        return app
+            .shells_detail
+            .iter()
+            .map(|v| ShellEntry {
+                task_id: v["task_id"].as_str().unwrap_or("").to_string(),
+                pid: v["pid"].as_i64().unwrap_or(0) as i32,
+                command: v["command"].as_str().unwrap_or("").to_string(),
+                out_file: v["out_file"].as_str().unwrap_or("").to_string(),
+                started_at: v["started_at"].as_i64().unwrap_or(0),
+                finished_at: v["finished_at"].as_i64(),
+                status: v["status"].as_str().unwrap_or("running").to_string(),
+                exit_code: v["exit_code"].as_i64().map(|c| c as i32),
+                capture_note: v["capture_note"].as_str().map(String::from),
+                tail: v["tail"].as_str().unwrap_or("").to_string(),
+            })
+            .collect();
+    }
+    app.background_tasks
+        .iter()
+        .map(|t| ShellEntry {
+            task_id: t.task_id.clone(),
+            pid: t.pid,
+            command: t.command.clone(),
+            out_file: t.out_file.clone(),
+            started_at: t.started_at,
+            finished_at: t.finished_at,
+            status: t.status.clone(),
+            exit_code: t.exit_code,
+            capture_note: None,
+            tail: String::new(),
+        })
+        .collect()
+}
+
+fn shells_document(app: &App, width: usize) -> super::panel_view::Document {
+    let mut doc = super::panel_view::Document::reader();
+    doc.centre = true;
+    let mut out = title(
+        "SHELLS",
+        "background shell processes in this session, newest first",
+        width,
+    );
+    let entries = shell_entries(app);
+    let running_count = entries
+        .iter()
+        .filter(|e| matches!(e.status.as_str(), "running" | "waiting"))
+        .count();
+    let finished_count = entries.len().saturating_sub(running_count);
+    let running_ink = if running_count > 0 { OK } else { TEXT };
+    out.push(row(
+        "processes",
+        format!(
+            "{running_ink}{running_count} running{RESET} {MUTED}· {finished_count} finished{RESET}"
+        ),
+    ));
+    out.push(String::new());
+    doc.append_sink("header", std::mem::take(&mut out));
+
+    let mut body = Vec::new();
+    if entries.is_empty() {
+        body.push(format!(
+            "  {MUTED}No background shell processes in this session.{}",
+            ansi::RESET
+        ));
+        doc.append("empty", body);
+        return doc;
+    }
+
+    let selected = app.panel_row.min(entries.len() - 1);
+    let now_ms = runeengine::store::now_ms();
+    let cmd_preview_cap = width.saturating_sub(42).max(16);
+
+    for (i, entry) in entries.iter().enumerate() {
+        let title_row = usize::from(i > 0);
+        if i > 0 {
+            let rule_w = width.saturating_sub(6).max(10);
+            body.push(format!("    {RULE}{}{RESET}", "─".repeat(rule_w)));
+        }
+        let cursor = if i == selected {
+            format!("{ACCENT}›{RESET}")
+        } else {
+            " ".to_string()
+        };
+        let (status_text, status_ink) = match entry.status.as_str() {
+            "running" => ("running".to_string(), OK),
+            "waiting" => ("waiting".to_string(), WARN),
+            "completed" => match entry.exit_code {
+                Some(0) | None => ("done".to_string(), MUTED),
+                Some(code) => (format!("exit {code}"), super::ansi::REMOVED),
+            },
+            "killed" => ("killed".to_string(), WARN),
+            "lost" => ("lost".to_string(), super::ansi::REMOVED),
+            other => (other.to_string(), MUTED),
+        };
+        let elapsed_ms = if entry.started_at > 0 {
+            let end = entry.finished_at.unwrap_or(now_ms);
+            end.saturating_sub(entry.started_at).max(0) as u64
+        } else {
+            0
+        };
+        let dur_str = super::draw::format_duration((elapsed_ms / 1000).max(1));
+        let cmd_clean = entry.command.replace(['\r', '\n'], " ↵ ");
+        let cmd_short = ansi::truncate(&ansi::plain(&cmd_clean), cmd_preview_cap);
+        let id_ink = if i == selected { TEXT } else { MUTED };
+
+        body.push(format!(
+            "  {cursor} {status_ink}{status_text:<8}{RESET} {id_ink}{}{RESET}  {FAINT}pid {} · {dur_str}{RESET}  {TEXT}{cmd_short}{RESET}",
+            entry.task_id, entry.pid
+        ));
+
+        if app.shell_open.as_deref() == Some(entry.task_id.as_str()) {
+            let box_w = width.saturating_sub(6).clamp(24, 96);
+            let box_inner = box_w.saturating_sub(4);
+            let header = ansi::truncate(
+                &format!("{} · {}", entry.task_id, super::draw::home(&entry.out_file)),
+                box_w.saturating_sub(6),
+            );
+            body.push(format!("    {}", super::draw::box_top(&header, box_w)));
+            let cmd_lines: Vec<String> =
+                ansi::wrap(&format!("$ {}", ansi::plain(&cmd_clean)), box_inner.max(8));
+            for line in cmd_lines {
+                body.push(format!(
+                    "    {}",
+                    super::draw::boxed(&format!("{ACCENT}{line}{RESET}"), box_inner)
+                ));
+            }
+            body.push(format!("    {}", super::draw::box_divider(box_w)));
+            if let Some(note) = &entry.capture_note {
+                for wrapped in ansi::wrap(&ansi::plain(note), box_inner.max(8)) {
+                    body.push(format!(
+                        "    {}",
+                        super::draw::boxed(&format!("{WARN}{wrapped}{RESET}"), box_inner)
+                    ));
+                }
+            }
+            if entry.tail.trim().is_empty() {
+                body.push(format!(
+                    "    {}",
+                    super::draw::boxed(
+                        &format!("{MUTED}(no output captured yet){RESET}"),
+                        box_inner
+                    )
+                ));
+            } else {
+                for raw_line in entry.tail.lines() {
+                    let tamed = ansi::tame(raw_line.trim_end_matches('\r'));
+                    let wrapped = ansi::wrap(&tamed, box_inner.max(8));
+                    for line in wrapped {
+                        body.push(format!(
+                            "    {}",
+                            super::draw::boxed(&format!("{TEXT}{line}{RESET}"), box_inner)
+                        ));
+                    }
+                }
+            }
+            body.push(format!("    {}", super::draw::box_bottom(box_w)));
+        }
+
+        let range = doc.append_at(
+            format!("shell:{}:{i}", entry.task_id),
+            std::mem::take(&mut body),
+            |_| super::draw::Hit::Shell(i),
+        );
+        if title_row > 0 {
+            doc.sink.copy[range.start].clear();
+        }
+        if i == selected {
+            let start = range.start + title_row;
+            doc.focus = Some(start..start + 1);
+        }
+    }
+    doc
+}
+
+pub fn click_shell(app: &mut App, index: usize, d: &mut Driver) {
+    if app.panel != Panel::Shells {
+        return;
+    }
+    let entries = shell_entries(app);
+    if entries.is_empty() {
+        return;
+    }
+    let idx = index.min(entries.len().saturating_sub(1));
+    if app.panel_row == idx {
+        let id = entries[idx].task_id.clone();
+        app.shell_open = if app.shell_open.as_deref() == Some(id.as_str()) {
+            None
+        } else {
+            app.refresh_shells(d);
+            Some(id)
+        };
+    } else {
+        app.panel_row = idx;
+    }
+    app.panel_view.reveal();
+}
+
 pub fn wheel(app: &mut App, up: bool, multiplier: usize, d: &mut Driver) {
-    if app.panel == Panel::Logs
+    if matches!(app.panel, Panel::Logs | Panel::Shells)
         || (matches!(app.panel, Panel::Undo | Panel::Redo) && app.undo_diff.is_none())
     {
         for _ in 0..multiplier {
@@ -924,6 +1141,42 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
     }
     if matches!(app.panel, Panel::Undo | Panel::Redo) {
         return super::undo::key(app, key, d);
+    }
+    if app.panel == Panel::Shells {
+        let entries = shell_entries(app);
+        let rows = entries.len();
+        if app.shell_open.is_some() && matches!(key, Key::PageUp | Key::PageDown) {
+            let page = app.panel_view.page();
+            app.panel_view.scroll_by(*key == Key::PageUp, page);
+            return true;
+        }
+        let at = app.panel_row.min(rows.saturating_sub(1));
+        let to = match key {
+            Key::Up => Some(at.saturating_sub(1)),
+            Key::Down => Some((at + 1).min(rows.saturating_sub(1))),
+            Key::PageUp => Some(at.saturating_sub(5)),
+            Key::PageDown => Some((at + 5).min(rows.saturating_sub(1))),
+            Key::Home => Some(0),
+            Key::End => Some(rows.saturating_sub(1)),
+            Key::Enter => {
+                if let Some(entry) = entries.get(at) {
+                    app.shell_open = if app.shell_open.as_deref() == Some(entry.task_id.as_str()) {
+                        None
+                    } else {
+                        app.refresh_shells(d);
+                        Some(entry.task_id.clone())
+                    };
+                }
+                app.panel_view.reveal();
+                return true;
+            }
+            _ => None,
+        };
+        if let Some(to) = to {
+            app.panel_row = to;
+            app.panel_view.reveal();
+            return true;
+        }
     }
     let rows = if app.panel == Panel::Logs {
         shown_logs(app).len()
@@ -1453,5 +1706,57 @@ mod tests {
         assert!(out.contains("Could not summarise history."), "{out}");
         assert!(!out.contains("agent request"), "{out}");
         assert!(out.contains("showing warnings and errors"), "{out}");
+    }
+
+    #[test]
+    fn the_shells_panel_lists_running_and_finished_processes_and_toggles_live_output() {
+        let mut d = super::super::test_driver("shells-panel");
+        let mut app = configured();
+        app.panel = Panel::Shells;
+        app.running_shells = 1;
+        app.shells_detail = vec![
+            json!({
+                "task_id": "bg_run1",
+                "pid": 4321,
+                "command": "npm run dev",
+                "out_file": "/tmp/bg_run1.txt",
+                "started_at": runeengine::store::now_ms() - 5000,
+                "finished_at": null,
+                "status": "running",
+                "exit_code": null,
+                "tail": "Listening on port 3000"
+            }),
+            json!({
+                "task_id": "bg_done1",
+                "pid": 4320,
+                "command": "cargo check",
+                "out_file": "/tmp/bg_done1.txt",
+                "started_at": 1000,
+                "finished_at": 2500,
+                "status": "completed",
+                "exit_code": 0,
+                "tail": "Finished"
+            }),
+        ];
+
+        let closed_out = text(render(&app, 100).lines);
+        assert!(closed_out.contains("SHELLS"), "{closed_out}");
+        assert!(
+            closed_out.contains("1 running · 1 finished"),
+            "{closed_out}"
+        );
+        assert!(closed_out.contains("bg_run1"), "{closed_out}");
+        assert!(closed_out.contains("npm run dev"), "{closed_out}");
+        assert!(!closed_out.contains("Listening on port 3000"));
+
+        // Enter opens live output box for selected shell
+        assert!(key(&mut app, &Key::Enter, &mut d));
+        assert_eq!(app.shell_open.as_deref(), Some("bg_run1"));
+        let open_out = text(render(&app, 100).lines);
+        assert!(open_out.contains("Listening on port 3000"), "{open_out}");
+
+        // Second Enter closes it again
+        assert!(key(&mut app, &Key::Enter, &mut d));
+        assert!(app.shell_open.is_none());
     }
 }

@@ -1,35 +1,40 @@
 {
   "0.12.4": {
-    "title": "A quieter turn line, a slash palette that works inside a sentence, and an Off that leaves the route alone",
-    "summary": "Quieter turn metrics, mid-sentence palette, Alt+H-only wizard, local router Off without a forced level",
+    "title": "A clearer turn line, live /shells monitoring, mid-sentence slash execution, and AI ANSI color support",
+    "summary": "Colored turn metrics + /shells live viewer, smart / subcommands, Alt+H-only wizard, AI ANSI SGR colors, and local router Off without a forced level",
     "paragraphs": [
-      "This build settles the small things that made the screen talk over the conversation. A finished turn now speaks in one muted line with a florette marker instead of a bullet that looked like prose, the blank row above the composer belongs to the conversation alone while the side panel runs on through it, a slash token typed inside a sentence opens the palette without tearing the sentence apart, the question form hides and shows only through its shortcut, and stopping a turn after queueing a message no longer draws that message twice. On the local router, Off now sends no reasoning level at all, so a route that cannot be told to stop thinking keeps its own default instead of being pulled down to Low."
+      "This build settles the details that made the screen noisy or inconsistent. A finished turn now speaks in one clean line with a florette marker, tinted counters, and a live N shell(s) running (/shells) indicator whenever background processes are active, while turns stopped before any step or model call emit no empty metrics row. A new /shells panel inspects running and recent background processes with live output tails, truncated <process_output> blocks match tool results with <preview_head> and <preview_tail>, the slash palette supports mid-sentence commands and subcommands without losing trailing spaces or hijacking description-only matches, AI ANSI color escapes render over the active theme and reset cleanly, the question form hides and shows only via Alt+H, and Off on the local router leaves the route's own default intact."
     ],
     "points": [
       {
         "id": "turn-metrics-footer",
-        "title": "A muted turn line, read as metadata and not as prose",
-        "text": "The marker is a florette in the muted ink, token counts use lowercase k and m, and the step and status tail is gone: one line that says how long the turn worked, what it spent, and when it finished in 24-hour time."
+        "title": "Colored turn metrics, /shells indicator, and zero-work guard",
+        "text": "The turn line uses a florette marker with muted slate labels, green numeric counts, lowercase k and m tokens, 24-hour completion time, and an active N shell(s) running (/shells) indicator on the latest metrics row while background shells are running. Turns stopped before any step or model call emit no metrics row and never duplicate the previous turn's line."
       },
       {
         "id": "composer-padding-and-panel",
         "title": "Only the conversation gets the blank row above the composer",
-        "text": "In a split frame the side panel and its divider run through that row down to the composer border, and the jump hint sits on it directly above the input instead of covering the last line of chat. The slash palette now reaches the composer border as well, with no empty row between them."
+        "text": "In a split frame the side panel and its divider run through that row down to the composer border, and the jump hint sits on it directly above the input instead of covering the last line of chat. The slash palette reaches the composer border without a gap, and empty manual shell mode (! ) keeps the hardware cursor aligned at column 5."
       },
       {
         "id": "slash-palette-in-sentences",
-        "title": "A slash token inside a sentence opens the palette without eating the sentence",
-        "text": "A standalone /token after a space opens the command list wherever the cursor is; Tab completes only that token and leaves the words before it untouched, Enter still sends the sentence as typed, and attached text such as a path or a word with a slash never opens it."
+        "title": "Mid-sentence slash commands, subcommands, and safe description matches",
+        "text": "A standalone /command or /command subcommand works at the start or middle of input while keeping trailing spaces visible. Pressing Enter executes the active command (preserving surrounding prose) or prompts when a subcommand is required, invalid arguments send the message as typed, and weak description-only matches never hijack Enter unless chosen explicitly with arrow keys or Tab."
+      },
+      {
+        "id": "realtime-shells-and-ansi",
+        "title": "Live /shells panel, AI ANSI color support, and unified preview tags",
+        "text": "The new /shells panel lists running and finished background processes with live status, PID, elapsed time, and expandable output tails. AI responses containing ANSI SGR color sequences render those colors with priority over the active theme across wrapped lines and fall back cleanly on reset, while truncated background notifications use <preview_head> and <preview_tail> just like terminal_use."
       },
       {
         "id": "questions-collapse-shortcut",
         "title": "The question form is hidden and shown by its shortcut alone",
-        "text": "Alt+H collapses and restores the form; the chevron, the click on the title and the bracketed hint in the header are gone, so reading the title can never reopen it, and the shortcut is listed with the others at the bottom."
+        "text": "Alt+H collapses and restores the form; the chevron, title click, and header bracket hint are gone so reading the title never reopens it, while Alt+H hide appears in the bottom shortcut row."
       },
       {
         "id": "router-off-and-single-stop",
         "title": "Off on local router sends no level, and a stopped turn draws its queued message once",
-        "text": "Off no longer asks for Low or for a disabled-thinking flag on local router, so the route keeps its own default and its output ceiling; Settings Alt+C shows the level actually in use beside the options; and a message queued while the agent worked, then stopped with Esc twice, appears exactly once."
+        "text": "Off no longer asks for Low or a disabled-thinking flag on the local router, preserving the route's default and output ceiling; Settings Alt+C shows the active level beside the options; and a message queued while the agent worked, then stopped with Esc twice, appears exactly once."
       }
     ]
   },

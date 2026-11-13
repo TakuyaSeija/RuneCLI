@@ -89,6 +89,7 @@ fn state_kind(event: &Event) -> Option<&'static str> {
         Event::Settings { .. } => Some("settings"),
         Event::Composer { .. } => Some("composer"),
         Event::Compacting { .. } => Some("compacting"),
+        Event::BackgroundTasks { .. } => Some("background_tasks"),
         _ => None,
     }
 }

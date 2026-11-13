@@ -225,6 +225,38 @@ pub fn pieces(language: &str, line: &str, base: Ink) -> Vec<Piece> {
     while i < chars.len() {
         let (start, c) = chars[i];
 
+        if c == '\x1b' {
+            i += 1;
+            if let Some(&(_, kind)) = chars.get(i) {
+                i += 1;
+                match kind {
+                    ']' => {
+                        while let Some(&(_, ch)) = chars.get(i) {
+                            i += 1;
+                            if ch == '\u{7}' {
+                                break;
+                            }
+                            if ch == '\x1b' && chars.get(i).is_some() {
+                                i += 1;
+                                break;
+                            }
+                        }
+                    }
+                    '[' | '(' | ')' | '#' => {
+                        let final_start = if kind == '[' { '\u{40}' } else { '\u{30}' };
+                        while let Some(&(_, ch)) = chars.get(i) {
+                            i += 1;
+                            if (final_start..='\u{7e}').contains(&ch) {
+                                break;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            continue;
+        }
+
         // `//` and `/* … */` — but not in the languages where `/` is division and
         // `#` is the comment.
         if c == '/' && d != Dialect::Python && d != Dialect::Shell {

@@ -9,6 +9,7 @@ impl App {
                 request,
                 Awaiting::Context
                     | Awaiting::Logs
+                    | Awaiting::Shells
                     | Awaiting::Capabilities
                     | Awaiting::Sessions
                     | Awaiting::UndoFiles { .. }
@@ -19,6 +20,7 @@ impl App {
         self.panel_row = 0;
         self.panel_view.reset();
         self.log_open = None;
+        self.shell_open = None;
         self.undo_diff = None;
         self.undo_armed = None;
         self.undo_refused = None;

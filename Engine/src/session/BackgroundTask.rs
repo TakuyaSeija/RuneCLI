@@ -233,6 +233,8 @@ pub trait SessionWakeNotifier: Send + Sync {
     /// Messages are waiting and the work that held the session ended without
     /// taking them: start the work that answers them.
     fn waiting(&self) {}
+    /// Background task list or status changed: push updated summary to frontends.
+    fn changed(&self) {}
 }
 
 /// A task that is still running, as `<status>` names it.
@@ -468,6 +470,15 @@ impl BackgroundTaskManager {
         self.notifier.lock().ok().and_then(|lock| lock.clone())
     }
 
+    fn notify_changed(&self) {
+        if self.is_stopped() {
+            return;
+        }
+        if let Some(notifier) = self.notifier() {
+            notifier.changed();
+        }
+    }
+
     /// Characters of Rune's notifications waiting unread for the next request.
     fn queued(&self) -> usize {
         self.notifier().map_or(0, |notifier| notifier.queued())
@@ -517,6 +528,7 @@ impl BackgroundTaskManager {
             began
         };
         if began {
+            self.notify_changed();
             self.tell_wait(task_id, wait);
         }
     }
@@ -590,10 +602,17 @@ impl BackgroundTaskManager {
     /// a reminder — and waits again is the same wait, still told: a read ends
     /// only by input, so nothing new was asked, and nothing is said twice.
     pub fn clear_waiting(&self, task_id: &str, over: bool) {
-        if let Ok(mut tasks) = self.tasks.lock() {
+        let was_waiting = if let Ok(mut tasks) = self.tasks.lock() {
             if let Some(task) = tasks.get_mut(task_id) {
-                task.waiting = None;
+                task.waiting.take().is_some()
+            } else {
+                false
             }
+        } else {
+            false
+        };
+        if was_waiting {
+            self.notify_changed();
         }
         if over {
             self.forget_wait(task_id);
@@ -821,6 +840,7 @@ impl BackgroundTaskManager {
         if let Ok(mut tasks) = self.tasks.lock() {
             tasks.insert(info.task_id.clone(), info);
         }
+        self.notify_changed();
     }
 
     pub fn list(&self) -> Vec<BackgroundTaskInfo> {
@@ -859,6 +879,7 @@ impl BackgroundTaskManager {
                 task_id: task_id.to_string(),
                 status,
             });
+            self.notify_changed();
         }
     }
 
@@ -895,6 +916,7 @@ impl BackgroundTaskManager {
             self.told(task_id);
         }
         self.clear_waiting(task_id, true);
+        self.notify_changed();
         crate::platform::terminate_tree(pid, tree.as_deref(), 200);
         true
     }
@@ -1011,6 +1033,66 @@ impl BackgroundTaskManager {
             (a.started_at, a.task_id.as_str()).cmp(&(b.started_at, b.task_id.as_str()))
         });
         running
+    }
+
+    /// Snapshot of every tracked background shell task for UI indicators and `/shells`.
+    /// Running/waiting tasks come first (newest first), followed by finished tasks (newest first).
+    pub fn snapshot(&self) -> (usize, Vec<crate::proto::BackgroundShell>) {
+        let mut items: Vec<crate::proto::BackgroundShell> = self
+            .tasks
+            .lock()
+            .map(|tasks| tasks.values().map(shell_summary).collect())
+            .unwrap_or_default();
+        items.sort_by(|a, b| {
+            let a_live = matches!(a.status.as_str(), "running" | "waiting");
+            let b_live = matches!(b.status.as_str(), "running" | "waiting");
+            b_live
+                .cmp(&a_live)
+                .then_with(|| b.started_at.cmp(&a.started_at))
+                .then_with(|| b.task_id.cmp(&a.task_id))
+        });
+        let running = items
+            .iter()
+            .filter(|t| matches!(t.status.as_str(), "running" | "waiting"))
+            .count();
+        (running, items)
+    }
+
+    /// Detailed snapshot including bounded live output tail for `/shells`.
+    pub fn shells_detail(&self) -> (usize, Vec<serde_json::Value>) {
+        let mut raw: Vec<BackgroundTaskInfo> = self.list();
+        raw.sort_by(|a, b| {
+            let a_live = matches!(a.status, BackgroundTaskStatus::Running);
+            let b_live = matches!(b.status, BackgroundTaskStatus::Running);
+            b_live
+                .cmp(&a_live)
+                .then_with(|| b.started_at.cmp(&a.started_at))
+                .then_with(|| b.task_id.cmp(&a.task_id))
+        });
+        let running = raw
+            .iter()
+            .filter(|t| matches!(t.status, BackgroundTaskStatus::Running))
+            .count();
+        let shells = raw
+            .into_iter()
+            .map(|info| {
+                let summary = shell_summary(&info);
+                let tail = read_shell_tail(&info.out_file, &info.tail, 80, 16 * 1024);
+                serde_json::json!({
+                    "task_id": summary.task_id,
+                    "pid": summary.pid,
+                    "command": summary.command,
+                    "out_file": summary.out_file,
+                    "started_at": summary.started_at,
+                    "finished_at": summary.finished_at,
+                    "status": summary.status,
+                    "exit_code": summary.exit_code,
+                    "capture_note": info.capture_note,
+                    "tail": tail,
+                })
+            })
+            .collect();
+        (running, shells)
     }
 
     /// Settle this task's completion wake. Returns true for whoever gets here
@@ -1646,6 +1728,83 @@ fn lost_reason(pid: i32, identity: Option<Identity>, tree: Option<String>) -> Lo
         }
         Some(_) => LostReason::Restart,
         None => LostReason::Unknown,
+    }
+}
+
+fn shell_summary(task: &BackgroundTaskInfo) -> crate::proto::BackgroundShell {
+    let (status, finished_at, exit_code) = match &task.status {
+        BackgroundTaskStatus::Running => (
+            if task.waiting.is_some() {
+                "waiting"
+            } else {
+                "running"
+            }
+            .to_string(),
+            None,
+            None,
+        ),
+        BackgroundTaskStatus::Completed {
+            exit_code,
+            finished_at,
+        } => (
+            "completed".to_string(),
+            Some(*finished_at),
+            Some(*exit_code),
+        ),
+        BackgroundTaskStatus::Killed { finished_at } => {
+            ("killed".to_string(), Some(*finished_at), None)
+        }
+        BackgroundTaskStatus::Lost { finished_at, .. } => {
+            ("lost".to_string(), Some(*finished_at), None)
+        }
+    };
+    crate::proto::BackgroundShell {
+        task_id: task.task_id.clone(),
+        pid: task.pid,
+        command: task.command.clone(),
+        out_file: task.out_file.display().to_string(),
+        started_at: task.started_at,
+        finished_at,
+        status,
+        exit_code,
+    }
+}
+
+fn read_shell_tail(
+    path: &std::path::Path,
+    fallback_tail: &str,
+    max_lines: usize,
+    max_bytes: u64,
+) -> String {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut file) = std::fs::File::open(path) else {
+        return fallback_tail.to_string();
+    };
+    let Ok(meta) = file.metadata() else {
+        return fallback_tail.to_string();
+    };
+    let len = meta.len();
+    let offset = len.saturating_sub(max_bytes);
+    if file.seek(SeekFrom::Start(offset)).is_err() {
+        return fallback_tail.to_string();
+    }
+    let mut buf = Vec::new();
+    if file.read_to_end(&mut buf).is_err() {
+        return fallback_tail.to_string();
+    }
+    let text = String::from_utf8_lossy(&buf);
+    let mut lines: Vec<&str> = text.lines().collect();
+    if offset > 0 && !lines.is_empty() {
+        lines.remove(0);
+    }
+    if lines.len() > max_lines {
+        lines.drain(..lines.len() - max_lines);
+    }
+    let joined = lines.join("\n");
+    if joined.is_empty() && !fallback_tail.is_empty() {
+        fallback_tail.to_string()
+    } else {
+        joined
     }
 }
 
@@ -3269,5 +3428,86 @@ mod tests {
             1,
             "one finished process is one wake, however many times it is asked for"
         );
+    }
+
+    #[test]
+    fn snapshot_and_shells_detail_track_live_changes_and_tail() {
+        struct ChangeCounter(AtomicUsize);
+        impl SessionWakeNotifier for ChangeCounter {
+            fn notify(&self, _text: String) {}
+            fn changed(&self) {
+                self.0.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        let log_path =
+            std::env::temp_dir().join(format!("rune-shells-detail-{}.log", std::process::id()));
+        std::fs::write(&log_path, "line 1\nline 2\nline 3\n").unwrap();
+
+        let manager = BackgroundTaskManager::new();
+        let counter = Arc::new(ChangeCounter(AtomicUsize::new(0)));
+        manager.set_notifier(counter.clone());
+
+        manager.register(BackgroundTaskInfo {
+            task_id: "bg_old_done".into(),
+            pid: 100,
+            command: "echo done".into(),
+            out_file: PathBuf::from("/tmp/missing.log"),
+            started_at: 1000,
+            status: BackgroundTaskStatus::Completed {
+                exit_code: 0,
+                finished_at: 2000,
+            },
+            surfaced: true,
+            answered: true,
+            capture_note: None,
+            tail: "done tail".into(),
+            screen: None,
+            reported: None,
+            log_position: None,
+            waiting: None,
+            tree: None,
+        });
+        manager.register(BackgroundTaskInfo {
+            task_id: "bg_live".into(),
+            pid: 200,
+            command: "cargo test".into(),
+            out_file: log_path.clone(),
+            started_at: 3000,
+            status: BackgroundTaskStatus::Running,
+            surfaced: false,
+            answered: false,
+            capture_note: None,
+            tail: String::new(),
+            screen: None,
+            reported: None,
+            log_position: None,
+            waiting: None,
+            tree: None,
+        });
+
+        assert!(counter.0.load(Ordering::Relaxed) >= 2);
+        let (running, snap) = manager.snapshot();
+        assert_eq!(running, 1);
+        assert_eq!(snap.len(), 2);
+        assert_eq!(snap[0].task_id, "bg_live", "running tasks sort first");
+        assert_eq!(snap[0].status, "running");
+        assert_eq!(snap[1].task_id, "bg_old_done");
+        assert_eq!(snap[1].status, "completed");
+
+        let (detail_running, details) = manager.shells_detail();
+        assert_eq!(detail_running, 1);
+        assert_eq!(details[0]["task_id"], "bg_live");
+        assert!(details[0]["tail"].as_str().unwrap().contains("line 3"));
+
+        manager.update_status(
+            "bg_live",
+            BackgroundTaskStatus::Completed {
+                exit_code: 0,
+                finished_at: 4000,
+            },
+        );
+        let (after_running, _) = manager.snapshot();
+        assert_eq!(after_running, 0);
+        let _ = std::fs::remove_file(&log_path);
     }
 }

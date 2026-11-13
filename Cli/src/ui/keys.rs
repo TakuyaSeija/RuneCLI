@@ -30,7 +30,7 @@ use crate::driver::Driver;
 /// it, and the palette that opens on `/` searches it. A command that exists in
 /// only one of those is either unfindable or a lie, and the way to make that
 /// impossible is to have one list.
-pub const COMMANDS: [(&str, &str, &str); 25] = [
+pub const COMMANDS: [(&str, &str, &str); 26] = [
     (
         "skills",
         "[list|show|enable|disable|reload]",
@@ -92,6 +92,11 @@ pub const COMMANDS: [(&str, &str, &str); 25] = [
         "what happened behind the conversation: context sent, retries, costs, failures",
     ),
     (
+        "shells",
+        "",
+        "inspect running and recent background shell processes in real time",
+    ),
+    (
         "context",
         "",
         "what the model holds besides the conversation: system prompt, tools, messages Rune wrote",
@@ -108,108 +113,367 @@ pub const COMMANDS: [(&str, &str, &str); 25] = [
 
 type SlashEntry = &'static (&'static str, &'static str, &'static str);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PaletteItem {
+    pub verb: &'static str,
+    pub args_hint: &'static str,
+    pub description: &'static str,
+    pub subcommand: Option<&'static str>,
+    pub strong: bool,
+}
+
+impl PaletteItem {
+    fn from_entry(entry: SlashEntry, strong: bool) -> Self {
+        Self {
+            verb: entry.0,
+            args_hint: entry.1,
+            description: entry.2,
+            subcommand: None,
+            strong,
+        }
+    }
+
+    pub fn display_name(&self) -> String {
+        match self.subcommand {
+            Some(sub) => format!("/{} {sub}", self.verb),
+            None if self.args_hint.is_empty() => format!("/{}", self.verb),
+            None => format!("/{} {}", self.verb, self.args_hint),
+        }
+    }
+}
+
+fn subcommands_of(verb: &str) -> &'static [(&'static str, &'static str, bool)] {
+    // (name, description, takes_more_args)
+    match verb {
+        "mode" => &[
+            ("ask", "ask before anything runs", false),
+            ("auto", "work inside workspace with classifier", false),
+            ("full", "unconfined system access", false),
+        ],
+        "theme" => &[
+            ("violet", "Cyber Violet theme", false),
+            ("cyan", "Arcane Cyan theme", false),
+            ("amber", "Solar Amber theme", false),
+            ("prev", "previous theme", false),
+        ],
+        "logs" => &[
+            ("all", "show info, warnings and errors", false),
+            ("warn", "show warnings and errors", false),
+            ("error", "show errors only", false),
+        ],
+        "thinking" => &[
+            ("off", "disable reasoning override", false),
+            ("on", "enable reasoning", false),
+            ("minimal", "minimal reasoning effort", false),
+            ("low", "low reasoning effort", false),
+            ("medium", "medium reasoning effort", false),
+            ("high", "high reasoning effort", false),
+            ("max", "maximum reasoning effort", false),
+            ("xhigh", "extra-high reasoning effort", false),
+        ],
+        "classifier" => &[
+            ("status", "show active classifier status", false),
+            ("on", "enable security classifier", false),
+            ("off", "disable security classifier", false),
+            (
+                "model",
+                "set classifier model (e.g. model provider/id)",
+                true,
+            ),
+            ("reload", "reload CLASSIFIER.md policy", false),
+        ],
+        "skills" => &[
+            ("list", "list available skills", false),
+            ("show", "inspect one skill by id", true),
+            ("enable", "enable a disabled skill", true),
+            ("disable", "disable a skill", true),
+            ("reload", "reload skill catalog from disk", false),
+            ("activate", "activate a skill for this conversation", true),
+            ("deactivate", "deactivate a skill", true),
+            ("install", "install a skill package", true),
+            ("update", "update an installed skill", true),
+        ],
+        "mcp" => &[
+            ("list", "list configured MCP servers", false),
+            ("status", "show connection status of MCP servers", false),
+            ("connect", "connect an MCP server by id", true),
+            ("disconnect", "disconnect an MCP server by id", true),
+            ("add", "add an MCP server configuration", true),
+            ("reload", "reload and connect enabled MCP servers", false),
+            ("validate", "validate MCP server configuration", false),
+            ("test", "test an MCP server connection", true),
+            ("login", "authenticate an MCP server", true),
+            (
+                "login-status",
+                "check MCP server authentication status",
+                true,
+            ),
+            ("prompts", "list prompts on an MCP server", true),
+            ("prompt", "invoke an MCP server prompt", true),
+            ("remove", "remove an MCP server configuration", true),
+            ("enable", "enable an MCP server", true),
+            ("disable", "disable an MCP server", true),
+        ],
+        "detach" => &[("all", "remove all attached files", false)],
+        _ => &[],
+    }
+}
+
 /// The commands that match what has been typed, best first.
-///
-/// Matches a leading `/` command (including `/verb args` for argument-taking
-/// commands) as well as any standalone `/prefix` token preceded by whitespace
-/// anywhere in the input (such as `"explain /sk"`), while ignoring attached
-/// paths/words (`"foo/bar"`, `"a/"`) and standalone slashes followed by space
-/// (`"foo / "` or `"/ "`).
-///
-/// Three degrees of match, in this order: the verb starts with what was typed,
-/// the verb contains it, the description mentions it. That last one is what makes
-/// the list answer a question rather than a spelling — typing `plan` finds
-/// `/tasks`, which is not called plan.
 #[cfg(test)]
 pub fn matches(input: &str) -> Vec<SlashEntry> {
     matches_at(input, input.len())
 }
 
+#[cfg(test)]
 pub fn matches_at(input: &str, cursor: usize) -> Vec<SlashEntry> {
-    active_slash_query(input, cursor).map_or_else(Vec::new, |(_, _, hits)| hits)
+    let Some((_, _, items)) = active_slash_query(input, cursor) else {
+        return Vec::new();
+    };
+    let mut seen: Vec<SlashEntry> = Vec::new();
+    for item in items {
+        if let Some(entry) = COMMANDS.iter().find(|c| c.0 == item.verb) {
+            if !seen.iter().any(|existing| existing.0 == entry.0) {
+                seen.push(entry);
+            }
+        }
+    }
+    seen
 }
 
-fn active_slash_query(input: &str, cursor: usize) -> Option<(usize, usize, Vec<SlashEntry>)> {
-    if input == "?" {
-        return Some((0, 1, COMMANDS.iter().filter(|c| c.0 == "help").collect()));
-    }
-    // 1. The line's own command — `/verb` or `/verb args` for the verbs that
-    // take arguments. Read from the whole line, as it always was: the rest of
-    // the line is the argument being written for the verb.
-    if let Some(rest) = input.strip_prefix('/') {
-        if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
-            return None;
-        }
-        let (first_word, has_space) = match rest.split_once(char::is_whitespace) {
-            Some((word, _)) => (word.to_ascii_lowercase(), true),
-            None => (rest.trim().to_ascii_lowercase(), false),
-        };
-        // Filesystem paths (e.g. "/usr/bin/env") are never slash commands.
-        if first_word.contains('/') {
-            return None;
-        }
-        if has_space && !first_word.is_empty() {
-            let matching: Vec<_> = COMMANDS
-                .iter()
-                .filter(|c| {
-                    (c.0 == first_word || (first_word.len() >= 2 && c.0.starts_with(&first_word)))
-                        && !c.1.is_empty()
-                })
-                .collect();
-            if matching.is_empty() {
-                return None;
-            }
-            if let Some(&exact) = matching.iter().find(|c| c.0 == first_word) {
-                return Some((0, input.len(), vec![exact]));
-            }
-            return Some((0, input.len(), matching));
-        }
-        let hits = rank_commands(&first_word);
-        return (!hits.is_empty()).then_some((0, input.len(), hits));
-    }
-    // 2. A `/token` standing on its own inside the sentence — typed at the
-    // cursor, wherever that is (owner, 2026-11-13). Only the word is read; the
-    // prose around it is never touched.
-    let (start, end) = word_at(input, cursor)?;
-    let rest = input[start..end].strip_prefix('/')?;
-    if rest.starts_with('/') || rest.contains('/') {
+pub fn palette_items(input: &str, cursor: usize) -> Vec<PaletteItem> {
+    active_slash_query(input, cursor).map_or_else(Vec::new, |(_, _, items)| items)
+}
+
+pub fn palette_selected(items: &[PaletteItem], picked: bool, row: usize) -> Option<usize> {
+    if items.is_empty() || (!items[0].strong && !picked) {
         return None;
     }
-    let hits = rank_commands(&rest.to_ascii_lowercase());
-    (!hits.is_empty()).then_some((start, end, hits))
+    Some(row.min(items.len() - 1))
 }
 
-/// The word the cursor is on or, at the end of the text, the one it just
-/// finished typing. `None` when the cursor has been moved off a word — after a
-/// space, where nothing is half-written.
-fn word_at(input: &str, cursor: usize) -> Option<(usize, usize)> {
-    let cursor = cursor.min(input.len());
-    let space = char::is_whitespace;
-    match input[cursor..].chars().next() {
-        Some(c) if !c.is_whitespace() => {
-            let inside = input[..cursor]
+fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
+    if input == "?" {
+        return Some((0, 1));
+    }
+    if input.starts_with('/') && !input.contains('\n') {
+        return Some((0, input.len()));
+    }
+    let mut cursor = cursor.min(input.len());
+    while cursor > 0 && !input.is_char_boundary(cursor) {
+        cursor -= 1;
+    }
+    let line_start = input[..cursor].rfind('\n').map_or(0, |i| i + 1);
+    let line_end = input[cursor..]
+        .find('\n')
+        .map_or(input.len(), |i| cursor + i);
+    let line = &input[line_start..line_end];
+    let cur_in_line = cursor - line_start;
+
+    let mut rel_start = None;
+    for (idx, ch) in line[..cur_in_line].char_indices() {
+        if ch == '/' {
+            let preceded_by_space = idx == 0
+                || line[..idx]
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace);
+            if preceded_by_space {
+                rel_start = Some(idx);
+            }
+        }
+    }
+    let rel_start = rel_start?;
+    let mut rel_end = line.len();
+    for (idx, ch) in line[rel_start + 1..].char_indices() {
+        let abs_idx = rel_start + 1 + idx;
+        if ch == '/'
+            && line[..abs_idx]
                 .chars()
                 .next_back()
-                .is_some_and(|p| !space(p));
-            let start = if inside {
-                input[..cursor].rfind(space).map_or(0, |i| i + 1)
-            } else {
-                cursor
-            };
-            let end = input[cursor..]
-                .find(space)
-                .map_or(input.len(), |i| cursor + i);
-            Some((start, end))
+                .is_some_and(char::is_whitespace)
+        {
+            rel_end = abs_idx;
+            while rel_end > rel_start + 1
+                && line[..rel_end]
+                    .chars()
+                    .next_back()
+                    .is_some_and(char::is_whitespace)
+            {
+                rel_end -= line[..rel_end]
+                    .chars()
+                    .next_back()
+                    .map_or(0, char::len_utf8);
+            }
+            break;
         }
-        _ => {
-            let start = input[..cursor].rfind(space).map_or(0, |i| i + 1);
-            (start < cursor).then_some((start, cursor))
+    }
+    Some((line_start + rel_start, line_start + rel_end))
+}
+
+fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
+    if slice == "?" {
+        return COMMANDS
+            .iter()
+            .find(|c| c.0 == "help")
+            .map(|c| vec![PaletteItem::from_entry(c, true)]);
+    }
+    let rest = slice.strip_prefix('/')?;
+    if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
+        return None;
+    }
+    let Some((raw_verb, raw_after)) = rest.split_once(char::is_whitespace) else {
+        if rest.contains('/') {
+            return None;
         }
+        let hits = rank_commands(&rest.to_ascii_lowercase());
+        if hits.is_empty() {
+            return None;
+        }
+        return Some(
+            hits.into_iter()
+                .map(|(r, c)| PaletteItem::from_entry(c, r <= 2))
+                .collect(),
+        );
+    };
+
+    let verb_lower = raw_verb.to_ascii_lowercase();
+    if verb_lower.is_empty() || verb_lower.contains('/') {
+        return None;
+    }
+    let matched: Vec<SlashEntry> = if let Some(exact) = COMMANDS.iter().find(|c| c.0 == verb_lower)
+    {
+        vec![exact]
+    } else if verb_lower.len() >= 2 {
+        COMMANDS
+            .iter()
+            .filter(|c| c.0.starts_with(&verb_lower))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    if matched.is_empty() {
+        return None;
+    }
+
+    let after_trimmed = raw_after.trim();
+    if after_trimmed.is_empty() {
+        // Trailing space after a command (`/settings `, `abc /settings `, `/mode `, `abc /mode `):
+        // keep the option list visible! When one command has known subcommands, list them too.
+        if matched.len() == 1 {
+            let cmd = matched[0];
+            let subs = subcommands_of(cmd.0);
+            let mut items = vec![PaletteItem::from_entry(cmd, true)];
+            for &(sub, desc, _) in subs {
+                items.push(PaletteItem {
+                    verb: cmd.0,
+                    args_hint: "",
+                    description: desc,
+                    subcommand: Some(sub),
+                    strong: true,
+                });
+            }
+            return Some(items);
+        }
+        return Some(
+            matched
+                .into_iter()
+                .map(|c| PaletteItem::from_entry(c, true))
+                .collect(),
+        );
+    }
+
+    // Non-empty arguments after the command: reject no-argument commands (`/help foo`, `abc /settings xyz`)
+    // and validate subcommands/argument shapes so prose like `abc /mode invalid` is sent cleanly.
+    let mut items = Vec::new();
+    for cmd in matched {
+        if cmd.1.is_empty() {
+            continue;
+        }
+        let subs = subcommands_of(cmd.0);
+        if !subs.is_empty() {
+            let mut words = after_trimmed.split_whitespace();
+            let first = words.next().unwrap_or("");
+            let first_lower = first.to_ascii_lowercase();
+            let has_more = words.next().is_some();
+
+            if cmd.0 == "detach" {
+                let is_num = !has_more && first.parse::<usize>().is_ok_and(|n| n > 0);
+                if is_num {
+                    items.push(PaletteItem::from_entry(cmd, true));
+                    continue;
+                }
+            }
+            for &(sub, desc, takes_more) in subs {
+                let exact_sub = sub == first_lower;
+                let prefix_sub = !has_more && sub.starts_with(&first_lower);
+                if (exact_sub && (!has_more || takes_more)) || prefix_sub {
+                    items.push(PaletteItem {
+                        verb: cmd.0,
+                        args_hint: "",
+                        description: desc,
+                        subcommand: Some(sub),
+                        strong: true,
+                    });
+                }
+            }
+            continue;
+        }
+        if freeform_args_valid(cmd.0, after_trimmed) {
+            items.push(PaletteItem::from_entry(cmd, true));
+        }
+    }
+    (!items.is_empty()).then_some(items)
+}
+
+fn freeform_args_valid(verb: &str, after: &str) -> bool {
+    match verb {
+        "resume" => {
+            !after.contains(char::is_whitespace)
+                && after
+                    .strip_prefix('#')
+                    .unwrap_or(after)
+                    .chars()
+                    .all(|c| c.is_ascii_digit())
+                && !after.trim_start_matches('#').is_empty()
+        }
+        "skill" | "provider" => !after.contains(char::is_whitespace),
+        "set" => {
+            // `key=value` or typing key before `=`
+            !after.contains('\n') && (after.contains('=') || !after.contains(char::is_whitespace))
+        }
+        "model" => {
+            let mut words = after.split_whitespace();
+            let first = words.next().unwrap_or("");
+            let second = words.next();
+            match second {
+                None => true,
+                Some(_) => matches!(
+                    first.to_ascii_lowercase().as_str(),
+                    "config" | "configure" | "setup"
+                ),
+            }
+        }
+        "attach" => {
+            !after.contains('\n')
+                && (!after.contains(char::is_whitespace)
+                    || after.starts_with('"')
+                    || after.starts_with('\'')
+                    || after.contains("\\ ")
+                    || std::path::Path::new(&shellexpand(after)).exists())
+        }
+        _ => true,
     }
 }
 
-fn rank_commands(needle: &str) -> Vec<&'static (&'static str, &'static str, &'static str)> {
-    let mut hits: Vec<(u8, &'static (&str, &str, &str))> = COMMANDS
+fn active_slash_query(input: &str, cursor: usize) -> Option<(usize, usize, Vec<PaletteItem>)> {
+    let (start, end) = find_slash_span(input, cursor)?;
+    let items = evaluate_slash_slice(&input[start..end])?;
+    Some((start, end, items))
+}
+
+fn rank_commands(needle: &str) -> Vec<(u8, SlashEntry)> {
+    let mut hits: Vec<(u8, SlashEntry)> = COMMANDS
         .iter()
         .filter_map(|c| rank(c, needle).map(|r| (r, c)))
         .collect();
@@ -218,7 +482,7 @@ fn rank_commands(needle: &str) -> Vec<&'static (&'static str, &'static str, &'st
     } else {
         hits.sort_by_key(|(rank, command)| (*rank, command.0.len(), command.0));
     }
-    hits.into_iter().map(|(_, command)| command).collect()
+    hits
 }
 
 fn rank(command: &(&str, &str, &str), needle: &str) -> Option<u8> {
@@ -857,6 +1121,7 @@ impl App {
                             | super::settings::Target::Reset
                             | super::settings::Target::Choice(_)
                     ) | super::draw::Hit::Log(_)
+                        | super::draw::Hit::Shell(_)
                         | super::draw::Hit::Questions(_)
                         | super::draw::Hit::Palette(_)
                         | super::draw::Hit::UndoFile { .. }
@@ -950,6 +1215,7 @@ impl App {
             }
             super::draw::Hit::Settings(target) => settings::click(self, target, col, d),
             super::draw::Hit::Log(index) => panels::click_log(self, index),
+            super::draw::Hit::Shell(index) => panels::click_shell(self, index, d),
             // A thought or tool step opens and closes where it was pressed.
             super::draw::Hit::Block(at) => self.open_block(at),
             super::draw::Hit::Answer(row) => {
@@ -962,10 +1228,13 @@ impl App {
             }
             super::draw::Hit::Palette(n) => {
                 self.palette_row = n;
+                self.palette_picked = true;
                 if let Some((completed, new_cursor)) = self.chosen_completion(true) {
                     self.input = completed;
                     self.cursor = new_cursor;
+                    self.input_editor.observe(&self.input, self.cursor);
                     self.palette_row = 0;
+                    self.palette_picked = false;
                     self.palette_scroll = 0;
                 }
             }
@@ -1312,14 +1581,21 @@ impl App {
             // list. There is nothing to scroll to that matters more than the
             // thing being chosen two rows below.
             Key::Up if self.searching() => {
-                let count = matches_at(&self.input, self.cursor).len();
+                let count = palette_items(&self.input, self.cursor).len();
+                self.palette_picked = true;
                 self.palette_row = self.palette_row.saturating_sub(1);
                 self.adjust_palette_scroll(count);
             }
             Key::Down if self.searching() => {
-                let count = matches_at(&self.input, self.cursor).len();
+                let items = palette_items(&self.input, self.cursor);
+                let count = items.len();
                 if count > 0 {
-                    self.palette_row = (self.palette_row + 1).min(count - 1);
+                    if !items[0].strong && !self.palette_picked {
+                        self.palette_row = 0;
+                    } else {
+                        self.palette_row = (self.palette_row + 1).min(count - 1);
+                    }
+                    self.palette_picked = true;
                     self.adjust_palette_scroll(count);
                 }
             }
@@ -1365,20 +1641,23 @@ impl App {
             }
             Key::Tab => {
                 if self.searching() {
+                    self.palette_picked = true;
                     if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
                         if self.input == chosen {
-                            let count = matches_at(&self.input, self.cursor).len();
+                            let count = palette_items(&self.input, self.cursor).len();
                             if count > 1 {
                                 self.palette_row = (self.palette_row + 1) % count;
                                 self.adjust_palette_scroll(count);
                                 if let Some((next, next_cursor)) = self.chosen_completion(false) {
                                     self.input = next;
                                     self.cursor = next_cursor;
+                                    self.input_editor.observe(&self.input, self.cursor);
                                 }
                             }
                         } else {
                             self.input = chosen;
                             self.cursor = new_cursor;
+                            self.input_editor.observe(&self.input, self.cursor);
                         }
                     }
                 } else {
@@ -1386,64 +1665,97 @@ impl App {
                 }
             }
             Key::Enter => {
-                if let Some((start, _, hits)) = active_slash_query(&self.input, self.cursor) {
-                    // A `/token` inside a sentence is prose being written, not a
-                    // command being chosen: Enter sends the message as typed and
-                    // Tab is what completes the token (owner, 2026-11-13).
-                    if start == 0 {
-                        if let Some((verb, args_hint, _)) =
-                            hits.get(self.palette_row.min(hits.len().saturating_sub(1)))
-                        {
-                            let typed = self
-                                .input
-                                .strip_prefix('/')
-                                .or_else(|| self.input.strip_prefix('?'))
-                                .unwrap_or("");
-                            let (_, typed_args) = typed
-                                .split_once(char::is_whitespace)
-                                .map(|(v, r)| (v.trim(), r.trim()))
-                                .unwrap_or((typed.trim(), ""));
+                if let Some((start, end, items)) = active_slash_query(&self.input, self.cursor) {
+                    if let Some(sel) =
+                        palette_selected(&items, self.palette_picked, self.palette_row)
+                    {
+                        let item = items[sel];
+                        let slice = &self.input[start..end];
+                        let typed = slice
+                            .strip_prefix('/')
+                            .or_else(|| slice.strip_prefix('?'))
+                            .unwrap_or("");
+                        let (typed_verb, typed_args) = typed
+                            .split_once(char::is_whitespace)
+                            .map(|(v, r)| (v.trim(), r.trim()))
+                            .unwrap_or((typed.trim(), ""));
 
-                            // If the command takes or accepts arguments, and no arguments are typed yet:
-                            let opens_without_arguments = matches!(
-                                *verb,
-                                "logs" | "context" | "skills" | "mcp" | "model" | "provider"
-                            );
-                            if !args_hint.is_empty()
-                                && typed_args.is_empty()
-                                && !(opens_without_arguments && typed.trim() == *verb)
-                            {
-                                let cmd_prefix = format!("/{verb} ");
-                                if self.input != cmd_prefix {
-                                    self.input = cmd_prefix;
-                                    self.cursor = self.input.len();
-                                    self.palette_row = 0;
-                                    self.palette_scroll = 0;
-                                    let tip = self.usage_tip(verb);
+                        if let Some(sub) = item.subcommand {
+                            let rest_after_sub = typed_args
+                                .split_once(char::is_whitespace)
+                                .map(|(_, r)| r.trim())
+                                .unwrap_or("");
+                            let takes_more = subcommands_of(item.verb)
+                                .iter()
+                                .find(|&&(name, _, _)| name == sub)
+                                .is_some_and(|&(_, _, more)| more);
+                            if takes_more && rest_after_sub.is_empty() {
+                                let completed = format!("/{} {sub} ", item.verb);
+                                self.replace_slash_span(start, end, &completed);
+                                let tip = self.usage_tip(item.verb);
+                                if !tip.is_empty() {
                                     self.note(tip);
-                                    return;
-                                } else {
-                                    // Input is already "/<verb> " and Enter was pressed again without arguments:
-                                    match *verb {
-                                        "model" | "provider" => {
-                                            // Open interactive selection screen
-                                        }
-                                        _ => {
-                                            // Retain "/<verb> " and refresh status bar tip
-                                            self.palette_row = 0;
-                                            self.palette_scroll = 0;
-                                            let tip = self.usage_tip(verb);
-                                            self.note(tip);
-                                            return;
-                                        }
+                                }
+                                return;
+                            }
+                            let cmd = if rest_after_sub.is_empty() {
+                                format!("{} {sub}", item.verb)
+                            } else {
+                                format!("{} {sub} {rest_after_sub}", item.verb)
+                            };
+                            self.consume_slash_span(start, end);
+                            self.show_panel(Panel::None);
+                            self.slash(&cmd, d);
+                            return;
+                        }
+
+                        let opens_without_arguments = matches!(
+                            item.verb,
+                            "logs" | "context" | "skills" | "mcp" | "model" | "provider"
+                        );
+                        if !item.args_hint.is_empty()
+                            && typed_args.is_empty()
+                            && !(opens_without_arguments
+                                && typed_verb.eq_ignore_ascii_case(item.verb))
+                        {
+                            let cmd_prefix = format!("/{} ", item.verb);
+                            let already_prefixed = slice == cmd_prefix;
+                            if !already_prefixed {
+                                self.replace_slash_span(start, end, &cmd_prefix);
+                            } else {
+                                self.palette_row = 0;
+                                self.palette_picked = false;
+                                self.palette_scroll = 0;
+                            }
+                            let tip = self.usage_tip(item.verb);
+                            match item.verb {
+                                "model" | "provider" if already_prefixed => {
+                                    self.consume_slash_span(start, end);
+                                    self.show_panel(Panel::None);
+                                    self.slash(item.verb, d);
+                                }
+                                _ => {
+                                    if !tip.is_empty() {
+                                        self.note(tip);
                                     }
                                 }
                             }
+                            return;
                         }
-                        if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
-                            self.input = chosen;
-                            self.cursor = new_cursor;
+
+                        if self.input == "?" {
+                            self.submit(d);
+                            return;
                         }
+                        let cmd = if typed_args.is_empty() {
+                            item.verb.to_string()
+                        } else {
+                            format!("{} {typed_args}", item.verb)
+                        };
+                        self.consume_slash_span(start, end);
+                        self.show_panel(Panel::None);
+                        self.slash(&cmd, d);
+                        return;
                     }
                 }
                 self.submit(d)
@@ -1454,15 +1766,52 @@ impl App {
         // one points at the wrong command — or at nothing.
         if !choosing {
             self.palette_row = 0;
+            self.palette_picked = false;
             self.palette_scroll = 0;
         }
+    }
+
+    fn replace_slash_span(&mut self, start: usize, end: usize, replacement: &str) {
+        let mut out = String::with_capacity(self.input.len() + replacement.len());
+        out.push_str(&self.input[..start]);
+        out.push_str(replacement);
+        out.push_str(&self.input[end..]);
+        self.input = out;
+        self.cursor = start + replacement.len();
+        self.input_editor.observe(&self.input, self.cursor);
+        self.palette_row = 0;
+        self.palette_picked = false;
+        self.palette_scroll = 0;
+    }
+
+    fn consume_slash_span(&mut self, start: usize, end: usize) {
+        if start == 0 && end >= self.input.len() {
+            self.input.clear();
+            self.cursor = 0;
+        } else {
+            let mut out = String::with_capacity(self.input.len());
+            out.push_str(&self.input[..start]);
+            let after = self.input[end..].trim_start_matches(' ');
+            out.push_str(after);
+            if out.trim().is_empty() {
+                out.clear();
+                self.cursor = 0;
+            } else {
+                self.cursor = start.min(out.len());
+            }
+            self.input = out;
+        }
+        self.input_editor.reset();
+        self.palette_row = 0;
+        self.palette_picked = false;
+        self.palette_scroll = 0;
     }
 
     /// Whether the composer is searching for a command right now.
     pub fn searching(&self) -> bool {
         self.composer_visible()
             && runeengine::session::manual_shell::command(&self.input).is_none()
-            && !matches_at(&self.input, self.cursor).is_empty()
+            && !palette_items(&self.input, self.cursor).is_empty()
     }
 
     /// The command the palette has under its cursor, written out in full.
@@ -1472,33 +1821,36 @@ impl App {
     }
 
     fn chosen_completion(&self, trailing_space: bool) -> Option<(String, usize)> {
-        let (start, end, hits) = active_slash_query(&self.input, self.cursor)?;
-        let (verb, ..) = hits.get(self.palette_row.min(hits.len().saturating_sub(1)))?;
-        if start == 0 {
-            let typed = self
-                .input
+        let (start, end, items) = active_slash_query(&self.input, self.cursor)?;
+        let item = items.get(self.palette_row.min(items.len().saturating_sub(1)))?;
+        let slice = &self.input[start..end];
+        let replacement = if let Some(sub) = item.subcommand {
+            let takes_more = subcommands_of(item.verb)
+                .iter()
+                .find(|&&(name, _, _)| name == sub)
+                .is_some_and(|&(_, _, more)| more);
+            if trailing_space || takes_more {
+                format!("/{} {sub} ", item.verb)
+            } else {
+                format!("/{} {sub}", item.verb)
+            }
+        } else {
+            let typed = slice
                 .strip_prefix('/')
-                .or_else(|| self.input.strip_prefix('?'))?;
+                .or_else(|| slice.strip_prefix('?'))?;
             let args = typed
                 .split_once(char::is_whitespace)
                 .map(|(_, rest)| rest.trim())
                 .unwrap_or("");
-            let completed = if args.is_empty() {
+            if args.is_empty() {
                 if trailing_space {
-                    format!("/{verb} ")
+                    format!("/{} ", item.verb)
                 } else {
-                    format!("/{verb}")
+                    format!("/{}", item.verb)
                 }
             } else {
-                format!("/{verb} {args}")
-            };
-            let len = completed.len();
-            return Some((completed, len));
-        }
-        let replacement = if trailing_space {
-            format!("/{verb} ")
-        } else {
-            format!("/{verb}")
+                format!("/{} {args}", item.verb)
+            }
         };
         let mut out = String::with_capacity(self.input.len() + replacement.len());
         out.push_str(&self.input[..start]);
@@ -2116,6 +2468,13 @@ impl App {
                     return;
                 }
                 self.open_logs(d, floor);
+            }
+            "shells" => {
+                if self.panel == Panel::Shells {
+                    self.show_panel(Panel::None);
+                    return;
+                }
+                self.open_shells(d);
             }
             "context" => {
                 // Like /logs: the same command closes what it opened.
@@ -5226,12 +5585,27 @@ mod tests {
         press(&mut app, &mut d, &[Key::Tab]);
         assert_eq!(app.input, "fdafadasdasda / dasdasdas /skills");
 
-        // Enter sends the sentence as typed: a mid-text token is prose, never a
-        // command being chosen (the text is not completed behind the user).
+        // Enter executes `/skills` (preserving the prose prefix) rather than sending
+        // an unfinished `/command` as chat when the option pointer is active.
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.panel, Panel::Capabilities);
+        assert_eq!(app.input, "fdafadasdasda / dasdasdas ");
+        assert!(
+            app.blocks.is_empty(),
+            "command execution must not send chat"
+        );
+        app.show_panel(Panel::None);
+        app.input.clear();
+        app.cursor = 0;
+        app.input_editor.reset();
+
+        // Invalid subcommand after a mid-text command closes palette and sends as chat
+        press(&mut app, &mut d, &typed("abc /mode invalidsub"));
+        assert!(!app.searching());
         press(&mut app, &mut d, &[Key::Enter]);
         assert!(app.blocks.iter().any(
             |b| matches!(b, super::super::blocks::Block::User { text, .. }
-                if text == "fdafadasdasda / dasdasdas /skills")
+                if text == "abc /mode invalidsub")
         ));
 
         // Scenario 5 & 6: attached slash "dasdasdas/" or "dasdasdas/sk" does not open palette
@@ -5239,6 +5613,88 @@ mod tests {
         assert!(!app.searching());
         press(&mut app, &mut d, &typed("sk"));
         assert!(!app.searching());
+    }
+
+    #[test]
+    fn mid_text_slash_subcommands_trailing_spaces_and_description_matches() {
+        let mut d = test_driver("slash-subcommands-and-spaces");
+        let mut app = App::for_test_with(serde_json::json!({
+            "settings": { "provider": "mimo", "model": "mimo-v2.5-pro" }
+        }));
+
+        // 1. Trailing space on no-arg command at start or mid-text keeps option open and Enter runs it
+        press(&mut app, &mut d, &typed("abc /settings "));
+        assert!(
+            app.searching(),
+            "trailing space after /settings must keep option visible"
+        );
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.panel, Panel::Settings);
+        assert_eq!(app.input, "abc ");
+        assert!(app.blocks.is_empty());
+        app.show_panel(Panel::None);
+        app.input.clear();
+        app.cursor = 0;
+
+        // 2. Mid-text prefix `abc /sett` + Enter executes `/settings`
+        press(&mut app, &mut d, &typed("abc /sett"));
+        assert!(app.searching());
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.panel, Panel::Settings);
+        assert_eq!(app.input, "abc ");
+        assert!(app.blocks.is_empty());
+        app.show_panel(Panel::None);
+        app.input.clear();
+        app.cursor = 0;
+
+        // 3. Mid-text command requiring/accepting subcommand: `abc /mode ` keeps subcommand options open
+        press(&mut app, &mut d, &typed("abc /mode "));
+        assert!(app.searching());
+        let items = palette_items(&app.input, app.cursor);
+        assert!(items.iter().any(|i| i.subcommand == Some("auto")));
+        press(&mut app, &mut d, &[Key::Enter]);
+        // Does NOT send chat and keeps option visible
+        assert!(app.blocks.is_empty());
+        assert!(app.searching());
+        assert_eq!(app.input, "abc /mode ");
+
+        // Typing valid subcommand `auto` and Enter executes `/mode auto` and preserves `abc `
+        press(&mut app, &mut d, &typed("auto"));
+        assert!(app.searching());
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.mode, "auto");
+        assert_eq!(app.input, "abc ");
+        assert!(app.blocks.is_empty());
+        app.input.clear();
+        app.cursor = 0;
+
+        // 4. Description-only match (`abc /file`) opens palette with NO pre-selected pointer,
+        // so Enter sends prose unless the user arrows down to pick a command.
+        press(&mut app, &mut d, &typed("abc /file"));
+        assert!(app.searching());
+        let desc_items = palette_items(&app.input, app.cursor);
+        assert!(!desc_items.is_empty());
+        assert!(palette_selected(&desc_items, app.palette_picked, app.palette_row).is_none());
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert!(app.blocks.iter().any(
+            |b| matches!(b, super::super::blocks::Block::User { text, .. } if text == "abc /file")
+        ));
+
+        // 5. Same description-only match when user explicitly presses Down -> pointer active -> Enter executes
+        press(&mut app, &mut d, &typed("abc /every"));
+        assert!(app.searching());
+        press(&mut app, &mut d, &[Key::Down]);
+        let picked_items = palette_items(&app.input, app.cursor);
+        assert_eq!(
+            palette_selected(&picked_items, app.palette_picked, app.palette_row),
+            Some(0)
+        );
+        let expected_verb = picked_items[0].verb;
+        press(&mut app, &mut d, &[Key::Enter]);
+        if expected_verb == "help" {
+            assert_eq!(app.panel, Panel::Help);
+        }
+        assert_eq!(app.input, "abc ");
     }
 
     #[test]

@@ -49,7 +49,8 @@
 use std::io::Write;
 
 use super::ansi::{
-    self, ACCENT, ADDED, BOLD, FAINT, MUTED, OK, REMOVED, RESET, RULE, TEXT, THINK, USER, WARN,
+    self, ACCENT, ADDED, BOLD, CODE, CODE_KEYWORD, CODE_NUMBER, FAINT, MUTED, OK, REMOVED, RESET,
+    RULE, TEXT, THINK, USER, WARN,
 };
 use super::blocks::{Block, Tool, ToolState};
 use super::{markdown, panels, pulse, steps, Anchor, App, Panel, Place, PlanAnchor};
@@ -676,7 +677,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
     }
 
     if app.searching() {
-        let total = super::keys::matches_at(&app.input, app.cursor).len();
+        let total = super::keys::palette_items(&app.input, app.cursor).len();
         app.adjust_palette_scroll(total);
     }
 
@@ -1145,6 +1146,7 @@ pub enum Hit {
     Block(usize),
     Settings(super::settings::Target),
     Log(usize),
+    Shell(usize),
     /// One answer of the permission card.
     Answer(usize),
     Questions(usize),
@@ -1319,7 +1321,18 @@ fn draw_group(app: &App, group: &Group, width: usize, cache: &mut StepCache) -> 
             } else {
                 inner
             };
-            draw_block(&app.blocks[*i], available, &mut sink);
+            let running_shells = if matches!(app.blocks[*i], Block::TurnMetrics { .. })
+                && app
+                    .blocks
+                    .iter()
+                    .rposition(|b| matches!(b, Block::TurnMetrics { .. }))
+                    == Some(*i)
+            {
+                app.running_shells
+            } else {
+                0
+            };
+            draw_block(&app.blocks[*i], available, running_shells, &mut sink);
             // A message and a notification both fold: the row that offers
             // "Click to open all" must answer a click (owner, 2026-11-03).
             if matches!(
@@ -1383,6 +1396,8 @@ struct Ambient {
     /// without a deep copy of every task on every dirty frame.
     tasks: u64,
     theme: super::theme::ThemeMode,
+    last_metrics: Option<usize>,
+    running_shells: usize,
 }
 
 /// One number that changes when the plan's content changes.
@@ -1875,6 +1890,11 @@ fn stamp_of(app: &App, indices: &[usize], ambient: &Ambient, stamps: &[u64]) -> 
     if holds_last {
         ambient.tasks.hash(&mut h);
     }
+    if let Some(last_m) = ambient.last_metrics {
+        if indices.contains(&last_m) {
+            ambient.running_shells.hash(&mut h);
+        }
+    }
     for i in indices {
         stamps[*i].hash(&mut h);
     }
@@ -2071,6 +2091,11 @@ pub fn transcript_into(
         frame: app.frame,
         tasks: plan_hash(&app.tasks),
         theme: app.theme,
+        last_metrics: app
+            .blocks
+            .iter()
+            .rposition(|b| matches!(b, Block::TurnMetrics { .. })),
+        running_shells: app.running_shells,
     };
     let stamps = block_stamps(app, &tx.measured);
     tx.measured = app
@@ -2195,7 +2220,7 @@ fn group(blocks: &[Block]) -> Vec<Group> {
     out
 }
 
-fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
+fn draw_block(block: &Block, inner: usize, running_shells: usize, sink: &mut Sink) {
     match block {
         Block::User {
             text,
@@ -2260,7 +2285,13 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
                 sink.boxed("", "", text_wrap, Hit::None);
                 sink.chrome(boxed(&task_output_heading(text_wrap), text_wrap), Hit::None);
                 for row in &rows[..shown] {
-                    sink.boxed("", &format!("{TEXT}{row}{RESET}"), text_wrap, Hit::None);
+                    let styled = match classify_output_row(row) {
+                        OutputRow::Divider => {
+                            format!("{}{row}{RESET}", output_prefix(OutputRow::Divider))
+                        }
+                        _ => format!("{TEXT}{row}{RESET}"),
+                    };
+                    sink.boxed("", &styled, text_wrap, Hit::None);
                 }
             }
             let omitted = rows.len() - shown;
@@ -2341,6 +2372,7 @@ fn draw_block(block: &Block, inner: usize, sink: &mut Sink) {
                 *steps,
                 status,
                 *completed_at_ms,
+                running_shells,
             );
             sink.push(line);
         }
@@ -2380,18 +2412,19 @@ fn render_turn_metrics(
     _steps: usize,
     _status: &str,
     completed_at_ms: i64,
+    running_shells: usize,
 ) -> String {
     let secs = (duration_ms / 1000).max(1);
     let dur_str = if secs < 60 {
-        format!("Worked for {secs}s")
+        format!("{CODE_NUMBER}{secs}s")
     } else if secs < 3600 {
-        format!("Worked for {}m {}s", secs / 60, secs % 60)
+        format!("{CODE_NUMBER}{}m {}s", secs / 60, secs % 60)
     } else {
-        format!("Worked for {}h {}m", secs / 3600, (secs % 3600) / 60)
+        format!("{CODE_NUMBER}{}h {}m", secs / 3600, (secs % 3600) / 60)
     };
 
     let tok_str = format!(
-        "{} in · {} out",
+        "{CODE_NUMBER}{}{CODE} in · {CODE_NUMBER}{}{CODE} out",
         format_tokens(tok_in),
         format_tokens(tok_out)
     );
@@ -2405,7 +2438,7 @@ fn render_turn_metrics(
 
     let time_str = match (comp_time, now_time) {
         (Some(c), Some(n)) if c.year == n.year && c.month == n.month && c.day == n.day => {
-            format!(" · at {:02}:{:02}", c.hour, c.minute)
+            format!("{CODE} · at {CODE_NUMBER}{:02}:{:02}", c.hour, c.minute)
         }
         (Some(c), _) => {
             const WEEKDAYS: [&str; 7] = [
@@ -2424,14 +2457,25 @@ fn render_turn_metrics(
             let wday_name = WEEKDAYS[wday % 7];
             let mon_name = MONTHS[(c.month.saturating_sub(1) as usize) % 12];
             format!(
-                " · {wday_name}, {mon_name} {}, {:02}:{:02}",
+                "{CODE} · {wday_name}, {mon_name} {}, {CODE_NUMBER}{:02}:{:02}",
                 c.day, c.hour, c.minute
             )
         }
         _ => String::new(),
     };
 
-    format!("  {MUTED}✾ {dur_str} · {tok_str}{time_str}{RESET}")
+    let shells_str = if running_shells > 0 {
+        let noun = if running_shells == 1 {
+            "shell"
+        } else {
+            "shells"
+        };
+        format!("{CODE} · {WARN}{running_shells} {noun} running {CODE_KEYWORD}(/shells)")
+    } else {
+        String::new()
+    };
+
+    format!("  {CODE}✾ Worked for {dur_str}{CODE} · {tok_str}{time_str}{shells_str}{RESET}")
 }
 
 fn civil_weekday(y: i32, m: u32, d: u32) -> usize {
@@ -3669,7 +3713,9 @@ fn classify_output_row(line: &str) -> OutputRow {
     // `runeengine::tools::notice`); everything else in it is the tool's own.
     const NOTICES: [&str; 2] = ["<tool_notice>", "</tool_notice>"];
     let t = line.trim();
-    if DIVIDERS.iter().any(|d| t.starts_with(d) && t.ends_with(d)) {
+    if DIVIDERS.iter().any(|d| t.starts_with(d) && t.ends_with(d))
+        || ((t.starts_with("<preview_head") || t.starts_with("<preview_tail")) && t.ends_with('>'))
+    {
         OutputRow::Divider
     } else if NOTICES.iter().any(|n| t.starts_with(n)) {
         OutputRow::Notice
@@ -4698,17 +4744,23 @@ fn composer(app: &mut App, cols: usize, max_rows: usize) -> (Sink, Option<(usize
             out.push_at(ansi::truncate(&line, cols), Hit::Composer);
             continue;
         };
+        let empty_prompt = rows.len() == 1 && first + n == 0 && text.trim().is_empty();
         if first + n == here {
-            let cut = ansi::caret_in_row(text, *start, at);
-            let (before, _) = text.split_at(cut);
-            cursor_target = Some((out.lines.len(), 5 + ansi::width(before)));
+            let col = if empty_prompt {
+                5
+            } else {
+                let cut = ansi::caret_in_row(text, *start, at);
+                let (before, _) = text.split_at(cut);
+                5 + ansi::width(before)
+            };
+            cursor_target = Some((out.lines.len(), col));
         }
         let row_geometry = projection.row(*start, text, 5);
         let styled = row_geometry.styled(app.input_editor.selected(&app.input, app.cursor));
         let body = format!("{USER}{styled}{RESET}");
         let mut line_content = format!("{caret} {body}");
         // Nothing typed yet: say what this is for, once.
-        if rows.len() == 1 && first + n == 0 && text.trim().is_empty() {
+        if empty_prompt {
             if manual_shell {
                 line_content =
                     format!("{caret} {FAINT}type shell command (Enter to run once){RESET}");
@@ -4926,35 +4978,29 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
     if max_rows == 0 {
         return;
     }
-    let found = super::keys::matches_at(&app.input, app.cursor);
+    let found = super::keys::palette_items(&app.input, app.cursor);
     if found.is_empty() {
         return;
     }
-    let at = app.palette_row.min(found.len() - 1);
+    let selected = super::keys::palette_selected(&found, app.palette_picked, app.palette_row);
+    let anchor = selected.unwrap_or(0);
     let shown = PALETTE_ROWS.min(max_rows.saturating_sub(1).max(1));
-    let first = compute_palette_first(at, app.palette_scroll, shown, found.len());
-    let name_col_w = found
+    let first = compute_palette_first(anchor, app.palette_scroll, shown, found.len());
+    let names: Vec<String> = found
         .iter()
         .skip(first)
         .take(shown)
-        .map(|(verb, args, _)| {
-            if args.is_empty() {
-                verb.len() + 1
-            } else {
-                verb.len() + 2 + args.len()
-            }
-        })
+        .map(super::keys::PaletteItem::display_name)
+        .collect();
+    let name_col_w = names
+        .iter()
+        .map(|name| name.len())
         .max()
         .unwrap_or(22)
         .clamp(20, cols.saturating_sub(35).max(20));
 
-    for (n, (verb, args, what)) in found.iter().enumerate().skip(first).take(shown) {
-        let name = if args.is_empty() {
-            format!("/{verb}")
-        } else {
-            format!("/{verb} {args}")
-        };
-        let (mark, name_ink, what_ink) = if n == at {
+    for ((n, item), name) in found.iter().enumerate().skip(first).take(shown).zip(names) {
+        let (mark, name_ink, what_ink) = if selected == Some(n) {
             (
                 format!("{ACCENT}{BOLD}{CARET}{RESET}  "),
                 format!("{ACCENT}{BOLD}"),
@@ -4965,7 +5011,7 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
         };
         let padded_name = ansi::pad(&name, name_col_w);
         let avail_desc = cols.saturating_sub(2 + 3 + name_col_w + 2 + 1);
-        let desc = ansi::truncate(what, avail_desc);
+        let desc = ansi::truncate(item.description, avail_desc);
         let line = format!("  {mark}{name_ink}{padded_name}{RESET}  {what_ink}{desc}{RESET}");
         out.push_ranges(
             ansi::truncate(&line, cols),
@@ -4975,11 +5021,8 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
     }
     let left = found.len().saturating_sub(first + shown);
     if max_rows > shown && (left > 0 || first > 0) {
-        let line = format!(
-            "     {FAINT}{} of {} · ↑↓ to walk{RESET}",
-            at + 1,
-            found.len(),
-        );
+        let pos = selected.map_or(1, |at| at + 1);
+        let line = format!("     {FAINT}{} of {} · ↑↓ to walk{RESET}", pos, found.len(),);
         out.push(ansi::truncate(&line, cols));
     }
 }
@@ -8561,7 +8604,7 @@ mod tests {
             bad: false,
         });
         let mut sink = Sink::default();
-        draw_block(&app.blocks[0], 80, &mut sink);
+        draw_block(&app.blocks[0], 80, 0, &mut sink);
         let rendered = sink
             .lines
             .iter()
@@ -11195,7 +11238,7 @@ mod tests {
             text: "a sentence from the model".into(),
         });
         let mut sink = Sink::default();
-        draw_block(&app.blocks[0], 60, &mut sink);
+        draw_block(&app.blocks[0], 60, 0, &mut sink);
         let body = sink.lines.first().expect("the answer must be drawn");
         assert!(
             !body.contains('│'),
@@ -11220,7 +11263,7 @@ mod tests {
             text: "word ".repeat(120),
         });
         let mut sink = Sink::default();
-        draw_block(&app.blocks[0], 300, &mut sink);
+        draw_block(&app.blocks[0], 300, 0, &mut sink);
         assert!(
             sink.lines.iter().any(|line| ansi::width(line) > 92),
             "the removed measure still cuts the answer: {:?}",
@@ -13466,7 +13509,7 @@ mod tests {
         assert_eq!(format_tokens(1_050_000), "1.05m");
 
         // Render turn metrics string
-        let rendered = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000);
+        let rendered = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000, 0);
         let plain = ansi::plain(&rendered);
         assert!(plain.contains("✾"), "must use florette marker");
         assert!(!plain.contains("●"), "must not use bullet marker");
@@ -13475,10 +13518,25 @@ mod tests {
         assert!(plain.contains("12.4k in · 450 out"));
         assert!(!plain.contains("3 steps"));
         assert!(!plain.contains("done"));
+        assert!(!plain.contains("running"));
+        assert!(rendered.contains(&CODE.to_string()));
+        assert!(rendered.contains(&CODE_NUMBER.to_string()));
         assert!(
             !plain.contains("AM") && !plain.contains("PM"),
             "must use pure 24h format"
         );
+
+        let with_one = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000, 1);
+        let plain_one = ansi::plain(&with_one);
+        assert!(
+            plain_one.contains("· 1 shell running (/shells)"),
+            "{plain_one}"
+        );
+        assert!(with_one.contains(&WARN.to_string()));
+        assert!(with_one.contains(&CODE_KEYWORD.to_string()));
+
+        let with_many = render_turn_metrics(45_000, 12_400, 450, 3, "done", 1_700_000_000_000, 5);
+        assert!(ansi::plain(&with_many).contains("· 5 shells running (/shells)"));
     }
 
     #[test]
@@ -13603,5 +13661,179 @@ mod tests {
             app.sidebar_last_row as usize, border,
             "the padding row is the panel's last row"
         );
+    }
+
+    #[test]
+    fn running_shells_shows_only_on_last_turn_metrics_and_clears_when_zero() {
+        let mut app = test_app();
+        app.blocks.push(Block::TurnMetrics {
+            duration_ms: 2_000,
+            tok_in: 100,
+            tok_out: 20,
+            steps: 1,
+            status: "done".into(),
+            completed_at_ms: 1_700_000_000_000,
+        });
+        app.blocks.push(Block::TurnMetrics {
+            duration_ms: 3_000,
+            tok_in: 200,
+            tok_out: 40,
+            steps: 1,
+            status: "done".into(),
+            completed_at_ms: 1_700_000_010_000,
+        });
+
+        app.on_event(runeengine::Event::BackgroundTasks {
+            session: 1,
+            running: 2,
+            tasks: vec![],
+        });
+        let tx = transcript_into(None, &app, 120, true, true);
+        let metric_lines: Vec<String> = tx
+            .sink
+            .lines
+            .iter()
+            .map(|l| ansi::plain(l))
+            .filter(|l| l.contains("✾"))
+            .collect();
+        assert_eq!(metric_lines.len(), 2);
+        assert!(
+            !metric_lines[0].contains("running"),
+            "older turn metrics must not show live running shells: {}",
+            metric_lines[0]
+        );
+        assert!(
+            metric_lines[1].contains("2 shells running (/shells)"),
+            "latest turn metrics must show live running shells: {}",
+            metric_lines[1]
+        );
+
+        app.on_event(runeengine::Event::BackgroundTasks {
+            session: 1,
+            running: 0,
+            tasks: vec![],
+        });
+        let tx_after = transcript_into(Some(tx), &app, 120, app.transcript_dirty, true);
+        let after_lines: Vec<String> = tx_after
+            .sink
+            .lines
+            .iter()
+            .map(|l| ansi::plain(l))
+            .filter(|l| l.contains("✾"))
+            .collect();
+        assert!(
+            after_lines.iter().all(|l| !l.contains("running")),
+            "must disappear when 0 shells remain: {after_lines:?}"
+        );
+    }
+
+    #[test]
+    fn cancelling_before_api_or_step_emits_no_turn_metrics_and_never_duplicates_previous() {
+        let mut app = test_app();
+        // Turn 1 finishes normally with usage
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 1,
+            text: Some("first".into()),
+            notification: false,
+            media: Vec::new(),
+            at: 1000,
+        });
+        app.on_event(runeengine::Event::Usage {
+            session: 1,
+            input: 3770,
+            output: 270,
+            cached: 0,
+            cost: None,
+            details: Default::default(),
+        });
+        app.on_event(runeengine::Event::Done {
+            session: 1,
+            turn: 1,
+            stop: runeengine::proto::StopReason::End,
+        });
+        let metrics_after_turn1 = app
+            .blocks
+            .iter()
+            .filter(|b| matches!(b, Block::TurnMetrics { .. }))
+            .count();
+        assert_eq!(metrics_after_turn1, 1);
+
+        // Turn 2 starts and user stops AI before any API call or tool step finishes
+        app.blocks.push(Block::user_timed(
+            "dasdas /sett".to_string(),
+            None,
+            Vec::new(),
+        ));
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 2,
+            text: Some("dasdas /sett".into()),
+            notification: false,
+            media: Vec::new(),
+            at: 2000,
+        });
+        app.on_event(runeengine::Event::Done {
+            session: 1,
+            turn: 2,
+            stop: runeengine::proto::StopReason::Cancelled,
+        });
+
+        let metrics_after_cancel = app
+            .blocks
+            .iter()
+            .filter(|b| matches!(b, Block::TurnMetrics { .. }))
+            .count();
+        assert_eq!(
+            metrics_after_cancel, 1,
+            "cancelling before any API call or tool step must not add a second TurnMetrics"
+        );
+        assert!(
+            matches!(app.blocks.last(), Some(Block::User { text, .. }) if text == "dasdas /sett")
+        );
+    }
+
+    #[test]
+    fn load_history_ignores_user_work_unfinished_without_usage_and_keeps_finished_done() {
+        let mut app = test_app();
+        app.load_history(
+            &[
+                serde_json::json!({
+                    "id": 1, "turn": 1, "role": "user", "content": "hi", "created_at": 1000,
+                    "work": {"source": 1, "finished": false}
+                }),
+                serde_json::json!({
+                    "id": 2, "turn": 1, "role": "assistant", "content": "hello", "created_at": 2000,
+                    "work": {"source": 1, "finished": true}
+                }),
+                // Interrupted turn after PC crash / unanswered steer (no usage, no steps)
+                serde_json::json!({
+                    "id": 3, "turn": 2, "role": "user", "content": "crashed", "created_at": 3000,
+                    "work": {"source": 3, "finished": false}
+                }),
+            ],
+            &[],
+            &serde_json::json!([]),
+            &[serde_json::json!({"turn": 1, "tok_in": 120, "tok_out": 40, "completed_at": 2000})],
+        );
+
+        let metrics: Vec<_> = app
+            .blocks
+            .iter()
+            .filter_map(|b| match b {
+                Block::TurnMetrics { status, .. } => Some(status.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(metrics, vec!["done"]);
+    }
+
+    #[test]
+    fn composer_shell_mode_empty_placeholder_places_cursor_at_column_5() {
+        let mut app = test_app();
+        app.input = "! ".into();
+        app.cursor = 2;
+        let _ = compose(&mut app, 24, 80);
+        assert_eq!(app.cursor_terminal.map(|(_, c)| c), Some(5));
     }
 }

@@ -306,7 +306,7 @@ def run():
         expected = "OWNERSHIP-ACK-" + panel
         provider.queue(delayed, live.text(expected))
         before = len(provider.main_calls())
-        paste(w, "pending form over " + panel)
+        paste(w, "pending form over " + panel + " check")
         w.send(b"\r")
         live.until(lambda: len(provider.main_calls()) > before, "provider handshake", w)
         command(w, panel)

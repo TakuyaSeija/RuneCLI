@@ -37,6 +37,10 @@ struct Style {
     italic: bool,
     /// A URL, when this run is a link label.
     href: Option<String>,
+    /// Explicit ANSI SGR styling emitted by the model (`\x1b[...m`). Applied
+    /// after the theme colour so model-requested colours take priority, and
+    /// cleared on SGR reset so text falls back cleanly to the active theme.
+    sgr: String,
 }
 
 impl Style {
@@ -46,6 +50,17 @@ impl Style {
             bold: false,
             italic: false,
             href: None,
+            sgr: String::new(),
+        }
+    }
+
+    fn with_sgr(colour: ansi::Ink, sgr: &str) -> Style {
+        Style {
+            colour,
+            bold: false,
+            italic: false,
+            href: None,
+            sgr: sgr.to_string(),
         }
     }
 
@@ -58,6 +73,9 @@ impl Style {
             out.push_str(ansi::ITALIC);
         }
         out.push_str(&self.colour.to_string());
+        if !self.sgr.is_empty() && ansi::depth() != ansi::Depth::None {
+            out.push_str(&self.sgr);
+        }
         out
     }
 }
@@ -89,6 +107,7 @@ fn render_with(text: &str, width: usize, prose: ansi::Ink) -> super::draw::Sink 
     let mut out = super::draw::Sink::default();
     let mut lines = text.split('\n').peekable();
     let mut table: Vec<String> = Vec::new();
+    let mut active_sgr = String::new();
 
     while let Some(raw) = lines.next() {
         // A table is the one construct that needs several lines at once.
@@ -127,7 +146,7 @@ fn render_with(text: &str, width: usize, prose: ansi::Ink) -> super::draw::Sink 
             continue;
         }
 
-        let rendered = block(raw, width, prose);
+        let rendered = block(raw, width, prose, &mut active_sgr);
         let trimmed = raw.trim_start();
         if is_rule(trimmed) {
             for line in rendered {
@@ -161,7 +180,7 @@ fn render_with(text: &str, width: usize, prose: ansi::Ink) -> super::draw::Sink 
 }
 
 /// One line that is not part of a multi-line construct.
-fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
+fn block(raw: &str, width: usize, prose: ansi::Ink, active_sgr: &mut String) -> Vec<String> {
     let trimmed = raw.trim_start();
     let indent = raw.len() - trimmed.len();
 
@@ -170,6 +189,7 @@ fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
     }
 
     if is_rule(trimmed) {
+        active_sgr.clear();
         return vec![format!(
             "{RULE}{}{}",
             "─".repeat(width.min(60)),
@@ -187,12 +207,14 @@ fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
                 bold: true,
                 italic: false,
                 href: None,
+                sgr: active_sgr.clone(),
             },
             2 => Style {
                 colour: prose,
                 bold: true,
                 italic: false,
                 href: None,
+                sgr: active_sgr.clone(),
             },
             _ => Style {
                 colour: if prose == ansi::RESPONSE {
@@ -203,9 +225,10 @@ fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
                 bold: true,
                 italic: false,
                 href: None,
+                sgr: active_sgr.clone(),
             },
         };
-        let mut lines = lay_out(&inline(text, style), width, "", "");
+        let mut lines = lay_out(&inline_with_sgr(text, style, active_sgr), width, "", "");
         if level == 1 {
             lines.push(format!(
                 "{RULE}{}{}",
@@ -222,13 +245,17 @@ fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
         // and rendering both at one level makes the two speakers one.
         let bar = format!("{QUOTE}│{} ", ansi::RESET).repeat(depth);
         return lay_out(
-            &inline(
+            &inline_with_sgr(
                 text,
-                Style::plain(if prose == ansi::RESPONSE {
-                    prose
-                } else {
-                    MUTED
-                }),
+                Style::with_sgr(
+                    if prose == ansi::RESPONSE {
+                        prose
+                    } else {
+                        MUTED
+                    },
+                    active_sgr,
+                ),
+                active_sgr,
             ),
             width.saturating_sub(2 * depth),
             &bar,
@@ -241,11 +268,16 @@ fn block(raw: &str, width: usize, prose: ansi::Ink) -> Vec<String> {
         let first = format!("{pad}{ACCENT}{marker}{} ", ansi::RESET);
         let cont = " ".repeat(indent + marker.chars().count() + 1);
         let room = width.saturating_sub(indent + marker.chars().count() + 1);
-        return lay_out(&inline(text, Style::plain(prose)), room, &first, &cont);
+        return lay_out(
+            &inline_with_sgr(text, Style::with_sgr(prose, active_sgr), active_sgr),
+            room,
+            &first,
+            &cont,
+        );
     }
 
     lay_out(
-        &inline(trimmed, Style::plain(prose)),
+        &inline_with_sgr(trimmed, Style::with_sgr(prose, active_sgr), active_sgr),
         width.saturating_sub(indent),
         &pad,
         &pad,
@@ -360,8 +392,58 @@ fn code_content(language: &str, body: &[String], width: usize) -> super::draw::S
         super::draw::Hit::None,
     );
     let diff = language.eq_ignore_ascii_case("diff") || language.eq_ignore_ascii_case("patch");
+    let mut code_sgr = String::new();
     for line in body {
         let tamed = ansi::tame(line);
+        if !diff && tamed.contains('\x1b') {
+            let mut spans = Vec::new();
+            let mut buf = String::new();
+            let chars: Vec<char> = tamed.chars().collect();
+            let mut i = 0;
+            while i < chars.len() {
+                if chars[i] == '\x1b' {
+                    if let Some((next_i, sgr_opt)) = consume_escape(&chars, i) {
+                        if let Some(seq) = sgr_opt {
+                            if !buf.is_empty() {
+                                spans.push(Span {
+                                    text: std::mem::take(&mut buf),
+                                    style: Style::with_sgr(highlight::BASE, &code_sgr),
+                                });
+                            }
+                            apply_sgr(&mut code_sgr, &seq);
+                        }
+                        i = next_i;
+                        continue;
+                    }
+                }
+                buf.push(chars[i]);
+                i += 1;
+            }
+            if !buf.is_empty() {
+                spans.push(Span {
+                    text: buf,
+                    style: Style::with_sgr(highlight::BASE, &code_sgr),
+                });
+            }
+            let wrapped_lines = if spans.is_empty() {
+                vec![format!(
+                    "{}{}",
+                    Style::with_sgr(highlight::BASE, &code_sgr).open(),
+                    ansi::RESET
+                )]
+            } else {
+                lay_out(&spans, inner, "", "")
+            };
+            for body_line in wrapped_lines {
+                out.content(
+                    &format!("  {RULE}│{}  ", ansi::RESET),
+                    &body_line,
+                    ansi::RESET,
+                    super::draw::Hit::None,
+                );
+            }
+            continue;
+        }
         // `ansi::wrap` only ever splits a line, so the rows it returns concatenate
         // back to the line it was given. That is what lets a row be coloured as a
         // *window* onto runs measured once against the whole line, instead of
@@ -490,6 +572,7 @@ fn table(rows: &[String], width: usize, prose: ansi::Ink) -> super::draw::Sink {
                         bold: true,
                         italic: false,
                         href: None,
+                        sgr: String::new(),
                     }
                 } else {
                     Style::plain(prose)
@@ -531,10 +614,98 @@ fn table(rows: &[String], width: usize, prose: ansi::Ink) -> super::draw::Sink {
 
 /// Split one line into styled runs. `base` is the style prose gets here.
 fn inline(text: &str, base: Style) -> Vec<Span> {
+    let mut sgr = base.sgr.clone();
+    inline_with_sgr(text, base, &mut sgr)
+}
+
+fn consume_escape(chars: &[char], at: usize) -> Option<(usize, Option<String>)> {
+    if chars.get(at) != Some(&'\x1b') {
+        return None;
+    }
+    let Some(&kind) = chars.get(at + 1) else {
+        return Some((at + 1, None));
+    };
+    let mut i = at + 2;
+    match kind {
+        '[' => {
+            while i < chars.len() {
+                let c = chars[i];
+                i += 1;
+                if ('\u{40}'..='\u{7e}').contains(&c) {
+                    if c == 'm' {
+                        let seq: String = chars[at..i].iter().collect();
+                        return Some((i, Some(seq)));
+                    }
+                    return Some((i, None));
+                }
+            }
+            Some((i, None))
+        }
+        ']' => {
+            while i < chars.len() {
+                let c = chars[i];
+                i += 1;
+                if c == '\u{7}' {
+                    return Some((i, None));
+                }
+                if c == '\x1b' && i < chars.len() {
+                    i += 1;
+                    return Some((i, None));
+                }
+            }
+            Some((i, None))
+        }
+        '(' | ')' | '#' => {
+            while i < chars.len() {
+                let c = chars[i];
+                i += 1;
+                if ('\u{30}'..='\u{7e}').contains(&c) {
+                    return Some((i, None));
+                }
+            }
+            Some((i, None))
+        }
+        _ => Some((i, None)),
+    }
+}
+
+fn apply_sgr(active: &mut String, seq: &str) {
+    let Some(inner) = seq.strip_prefix("\x1b[").and_then(|s| s.strip_suffix('m')) else {
+        return;
+    };
+    if inner.is_empty() {
+        active.clear();
+        return;
+    }
+    let parts: Vec<&str> = inner.split(';').collect();
+    if parts.contains(&"0") {
+        active.clear();
+        // If any parameters follow a `0` inside the same compound sequence (e.g. `\x1b[0;31m`),
+        // retain the suffix after the last `0` as the active override.
+        if let Some(last_zero) = parts.iter().rposition(|&p| p == "0" || p.is_empty()) {
+            let tail = &parts[last_zero + 1..];
+            if !tail.is_empty() {
+                active.push_str(&format!("\x1b[{}m", tail.join(";")));
+            }
+        }
+        return;
+    }
+    if inner == "39" || inner == "49" {
+        if !active.is_empty() {
+            active.push_str(seq);
+        }
+        return;
+    }
+    active.push_str(seq);
+}
+
+fn inline_with_sgr(text: &str, base: Style, active_sgr: &mut String) -> Vec<Span> {
     let mut spans: Vec<Span> = Vec::new();
     let mut buf = String::new();
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
+    let mut current = base.clone();
+    current.sgr.clone_from(active_sgr);
 
     let flush = |buf: &mut String, spans: &mut Vec<Span>, style: &Style| {
         if !buf.is_empty() {
@@ -548,8 +719,32 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
     while i < chars.len() {
         let c = chars[i];
 
+        if c == '\x1b' {
+            if let Some((next_i, sgr_opt)) = consume_escape(&chars, i) {
+                if let Some(seq) = sgr_opt {
+                    flush(&mut buf, &mut spans, &current);
+                    apply_sgr(active_sgr, &seq);
+                    current.sgr.clone_from(active_sgr);
+                }
+                i = next_i;
+                continue;
+            }
+        }
+
+        if c == '\r' || ((c as u32) < 0x20 && c != '\t') || c as u32 == 0x7f {
+            i += 1;
+            continue;
+        }
+        if c == '\t' {
+            buf.push_str("    ");
+            i += 1;
+            continue;
+        }
+
         // Escapes come first: `\*` is an asterisk, not the start of emphasis.
-        if c == '\\' && i + 1 < chars.len() {
+        // Only ASCII punctuation is unescaped per CommonMark so `\e`, `\n`, or
+        // Windows paths like `C:\foo` are not silently stripped.
+        if c == '\\' && i + 1 < chars.len() && chars[i + 1].is_ascii_punctuation() {
             buf.push(chars[i + 1]);
             i += 2;
             continue;
@@ -557,7 +752,7 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
 
         if c == '`' {
             if let Some(end) = find(&chars, i + 1, '`') {
-                flush(&mut buf, &mut spans, &base);
+                flush(&mut buf, &mut spans, &current);
                 let body: String = chars[i + 1..end].iter().collect();
                 // One span per run, so `` `fn` `` and `` `String` `` are not the
                 // same colour — the same answer the fenced block gives, from the
@@ -567,7 +762,7 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
                 for piece in highlight::pieces("", &body, CODE) {
                     spans.push(Span {
                         text: body[piece.start..piece.end].to_string(),
-                        style: Style::plain(piece.ink),
+                        style: Style::with_sgr(piece.ink, active_sgr),
                     });
                 }
                 i = end + 1;
@@ -579,11 +774,11 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
             let double = chars.get(i + 1) == Some(&'$');
             let open = if double { i + 2 } else { i + 1 };
             if let Some(end) = find_str(&chars, open, if double { "$$" } else { "$" }) {
-                flush(&mut buf, &mut spans, &base);
+                flush(&mut buf, &mut spans, &current);
                 let body: String = chars[open..end].iter().collect();
                 spans.push(Span {
                     text: maths(&body),
-                    style: Style::plain(MATH),
+                    style: Style::with_sgr(MATH, active_sgr),
                 });
                 i = end + if double { 2 } else { 1 };
                 continue;
@@ -594,7 +789,7 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
             if let Some(close) = find(&chars, i + 1, ']') {
                 if chars.get(close + 1) == Some(&'(') {
                     if let Some(end) = find(&chars, close + 2, ')') {
-                        flush(&mut buf, &mut spans, &base);
+                        flush(&mut buf, &mut spans, &current);
                         let label: String = chars[i + 1..close].iter().collect();
                         let href: String = chars[close + 2..end].iter().collect();
                         spans.push(Span {
@@ -604,6 +799,7 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
                                 bold: false,
                                 italic: false,
                                 href: Some(href),
+                                sgr: active_sgr.clone(),
                             },
                         });
                         i = end + 1;
@@ -653,14 +849,15 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
                     continue;
                 }
             }
-            flush(&mut buf, &mut spans, &base);
+            flush(&mut buf, &mut spans, &current);
             let body: String = chars[i + marker.len()..end].iter().collect();
-            let mut style = base.clone();
+            let mut style = current.clone();
             style.bold |= bold;
             style.italic |= italic;
             // Nested markup inside emphasis is rare, and the recursion is
             // bounded by a strictly shorter slice.
-            spans.extend(inline(&body, style));
+            spans.extend(inline_with_sgr(&body, style, active_sgr));
+            current.sgr.clone_from(active_sgr);
             i = end + marker.len();
             matched = true;
             break;
@@ -672,7 +869,7 @@ fn inline(text: &str, base: Style) -> Vec<Span> {
         buf.push(c);
         i += 1;
     }
-    flush(&mut buf, &mut spans, &base);
+    flush(&mut buf, &mut spans, &current);
     spans
 }
 
@@ -1424,5 +1621,38 @@ mod tests {
             body.contains("-rf something"),
             "the shell flag was rewritten: {body}"
         );
+    }
+
+    #[test]
+    fn ai_ansi_sgr_colors_override_theme_wrap_cleanly_and_fall_back_on_reset() {
+        let input = "before \x1b[31mred_word_one red_word_two red_word_three\x1b[0m after";
+        let rendered = render_response(input, 28);
+        let joined = rendered.lines.join("\n");
+        let response_esc = ansi::RESPONSE.to_string();
+
+        assert_eq!(
+            text_of(&rendered.lines),
+            "before red_word_one\nred_word_two red_word_three\nafter"
+        );
+        // Line 1: `before` uses RESPONSE, `red_word_one` uses red override (`\x1b[31m`)
+        assert!(rendered.lines[0].contains(&response_esc));
+        assert!(rendered.lines[0].contains("\x1b[31m"));
+        // Line 2 (wrapped!): must re-emit `\x1b[31m` so color survives wrapping
+        assert!(
+            rendered.lines[1].contains("\x1b[31m"),
+            "wrapped line must preserve active AI ANSI color: {:?}",
+            rendered.lines[1]
+        );
+        // Line 3 (`after` after `\x1b[0m`): falls back cleanly to theme RESPONSE without `\x1b[31m`
+        assert!(rendered.lines[2].contains(&response_esc));
+        assert!(!rendered.lines[2].contains("\x1b[31m"));
+        assert!(!joined.contains("\x1b[2J"));
+
+        // Non-SGR CSI cursor moves are stripped while SGR colors in code fences survive
+        let fence = render_response("```text\n\x1b[2J\x1b[31mred_in_code\x1b[0m plain\n```", 50);
+        let fence_joined = fence.lines.join("\n");
+        assert!(!fence_joined.contains("\x1b[2J"));
+        assert!(fence_joined.contains("\x1b[31mred_in_code"));
+        assert_eq!(ansi::plain(&fence.lines[1]).trim(), "│  red_in_code plain");
     }
 }

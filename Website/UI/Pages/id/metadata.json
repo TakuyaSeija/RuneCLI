@@ -180,36 +180,41 @@
   },
   "notes": {
     "0.12.4": {
-      "title": "Baris turn yang lebih tenang, palet slash di dalam kalimat, dan Off yang membiarkan rute apa adanya",
-      "summary": "Metrik turn lebih tenang, palet di tengah kalimat, wizard hanya Alt+H, Off 9router tanpa level paksaan",
+      "title": "Baris turn lebih jelas, pemantau /shells realtime, eksekusi slash di tengah kalimat, dan warna ANSI AI",
+      "summary": "Metrik turn berwarna + /shells live, subcommand slash cerdas, wizard hanya Alt+H, warna ANSI SGR AI, Off 9router tanpa level paksaan",
       "paragraphs": [
-        "Build ini merapikan hal-hal kecil yang membuat layar berbicara menimpa percakapan. Turn yang selesai kini berbicara dalam satu baris redup dengan penanda florette, bukan bullet yang terbaca seperti teks jawaban; baris kosong di atas composer hanya milik percakapan sementara side panel menembusnya; token slash yang diketik di tengah kalimat membuka palet tanpa memotong kalimatnya; form pertanyaan hanya disembunyikan dan ditampilkan lewat shortcut-nya; dan menghentikan turn setelah mengantrekan pesan tidak lagi menggambar pesan itu dua kali. Pada 9router, Off kini tidak mengirim level penalaran sama sekali, sehingga rute yang tidak bisa diminta berhenti berpikir tetap memakai nilai bawaannya alih-alih dipaksa turun ke Low."
+        "Build ini merapikan detail agar tampilan tetap rapi dan konsisten. Turn yang selesai kini tampil dalam satu baris dengan penanda florette, angka berwarna, serta indikator N shell(s) running (/shells) saat ada proses latar yang berjalan, sementara turn yang dihentikan sebelum ada langkah atau panggilan API tidak menghasilkan baris metrik kosong. Panel /shells baru memantau proses latar aktif maupun terbaru beserta keluaran langsungnya, blok <process_output> yang terpotong kini memakai <preview_head> dan <preview_tail> seperti terminal_use, palet slash mendukung perintah dan subcommand di tengah kalimat tanpa menghilangkan spasi atau membajak kecocokan deskripsi, kode warna ANSI SGR dari AI tampil di atas tema dan reset dengan rapi, form pertanyaan hanya dibuka/tutup lewat Alt+H, dan Off pada 9router tetap memakai nilai bawaan rute."
       ],
       "points": [
         {
           "id": "turn-metrics-footer",
-          "title": "Baris turn redup, dibaca sebagai metadata bukan sebagai prosa",
-          "text": "Penandanya florette dengan tinta redup, jumlah token memakai huruf kecil k dan m, dan ekor step serta status dihapus: satu baris yang menyebut lama kerja, pemakaian token, dan waktu selesai dalam format 24 jam."
+          "title": "Metrik turn berwarna, indikator /shells, dan penjaga turn kosong",
+          "text": "Baris metrik memakai penanda florette dengan label biru-abu, angka hijau, token k dan m huruf kecil, jam selesai 24 jam, serta indikator N shell(s) running (/shells) pada baris metrik terakhir selama shell latar berjalan. Turn yang dibatalkan sebelum ada langkah atau panggilan model tidak membuat metrik baru dan tidak menduplikasi metrik sebelumnya."
         },
         {
           "id": "composer-padding-and-panel",
           "title": "Hanya percakapan yang mendapat baris kosong di atas composer",
-          "text": "Pada frame terpisah, side panel dan garis pembatasnya menembus baris itu sampai batas composer, dan petunjuk lompat duduk di baris itu tepat di atas input alih-alih menutupi baris terakhir chat. Palet slash kini juga mencapai batas composer tanpa baris kosong di antaranya."
+          "text": "Pada frame terpisah, side panel dan pembatasnya menembus baris itu sampai batas composer, dan petunjuk lompat duduk tepat di atas input. Palet slash mencapai batas composer tanpa celah, dan mode shell manual kosong (! ) menjaga kursor tepat di kolom 5."
         },
         {
           "id": "slash-palette-in-sentences",
-          "title": "Token slash di tengah kalimat membuka palet tanpa memakan kalimatnya",
-          "text": "Token /kata yang berdiri sendiri setelah spasi membuka daftar perintah di posisi kursor mana pun; Tab hanya menyelesaikan token itu dan membiarkan kata sebelumnya utuh; Enter tetap mengirim kalimat apa adanya, dan teks yang menempel seperti path atau kata bergaris miring tidak pernah membukanya."
+          "title": "Perintah slash di tengah kalimat, subcommand, dan kecocokan deskripsi yang aman",
+          "text": "Perintah /command maupun /command subcommand berdiri sendiri di awal atau tengah teks tetap membuka opsi dan mempertahankan spasi di belakangnya. Enter menjalankan opsi aktif (menjaga teks lain di sekitar) atau melengkapi subcommand bila diperlukan, argumen tidak valid mengirim pesan apa adanya, dan kecocokan lemah pada deskripsi tidak membajak Enter kecuali dipilih eksplisit dengan panah atau Tab."
+        },
+        {
+          "id": "realtime-shells-and-ansi",
+          "title": "Panel /shells realtime, dukungan warna ANSI AI, dan tag pratinjau seragam",
+          "text": "Panel /shells menampilkan proses latar berjalan maupun selesai beserta status, PID, durasi live, dan kotak keluaran yang dapat dibuka. Urutan warna ANSI SGR pada jawaban AI diprioritaskan di atas warna tema lintas baris terbungkus dan kembali ke tema saat reset, sementara notifikasi latar yang terpotong memakai <preview_head> dan <preview_tail> seperti terminal_use."
         },
         {
           "id": "questions-collapse-shortcut",
           "title": "Form pertanyaan hanya disembunyikan dan ditampilkan lewat shortcut-nya",
-          "text": "Alt+H menciutkan dan memulihkan form; chevron, klik pada judul, dan petunjuk dalam kurung di header dihapus, sehingga membaca judul tidak pernah membukanya kembali, dan shortcut-nya tercantum bersama yang lain di bagian bawah."
+          "text": "Alt+H menciutkan dan memulihkan form; chevron, klik judul, dan petunjuk kurung di header dihapus agar membaca judul tidak membukanya kembali, sementara Alt+H hide tampil di baris pintasan bawah."
         },
         {
           "id": "router-off-and-single-stop",
           "title": "Off di 9router tidak mengirim level, dan turn yang dihentikan menggambar pesan antreannya sekali",
-          "text": "Off tidak lagi meminta Low atau flag nonaktif pada 9router, sehingga rute memakai nilai bawaan dan plafon output-nya sendiri; Settings Alt+C menampilkan level yang benar-benar dipakai di samping daftar opsi; dan pesan yang diantrekan saat agen bekerja lalu dihentikan dengan Esc dua kali muncul tepat satu kali."
+          "text": "Off tidak lagi meminta Low atau flag nonaktif pada 9router sehingga rute mempertahankan nilai bawaan dan plafon output-nya; Settings Alt+C menampilkan level yang aktif di samping opsi; dan pesan antrean yang dihentikan dengan Esc dua kali tampil tepat satu kali."
         }
       ]
     },

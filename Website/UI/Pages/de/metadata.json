@@ -180,36 +180,41 @@
   },
   "notes": {
     "0.12.4": {
-      "title": "Eine leisere Turn-Zeile, eine Slash-Palette mitten im Satz und ein Off, das die Route in Ruhe lässt",
-      "summary": "Leisere Turn-Metriken, Palette im Satz, Assistent nur per Alt+H, 9router-Off ohne erzwungene Stufe",
+      "title": "Klarere Turn-Zeile, Live-Ansicht /shells, Slash-Befehle im Satz und ANSI-Farben der KI",
+      "summary": "Farbige Turn-Metriken + Live-/shells, smarte Slash-Unterbefehle, Alt+H-Assistent, KI-ANSI-SGR-Farben, 9router-Off ohne Zwangsstufe",
       "paragraphs": [
-        "Dieser Build räumt die Kleinigkeiten auf, mit denen der Bildschirm über das Gespräch sprach. Ein beendeter Turn spricht jetzt in einer gedämpften Zeile mit einer Blütenmarke statt einer Aufzählung, die wie Antworttext aussah; die Leerzeile über der Eingabe gehört allein dem Gespräch, während das Seitenpanel sie durchläuft; ein Schrägstrich-Token mitten im Satz öffnet die Palette, ohne den Satz zu zerreißen; das Frageformular lässt sich nur noch über sein Tastenkürzel ein- und ausblenden; und ein Turn, der nach einer eingereihten Nachricht gestoppt wird, zeichnet diese Nachricht nicht mehr doppelt. Bei 9router sendet Off nun gar keine Reasoning-Stufe mehr, sodass eine Route, der man das Denken nicht verbieten kann, ihren eigenen Standard behält, statt auf Low gedrückt zu werden."
+        "Dieser Build bereinigt Unstimmigkeiten auf dem Bildschirm. Ein abgeschlossener Turn erscheint als eine klare Zeile mit Blütenmarke, getönten Zahlen und einer Live-Anzeige N shell(s) running (/shells) bei aktiven Hintergrundprozessen; Turns, die vor jedem Schritt oder API-Aufruf gestoppt wurden, erzeugen keine leere Metrikzeile mehr. Ein neues /shells-Panel zeigt laufende und beendete Hintergrundprozesse samt Live-Ausgabe, gekürzte <process_output>-Blöcke nutzen wie terminal_use <preview_head> und <preview_tail>, die Slash-Palette unterstützt Befehle und Unterbefehle mitten im Satz ohne Leerzeichenverlust oder Fehlaktivierung bei reinen Beschreibungstreffern, ANSI-SGR-Farbcodes der KI übersteuern das Theme sauber, das Frageformular reagiert nur auf Alt+H, und Off auf 9router bewahrt den Routen-Standard."
       ],
       "points": [
         {
           "id": "turn-metrics-footer",
-          "title": "Eine gedämpfte Turn-Zeile, als Metadaten gelesen und nicht als Text",
-          "text": "Die Marke ist eine Blüte in gedämpfter Tinte, Token-Zahlen nutzen kleine k und m, und der Schwanz aus Schritten und Status ist weg: eine Zeile, die Dauer, Verbrauch und Ende in 24-Stunden-Zeit nennt."
+          "title": "Farbige Turn-Metriken, /shells-Anzeige und Schutz vor leeren Turns",
+          "text": "Die Turn-Zeile nutzt eine Blütenmarke mit kühlem Text, grünen Zahlenwerten, kleinen k/m-Einheiten, 24-Stunden-Zeit und N shell(s) running (/shells) in der letzten Metrikzeile, solange Hintergrund-Shells laufen. Vor jedem Schritt oder API-Aufruf abgebrochene Turns erzeugen keine Metrikzeile und duplizieren keine frühere."
         },
         {
           "id": "composer-padding-and-panel",
           "title": "Nur das Gespräch bekommt die Leerzeile über der Eingabe",
-          "text": "Im geteilten Rahmen laufen Seitenpanel und Trennlinie durch diese Zeile bis zum Eingaberand, und der Sprunghinweis sitzt darauf direkt über der Eingabe, statt die letzte Chat-Zeile zu verdecken. Auch die Slash-Palette reicht jetzt bis zum Eingaberand, ohne leere Zeile dazwischen."
+          "text": "Im geteilten Rahmen laufen Seitenpanel und Trennlinie bis zum Eingaberand, der Sprunghinweis sitzt direkt über der Eingabe, die Slash-Palette schließt bündig an, und der leere manuelle Shell-Modus (! ) hält den Cursor exakt auf Spalte 5."
         },
         {
           "id": "slash-palette-in-sentences",
-          "title": "Ein Schrägstrich-Token im Satz öffnet die Palette, ohne den Satz zu fressen",
-          "text": "Ein eigenständiges /Token nach einem Leerzeichen öffnet die Befehlsliste an jeder Cursorposition; Tab ergänzt nur dieses Token und lässt die Wörter davor unberührt; Enter sendet den Satz so, wie er getippt wurde; angehängter Text wie ein Pfad oder ein Wort mit Schrägstrich öffnet sie nie."
+          "title": "Slash-Befehle im Satz, Unterbefehle und sichere Beschreibungstreffer",
+          "text": "Eigenständige /command- und /command-subcommand-Tokens funktionieren am Zeilenanfang wie mitten im Satz und behalten angehängte Leerzeichen. Enter führt den aktiven Befehl unter Erhalt des übrigen Textes aus oder fordert fehlende Unterbefehle an; ungültige Argumente senden den Text normal, und schwache reine Beschreibungstreffer lösen nur nach expliziter Auswahl mit Pfeiltasten oder Tab aus."
+        },
+        {
+          "id": "realtime-shells-and-ansi",
+          "title": "Live-/shells-Panel, KI-ANSI-Farben und einheitliche Vorschau-Tags",
+          "text": "Das neue Panel /shells listet laufende und abgeschlossene Hintergrundprozesse mit Status, PID, Laufzeit und aufklappbarer Live-Ausgabe. ANSI-SGR-Farben in KI-Antworten haben über Zeilenumbrüche hinweg Vorrang vor dem Theme und fallen bei Reset sauber zurück, während gekürzte Hintergrundbenachrichtigungen wie terminal_use <preview_head> und <preview_tail> verwenden."
         },
         {
           "id": "questions-collapse-shortcut",
           "title": "Das Frageformular wird nur noch über sein Tastenkürzel ein- und ausgeblendet",
-          "text": "Alt+H klappt das Formular zu und wieder auf; Chevron, Klick auf den Titel und der Hinweis in Klammern im Kopf sind entfernt, sodass das Lesen des Titels es nie wieder öffnet, und das Kürzel steht unten bei den anderen."
+          "text": "Alt+H klappt das Formular zu und auf; Chevron, Titelklick und Klammerhinweis im Kopf sind entfernt, sodass das Lesen des Titels es nie wieder öffnet, und Alt+H hide steht in der unteren Kürzelzeile."
         },
         {
           "id": "router-off-and-single-stop",
           "title": "Off auf 9router sendet keine Stufe, und ein gestoppter Turn zeichnet seine eingereihte Nachricht einmal",
-          "text": "Off verlangt bei 9router weder Low noch ein Abschalt-Flag, sodass die Route ihren eigenen Standard und ihre Ausgabegrenze behält; Alt+C in den Einstellungen zeigt die tatsächlich genutzte Stufe neben den Optionen; und eine Nachricht, die während der Agentenarbeit eingereiht und dann mit zweimal Esc gestoppt wurde, erscheint genau einmal."
+          "text": "Off verlangt bei 9router weder Low noch ein Abschalt-Flag, sodass die Route ihren Standard und ihr Ausgabelimit behält; Alt+C zeigt die tatsächlich genutzte Stufe neben den Optionen; und eine während der Arbeit eingereihte, zweimal mit Esc gestoppte Nachricht erscheint genau einmal."
         }
       ]
     },

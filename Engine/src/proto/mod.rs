@@ -190,6 +190,14 @@ pub enum Command {
         session: i64,
     },
 
+    /// Background shell processes tracked in this session, with their live output tails.
+    #[serde(rename = "session.shells")]
+    SessionShells {
+        #[serde(default)]
+        id: u64,
+        session: i64,
+    },
+
     /// The audit trail: every tool this session ran, newest first.
     ///
     /// Separate from `session.history` because they answer different questions.
@@ -821,6 +829,7 @@ impl Command {
             | Command::SessionCompact { id, .. }
             | Command::SessionClients { id, .. }
             | Command::SessionTasks { id, .. }
+            | Command::SessionShells { id, .. }
             | Command::Prompt { id, .. }
             | Command::PromptSteer { id, .. }
             | Command::Cancel { id, .. }
@@ -1362,6 +1371,29 @@ pub enum Event {
         session: Option<i64>,
         entry: LogEntry,
     },
+
+    /// Live summary of background shell tasks in this session.
+    #[serde(rename = "background_tasks")]
+    BackgroundTasks {
+        session: i64,
+        running: usize,
+        tasks: Vec<BackgroundShell>,
+    },
+}
+
+/// Summary of one background shell process for UI indicators and `/shells`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BackgroundShell {
+    pub task_id: String,
+    pub pid: i32,
+    pub command: String,
+    pub out_file: String,
+    pub started_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<i64>,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
 }
 
 impl Event {
@@ -1413,6 +1445,7 @@ impl Event {
             | Event::Compacting { session, .. }
             | Event::Compacted { session, .. }
             | Event::Done { session, .. }
+            | Event::BackgroundTasks { session, .. }
             | Event::HostUpgrading { session }
             | Event::StreamReset { session } => Some(*session),
             Event::Error { session, .. } | Event::Log { session, .. } => *session,

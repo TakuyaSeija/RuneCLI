@@ -180,36 +180,41 @@
   },
   "notes": {
     "0.12.4": {
-      "title": "Una línea de turno más discreta, una paleta de barra dentro de la frase y un Off que deja la ruta en paz",
-      "summary": "Métricas de turno más discretas, paleta a mitad de frase, asistente solo con Alt+H, Off de 9router sin nivel forzado",
+      "title": "Línea de turno más clara, vista en vivo /shells, comandos barra a mitad de frase y colores ANSI de la IA",
+      "summary": "Métricas en color + /shells en vivo, subcomandos inteligentes, asistente solo Alt+H, ANSI SGR, Off de 9router sin nivel forzado",
       "paragraphs": [
-        "Esta versión resuelve los detalles pequeños que hacían que la pantalla hablara por encima de la conversación. Un turno terminado habla ahora en una línea atenuada con una marca de flor en lugar de un punto que parecía texto de respuesta; la fila en blanco sobre el compositor pertenece solo a la conversación mientras el panel lateral la atraviesa; un token de barra escrito a mitad de frase abre la paleta sin romper la frase; el formulario de preguntas se oculta y se muestra solo con su atajo; y detener un turno después de encolar un mensaje ya no dibuja ese mensaje dos veces. En 9router, Off ya no envía ningún nivel de razonamiento, de modo que una ruta a la que no se le puede pedir que deje de pensar conserva su propio valor por defecto en vez de ser rebajada a Low."
+        "Esta versión pule los detalles que hacían la pantalla ruidosa o incoherente. Un turno terminado habla en una línea clara con marca de flor, cifras coloreadas y el indicador N shell(s) running (/shells) cuando hay procesos en segundo plano activos, mientras que los turnos detenidos antes de cualquier paso o llamada al modelo no emiten fila de métricas. El nuevo panel /shells inspecciona procesos en segundo plano con salida en vivo, los bloques <process_output> truncados usan <preview_head> y <preview_tail> igual que terminal_use, la paleta de barra admite comandos y subcomandos a mitad de frase conservando espacios finales y sin capturar coincidencias débiles por descripción, los códigos ANSI SGR de la IA se superponen al tema limpiamente, el formulario de preguntas solo usa Alt+H, y Off en 9router conserva el valor predeterminado de la ruta."
       ],
       "points": [
         {
           "id": "turn-metrics-footer",
-          "title": "Una línea de turno atenuada, leída como metadatos y no como prosa",
-          "text": "La marca es una flor en tinta atenuada, los recuentos usan k y m minúsculas, y la cola de pasos y estado desaparece: una línea que dice cuánto trabajó el turno, qué gastó y cuándo terminó en formato de 24 horas."
+          "title": "Métricas de turno en color, indicador /shells y guarda de trabajo mínimo",
+          "text": "La línea de turno usa marca de flor con texto atenuado, cifras en verde, unidades k y m minúsculas, hora en 24 h y N shell(s) running (/shells) en la última fila de métricas mientras haya shells en segundo plano activos. Cancelar un turno antes de cualquier paso o llamada API no añade métricas ni duplica la anterior."
         },
         {
           "id": "composer-padding-and-panel",
           "title": "Solo la conversación recibe la fila en blanco sobre el compositor",
-          "text": "En un marco dividido, el panel lateral y su division recorr en esa fila hasta el borde del compositor, y la pista de salto se sienta en ella justo sobre la entrada en lugar de tapar la última línea del chat. La paleta de barra también llega ahora al borde del compositor, sin fila vacía entre ambos."
+          "text": "En marco dividido, el panel lateral y su divisor llegan hasta el borde del compositor, la pista de salto se sitúa encima de la entrada, la paleta de barra toca el borde sin hueco, y el modo shell manual vacío (! ) mantiene el cursor en la columna 5."
         },
         {
           "id": "slash-palette-in-sentences",
-          "title": "Un token de barra dentro de una frase abre la paleta sin comerse la frase",
-          "text": "Un /token independiente tras un espacio abre la lista de comandos en cualquier posición del cursor; Tab completa solo ese token y deja intactas las palabras anteriores; Enter sigue enviando la frase tal como se escribió; y el texto pegado, como una ruta o una palabra con barra, nunca la abre."
+          "title": "Comandos barra a mitad de frase, subcomandos y coincidencia segura por descripción",
+          "text": "Los tokens /comando y /comando subcomando independientes funcionan al inicio o mitad del texto manteniendo los espacios finales. Enter ejecuta el comando activo (conservando el resto de la frase) o completa subcomandos necesarios; los argumentos inválidos envían el texto normal, y las coincidencias solo por descripción no interceptan Enter salvo selección explícita con flechas o Tab."
+        },
+        {
+          "id": "realtime-shells-and-ansi",
+          "title": "Panel /shells en tiempo real, colores ANSI de la IA y etiquetas de vista previa unificadas",
+          "text": "El nuevo panel /shells lista procesos en segundo plano activos y recientes con estado, PID, duración y salida en vivo expandible. Los escapes ANSI SGR de la IA tienen prioridad sobre el tema entre líneas ajustadas y vuelven al tema al reiniciar, mientras las notificaciones truncadas usan <preview_head> y <preview_tail> como terminal_use."
         },
         {
           "id": "questions-collapse-shortcut",
           "title": "El formulario de preguntas se oculta y se muestra solo con su atajo",
-          "text": "Alt+H pliega y restaura el formulario; el chevron, el clic en el título y la pista entre corchetes de la cabecera desaparecen, así que leer el título nunca lo reabre, y el atajo aparece con los demás al pie."
+          "text": "Alt+H pliega y restaura el formulario; el chevron, el clic en el título y la pista entre corchetes desaparecen, y Alt+H hide figura en la fila inferior de atajos."
         },
         {
           "id": "router-off-and-single-stop",
           "title": "Off en 9router no envía nivel, y un turno detenido dibuja su mensaje encolado una vez",
-          "text": "Off ya no pide Low ni una marca de desactivación en 9router, así que la ruta mantiene su propio valor por defecto y su techo de salida; Alt+C muestra el nivel realmente en uso junto a las opciones; y un mensaje encolado mientras el agente trabajaba, detenido con Esc dos veces, aparece exactamente una vez."
+          "text": "Off ya no pide Low ni desactivación en 9router, conservando el valor predeterminado y techo de salida de la ruta; Alt+C muestra el nivel activo junto a las opciones; y un mensaje encolado detenido con Esc dos veces aparece exactamente una vez."
         }
       ]
     },

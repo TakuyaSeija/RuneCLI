@@ -180,36 +180,41 @@
   },
   "notes": {
     "0.12.4": {
-      "title": "Une ligne de tour plus discrète, une palette de barre oblique au milieu d’une phrase, et un Off qui laisse la route tranquille",
-      "summary": "Métriques de tour plus discrètes, palette en pleine phrase, assistant par Alt+H seulement, Off 9router sans niveau forcé",
+      "title": "Ligne de tour plus claire, suivi /shells en direct, commandes slash en phrase et couleurs ANSI IA",
+      "summary": "Métriques colorées + /shells en direct, sous-commandes intelligentes, assistant Alt+H seul, couleurs ANSI SGR, Off 9router sans niveau forcé",
       "paragraphs": [
-        "Cette version règle les petits détails qui faisaient parler l’écran par-dessus la conversation. Un tour terminé parle désormais en une ligne atténuée avec une marque florale au lieu d’une puce qui ressemblait à du texte de réponse ; la ligne vide au-dessus du champ appartient à la seule conversation tandis que le panneau latéral la traverse ; un jeton barre oblique tapé au milieu d’une phrase ouvre la palette sans découper la phrase ; le formulaire de questions ne se masque et ne se montre plus que par son raccourci ; et arrêter un tour après avoir mis un message en file ne dessine plus ce message deux fois. Sur 9router, Off n’envoie désormais aucun niveau de raisonnement : une route à qui l’on ne peut pas demander d’arrêter de réfléchir garde sa propre valeur par défaut au lieu d’être ramenée à Low."
+        "Cette version affine les détails qui brouillaient l’écran. Un tour terminé s’affiche en une ligne claire à marque florale, chiffres colorés et indicateur N shell(s) running (/shells) lorsque des processus en arrière-plan tournent, tandis qu’un tour arrêté avant toute étape ou appel modèle n’émet aucune ligne vide. Le nouveau panneau /shells inspecte les processus en arrière-plan et leur sortie en direct, les blocs <process_output> tronqués emploient <preview_head> et <preview_tail> comme terminal_use, la palette gère commandes et sous-commandes en milieu de phrase sans perdre les espaces finaux ni détourner les correspondances par description, les codes ANSI SGR de l’IA priment sur le thème avec réinitialisation propre, le formulaire de questions n’obéit qu’à Alt+H, et Off sur 9router garde le défaut de la route."
       ],
       "points": [
         {
           "id": "turn-metrics-footer",
-          "title": "Une ligne de tour atténuée, lue comme des métadonnées et non comme du texte",
-          "text": "La marque est une fleur à l’encre atténuée, les comptes de jetons utilisent k et m minuscules, et la queue d’étapes et de statut disparaît : une ligne qui dit la durée du travail, ce qu’il a consommé et quand il s’est terminé en 24 heures."
+          "title": "Métriques colorées, indicateur /shells et garde d’activité minimale",
+          "text": "La ligne de tour associe marque florale, libellés discrets, nombres en vert, suffixes k et m minuscules, heure sur 24 h et N shell(s) running (/shells) sur la dernière ligne de métriques tant que des shells tournent. Un tour annulé avant toute étape ou appel API n’ajoute pas de métriques et ne duplique pas la précédente."
         },
         {
           "id": "composer-padding-and-panel",
           "title": "Seule la conversation reçoit la ligne vide au-dessus du champ",
-          "text": "Dans un cadre divisé, le panneau latéral et son séparateur traversent cette ligne jusqu’au bord du champ, et l’indice de saut s’y place juste au-dessus de la saisie au lieu de couvrir la dernière ligne du chat. La palette de barre oblique atteint elle aussi le bord du champ, sans ligne vide entre les deux."
+          "text": "Dans un cadre divisé, le panneau latéral et son séparateur rejoignent le bord du champ, l’indice de saut se pose juste au-dessus de la saisie, la palette touche le bord sans écart, et le mode shell manuel vide (! ) place le curseur en colonne 5."
         },
         {
           "id": "slash-palette-in-sentences",
-          "title": "Un jeton barre oblique dans une phrase ouvre la palette sans manger la phrase",
-          "text": "Un /jeton isolé après une espace ouvre la liste de commandes où que soit le curseur ; Tab ne complète que ce jeton et laisse les mots précédents intacts ; Entrée envoie toujours la phrase telle qu’elle a été tapée ; et un texte collé, comme un chemin ou un mot contenant une barre, ne l’ouvre jamais."
+          "title": "Commandes slash en phrase, sous-commandes et correspondances sûres",
+          "text": "Les jetons autonomes /commande et /commande sous-commande fonctionnent en début ou milieu de texte en conservant les espaces finaux. Entrée exécute la commande active (en gardant le texte autour) ou invite pour un sous-commande requis ; les arguments invalides envoient le texte tel quel, et les correspondances faibles par description ne capturent Entrée qu’après choix explicite aux flèches ou Tab."
+        },
+        {
+          "id": "realtime-shells-and-ansi",
+          "title": "Panneau /shells en temps réel, couleurs ANSI IA et balises d’aperçu unifiées",
+          "text": "Le panneau /shells liste les processus en arrière-plan actifs et récents avec état, PID, durée et sortie en direct dépliable. Les séquences ANSI SGR des réponses IA priment sur le thème d’une ligne repliée à l’autre et reviennent au thème au reset, tandis que les notifications tronquées utilisent <preview_head> et <preview_tail> comme terminal_use."
         },
         {
           "id": "questions-collapse-shortcut",
           "title": "Le formulaire de questions ne se masque et ne s’affiche que par son raccourci",
-          "text": "Alt+H replie et restaure le formulaire ; le chevron, le clic sur le titre et l’indice entre crochets de l’en-tête ont disparu, donc lire le titre ne le rouvre jamais, et le raccourci figure en bas avec les autres."
+          "text": "Alt+H replie et restaure le formulaire ; chevron, clic sur le titre et indice entre crochets ont disparu, et Alt+H hide figure en bas dans la ligne des raccourcis."
         },
         {
           "id": "router-off-and-single-stop",
           "title": "Off sur 9router n’envoie aucun niveau, et un tour arrêté dessine une seule fois son message en file",
-          "text": "Off ne demande plus Low ni un drapeau de désactivation sur 9router, la route garde donc son propre défaut et son plafond de sortie ; Alt+C affiche le niveau réellement utilisé à côté des options ; et un message mis en file pendant le travail de l’agent, puis arrêté par deux Esc, apparaît exactement une fois."
+          "text": "Off ne demande plus Low ni de drapeau de désactivation sur 9router, préservant le défaut et le plafond de la route ; Alt+C affiche le niveau actif près des options ; et un message en file arrêté par deux Esc apparaît exactement une fois."
         }
       ]
     },

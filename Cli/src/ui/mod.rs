@@ -122,6 +122,8 @@ pub enum Panel {
     Logs,
     /// What the model holds that the conversation does not show (`/context`).
     Context,
+    /// Live and recent background shell processes (`/shells`).
+    Shells,
 }
 
 /// How many lines of a session's log the panel holds — the newest ones.
@@ -183,6 +185,8 @@ pub enum Awaiting {
     /// What the model holds beyond the conversation, asked of the engine when
     /// the panel opens.
     Context,
+    /// Live background shell processes and their output tails (`/shells`).
+    Shells,
     /// The session's view, asked for after a reconnect.
     View,
     Preferences(settings::Request),
@@ -427,6 +431,10 @@ pub struct App {
     /// Which command the `/` palette has under its cursor. Reset by every
     /// keystroke that changes what is being searched for.
     pub palette_row: usize,
+    /// Whether the user explicitly moved/cycled the palette cursor (`↑`, `↓`, `Tab`, wheel).
+    /// When false and the query only matched command descriptions (weak match),
+    /// no item is pre-selected so `Enter` sends prose rather than hijacking it.
+    pub palette_picked: bool,
     /// The top visible item index in the `/` palette, maintaining scroll margin.
     pub palette_scroll: usize,
     /// Which answer the permission card has under its cursor.
@@ -500,8 +508,19 @@ pub struct App {
     pub tasks: Vec<Value>,
     /// The session's log: read when the panel opens, extended live.
     pub logs: Vec<runeengine::proto::LogEntry>,
-    /// The engine's answer to `session.context`, while `/context` is open.
+    /// What the model holds that the conversation does not show: system prompt,
+    /// tools, injected messages, summary and status.
     pub context_view: Value,
+    /// Live background shell summaries pushed by `Event::BackgroundTasks`.
+    pub background_tasks: Vec<runeengine::proto::BackgroundShell>,
+    /// Number of background shells currently running or waiting for input.
+    pub running_shells: usize,
+    /// Detailed background shell entries (including live output tail) for `/shells`.
+    pub shells_detail: Vec<Value>,
+    /// Task ID whose live output box is expanded inside `/shells`.
+    pub shell_open: Option<String>,
+    /// Set by `tick()` or `Event::BackgroundTasks` while `/shells` is open.
+    pub shells_refresh_due: bool,
     /// A view of the session has been asked for and has not come: whatever the
     /// stream says until it does is inside it, so none of it is applied.
     pub awaiting_view: bool,
@@ -1124,6 +1143,9 @@ pub fn run(
             app.pending_provider_refresh = false;
             app.refresh(&mut d);
         }
+        if std::mem::take(&mut app.shells_refresh_due) && app.panel == Panel::Shells {
+            app.refresh_shells(&mut d);
+        }
         if terminal.is_some() && std::mem::take(&mut app.mouse_dirty) {
             term::set_mouse(app.mouse);
         }
@@ -1641,6 +1663,7 @@ impl App {
             selection_size: None,
             selection_cancelled: false,
             palette_row: 0,
+            palette_picked: false,
             palette_scroll: 0,
             ask_choice: 0,
             permission: permission::State::default(),
@@ -1687,6 +1710,11 @@ impl App {
             tasks: Vec::new(),
             logs: Vec::new(),
             context_view: Value::Null,
+            background_tasks: Vec::new(),
+            running_shells: 0,
+            shells_detail: Vec::new(),
+            shell_open: None,
+            shells_refresh_due: false,
             awaiting_view: false,
             shown_pending: std::collections::HashSet::new(),
             stored_turn: 0,
@@ -2384,6 +2412,15 @@ impl App {
             self.restore_usage(&view["usage"]);
         }
         self.file_changes = view["file_changes"].as_array().cloned().unwrap_or_default();
+        self.background_tasks =
+            serde_json::from_value(view["background_tasks"].clone()).unwrap_or_default();
+        self.running_shells = self
+            .background_tasks
+            .iter()
+            .filter(|t| matches!(t.status.as_str(), "running" | "waiting"))
+            .count();
+        self.shells_detail.clear();
+        self.shell_open = None;
 
         // The transcript is rebuilt: nothing from before is kept.
         self.blocks.clear();
@@ -2534,8 +2571,12 @@ impl App {
                 turn_unfinished_work = false;
                 turn_had_error = false;
             }
-            if m["role"].as_str() == Some("user") && m["work"]["finished"] == Value::Bool(false) {
-                turn_unfinished_work = true;
+            if m["role"].as_str() == Some("assistant") {
+                if m["work"]["finished"] == Value::Bool(true) {
+                    turn_unfinished_work = false;
+                } else if m["work"]["finished"] == Value::Bool(false) {
+                    turn_unfinished_work = true;
+                }
             }
             if m["role"].as_str() == Some("error") {
                 turn_had_error = true;
@@ -2716,9 +2757,10 @@ impl App {
                     .filter(|b| matches!(b, Block::Tool(_)))
                     .count();
                 let has_usage = usage_by_turn.contains_key(&turn);
-                if has_usage || turn_had_error || turn_unfinished_work {
-                    let (tok_in, tok_out, usage_at) =
-                        usage_by_turn.get(&turn).copied().unwrap_or((0, 0, 0));
+                let (tok_in, tok_out, usage_at) =
+                    usage_by_turn.get(&turn).copied().unwrap_or((0, 0, 0));
+                let has_agentic_work = tok_in > 0 || tok_out > 0 || steps > 0;
+                if has_usage && has_agentic_work {
                     let msg_at = m["created_at"].as_i64().unwrap_or(0);
                     let completed_at_ms = if usage_at > 0 {
                         usage_at.max(msg_at)
@@ -2833,6 +2875,40 @@ impl App {
     /// Open the redo list: every file undone and not put back since.
     pub fn open_redo(&mut self, d: &mut Driver) {
         undo::open(self, d, undo::Side::Redo);
+    }
+
+    /// Open the background shells panel, asking the engine for current tasks and output tails.
+    pub fn open_shells(&mut self, d: &mut Driver) {
+        let Some(session) = self.session else {
+            self.note("An unsent draft has no background shells yet.");
+            return;
+        };
+        self.show_panel(Panel::Shells);
+        self.shells_detail.clear();
+        self.shell_open = None;
+        self.panel_row = 0;
+        self.shells_refresh_due = false;
+        self.request(d, Awaiting::Shells, |id| Command::SessionShells {
+            id,
+            session,
+        });
+    }
+
+    pub fn refresh_shells(&mut self, d: &mut Driver) {
+        let Some(session) = self.session else {
+            return;
+        };
+        if self
+            .awaiting
+            .values()
+            .any(|req| matches!(req, Awaiting::Shells))
+        {
+            return;
+        }
+        self.request(d, Awaiting::Shells, |id| Command::SessionShells {
+            id,
+            session,
+        });
     }
 
     /// Open the log panel, reading the session's whole log from disk.
@@ -3127,6 +3203,14 @@ impl App {
                 && (before / 6 != self.frame / 6 || before / 38 != self.frame / 38));
         if self.sidebar && (before / 60 != self.frame / 60) {
             changed = true;
+        }
+        if self.panel == Panel::Shells {
+            if self.running_shells > 0 && (before / 10 != self.frame / 10) {
+                changed = true;
+            }
+            if self.frame.is_multiple_of(3) {
+                self.shells_refresh_due = true;
+            }
         }
         if self.panel == Panel::None
             && self
@@ -3497,8 +3581,8 @@ impl App {
                 self.set_retry_status(None);
                 self.busy = true;
                 let now = runeengine::store::now_ms();
-                if self.turn_started.is_none() {
-                    self.turn_start_block = self.blocks.len();
+                let was_idle = self.turn_started.is_none();
+                if was_idle {
                     self.turn_tok_in = 0;
                     self.turn_tok_out = 0;
                     self.turn_steps = 0;
@@ -3539,6 +3623,9 @@ impl App {
                     }
                 } else if let Some(t) = text {
                     self.adopt_or_draw_user(t, media, time);
+                }
+                if was_idle {
+                    self.turn_start_block = self.blocks.len();
                 }
             }
             Event::Text { delta, .. } => {
@@ -3935,13 +4022,8 @@ impl App {
                     runeengine::proto::StopReason::Failed => "failed".to_string(),
                 };
 
-                if self.turn_started.is_some()
-                    || duration_ms > 0
-                    || self.turn_tok_in > 0
-                    || self.turn_tok_out > 0
-                    || steps > 0
-                    || !matches!(stop, runeengine::proto::StopReason::End)
-                {
+                let has_agentic_work = self.turn_tok_in > 0 || self.turn_tok_out > 0 || steps > 0;
+                if has_agentic_work {
                     let metrics = Block::TurnMetrics {
                         duration_ms,
                         tok_in: self.turn_tok_in,
@@ -3953,11 +4035,11 @@ impl App {
                     if !matches!(stop, runeengine::proto::StopReason::End)
                         && self.queued_prompt.is_none()
                     {
-                        let insert_at = self
-                            .blocks
+                        let rel_insert = self.blocks[start_idx..]
                             .iter()
                             .rposition(|b| !matches!(b, Block::User { .. }))
                             .map_or(0, |i| i + 1);
+                        let insert_at = start_idx + rel_insert;
                         if insert_at < self.blocks.len() {
                             self.blocks.insert(insert_at, metrics);
                             self.transcript_dirty = true;
@@ -4100,6 +4182,16 @@ impl App {
             } => self.on_ack(id, ok, error, data),
             Event::Ready { version, .. } => {
                 self.host_version = version;
+            }
+            Event::BackgroundTasks { running, tasks, .. } => {
+                if self.running_shells != running || self.background_tasks != tasks {
+                    self.running_shells = running;
+                    self.background_tasks = tasks;
+                    self.transcript_dirty = true;
+                    if self.panel == Panel::Shells {
+                        self.shells_refresh_due = true;
+                    }
+                }
             }
         }
     }
@@ -4329,6 +4421,10 @@ impl App {
                     self.blocks.clear();
                     self.stored_turn = 0;
                     self.tasks.clear();
+                    self.background_tasks.clear();
+                    self.running_shells = 0;
+                    self.shells_detail.clear();
+                    self.shell_open = None;
                     self.undo_diff = None;
                     self.undo_armed = None;
                     self.redo_files.clear();
@@ -4410,6 +4506,26 @@ impl App {
                 }
                 self.context_view = data;
                 self.panel_view.reset();
+                self.transcript_dirty = true;
+            }
+            Awaiting::Shells => {
+                if self.panel != Panel::Shells {
+                    return;
+                }
+                let first_load = self.shells_detail.is_empty();
+                self.shells_detail = data["shells"].as_array().cloned().unwrap_or_default();
+                if let Some(running) = data["running"].as_u64() {
+                    self.running_shells = running as usize;
+                }
+                if first_load && self.shell_open.is_none() {
+                    if let Some(first_live) = self
+                        .shells_detail
+                        .iter()
+                        .find(|s| matches!(s["status"].as_str(), Some("running" | "waiting")))
+                    {
+                        self.shell_open = first_live["task_id"].as_str().map(String::from);
+                    }
+                }
                 self.transcript_dirty = true;
             }
             Awaiting::LinkOpened => self.note("The URL is handed to your system browser."),
