@@ -393,7 +393,11 @@ fn undo_and_context_are_readable_and_navigation_follows_split_reflow() {
     window.until("undo closed", |text| !text.contains("alt+s show diff"));
     // /redo: the undone file, and only it; Enter twice puts it back.
     window.send(b"/redo\r");
-    let redo = window.until("redo lists the undone file", chosen(15));
+    let redo = window.until("redo lists the undone file", |text| {
+        text.lines().any(|line| {
+            line.trim_start().starts_with('›') && line.contains("p15/") && line.contains("[redo]")
+        })
+    });
     assert_eq!(
         redo.lines().filter(|line| line.contains("[redo]")).count(),
         1,
