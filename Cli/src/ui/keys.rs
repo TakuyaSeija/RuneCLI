@@ -7180,14 +7180,20 @@ mod tests {
             "newly created file must appear immediately"
         );
 
-        // 5. `/attach my\ spaced\ file.txt` executes on Enter relative to app.project
-        app.input = "/attach my\\ spaced\\ file.txt".into();
+        // 5. `/attach` with spaces executes on Enter relative to app.project
+        //    (backslash-escaped on Unix, quoted on Windows where `\` is a path separator)
+        app.input = if cfg!(windows) {
+            "/attach \"my spaced file.txt\""
+        } else {
+            "/attach my\\ spaced\\ file.txt"
+        }
+        .into();
         app.cursor = app.input.len();
         press(&mut app, &mut d, &[Key::Enter]);
         assert_eq!(
             app.attached.len(),
             1,
-            "space-escaped /attach must attach the file on Enter (input={:?}, status={:?})",
+            "spaced /attach must attach the file on Enter (input={:?}, status={:?})",
             app.input,
             app.status
         );
@@ -7412,6 +7418,11 @@ mod tests {
         let mut app = App::for_test();
         app.project = dir.display().to_string();
 
+        let sep = std::path::MAIN_SEPARATOR;
+        let expected_sub = format!("subfolder{sep}");
+        let expected_inner = format!("subfolder{sep}inner{sep}");
+        let expected_file = format!("subfolder{sep}file1.txt");
+
         // 1. In shell mode (! ), typing "! " or "! ls " opens path autocomplete for current dir
         app.input = "! ls ".into();
         app.cursor = app.input.len();
@@ -7419,7 +7430,7 @@ mod tests {
         let items = app.current_palette_items();
         assert!(items
             .iter()
-            .any(|i| i.custom_label.as_deref() == Some("subfolder/")));
+            .any(|i| i.custom_label.as_deref() == Some(expected_sub.as_str())));
         assert!(items
             .iter()
             .any(|i| i.custom_label.as_deref() == Some("root_file.rs")));
@@ -7431,22 +7442,22 @@ mod tests {
         );
 
         // 2. Typing subfolder/ navigates into directory
-        app.input = "! ls subfolder/".into();
+        app.input = format!("! ls {expected_sub}");
         app.cursor = app.input.len();
         assert!(app.searching());
         let sub_items = app.current_palette_items();
         assert!(sub_items
             .iter()
-            .any(|i| i.custom_label.as_deref() == Some("subfolder/inner/")));
+            .any(|i| i.custom_label.as_deref() == Some(expected_inner.as_str())));
         assert!(sub_items
             .iter()
-            .any(|i| i.custom_label.as_deref() == Some("subfolder/file1.txt")));
+            .any(|i| i.custom_label.as_deref() == Some(expected_file.as_str())));
 
-        // 3. Tab on folder completes with trailing slash so next level is immediately browsable
+        // 3. Tab on folder completes with trailing separator so next level is immediately browsable
         app.input = "! ls sub".into();
         app.cursor = app.input.len();
         press(&mut app, &mut d, &[Key::Tab]);
-        assert_eq!(app.input, "! ls subfolder/");
+        assert_eq!(app.input, format!("! ls {expected_sub}"));
         assert!(app.searching());
 
         // 4. In shell mode, typing command name prefix (! ech or ! c) matches shell commands
@@ -7469,7 +7480,7 @@ mod tests {
         app.input = "! ls sub".into();
         app.cursor = app.input.len();
         press(&mut app, &mut d, &[Key::Enter]);
-        assert_eq!(app.input, "! ls subfolder/");
+        assert_eq!(app.input, format!("! ls {expected_sub}"));
 
         // Manual shell submission does NOT push a duplicate Block::User chat box
         app.input = "! echo hello".into();
