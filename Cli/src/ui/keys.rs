@@ -7182,7 +7182,7 @@ mod tests {
 
         // 5. `/attach` with spaces executes on Enter relative to app.project
         //    (backslash-escaped on Unix, quoted on Windows where `\` is a path separator)
-        app.input = if cfg!(windows) {
+        app.input = if runeengine::platform::OS == runeengine::platform::Os::Windows {
             "/attach \"my spaced file.txt\""
         } else {
             "/attach my\\ spaced\\ file.txt"
@@ -7498,9 +7498,10 @@ mod tests {
         app.cursor = app.input.len();
         assert!(app.searching());
         let attach_items = app.current_palette_items();
+        let expected_attach_sub = format!("/attach {expected_sub}");
         assert!(attach_items
             .iter()
-            .any(|i| i.custom_label.as_deref() == Some("/attach subfolder/")));
+            .any(|i| i.custom_label.as_deref() == Some(expected_attach_sub.as_str())));
         assert!(attach_items
             .iter()
             .any(|i| i.custom_label.as_deref() == Some("/attach root_file.rs")));
@@ -7510,9 +7511,10 @@ mod tests {
         app.cursor = app.input.len();
         assert!(app.searching());
         let skill_items = app.current_palette_items();
+        let expected_skill_sub = format!("/skills install {expected_sub}");
         assert!(skill_items
             .iter()
-            .any(|i| i.custom_label.as_deref() == Some("/skills install subfolder/")));
+            .any(|i| i.custom_label.as_deref() == Some(expected_skill_sub.as_str())));
 
         let _ = std::fs::remove_dir_all(&dir);
         d.engine.shutdown();
