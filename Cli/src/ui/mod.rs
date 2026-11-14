@@ -437,6 +437,7 @@ pub struct App {
     pub palette_picked: bool,
     /// The top visible item index in the `/` palette, maintaining scroll margin.
     pub palette_scroll: usize,
+    palette_cache: std::sync::Mutex<Option<keys::PaletteCache>>,
     /// Which answer the permission card has under its cursor.
     pub ask_choice: usize,
     permission: permission::State,
@@ -646,6 +647,14 @@ impl App {
         }
     }
 
+    pub fn set_theme_optimistic(&mut self, next: theme::ThemeMode) {
+        self.theme = next;
+        theme::set_theme(next);
+        self.transcript_cache = None;
+        self.transcript_dirty = true;
+        self.resync = true;
+    }
+
     pub fn set_theme(&mut self, next: theme::ThemeMode) {
         #[cfg(not(test))]
         {
@@ -663,12 +672,14 @@ impl App {
                 return;
             }
         }
-        self.theme = next;
-        theme::set_theme(next);
-        self.transcript_cache = None;
+        self.set_theme_optimistic(next);
+        self.note(format!("Theme: {}", next.label()));
+    }
+
+    pub fn set_sidebar_optimistic(&mut self, enabled: bool) {
+        self.sidebar = enabled;
         self.transcript_dirty = true;
         self.resync = true;
-        self.note(format!("Theme: {}", next.label()));
     }
 
     pub fn set_sidebar(&mut self, enabled: bool) {
@@ -684,9 +695,7 @@ impl App {
                 )
             });
         }
-        self.sidebar = enabled;
-        self.transcript_dirty = true;
-        self.resync = true;
+        self.set_sidebar_optimistic(enabled);
     }
 }
 
@@ -965,7 +974,8 @@ pub fn run(
                 true
             }
             Msg::Tick => {
-                let changed = app.tick();
+                let mut changed = app.tick();
+                changed |= settings::flush_deferred(&mut app, &mut d, false);
                 if !app.quit
                     && !app.quit_armed
                     && !app.working()
@@ -1038,7 +1048,10 @@ pub fn run(
                     }
                     repaint = true;
                 }
-                Msg::Tick => repaint |= app.tick(),
+                Msg::Tick => {
+                    repaint |= app.tick();
+                    repaint |= settings::flush_deferred(&mut app, &mut d, false);
+                }
                 Msg::RemoteCommand(cmd) => {
                     d.engine.handle(cmd);
                 }
@@ -1202,6 +1215,7 @@ pub fn run(
             Err(_) => break,
         }
     }
+    settings::flush_deferred(&mut app, &mut d, true);
     app.sync_composer(&mut d, true);
     drop(terminal.take());
     app.farewell();
@@ -1274,6 +1288,7 @@ pub(crate) fn perform_cli_handover(
             return false;
         }
 
+        settings::flush_deferred(app, d, true);
         let _ = app.sync_composer(d, true);
         // The host is told this window comes back, so going away for the exec
         // does not stop the session's work (`session.returning`).
@@ -1665,6 +1680,7 @@ impl App {
             palette_row: 0,
             palette_picked: false,
             palette_scroll: 0,
+            palette_cache: std::sync::Mutex::new(None),
             ask_choice: 0,
             permission: permission::State::default(),
             session,
@@ -1896,6 +1912,7 @@ impl App {
         }
         // This runs between event-loop bursts, not inside a keyboard handler.
         // Keep the old socket alive until target validation/replay succeeds.
+        settings::flush_deferred(self, d, true);
         if !self.sync_composer(d, true) {
             return;
         }
@@ -2584,15 +2601,21 @@ impl App {
             let text = m["content"].as_str().unwrap_or("").to_string();
             match m["role"].as_str().unwrap_or("") {
                 "user" => {
-                    let time = m["created_at"]
-                        .as_i64()
-                        .map(term::epoch_hm)
-                        .filter(|t| !t.is_empty());
-                    let media = serde_json::from_value(m["media"].clone()).unwrap_or_default();
-                    self.blocks
-                        .push(Block::user_timed(text.clone(), time, media));
-                    if !text.is_empty() && !text.starts_with('/') {
-                        self.prompt_history.push(text);
+                    if m["manual_shell"] == Value::Bool(true) {
+                        if !text.is_empty() && !text.starts_with('/') {
+                            self.prompt_history.push(text);
+                        }
+                    } else {
+                        let time = m["created_at"]
+                            .as_i64()
+                            .map(term::epoch_hm)
+                            .filter(|t| !t.is_empty());
+                        let media = serde_json::from_value(m["media"].clone()).unwrap_or_default();
+                        self.blocks
+                            .push(Block::user_timed(text.clone(), time, media));
+                        if !text.is_empty() && !text.starts_with('/') {
+                            self.prompt_history.push(text);
+                        }
                     }
                 }
                 // Rune's own rows, drawn by what the engine says they are. What
@@ -2613,7 +2636,7 @@ impl App {
                             {
                                 let id = note["id"].as_str().unwrap_or_default().to_string();
                                 let mut tool = Tool::new(
-                                    id,
+                                    id.clone(),
                                     "terminal_use".into(),
                                     "Running your manual shell command".into(),
                                 );
@@ -2629,6 +2652,15 @@ impl App {
                                 tool.summary = note["summary"].as_str().unwrap_or_default().into();
                                 tool.content = note["content"].as_str().unwrap_or_default().into();
                                 tool.detail = Some(note["detail"].clone());
+                                tool.ended = Some(Instant::now());
+                                if let Some((dur, _, _, _, _)) = tool_durations
+                                    .get_mut(&(id, turn))
+                                    .and_then(|list| list.pop_front())
+                                {
+                                    tool.duration = Some(dur);
+                                } else {
+                                    tool.duration = Some(Duration::ZERO);
+                                }
                                 self.blocks.push(Block::of(tool));
                             }
                         }
@@ -2759,8 +2791,8 @@ impl App {
                 let has_usage = usage_by_turn.contains_key(&turn);
                 let (tok_in, tok_out, usage_at) =
                     usage_by_turn.get(&turn).copied().unwrap_or((0, 0, 0));
-                let has_agentic_work = tok_in > 0 || tok_out > 0 || steps > 0;
-                if has_usage && has_agentic_work {
+                let has_agentic_work = has_usage && (tok_in > 0 || tok_out > 0);
+                if has_agentic_work {
                     let msg_at = m["created_at"].as_i64().unwrap_or(0);
                     let completed_at_ms = if usage_at > 0 {
                         usage_at.max(msg_at)
@@ -3023,6 +3055,9 @@ impl App {
         if !text.is_empty() && !text.starts_with('/') && self.prompt_history.last() != Some(&text) {
             self.prompt_history.push(text.clone());
         }
+        if runeengine::session::manual_shell::command(&text).is_some() {
+            return;
+        }
         // 1. A message waiting for the running turn, drawn before the engine
         //    stored it.
         if let Some(queued) = &mut self.queued_prompt {
@@ -3062,7 +3097,7 @@ impl App {
         let live: std::collections::HashSet<i64> = pending.iter().map(|p| p.id).collect();
         self.shown_pending.retain(|id| live.contains(id));
         for entry in pending {
-            if self.shown_pending.contains(&entry.id) {
+            if self.shown_pending.contains(&entry.id) || entry.manual_shell {
                 continue;
             }
             let own = self.queued_prompt.as_mut().and_then(|queued| {
@@ -3158,22 +3193,26 @@ impl App {
                 self.mouse_dirty = true;
                 changed = true;
             }
-            if let Some(mode) = theme::ThemeMode::parse(&config.text("ui.theme")) {
-                if self.theme != mode {
-                    self.theme = mode;
-                    theme::set_theme(mode);
+            if !self.preferences.has_deferred_config("ui.theme") {
+                if let Some(mode) = theme::ThemeMode::parse(&config.text("ui.theme")) {
+                    if self.theme != mode {
+                        self.theme = mode;
+                        theme::set_theme(mode);
+                        changed = true;
+                        self.transcript_cache = None;
+                        self.transcript_dirty = true;
+                        self.resync = true;
+                    }
+                }
+            }
+            if !self.preferences.has_deferred_config("ui.sidebar") {
+                let sidebar = config.flag("ui.sidebar");
+                if self.sidebar != sidebar {
+                    self.sidebar = sidebar;
                     changed = true;
-                    self.transcript_cache = None;
                     self.transcript_dirty = true;
                     self.resync = true;
                 }
-            }
-            let sidebar = config.flag("ui.sidebar");
-            if self.sidebar != sidebar {
-                self.sidebar = sidebar;
-                changed = true;
-                self.transcript_dirty = true;
-                self.resync = true;
             }
         }
         // What the configuration was misread as, if anything: a bug in this
@@ -3222,6 +3261,9 @@ impl App {
         }
         if self.frame.is_multiple_of(6) {
             changed |= self.reload_configuration(runtime_configuration());
+        }
+        if self.frame.is_multiple_of(3) && self.composer_visible() && self.palette_cache_stale() {
+            changed = true;
         }
         let now = Instant::now();
         changed |= self.preferences.expire_notice(now);
@@ -3446,7 +3488,16 @@ impl App {
         self.turns = self
             .blocks
             .iter()
-            .filter(|b| matches!(b, Block::User { .. } | Block::Notification { .. }))
+            .filter(|b| match b {
+                Block::User { .. } | Block::Notification { .. } => true,
+                Block::Tool(t) => {
+                    t.id.starts_with("manual-")
+                        || t.detail
+                            .as_ref()
+                            .is_some_and(|d| d["manual_shell"] == Value::Bool(true))
+                }
+                _ => false,
+            })
             .count()
             .saturating_sub(waiting);
     }
@@ -3736,7 +3787,9 @@ impl App {
                         tool.action = action;
                         tool.settle(&args);
                         // The engine's clock: the timer reads the same in every window.
-                        tool.started = Some(Self::instant_at(at));
+                        if !tool.state.finished() {
+                            tool.started = Some(Self::instant_at(at));
+                        }
                     }
                     None => {
                         let mut tool = Tool::new(id, name, action);
@@ -4022,7 +4075,7 @@ impl App {
                     runeengine::proto::StopReason::Failed => "failed".to_string(),
                 };
 
-                let has_agentic_work = self.turn_tok_in > 0 || self.turn_tok_out > 0 || steps > 0;
+                let has_agentic_work = self.turn_tok_in > 0 || self.turn_tok_out > 0;
                 if has_agentic_work {
                     let metrics = Block::TurnMetrics {
                         duration_ms,
@@ -4171,6 +4224,7 @@ impl App {
             Event::Settings { settings, .. } => {
                 if self.preferences.pending.is_none() {
                     self.take_settings(settings);
+                    settings::reapply_deferred(self);
                     self.transcript_dirty = true;
                 }
             }
@@ -6117,5 +6171,83 @@ mod wheel_tests {
         let mut fast = long_transcript();
         fast.wheel_scroll(true);
         assert!(fast.glide.is_some(), "a terminal that keeps up glides");
+    }
+
+    #[test]
+    fn manual_shell_history_and_cross_process_events_never_draw_user_box_or_tick_timer() {
+        let mut app = App::for_test();
+        let note = serde_json::json!({
+            "id": "manual-1-1",
+            "name": "terminal_use",
+            "args": { "action": "Running your manual shell command", "command": "/et" },
+            "ok": true,
+            "summary": "Exit code 127",
+            "detail": { "manual_shell": true },
+            "content": "<tool_notice>Exit code 127</tool_notice>\n\n/usr/bin/bash: line 1: /et: No such file or directory"
+        })
+        .to_string();
+        let history = vec![
+            serde_json::json!({
+                "turn": 1,
+                "role": "user",
+                "manual_shell": true,
+                "content": "!/et",
+                "created_at": 1_700_000_000_000i64,
+                "media": []
+            }),
+            serde_json::json!({
+                "turn": 1,
+                "role": "context",
+                "content": "/et",
+                "created_at": 1_700_000_000_100i64,
+                "context": { "kind": "manual_shell", "name": "manual-1-1", "note": note }
+            }),
+        ];
+        let toolcalls = vec![serde_json::json!({
+            "id": "manual-1-1",
+            "turn": 1,
+            "started_at": 1_700_000_000_000i64,
+            "ended_at": 1_700_000_000_050i64,
+            "ok": true,
+            "summary": "Exit code 127"
+        })];
+        app.load_history(&history, &toolcalls, &serde_json::json!([]), &[]);
+
+        assert!(
+            !app.blocks.iter().any(|b| matches!(b, Block::User { .. })),
+            "manual_shell must not draw a user chat box on resume"
+        );
+        assert_eq!(app.blocks.len(), 1);
+        let tool = app.blocks[0].tool().expect("manual_shell tool block");
+        assert!(tool.state.finished());
+        assert!(tool.ended.is_some());
+        assert_eq!(tool.duration, Some(Duration::from_millis(50)));
+        assert_eq!(tool.elapsed(), Duration::from_millis(50));
+
+        // Even if a replayed ToolCall arrives for the already-finished tool, timer stays frozen
+        app.on_event(Event::ToolCall {
+            session: 1,
+            id: "manual-1-1".into(),
+            name: "terminal_use".into(),
+            action: "Running your manual shell command".into(),
+            args: serde_json::json!({"command": "/et"}),
+            at: 1_700_000_000_000i64,
+        });
+        let tool_after = app.blocks[0].tool().unwrap();
+        assert_eq!(tool_after.elapsed(), Duration::from_millis(50));
+
+        // Remote TurnStart and queued pending for manual_shell also never push Block::User
+        app.adopt_or_draw_user("!/etc".into(), Vec::new(), "22:15".into());
+        app.sync_pending(&[runeengine::store::composer::PendingPrompt {
+            id: 99,
+            manual_shell: true,
+            text: "!ls".into(),
+            media: Vec::new(),
+            message_id: None,
+        }]);
+        assert!(!app.blocks.iter().any(|b| matches!(b, Block::User { .. })));
+
+        app.recount();
+        assert_eq!(app.turns, 1, "manual_shell tool counts as 1 turn");
     }
 }

@@ -34,6 +34,7 @@ Field { key:"skills.max_catalog_size", default:"\"8KiB\"", kind:Size, help:"UTF-
 Field{key:"network.max_stream_size",default:"\"16MiB\"",kind:Size,help:"Maximum accumulated wire bytes in one model response."},
 Field { key:"sanitizer.enabled", default:"true", kind:Bool, help:"Extract original user instructions before eligible classifier review by default. Set false to opt out; never runs for human-authorized, excluded, or inactive classifier actions." },
 Field { key:"sanitizer.model", default:"null", kind:Model, help:"Omit to inherit the active model. Failure falls back to a distinct active route, then original user sources." },
+Field { key:"sanitizer.thinking", default:"null", kind:Text, help:"Reasoning configuration for instruction extraction: auto, off, on, or specific effort level (minimal..max)." },
 Field { key:"sanitizer.timeout", default:"\"120s\"", kind:Duration, help:"Maximum time for one instruction extraction request." },
 Field { key:"sanitizer.max_output_tokens", default:"4096", kind:Count(256,10000000), help:"Output allowance for sourced instruction extraction, bounded by the model's capability." },
 Field { key:"sanitizer.max_batch_size", default:"\"64KiB\"", kind:Size, help:"Maximum quoted source-text bytes in one extraction batch. Not a token count or a guarantee that a model accepts the batch; provider payload limits also apply." },
@@ -82,11 +83,13 @@ Field { key:"questions.timeout", default:"\"unlimited\"", kind:Duration, help:"M
 Field { key:"classifier.context_tools", default:"[\"terminal_use\",\"inspect_file\",\"find_files\",\"search_text\",\"create_file\",\"patch_file\"]", kind:ToolNames, help:"Tool inputs eligible as historical classifier context: the last three matching calls, independent of excluded_tools. Empty array includes none; outputs are never authorization." },
 Field { key:"classifier.enabled", default:"true", kind:Bool, help:"Requires CLASSIFIER.md; always off in Ask." },
 Field { key:"classifier.model", default:"null", kind:Model, help:"Omit to inherit the active request provider/model." },
+Field { key:"classifier.thinking", default:"null", kind:Text, help:"Reasoning configuration for classifier evaluation: auto, off, on, or specific effort level (minimal..max)." },
 Field { key:"classifier.timeout", default:"\"120s\"", kind:Duration, help:"Maximum classifier evaluation timeout." },
 Field { key:"classifier.max_output_tokens", default:"1024", kind:Count(16,10000000), help:"Output tokens for a permission decision; a model that must reason gets auxiliary.mandatory_reasoning_output_tokens instead when that is larger." },
 Field { key:"classifier.max_evidence_size", default:"\"256KiB\"", kind:Size, help:"Combined text evidence after formatting: user attachments, requests and tool inputs. Proposed arguments stay complete. Image bytes, policy and decision schema are outside this cap; provider payload limits still apply per request." },
 Field { key:"classifier.max_policy_size", default:"\"64KiB\"", kind:Size, help:"Maximum bytes per policy file." },
 Field { key:"compact.model", default:"null", kind:Model, help:"Omit to inherit the active request provider/model." },
+Field { key:"compact.thinking", default:"null", kind:Text, help:"Reasoning configuration for history summarisation: auto, off, on, or specific effort level (minimal..max)." },
 Field { key:"compact.max_output_tokens", default:"32768", kind:Count(256,10000000), help:"Output tokens for a history summary; the summariser is told to fit within it." },
 Field { key:"compact.max_batch_size", default:"\"128KiB\"", kind:Size, help:"Maximum quoted source/summary text bytes in one compaction batch. Not model tokens; small models may reject it. Original user sources are split, never silently shortened." },
 Field { key:"compact.keep_recent_turns", default:"5", kind:Count(1,100), help:"Turns kept verbatim." },
@@ -94,6 +97,7 @@ Field { key:"compact.fallback_context_tokens", default:"200000", kind:Count(1000
 Field { key:"compact.message_chars", default:"32000", kind:Count(100,1000000), help:"Unicode characters retained per old assistant/tool-result body. Original user instructions are processed whole, in batches when needed; attachments are separate." },
 Field { key:"compact.tool_chars", default:"2000", kind:Count(100,1000000), help:"Unicode characters retained per historical tool call arguments, never one limit shared by an entire call array. Identity and target metadata stay visible." },
 Field { key:"title.model", default:"null", kind:Model, help:"Omit to inherit the active request provider/model." },
+Field { key:"title.thinking", default:"null", kind:Text, help:"Reasoning configuration for session titling: auto, off, on, or specific effort level (minimal..max)." },
 Field { key:"title.max_output_tokens", default:"256", kind:Count(8,10000000), help:"Output tokens for a session title; a model that must reason gets auxiliary.mandatory_reasoning_output_tokens on top." },
 Field { key:"title.max_chars", default:"60", kind:Count(1,200), help:"Maximum title characters." },
 Field { key:"permissions.timeout", default:"\"10m\"", kind:Duration, help:"Human permission response timeout. Enter UNLIMITED for no timeout." },
@@ -395,6 +399,34 @@ impl Configuration {
                 "ui.color must be auto, none, ansi16, ansi256 or truecolor",
             ));
         }
+        for key in [
+            "sanitizer.thinking",
+            "classifier.thinking",
+            "compact.thinking",
+            "title.thinking",
+        ] {
+            let v = config.text(key).trim().to_ascii_lowercase();
+            if !v.is_empty()
+                && !matches!(
+                    v.as_str(),
+                    "null"
+                        | "auto"
+                        | "off"
+                        | "on"
+                        | "default"
+                        | "minimal"
+                        | "low"
+                        | "medium"
+                        | "high"
+                        | "xhigh"
+                        | "max"
+                )
+            {
+                return Err(Error::invalid(format!(
+                    "{key} must be off, on, or an effort level (minimal..max)"
+                )));
+            }
+        }
         let shell = config.text("terminal.shell");
         if shell != crate::tools::terminal::AUTO_SHELL && !Path::new(shell).is_absolute() {
             return Err(Error::invalid(
@@ -508,6 +540,25 @@ impl Configuration {
             .find(|f| f.key == key)
             .ok_or_else(|| Error::invalid(format!("unknown configuration key {key}")))?;
         let value = match field.kind {
+            Text if key.ends_with(".thinking") => {
+                let normalized = text.trim().trim_matches('"').to_ascii_lowercase();
+                if normalized.is_empty()
+                    || normalized == "null"
+                    || normalized == "auto"
+                    || normalized == "default"
+                {
+                    Value::Null
+                } else if matches!(
+                    normalized.as_str(),
+                    "off" | "on" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+                ) {
+                    Value::String(normalized)
+                } else {
+                    return Err(Error::invalid(format!(
+                        "{key} must be off, on, or an effort level (minimal..max)"
+                    )));
+                }
+            }
             Text => Value::String(text.trim_matches('"').into()),
             Connection => {
                 let trimmed = text.trim().trim_matches('"');
@@ -2498,5 +2549,35 @@ mod tests {
             assert!(!outcome.unwrap());
             assert!(take_misuse().iter().any(|line| line.contains(key)));
         }
+    }
+
+    #[test]
+    fn auxiliary_thinking_validation_accepts_known_values_and_rejects_invalid() {
+        for valid in [
+            "off", "on", "minimal", "low", "medium", "high", "xhigh", "max",
+        ] {
+            assert_eq!(
+                Configuration::parse_value("classifier.thinking", valid).unwrap(),
+                json!(valid)
+            );
+        }
+        assert!(Configuration::parse_value("classifier.thinking", "")
+            .unwrap()
+            .is_null());
+        assert!(Configuration::parse_value("classifier.thinking", "default")
+            .unwrap()
+            .is_null());
+        assert!(Configuration::parse_value("classifier.thinking", "banana").is_err());
+
+        let home = std::env::temp_dir().join(format!("rune-cfg-think-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            home.join("rune.toml"),
+            "[classifier]\nthinking = \"invalid_mode\"\n",
+        )
+        .unwrap();
+        assert!(Configuration::load(&home).is_err());
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

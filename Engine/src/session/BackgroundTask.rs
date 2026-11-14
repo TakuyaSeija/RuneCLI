@@ -425,6 +425,8 @@ pub struct BackgroundTaskManager {
     /// The configuration as it stands, for the one thing a wake cannot ask for
     /// later: how much of a log it may carry (`process_control.*`).
     config: std::sync::OnceLock<crate::settings::configuration::Shared>,
+    /// Per-task shell metadata captured at launch time (`ShellInfo::title/prompt/syntax`).
+    shells_meta: Mutex<HashMap<String, (String, String, String)>>,
 }
 
 impl Default for BackgroundTaskManager {
@@ -446,6 +448,21 @@ impl BackgroundTaskManager {
             waits: Mutex::new(Waits::default()),
             telling: Mutex::new(()),
             config: std::sync::OnceLock::new(),
+            shells_meta: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn record_shell_meta(&self, task_id: &str, program: &std::path::Path) {
+        let info = crate::shell::ShellInfo::new(program);
+        if let Ok(mut meta) = self.shells_meta.lock() {
+            meta.insert(
+                task_id.to_string(),
+                (
+                    info.title().to_string(),
+                    info.prompt().to_string(),
+                    info.syntax().to_string(),
+                ),
+            );
         }
     }
 
@@ -1073,11 +1090,25 @@ impl BackgroundTaskManager {
             .iter()
             .filter(|t| matches!(t.status, BackgroundTaskStatus::Running))
             .count();
+        let shell_prog = crate::tools::terminal::shell(&self.config().text("terminal.shell"));
+        let shell_info = crate::shell::ShellInfo::new(&shell_prog);
+        let default_meta = (
+            shell_info.title().to_string(),
+            shell_info.prompt().to_string(),
+            shell_info.syntax().to_string(),
+        );
+        let per_task_meta = self
+            .shells_meta
+            .lock()
+            .map(|m| m.clone())
+            .unwrap_or_default();
         let shells = raw
             .into_iter()
             .map(|info| {
                 let summary = shell_summary(&info);
                 let tail = read_shell_tail(&info.out_file, &info.tail, 80, 16 * 1024);
+                let (shell_title, shell_prompt, shell_syntax) =
+                    per_task_meta.get(&summary.task_id).unwrap_or(&default_meta);
                 serde_json::json!({
                     "task_id": summary.task_id,
                     "pid": summary.pid,
@@ -1089,6 +1120,9 @@ impl BackgroundTaskManager {
                     "exit_code": summary.exit_code,
                     "capture_note": info.capture_note,
                     "tail": tail,
+                    "shell": shell_title,
+                    "prompt": shell_prompt,
+                    "syntax": shell_syntax,
                 })
             })
             .collect();
@@ -1373,6 +1407,7 @@ impl BackgroundTaskManager {
         }
         self.set_screen(&task_id, Shown::default());
         self.clear_waiting(&task_id, true);
+        let terminated_for_capture = capture_note.is_some() && exited.is_none();
         if let Some(note) = capture_note {
             if let Ok(mut tasks) = self.tasks.lock() {
                 if let Some(task) = tasks.get_mut(&task_id) {
@@ -1390,15 +1425,19 @@ impl BackgroundTaskManager {
             None => crate::platform::reap(pid, true).ok().flatten(),
         };
         let finished_at = crate::store::now_ms();
-        let status = match exit_code {
-            Some(exit_code) => BackgroundTaskStatus::Completed {
-                exit_code,
-                finished_at,
-            },
-            None => BackgroundTaskStatus::Lost {
-                reason: LostReason::Unknown,
-                finished_at,
-            },
+        let status = if terminated_for_capture {
+            BackgroundTaskStatus::Killed { finished_at }
+        } else {
+            match exit_code {
+                Some(exit_code) => BackgroundTaskStatus::Completed {
+                    exit_code,
+                    finished_at,
+                },
+                None => BackgroundTaskStatus::Lost {
+                    reason: LostReason::Unknown,
+                    finished_at,
+                },
+            }
         };
         self.update_status(&task_id, status);
         self.notify_completed(&task_id);
@@ -2189,12 +2228,13 @@ mod tests {
         assert_eq!(std::fs::metadata(&log).unwrap().len(), 12);
         assert_eq!(std::fs::read_to_string(&log).unwrap(), "abcdefghijkl");
         until("capped process reaped", || state_of(pid).is_none());
-        assert!(manager
-            .get("bg_cap")
-            .unwrap()
-            .capture_note
-            .unwrap()
-            .contains("exceeded 12 bytes"));
+        let capped = manager.get("bg_cap").unwrap();
+        assert!(
+            matches!(capped.status, BackgroundTaskStatus::Killed { .. }),
+            "a task terminated for exceeding its log cap must be marked Killed, got {:?}",
+            capped.status
+        );
+        assert!(capped.capture_note.unwrap().contains("exceeded 12 bytes"));
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -3498,6 +3538,11 @@ mod tests {
         assert_eq!(detail_running, 1);
         assert_eq!(details[0]["task_id"], "bg_live");
         assert!(details[0]["tail"].as_str().unwrap().contains("line 3"));
+
+        manager.record_shell_meta("bg_live", std::path::Path::new("/bin/zsh"));
+        let (_, zsh_details) = manager.shells_detail();
+        assert_eq!(zsh_details[0]["shell"], "zsh");
+        assert_eq!(zsh_details[0]["prompt"], "$");
 
         manager.update_status(
             "bg_live",

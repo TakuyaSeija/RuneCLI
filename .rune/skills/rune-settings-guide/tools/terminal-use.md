@@ -18,7 +18,7 @@ In the interactive composer, put `!` in the very first position, followed by the
 
 **Risk:** Enter authorizes that whole script once with the access of your OS account, outside Rune's workspace jail and command sandbox, without classifier/sanitizer review or another tool-permission question. It does not grant Administrator/root rights, change the session mode, or approve later AI tools. Review the entire script before Enter, especially pasted commands. Outputs and commands become AI context and may contain private information.
 
-Only a leading `!` selects manual execution. `hello ! echo test`, `hello` followed by a new line and `! echo test`, or whitespace before `!` remain ordinary prompts. In shell mode every later line belongs to the same script: `! echo one` followed by `echo two` runs both. A later `!` is shell syntax, not another Rune prefix. A paste never submits itself; Enter runs the complete current script. Empty `!` is not executed. Remove the leading marker to return to ordinary input.
+Only a leading `!` selects manual execution. `hello ! echo test`, `hello` followed by a new line and `! echo test`, or whitespace before `!` remain ordinary prompts. Typing after `!` offers autocomplete for shell builtins, `PATH` executables, and relative, `~`, or `..` paths (`Tab` completes; `Enter` selects a highlighted partial path or submits once a command or target is complete). In shell mode every later line belongs to the same script: `! echo one` followed by `echo two` runs both. A later `!` is shell syntax, not another Rune prefix. A paste never submits itself; Enter runs the complete current script. Empty `!` is not executed. Remove the leading marker to return to ordinary input.
 
 A manual command sent while a turn is active waits for that turn to finish and runs in submission order. Live output is visible. When the command finishes, or the same process moves to background at the configured wait/input wait, its observed input/result are added to context and the AI responds; that response uses the selected model and can incur its normal cost. Do not re-run a command just to read its result. A reconnect resends the same submission without executing it again; after a crash Rune does not automatically replay a possibly executed command.
 
@@ -51,7 +51,7 @@ The saved log includes the current screen while the process is running or waitin
 
 The log is plain terminal text after interpreting cursor moves and escape sequences, not raw escape bytes. Completed scrollback stays, while the live screen at the end of the file is updated in place. Progress redraws and an answer echoed onto the question's own line replace that line rather than appending duplicates. The notification uses this same saved text; it does not append a second copy from an in-memory screen. Do not run a command again merely to recover its output.
 
-Large limits can increase memory/disk/context use. Small limits can stop important work or hide diagnostics. Closing all Rune windows can eventually end retained background commands; see [idle lifetime](../runtime/host.md).
+Large limits can increase memory/disk/context use. Small limits can stop important work or hide diagnostics. Closing all Rune windows can eventually end retained background commands; see [idle lifetime](../runtime/host.md). Use `/shells` in the interactive UI to view all running and recent background shell processes (`STATUS`, `ID`, `PID`, `TIME`) and expand live output tails.
 
 ## Default and input reference
 

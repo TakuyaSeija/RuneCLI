@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404: Halaman Tidak Ditemukan",
       "lead": "Halaman yang Anda tuju tidak ditemukan di Atoryn Studio."
+    },
+    "overload": {
+      "title": "503: Lalu Lintas Sedang Padat",
+      "lead": "Terlalu banyak permintaan bersamaan yang sedang diproses saat ini di Atoryn Studio."
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "dan"
   },
   "notes": {
+    "0.12.5": {
+      "title": "Autocomplete path ! dan /, tampilan tabel /shells, kontrol thinking auxiliary per peran, dan konteks pembantu lebih bersih",
+      "summary": "Autocomplete ! dan / lintas OS tanpa lag, perbaikan tabel & status /shells, opsi thinking auxiliary selaras model utama, dan konteks pembantu lebih jernih",
+      "paragraphs": [
+        "Rilis ini menambahkan autocomplete perintah dan path lintas platform untuk shell manual (`!`) maupun perintah garis miring (`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`), didukung cache berbasis waktu modifikasi sehingga pengguliran pada direktori berisi ribuan opsi tetap instan dan langsung mencerminkan perubahan berkas. Panel `/shells` kini memakai tata letak kolom `STATUS`, `ID`, `PID`, `TIME` yang sejajar dengan perataan tengah PID, judul shell per tugas, dan pelacakan status `done`, `killed`, `failed`, serta `lost` yang akurat; Settings menambahkan pilihan penalaran per peran (`sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`) yang mengikuti opsi model masing-masing serta menempatkan `PROCESS CONTROL` tepat di bawah `TERMINAL`; dan subsistem pembantu mendapat label compaction lebih bersih, porsi `old_str`/`new_str` berimbang, pemecahan batch aman batas baris, serta penanganan callback OAuth lokal yang tangguh."
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "Autocomplete path ! dan / lintas OS dengan pilih Enter native tanpa lag",
+          "text": "Mengetik `!` kini melengkapi builtin shell, executable di `PATH`, serta path relatif, home (`~`), atau induk (`..`) di Linux, macOS, dan Windows, sementara `/attach`, `/skills install`, `/skills update`, `/mcp import`, dan `/mcp add` menavigasi folder secara langsung. Daftar direktori di-cache berdasarkan waktu modifikasi tanpa syscall stat berlebih pada berkas biasa, diurutkan tanpa alokasi tambahan, dan hanya mematerialisasikan baris yang terlihat sehingga direktori berisi ribuan hingga jutaan opsi tetap mulus saat digulir, sementara `Enter` memilih path parsial seperti terminal native dan mengeksekusi saat sudah lengkap."
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "Tabel /shells sejajar, judul shell per tugas, dan status proses akurat",
+          "text": "Panel `/shells` kini menampilkan kolom `STATUS`, `ID`, `PID`, dan `TIME` dengan PID rata tengah, mengganti path panjang pada kotak keluaran dengan judul shell yang menjalankan tugas (`Bash`, `zsh`, `PowerShell`, `Cmd`), dan menyesuaikan lebar kotak terhadap viewport. Proses yang dihentikan karena batas ukuran log dicatat sebagai `killed`, sinyal terminasi Unix (`129`, `130`, `137`, `143`) diklasifikasikan sebagai `killed`, kode keluar non-nol lain tampil sebagai `failed (code)`, dan ringkasan menghitung tiap status secara terpisah."
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "Pilihan thinking auxiliary per peran, perataan tetap, dan simpan tunda anti-freeze",
+          "text": "Settings → Generation menambahkan `sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, dan `title.thinking` dengan format `<effort> · <daftar opsi>` tanpa pemotongan `…` mengikuti persis opsi model target (`off`, `on`, atau level effort, dengan bawaan `off` kecuali wajib). Pemilih `‹ effort ›` memakai lebar tetap rata tengah, berputar melingkar di ujung kiri/kanan, dan menunda penyimpanan sesaat saat tombol ditahan (termasuk `Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T`, dan `Ctrl+O`) agar UI tidak patah-patah lalu langsung tersimpan saat jeda, keluar, atau kirim; di Settings → Tools, grup `PROCESS CONTROL` berada tepat di bawah `TERMINAL`."
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "Tampilan tunggal perintah !, timer antar-proses beku, dan metrik non-nol",
+          "text": "Perintah shell manual `!` kini tampil sebagai satu blok langkah tanpa kotak chat pengguna ganda baik saat langsung dikirim, mengantre, maupun saat `/resume`. Memutar ulang riwayat perintah `!` yang sudah selesai di jendela atau proses lain mempertahankan durasi akhirnya agar timer tidak berjalan kembali, dan baris metrik turn hanya muncul apabila terdapat pemakaian token API non-nol sehingga perintah `!` atau pembatalan awal tidak menghasilkan metrik kosong sebelum maupun sesudah restart."
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "Konteks compaction bersih, batching aman batas kalimat, dan OAuth lokal tangguh",
+          "text": "Compaction riwayat menghapus metadata debug internal menjadi label turn dan tool yang bersih serta menyeimbangkan cuplikan `old_str` dan `new_str`, pemecahan batch instruksi panjang memotong di batas baris atau spasi, skema `deny.rule` classifier dan aturan paralelisme prompt diperjelas, deteksi context-overflow mengenali penolakan batas token per menit, dan login OAuth MCP lokal mengabaikan permintaan liar yang rusak tanpa membatalkan sesi masuk."
+        }
+      ]
+    },
     "0.12.4": {
       "title": "Baris turn lebih jelas, pemantau /shells realtime, eksekusi slash di tengah kalimat, dan warna ANSI AI",
       "summary": "Metrik turn berwarna + /shells live, subcommand slash cerdas, wizard hanya Alt+H, warna ANSI SGR AI, Off 9router tanpa level paksaan",

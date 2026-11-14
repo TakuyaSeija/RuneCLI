@@ -1,7 +1,7 @@
 # Settings › Appearance
 
 ## Color theme
-Choose Violet, Cyan or Amber. Left/Right on the Color theme row switches and saves immediately. Enter opens the theme list; Enter on a selected theme applies it. Esc returns without applying an item you only browsed.
+Choose Violet, Cyan or Amber. Left/Right on the Color theme row previews immediately, wraps across choices, and saves after a short pause (or when closing Settings). Enter opens the theme list; Enter on a selected theme saves and applies it immediately. Esc returns without applying an item you only browsed.
 
 TOML key: `ui.theme`. Factory: `"amber"`. Reset with `rune -config reset ui.theme` or the offered default action. Theme changes do not affect model behavior or permissions.
 

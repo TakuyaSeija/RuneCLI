@@ -22,13 +22,13 @@
 </dl>
 <h2 id="files-and-capabilities">Archivos y capacidades</h2>
 <dl class="ref">
-<div><dt>/attach path</dt><dd>Añade un archivo al siguiente mensaje. Revisa los archivos adjuntos pendientes antes de enviar; el contenido compatible se enviará al proveedor seleccionado.</dd></div>
+<div><dt>/attach path</dt><dd>Añade un archivo al siguiente mensaje, con autocompletado en vivo de carpetas y archivos al escribir. Revisa los archivos adjuntos pendientes antes de enviar; el contenido compatible se enviará al proveedor seleccionado.</dd></div>
 <div><dt>/detach number|all</dt><dd>Quita un archivo adjunto pendiente por su número o quita todos los adjuntos pendientes.</dd></div>
 <div><dt>/undo</dt><dd>Previsualiza y restaura los archivos elegibles al estado que tenían antes de que esta sesión los modificara por primera vez. Puede sobrescribir ediciones externas actuales.</dd></div>
 <div><dt>/redo</dt><dd>Previsualiza y restaura lo que reemplazó el último comando undo. No es un historial ilimitado de copias de seguridad.</dd></div>
-<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gestiona las guías disponibles. Show, enable y disable reciben el identificador de la skill mostrada en la lista. Reload actualiza el catálogo tras realizar cambios.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gestiona las guías disponibles. Show, enable y disable reciben el identificador de la skill mostrada en la lista; <code>/skills install</code> y <code>/skills update</code> autocompletan rutas de carpetas. Reload actualiza el catálogo tras realizar cambios.</dd></div>
 <div><dt>/skill &lt;id&gt;</dt><dd>Activa una guía para la conversación. Activarla no concede permiso automático para todas las acciones descritas en esa guía.</dd></div>
-<div><dt>/mcp [list|add|connect|status]</dt><dd>Gestiona las conexiones a herramientas externas. Revisa el servidor, el destino y los permisos de acceso antes de añadir o conectar; un servidor local puede ejecutar código.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Gestiona las conexiones a herramientas externas; <code>/mcp import</code> y <code>/mcp add</code> autocompletan rutas locales. Revisa el servidor, el destino y los permisos de acceso antes de añadir o conectar; un servidor local puede ejecutar código.</dd></div>
 </dl>
 <h2 id="views-and-application">Vistas y aplicación</h2>
 <dl class="ref">

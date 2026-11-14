@@ -50,6 +50,7 @@ type site struct {
 	demos     map[string]*demoView        // locale code → the replay, chapter names in its words
 	demo      *demoView
 	notFound  map[string]*template.Template
+	overload  map[string]*template.Template
 	installer *texttemplate.Template // install.sh: Linux and macOS
 	installPS *texttemplate.Template // install.ps1: Windows
 }
@@ -68,7 +69,7 @@ var staticTypes = map[string]string{
 func newSite(cfg *Config) (*site, error) {
 	s := &site{cfg: cfg, static: map[string][]byte{}, gzipped: map[string][]byte{},
 		pages: map[string]map[string]*page{}, lists: map[string][]*page{}, groups: map[string][]docGroup{},
-		demos: map[string]*demoView{}, notFound: map[string]*template.Template{}}
+		demos: map[string]*demoView{}, notFound: map[string]*template.Template{}, overload: map[string]*template.Template{}}
 	if err := loadLocaleTexts(); err != nil {
 		return nil, err
 	}
@@ -211,6 +212,11 @@ func (s *site) parseLocale(l *locale) error {
 		return fmt.Errorf("%s not found page: %w", l.Code, err)
 	}
 	s.notFound[l.Code] = nf
+	ol, err := template.New("Layout.html").Funcs(funcs).ParseFS(ui.Files, l.pageFile("Layout.html"), l.pageFile("Overload.html"))
+	if err != nil {
+		return fmt.Errorf("%s overload page: %w", l.Code, err)
+	}
+	s.overload[l.Code] = ol
 	demo := *s.demo
 	if l != english {
 		demo.Chapters = append([]demoChapter(nil), s.demo.Chapters...)
@@ -451,6 +457,30 @@ func (s *site) renderNotFound(l *locale, cat *Catalog) []byte {
 		return []byte("Not found\n")
 	}
 	return b.Bytes()
+}
+
+func (s *site) renderOverload(l *locale, cat *Catalog) []byte {
+	var b bytes.Buffer
+	p := &page{
+		Route:  "-",
+		Title:  "503: Traffic Is Currently Heavy",
+		Lead:   "Too many concurrent requests are being processed right now. Please retry in a few moments.",
+		Locale: l,
+	}
+	if l != english {
+		t := l.text.Pages["overload"]
+		p.Title, p.Lead = t.Title, t.Lead
+	}
+	tmpl := s.overload[l.Code]
+	if tmpl == nil {
+		tmpl = s.overload[english.Code]
+	}
+	if tmpl != nil {
+		if err := tmpl.Execute(&b, s.data(p, cat)); err == nil {
+			return b.Bytes()
+		}
+	}
+	return []byte("Traffic is currently heavy. Please retry in a few moments.\n")
 }
 
 // installData is what the installer templates see. Every value is quoted

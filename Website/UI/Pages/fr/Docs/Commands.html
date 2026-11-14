@@ -22,13 +22,13 @@
 </dl>
 <h2 id="files-and-capabilities">Fichiers et extensions</h2>
 <dl class="ref">
-<div><dt>/attach path</dt><dd>Ajoute un fichier au prochain message. Vérifiez les pièces jointes en attente avant l’envoi ; le contenu pris en charge est transmis au fournisseur sélectionné.</dd></div>
+<div><dt>/attach path</dt><dd>Ajoute un fichier au prochain message, avec autocomplétion en direct des dossiers et fichiers lors de la saisie. Vérifiez les pièces jointes en attente avant l’envoi ; le contenu pris en charge est transmis au fournisseur sélectionné.</dd></div>
 <div><dt>/detach number|all</dt><dd>Retire une pièce jointe en attente par son numéro ou retire toutes les pièces jointes en attente.</dd></div>
 <div><dt>/undo</dt><dd>Prévisualise et restaure les fichiers éligibles à leur état d’avant la première modification de cette session. Les modifications externes récentes peuvent être écrasées.</dd></div>
 <div><dt>/redo</dt><dd>Prévisualise et rétablit ce que la dernière annulation a remplacé. Il ne s’agit pas d’un historique de sauvegarde illimité.</dd></div>
-<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gère les guides disponibles. Show, enable et disable prennent l’identifiant de la compétence affichée dans la liste. Reload rafraîchit le catalogue après des modifications.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gère les guides disponibles. Show, enable et disable prennent l’identifiant de la compétence affichée dans la liste ; <code>/skills install</code> et <code>/skills update</code> complètent automatiquement les chemins de dossiers. Reload rafraîchit le catalogue après des modifications.</dd></div>
 <div><dt>/skill &lt;id&gt;</dt><dd>Active un guide pour la conversation. L’activation n’accorde pas automatiquement toutes les actions décrites dans ce guide.</dd></div>
-<div><dt>/mcp [list|add|connect|status]</dt><dd>Gère les connexions aux outils externes. Vérifiez le serveur, la destination et les accès avant d’ajouter ou de connecter un serveur ; un serveur local peut exécuter du code.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Gère les connexions aux outils externes ; <code>/mcp import</code> et <code>/mcp add</code> complètent automatiquement les chemins locaux. Vérifiez le serveur, la destination et les accès avant d’ajouter ou de connecter un serveur ; un serveur local peut exécuter du code.</dd></div>
 </dl>
 <h2 id="views-and-application">Vues et application</h2>
 <dl class="ref">

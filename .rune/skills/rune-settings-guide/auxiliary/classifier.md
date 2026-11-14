@@ -8,6 +8,7 @@ Purpose: review proposed actions against the user's CLASSIFIER.md policy. It nee
 | --- | --- | --- |
 | `classifier.enabled` |true| Enable review when applicable. |
 | `classifier.model` |Inherit active model| Choose the review model, or inherit. |
+| `classifier.thinking` |Off by default| Reasoning choice matching the target model's own reasoning options (`off`, `on`, or effort level). |
 | `classifier.timeout` |120s| Maximum time for a review request. |
 | `classifier.max_output_tokens` |1024| Output allowance, configurable 16–10000000; actual model limits apply. |
 | `classifier.excluded_tools` |Default tool list| Tools excluded from classifier review only. It does not grant them unconditional access. [] requests review of all applicable tools. |
@@ -39,6 +40,7 @@ These are factory values, not a claim about the current user's saved choices. In
 | `classifier.context_tools` | `["terminal_use","inspect_file","find_files","search_text","create_file","patch_file"]` | Unique exact tool names; [] is an explicit empty selection |
 | `classifier.enabled` | `true` | true / false |
 | `classifier.model` | `Inherit / unset` | Configured {provider,id}, or omit to inherit |
+| `classifier.thinking` | `Inherit / unset` | `off`, `on`, or effort level (`minimal`..`max`); unset defaults to `off` unless mandatory |
 | `classifier.timeout` | `"120s"` | Positive duration up to 24h |
 | `classifier.max_output_tokens` | `1024` | Whole number 16–10000000 |
 | `classifier.max_evidence_size` | `"256KiB"` | Positive explicit size up to 1GiB |

@@ -11,6 +11,7 @@ npm test</code></pre>
 <li>一旦输入以 <code>!</code> 开头，整个输入框的所有行都属于同一段脚本。后续行中出现的 <code>!</code> 属于 shell 语法，而非第二条独立的 Rune 命令。</li>
 <li>粘贴文本绝不会自动触发执行。只有按下 <kbd>Enter</kbd> 才会运行当前完整的脚本（包含所有粘贴进来的行）。</li>
 <li>单独输入一个 <code>!</code> 不会执行任何操作。删掉开头的 <code>!</code> 即可将输入框恢复为普通消息模式。</li>
+<li>在 <code>!</code> 后继续输入时，面板会跨平台补全 shell 内置命令、<code>PATH</code> 可执行文件以及工作区、<code>~</code> 或 <code>..</code> 路径。按 <kbd>Tab</kbd> 可补全命令或文件夹，按 <kbd>Enter</kbd> 可进入文件夹或执行脚本。</li>
 </ul>
 
 <h2 id="access">手动命令拥有什么权限</h2>

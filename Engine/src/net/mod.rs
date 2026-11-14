@@ -346,6 +346,9 @@ fn context_overflow(status: u16, message: &str) -> bool {
         "input is too long",
         "too many tokens",
         "exceeds the context",
+        "reduce your message size",
+        "input tokens per minute",
+        "tokens per minute",
     ]
     .iter()
     .any(|phrase| lower.contains(phrase))
@@ -731,5 +734,18 @@ mod tests {
             };
             assert!(error.to_string().contains("private"), "{url}: {error}");
         }
+    }
+
+    #[test]
+    fn context_overflow_recognizes_tpm_and_size_rejections_without_misclassifying_429() {
+        assert!(context_overflow(
+            413,
+            "Request too large for model on input tokens per minute (ITPM): Limit 7000, Requested 8099, please reduce your message size and try again."
+        ));
+        assert!(context_overflow(400, "Please reduce your message size"));
+        assert!(!context_overflow(
+            429,
+            "Rate limit reached on tokens per minute (TPM): please wait and try again"
+        ));
     }
 }

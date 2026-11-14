@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404 : Page introuvable",
       "lead": "Cette page n’existe pas sur Atoryn Studio."
+    },
+    "overload": {
+      "title": "503 : Trafic élevé",
+      "lead": "Trop de requêtes simultanées sont traitées en ce moment sur Atoryn Studio."
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "et"
   },
   "notes": {
+    "0.12.5": {
+      "title": "Autocomplétion de chemins ! et /, tableau /shells, réglage du raisonnement auxiliaire et contexte épuré",
+      "summary": "Autocomplétion ! et / multiplateforme fluide, tableau et statuts /shells corrigés, raisonnement auxiliaire aligné sur le modèle et contexte plus net",
+      "paragraphs": [
+        "Cette version ajoute l’autocomplétion multiplateforme de commandes et de chemins dans le shell manuel (`!`) et les commandes slash (`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`), avec un cache indexé sur la date de modification pour parcourir de grands dossiers sans latence tout en reflétant immédiatement les nouveaux fichiers. Le panneau `/shells` adopte des colonnes alignées `STATUS`, `ID`, `PID` et `TIME` avec PIDs centrés, nom de shell par tâche et suivi exact de `done`, `killed`, `failed` et `lost` ; Settings ajoute le choix de raisonnement par rôle (`sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`) aligné sur chaque modèle cible et place `PROCESS CONTROL` juste sous `TERMINAL` ; enfin les sous-systèmes auxiliaires bénéficient d’étiquettes de compaction épurées, d’extraits équilibrés, de découpage par lots sûr et d’un callback OAuth local résilient."
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "Complétion ! et / multiplateforme avec Entrée native et fluidité à grande échelle",
+          "text": "Saisir `!` complète les commandes internes, exécutables du `PATH` et chemins relatifs, `~` ou `..` sous Linux, macOS et Windows, tandis que `/attach`, `/skills install`, `/skills update`, `/mcp import` et `/mcp add` parcourent les dossiers en direct. Les dossiers utilisent un cache `mtime` sans `stat` sur les fichiers ordinaires, un tri sans allocation et un affichage paresseux des lignes visibles ; `Entrée` sélectionne un chemin partiel comme un terminal natif puis exécute une fois complet."
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "Tableau /shells aligné, shell par tâche et statuts fiables",
+          "text": "Le panneau `/shells` affiche des colonnes `STATUS`, `ID`, `PID` et `TIME` alignées avec `PID` centré, remplace le chemin complet par le nom du shell lanceur (`Bash`, `zsh`, `PowerShell`, `Cmd`) et adapte la largeur de la boîte au viewport. Les tâches arrêtées pour dépassement de journal sont notées `killed`, les signaux Unix (`129`, `130`, `137`, `143`) deviennent `killed`, les autres codes non nuls affichent `failed (code)` et le résumé détaille chaque état."
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "Choix de réflexion auxiliaires, alignement fixe et sauvegarde anti-gel",
+          "text": "Settings → Generation ajoute `sanitizer.thinking`, `classifier.thinking`, `compact.thinking` et `title.thinking` au format `<effort> · <options>` sans troncature selon chaque modèle (`off`, `on` ou niveaux, `off` par défaut sauf mention obligatoire). Le sélecteur `‹ effort ›` garde une largeur centrée fixe, boucle aux extrémités et regroupe les appuis maintenus (avec `Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T` et `Ctrl+O`) sans figer l’écran avant de sauvegarder à la pause, fermeture ou envoi ; `PROCESS CONTROL` passe sous `TERMINAL`."
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "Bloc unique pour commandes !, minuteurs figés inter-processus et métriques utiles",
+          "text": "Les commandes manuelles `!` s’affichent désormais en une seule étape sans bulle utilisateur dupliquée en direct, en file ou via `/resume`. Lors de la reprise depuis un autre processus, les minuteurs des commandes `!` terminées restent figés à leur durée réelle et les métriques de tour n’apparaissent qu’avec une consommation non nulle de jetons API."
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "Contexte de compaction épuré, lots propres et OAuth local résilient",
+          "text": "La compaction remplace les marqueurs internes de débogage par des libellés clairs de tour et d’outil et équilibre les extraits `old_str` et `new_str`, le découpage des longs textes coupe aux limites de lignes ou d’espaces, le schéma `deny.rule` et la consigne de parallélisme sont clarifiés, la détection de dépassement reconnaît les limites de jetons par minute et l’écoute OAuth locale ignore les requêtes parasites sans interrompre la connexion."
+        }
+      ]
+    },
     "0.12.4": {
       "title": "Ligne de tour plus claire, suivi /shells en direct, commandes slash en phrase et couleurs ANSI IA",
       "summary": "Métriques colorées + /shells en direct, sous-commandes intelligentes, assistant Alt+H seul, couleurs ANSI SGR, Off 9router sans niveau forcé",

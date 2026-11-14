@@ -211,14 +211,16 @@ pub async fn begin(
             loop {
                 let (mut socket,peer)=listener.accept().await?;
                 if !peer.ip().is_loopback(){continue;}
-                let mut bytes=Vec::new();let mut buf=[0u8;1024];
+                let mut bytes=Vec::new();let mut buf=[0u8;1024];let mut bad_conn=false;
                 loop {
-                    let n=tokio::time::timeout(Duration::from_secs(5),socket.read(&mut buf)).await.map_err(|_|Error::tool("OAuth callback timed out"))??;
+                    let read_res = tokio::time::timeout(Duration::from_secs(5),socket.read(&mut buf)).await;
+                    let Ok(Ok(n)) = read_res else {bad_conn=true;break;};
                     if n==0{break;}bytes.extend_from_slice(&buf[..n]);
-                    if bytes.len()>8192{return Err(Error::invalid("OAuth callback is too large"));}
+                    if bytes.len()>8192{bad_conn=true;break;}
                     if bytes.windows(4).any(|b|b==b"\r\n\r\n"){break;}
                 }
-                let text=std::str::from_utf8(&bytes).map_err(|_|Error::invalid("Invalid OAuth callback"))?;
+                if bad_conn {let _=socket.shutdown().await;continue;}
+                let Ok(text)=std::str::from_utf8(&bytes) else {let _=socket.shutdown().await;continue;};
                 let mut first=text.lines().next().unwrap_or("").split_whitespace();
                 if first.next()!=Some("GET"){continue;}
                 let target=first.next().unwrap_or("");
@@ -230,7 +232,10 @@ pub async fn begin(
                 let body=if result.is_ok(){"Rune sign-in complete. You can close this page."}else{"Rune sign-in failed. Return to Rune and try again."};
                 let reply=format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
                 let _=socket.write_all(reply.as_bytes()).await;
-                result.map_err(auth_error)?;return Ok::<(),Error>(());
+                let _=socket.shutdown().await;
+                if result.is_ok() {
+                    return Ok::<(),Error>(());
+                }
             }
         }).await;
         *panic::lock(&progress) = match outcome {

@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404: 페이지를 찾을 수 없음",
       "lead": "요청하신 페이지가 Atoryn Studio에 존재하지 않습니다."
+    },
+    "overload": {
+      "title": "503: 트래픽 집중",
+      "lead": "현재 Atoryn Studio에서 너무 많은 동시 요청을 처리하고 있습니다."
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "및"
   },
   "notes": {
+    "0.12.5": {
+      "title": "! 및 / 경로 자동 완성, 표 형식 /shells 보기, 보조 모델별 추론 설정 및 보조 컨텍스트 개선",
+      "summary": "지연 없는 크로스 플랫폼 ! 및 / 경로 자동 완성, /shells 표·상태 수정, 모델 기준 보조 추론 옵션 및 보조 컨텍스트 정리",
+      "paragraphs": [
+        "이 릴리스는 수동 셸(`!`)과 슬래시 명령(`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`) 전반에 크로스 플랫폼 명령·경로 자동 완성을 추가하고, 수정 시각 기반 캐싱을 통해 항목이 많은 폴더에서도 끊김 없이 즉시 스크롤·갱신되도록 합니다. `/shells` 패널은 가운데 정렬된 PID가 포함된 `STATUS`, `ID`, `PID`, `TIME` 열, 작업별 셸 제목 및 정확한 `done`, `killed`, `failed`, `lost` 상태 추적을 제공하며, Settings → Generation에는 각 모델의 추론 옵션과 일치하는 `sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`을 추가하고 Settings → Tools에서는 `PROCESS CONTROL`을 `TERMINAL` 바로 아래에 배치했습니다. 또한 압축 라벨 정리, 수정 내용 균형 발췌, 경계 기준 배치 분할, 안정적인 로컬 OAuth 콜백 처리를 포함합니다."
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "크로스 플랫폼 ! 및 / 경로 자동완성, 네이티브 Enter 선택 및 대규모 폴더 지연 제거",
+          "text": "`!` 입력 시 Linux·macOS·Windows에서 셸 내장 명령, `PATH` 실행 파일, 상대/`~`/`..` 경로를 자동완성하며 `/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`도 실시간 탐색을 지원합니다. 일반 파일의 stat 호출을 없앤 mtime 캐시, 무할당 정렬, 가시 행 지연 생성으로 수백만 항목에서도 끊김 없이 스크롤되며 `Enter`는 미완성 경로를 선택하고 완성 후 실행합니다."
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "정렬된 /shells 표, 작업별 셸 제목 및 정확한 프로세스 상태",
+          "text": "`/shells` 패널은 `STATUS`, `ID`, `PID`, `TIME` 열을 맞춰 `PID`를 가운데 정렬하고, 펼친 상자의 긴 파일 경로 대신 실행 셸 이름(`Bash`, `zsh`, `PowerShell`, `Cmd`)을 표시하며 화면 너비에 맞춰 상자 크기를 조절합니다. 로그 크기 제한으로 중지된 작업은 `killed`, Unix 종료 신호(`129`, `130`, `137`, `143`)는 `killed`, 기타 비정상 종료는 `failed (code)`로 기록하고 요약에 상태별 건수를 표시합니다."
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "역할별 보조 추론 옵션, 고정 폭 정렬 및 길게 누르기 디바운스 저장",
+          "text": "Settings → Generation에 `sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`을 추가해 잘림 없이 `<effort> · <옵션 목록>` 형식으로 표시합니다(`off`, `on` 또는 노력 수준, 필수 외 기본 `off`). `‹ effort ›` 표시는 고정 폭 가운데 정렬과 양끝 순환 전환을 지원하며 연타/길게 누르기 시 UI 멈춤을 막도록 디바운스 저장(`Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T`, `Ctrl+O` 포함)을 적용했습니다. `PROCESS CONTROL`은 `TERMINAL` 바로 아래로 이동했습니다."
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "! 명령 단일 박스, 프로세스 간 타이머 고정 및 비영(non-zero) 사용량 메트릭",
+          "text": "수동 셸 `!` 실행 시 중복된 사용자 채팅 박스를 제거해 실시간·대기열·`/resume` 모두 단일 단계 박스로만 표시됩니다. 다른 프로세스에서 세션을 다시 열어도 완료된 `!` 작업 타이머가 계속 흐르지 않으며, 턴 메트릭은 실제 API 토큰 사용량이 0보다 클 때만 표시되어 재시작 전후가 일치합니다."
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "깔끔한 압축 컨텍스트, 경계 보존 분할 및 안정적인 OAuth 콜백",
+          "text": "대화 요약은 내부 디버그 표기를 제거해 명확한 턴·도구 라벨을 사용하고 `old_str`과 `new_str` 발췌 비중을 균형 있게 배분합니다. 긴 지시 분할은 줄·공백 경계를 우선하며, classifier `deny.rule` 설명과 시스템 프롬프트 병렬 실행 문구를 명확히 했고, 컨텍스트 초과 감지가 분당 토큰 초과 거부를 인식하며, 로컬 MCP OAuth 대기가 잘못된 로컬 요청으로 중단되지 않습니다."
+        }
+      ]
+    },
     "0.12.4": {
       "title": "더 선명한 턴 줄, 실시간 /shells 보기, 문장 중간 슬래시 실행, AI ANSI 색상 지원",
       "summary": "색상 턴 지표 + 실시간 /shells, 스마트 하위 명령 팔레트, Alt+H 전용 마법사, AI ANSI SGR, 9router Off 기본값 유지",

@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -27,6 +28,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	ui "atoryn.com/studio/web/UI"
 )
@@ -954,4 +956,97 @@ func TestConfigRefusesPublicListeners(t *testing.T) {
 	if err := ok.validate(); err != nil {
 		t.Errorf("dev on loopback + LAN refused: %v", err)
 	}
+}
+
+func TestUnknownChangelogVersionReturns404WithoutCacheGrowth(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.12.4", fakeRune("0.12.4"))
+	srv := newTestServer(t, testConfig(f.dir))
+	h := srv.routes()
+
+	for _, bad := range []string{"/Studio/changelog/9.9.9", "/Studio/changelog?v=9.9.9", "/Studio/id/changelog/nonexistent"} {
+		w := get(t, h, "GET", bad)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s: status %d, want 404", bad, w.Code)
+		}
+	}
+	srv.mu.Lock()
+	for key := range srv.cache {
+		if strings.Contains(key, "9.9.9") || strings.Contains(key, "nonexistent") {
+			t.Errorf("cache polluted with unknown version key %q", key)
+		}
+	}
+	srv.mu.Unlock()
+}
+
+func TestDownloadChunkedIdleTimeoutAndRangeSupport(t *testing.T) {
+	f := newDownloads(t)
+	payload := bytes.Repeat([]byte("A"), 150<<10) // > 2 chunks of 64 KiB
+	name := "rune-0.12.4-linux-x86_64-gnu.tar.gz"
+	f.publishArchives(t, "0.12.4", map[string][]byte{name: payload})
+	h := newTestServer(t, testConfig(f.dir)).routes()
+
+	full := get(t, h, "GET", "/Studio/download/0.12.4/"+name)
+	if full.Code != http.StatusOK || full.Body.Len() != len(payload) {
+		t.Fatalf("full download: code=%d len=%d want=%d", full.Code, full.Body.Len(), len(payload))
+	}
+
+	partial := get(t, h, "GET", "/Studio/download/0.12.4/"+name, func(r *http.Request) {
+		r.Header.Set("Range", "bytes=0-99")
+	})
+	if partial.Code != http.StatusPartialContent || partial.Body.Len() != 100 {
+		t.Fatalf("range download: code=%d len=%d want 206 len=100", partial.Code, partial.Body.Len())
+	}
+
+	head := get(t, h, "HEAD", "/Studio/download/0.12.4/"+name)
+	if head.Code != http.StatusOK || head.Body.Len() != 0 {
+		t.Fatalf("head download: code=%d len=%d", head.Code, head.Body.Len())
+	}
+}
+
+func TestOverloadRenders503InEveryLanguageAndPlainTextForCLI(t *testing.T) {
+	f := newDownloads(t)
+	f.publish(t, "0.12.4", fakeRune("0.12.4"))
+	srv := newTestServer(t, testConfig(f.dir))
+
+	// Plain-text 503 for curl/scripts
+	req := httptest.NewRequest("GET", "http://example.test/Studio/download/0.12.4/file.tar.gz", nil)
+	rec := httptest.NewRecorder()
+	srv.overload(rec, req)
+	if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") != "10" {
+		t.Fatalf("cli overload: code=%d retry=%q", rec.Code, rec.Header().Get("Retry-After"))
+	}
+	if !strings.Contains(rec.Body.String(), "503 Service Unavailable") {
+		t.Errorf("cli overload body = %q", rec.Body.String())
+	}
+
+	// HTML 503 in all 10 languages
+	for _, l := range locales {
+		r := httptest.NewRequest("GET", "http://example.test/Studio"+l.prefix()+"/download/0.12.4/file.tar.gz", nil)
+		r.Header.Set("Accept", "text/html")
+		w := httptest.NewRecorder()
+		srv.overload(w, r)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s overload: status %d, want 503", l.Code, w.Code)
+		}
+		if !strings.Contains(w.Body.String(), `<html lang="`+l.Code+`"`) {
+			t.Errorf("%s overload did not render locale %s", l.Code, l.Code)
+		}
+	}
+
+	// Verify download slot semaphore stops excess concurrent waits when full
+	for i := 0; i < cap(srv.dlSem); i++ {
+		srv.dlSem <- struct{}{}
+	}
+	defer func() {
+		for i := 0; i < cap(srv.dlSem); i++ {
+			<-srv.dlSem
+		}
+	}()
+	h := srv.routes()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	r := httptest.NewRequest("GET", "http://example.test/Studio/download/0.12.4/rune-0.12.4-linux-x86_64-gnu.tar.gz", nil).WithContext(ctx)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
 }

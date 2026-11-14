@@ -5,6 +5,7 @@ Location: Settings → Generation → compact rows. Scope: global. Purpose: summ
 | Key | Factory default | Use |
 | --- | --- | --- |
 | `compact.model` |Inherit active model| Model used to summarize history. |
+| `compact.thinking` |Off by default| Reasoning choice matching the target model's own reasoning options (`off`, `on`, or effort level). |
 | `compact.max_output_tokens` |32768| Summary output allowance, setting 256–10000000; the selected model's actual limit still applies. |
 | `compact.max_batch_size` |128KiB| Advanced TOML/CLI choice: maximum quoted source/summary text bytes per summary request. It is not model tokens or a guarantee that a small model accepts the batch. |
 | `compact.keep_recent_turns` |5| Desired number of recent turns kept in full, range 1–100. Available context may require fewer. |
@@ -35,6 +36,7 @@ These are factory values, not a claim about the current user's saved choices. In
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
 | `compact.model` | `Inherit / unset` | Configured {provider,id}, or omit to inherit |
+| `compact.thinking` | `Inherit / unset` | `off`, `on`, or effort level (`minimal`..`max`); unset defaults to `off` unless mandatory |
 | `compact.max_output_tokens` | `32768` | Whole number 256–10000000 |
 | `compact.max_batch_size` | `"128KiB"` | Explicit positive byte size; inspect/set/reset through `rune -config` |
 | `compact.keep_recent_turns` | `5` | Whole number 1–100 |

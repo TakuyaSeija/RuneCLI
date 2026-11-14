@@ -20,6 +20,11 @@
    "default": null,
    "kind": "Model"
   },
+  "sanitizer.thinking": {
+   "document": "auxiliary/sanitizer.md",
+   "default": null,
+   "kind": "Text"
+  },
   "sanitizer.timeout": {
    "document": "auxiliary/sanitizer.md",
    "default": "120s",
@@ -277,6 +282,11 @@
    "default": null,
    "kind": "Model"
   },
+  "classifier.thinking": {
+   "document": "auxiliary/classifier.md",
+   "default": null,
+   "kind": "Text"
+  },
   "classifier.timeout": {
    "document": "auxiliary/classifier.md",
    "default": "120s",
@@ -301,6 +311,11 @@
    "document": "auxiliary/compact.md",
    "default": null,
    "kind": "Model"
+  },
+  "compact.thinking": {
+   "document": "auxiliary/compact.md",
+   "default": null,
+   "kind": "Text"
   },
   "compact.max_output_tokens": {
    "document": "auxiliary/compact.md",
@@ -331,6 +346,11 @@
    "document": "auxiliary/title.md",
    "default": null,
    "kind": "Model"
+  },
+  "title.thinking": {
+   "document": "auxiliary/title.md",
+   "default": null,
+   "kind": "Text"
   },
   "title.max_output_tokens": {
    "document": "auxiliary/title.md",
@@ -909,6 +929,23 @@
     "Copy complete destination",
     "copying only",
     "does not run the file"
+   ]
+  },
+  "shells_viewer": {
+   "document": "cli/commands.md",
+   "facts": [
+    "/shells",
+    "STATUS",
+    "PID"
+   ]
+  },
+  "path_autocomplete": {
+   "document": "cli/commands.md",
+   "facts": [
+    "/attach <path>",
+    "/skills install|update <path>",
+    "/mcp import|add <id> <path>",
+    "PATH"
    ]
   }
  },

@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404：找不到页面",
       "lead": "你所访问的页面在 Atoryn Studio 中不存在。"
+    },
+    "overload": {
+      "title": "503：当前访问繁忙",
+      "lead": "Atoryn Studio 当前正在处理过多并发请求。"
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "和"
   },
   "notes": {
+    "0.12.5": {
+      "title": "! 与 / 路径自动补全、表格化 /shells 视图、辅助角色思考设置与更清晰的辅助上下文",
+      "summary": "跨平台 ! 与 / 路径补全零卡顿滚动、/shells 表格与状态修复、对齐主模型的辅助思考选项，以及更整洁的辅助上下文",
+      "paragraphs": [
+        "本版本为手动 Shell（`!`）以及斜杠命令（`/attach`、`/skills install`、`/skills update`、`/mcp import`、`/mcp add`）新增跨平台命令与路径自动补全，并由基于修改时间的缓存支持，在大目录中滚动依然流畅且文件变动可即时反映。`/shells` 面板采用对齐的 `STATUS`、`ID`、`PID`、`TIME` 列布局，支持 PID 居中、按任务显示启动 Shell 名称及准确的 `done`/`killed`/`failed`/`lost` 状态追踪；Settings → Generation 新增遵循各目标模型选项的 `sanitizer.thinking`、`classifier.thinking`、`compact.thinking` 和 `title.thinking`，并将 `PROCESS CONTROL` 直接置于 `TERMINAL` 下方；同时优化了历史压缩标签、修改片段配额平衡、按边界分批及本地 OAuth 回调容错。"
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "跨平台 ! 与 / 路径补全、原生 Enter 选择及百万级目录零卡顿滚动",
+          "text": "输入 `!` 可在 Linux、macOS 和 Windows 上补全 Shell 内置命令、`PATH` 可执行文件及相对、`~`、`..` 路径，`/attach`、`/skills install`、`/skills update`、`/mcp import` 与 `/mcp add` 也支持实时目录浏览。目录列表采用 `mtime` 缓存、普通文件零 `stat`、零分配排序与可见行惰性渲染，百万级目录也能流畅滚动；`Enter` 像原生终端一样先选中未完成路径并在完整后执行。"
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "对齐的 /shells 表格、按任务 Shell 标题与准确状态",
+          "text": "`/shells` 面板现以对齐的 `STATUS`、`ID`、`PID` 和 `TIME` 列展示进程并居中对齐 `PID`，展开输出框标题改为实际启动该任务的 Shell 名称（`Bash`、`zsh`、`PowerShell`、`Cmd`）且框宽随视口自适应。因超出日志上限被终止的任务记为 `killed`，Unix 终止信号（`129`、`130`、`137`、`143`）归类为 `killed`，其余非零退出显示为 `failed (code)`，顶部摘要分别统计各状态数量。"
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "各角色辅助思考选项、固定对齐胶囊及防卡顿防抖保存",
+          "text": "Settings → Generation 新增 `sanitizer.thinking`、`classifier.thinking`、`compact.thinking` 与 `title.thinking`，以不截断的 `<effort> · <可用选项>` 格式展示目标模型完整选项（`off`、`on` 或强度级别，除强制模型外均默认 `off`）。`‹ effort ›` 采用固定宽度居中对齐与首尾循环切换，并对连按/长按（含 `Effort`/`Thinking`、`Theme`、`Sidebar`、`Alt+T`、`Ctrl+O`）进行防抖批量保存，避免界面冻结；`PROCESS CONTROL` 现位于 `TERMINAL` 下方。"
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "! 命令单一工具框、跨进程冻结计时器及非零用量指标守卫",
+          "text": "手动 `!` Shell 提交在实时执行、排队或 `/resume` 恢复时不再重复显示用户消息框，仅保留单个工具步骤框。在另一进程或窗口恢复历史会话时，已结束的 `!` 命令计时器保持冻结而不再继续走表，且回合指标仅在存在非零 API Token 用量时显示，确保重启前后一致。"
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "更清晰的压缩上下文、安全分批与稳健 OAuth 回调",
+          "text": "历史压缩去除内部调试格式并改用清晰的轮次与工具标签，同时均衡分配 `old_str` 与 `new_str` 摘要额度；长文本分批优先在换行或空格处切分；明确了 classifier `deny.rule` 模式说明与系统提示并发规则；上下文溢出检测新增每分钟令牌超限识别；本地 MCP OAuth 监听会忽略异常或畸形本地请求而不中断当前登录流程。"
+        }
+      ]
+    },
     "0.12.4": {
       "title": "更清晰的回合行、实时 /shells 面板、句中斜杠执行与 AI ANSI 色彩支持",
       "summary": "彩色回合指标 + 实时 /shells、智能斜杠子命令、仅 Alt+H 向导、AI ANSI SGR 色彩、9router 的 Off 不发送强制级别",

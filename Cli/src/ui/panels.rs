@@ -893,16 +893,25 @@ struct ShellEntry {
     task_id: String,
     pid: i32,
     command: String,
-    out_file: String,
     started_at: i64,
     finished_at: Option<i64>,
     status: String,
     exit_code: Option<i32>,
     capture_note: Option<String>,
     tail: String,
+    shell: String,
+    prompt: String,
+}
+
+fn default_shell_meta() -> (String, String) {
+    let cfg_shell = super::runtime_configuration().text("terminal.shell");
+    let prog = runeengine::tools::terminal::shell(&cfg_shell);
+    let info = runeengine::shell::ShellInfo::new(&prog);
+    (info.title().to_string(), info.prompt().to_string())
 }
 
 fn shell_entries(app: &App) -> Vec<ShellEntry> {
+    let (def_shell, def_prompt) = default_shell_meta();
     if !app.shells_detail.is_empty() {
         return app
             .shells_detail
@@ -911,13 +920,20 @@ fn shell_entries(app: &App) -> Vec<ShellEntry> {
                 task_id: v["task_id"].as_str().unwrap_or("").to_string(),
                 pid: v["pid"].as_i64().unwrap_or(0) as i32,
                 command: v["command"].as_str().unwrap_or("").to_string(),
-                out_file: v["out_file"].as_str().unwrap_or("").to_string(),
                 started_at: v["started_at"].as_i64().unwrap_or(0),
                 finished_at: v["finished_at"].as_i64(),
                 status: v["status"].as_str().unwrap_or("running").to_string(),
                 exit_code: v["exit_code"].as_i64().map(|c| c as i32),
                 capture_note: v["capture_note"].as_str().map(String::from),
                 tail: v["tail"].as_str().unwrap_or("").to_string(),
+                shell: v["shell"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map_or_else(|| def_shell.clone(), String::from),
+                prompt: v["prompt"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .map_or_else(|| def_prompt.clone(), String::from),
             })
             .collect();
     }
@@ -927,15 +943,47 @@ fn shell_entries(app: &App) -> Vec<ShellEntry> {
             task_id: t.task_id.clone(),
             pid: t.pid,
             command: t.command.clone(),
-            out_file: t.out_file.clone(),
             started_at: t.started_at,
             finished_at: t.finished_at,
             status: t.status.clone(),
             exit_code: t.exit_code,
             capture_note: None,
             tail: String::new(),
+            shell: def_shell.clone(),
+            prompt: def_prompt.clone(),
         })
         .collect()
+}
+
+fn classify_shell_entry(entry: &ShellEntry) -> (&'static str, String, super::ansi::Ink) {
+    match entry.status.as_str() {
+        "running" => ("running", "running".to_string(), OK),
+        "waiting" => ("waiting", "waiting".to_string(), WARN),
+        "completed" => match entry.exit_code {
+            Some(0) | None => ("done", "done".to_string(), MUTED),
+            Some(code)
+                if runeengine::platform::OS != runeengine::platform::Os::Windows
+                    && matches!(code, 129 | 130 | 137 | 143) =>
+            {
+                ("killed", "killed".to_string(), WARN)
+            }
+            Some(code) => ("failed", format!("failed ({code})"), super::ansi::REMOVED),
+        },
+        "killed" => ("killed", "killed".to_string(), WARN),
+        "lost" => ("lost", "lost".to_string(), super::ansi::REMOVED),
+        other => ("done", other.to_string(), MUTED),
+    }
+}
+
+fn pad_center(s: &str, col_w: usize) -> String {
+    let w = ansi::width(s);
+    if w >= col_w {
+        return s.to_string();
+    }
+    let total_pad = col_w - w;
+    let left_pad = total_pad / 2;
+    let right_pad = total_pad - left_pad;
+    format!("{}{s}{}", " ".repeat(left_pad), " ".repeat(right_pad))
 }
 
 fn shells_document(app: &App, width: usize) -> super::panel_view::Document {
@@ -947,83 +995,157 @@ fn shells_document(app: &App, width: usize) -> super::panel_view::Document {
         width,
     );
     let entries = shell_entries(app);
-    let running_count = entries
-        .iter()
-        .filter(|e| matches!(e.status.as_str(), "running" | "waiting"))
-        .count();
-    let finished_count = entries.len().saturating_sub(running_count);
+    let mut running_count = 0usize;
+    let mut waiting_count = 0usize;
+    let mut done_count = 0usize;
+    let mut failed_count = 0usize;
+    let mut killed_count = 0usize;
+    let mut lost_count = 0usize;
+    for entry in &entries {
+        match classify_shell_entry(entry).0 {
+            "running" => running_count += 1,
+            "waiting" => waiting_count += 1,
+            "done" => done_count += 1,
+            "failed" => failed_count += 1,
+            "killed" => killed_count += 1,
+            "lost" => lost_count += 1,
+            _ => done_count += 1,
+        }
+    }
     let running_ink = if running_count > 0 { OK } else { TEXT };
+    let mut summary_parts = vec![format!("{running_ink}{running_count} running{RESET}")];
+    if waiting_count > 0 {
+        summary_parts.push(format!("{WARN}{waiting_count} waiting{RESET}"));
+    }
+    summary_parts.push(format!("{MUTED}{done_count} done{RESET}"));
+    if failed_count > 0 {
+        summary_parts.push(format!(
+            "{}{failed_count} failed{RESET}",
+            super::ansi::REMOVED
+        ));
+    }
+    if killed_count > 0 {
+        summary_parts.push(format!("{WARN}{killed_count} killed{RESET}"));
+    }
+    if lost_count > 0 {
+        summary_parts.push(format!("{}{lost_count} lost{RESET}", super::ansi::REMOVED));
+    }
     out.push(row(
         "processes",
-        format!(
-            "{running_ink}{running_count} running{RESET} {MUTED}· {finished_count} finished{RESET}"
-        ),
+        summary_parts.join(&format!(" {MUTED}·{RESET} ")),
     ));
     out.push(String::new());
-    doc.append_sink("header", std::mem::take(&mut out));
 
-    let mut body = Vec::new();
     if entries.is_empty() {
-        body.push(format!(
-            "  {MUTED}No background shell processes in this session.{}",
-            ansi::RESET
-        ));
-        doc.append("empty", body);
+        doc.append_sink("header", std::mem::take(&mut out));
+        doc.append(
+            "empty",
+            vec![format!(
+                "  {MUTED}No background shell processes in this session.{}",
+                ansi::RESET
+            )],
+        );
         return doc;
     }
 
     let selected = app.panel_row.min(entries.len() - 1);
     let now_ms = runeengine::store::now_ms();
-    let cmd_preview_cap = width.saturating_sub(42).max(16);
 
-    for (i, entry) in entries.iter().enumerate() {
-        let title_row = usize::from(i > 0);
-        if i > 0 {
-            let rule_w = width.saturating_sub(6).max(10);
-            body.push(format!("    {RULE}{}{RESET}", "─".repeat(rule_w)));
-        }
+    let prepared: Vec<(String, super::ansi::Ink, String, String)> = entries
+        .iter()
+        .map(|entry| {
+            let (_, status_text, status_ink) = classify_shell_entry(entry);
+            let pid_str = if entry.pid > 0 {
+                entry.pid.to_string()
+            } else {
+                "unknown".to_string()
+            };
+            let elapsed_ms = if entry.started_at > 0 {
+                let end = entry.finished_at.unwrap_or(now_ms);
+                end.saturating_sub(entry.started_at).max(0) as u64
+            } else {
+                0
+            };
+            let dur_str = super::draw::format_duration((elapsed_ms / 1000).max(1));
+            (status_text, status_ink, pid_str, dur_str)
+        })
+        .collect();
+
+    let status_w = prepared
+        .iter()
+        .map(|(s, _, _, _)| ansi::width(s))
+        .max()
+        .unwrap_or(6)
+        .max(10);
+    let id_w = entries
+        .iter()
+        .map(|e| ansi::width(&e.task_id))
+        .max()
+        .unwrap_or(2)
+        .max(12);
+    let pid_w = prepared
+        .iter()
+        .map(|(_, _, p, _)| ansi::width(p))
+        .max()
+        .unwrap_or(3)
+        .max(8);
+
+    out.push(format!(
+        "    {FAINT}{:<status_w$}   {:<id_w$}   {}   TIME{RESET}",
+        "STATUS",
+        "ID",
+        pad_center("PID", pid_w),
+    ));
+    doc.append_sink("header", std::mem::take(&mut out));
+
+    let mut body = Vec::new();
+    for (i, (entry, (status_text, status_ink, pid_str, dur_str))) in
+        entries.iter().zip(prepared.iter()).enumerate()
+    {
         let cursor = if i == selected {
             format!("{ACCENT}›{RESET}")
         } else {
             " ".to_string()
         };
-        let (status_text, status_ink) = match entry.status.as_str() {
-            "running" => ("running".to_string(), OK),
-            "waiting" => ("waiting".to_string(), WARN),
-            "completed" => match entry.exit_code {
-                Some(0) | None => ("done".to_string(), MUTED),
-                Some(code) => (format!("exit {code}"), super::ansi::REMOVED),
-            },
-            "killed" => ("killed".to_string(), WARN),
-            "lost" => ("lost".to_string(), super::ansi::REMOVED),
-            other => (other.to_string(), MUTED),
-        };
-        let elapsed_ms = if entry.started_at > 0 {
-            let end = entry.finished_at.unwrap_or(now_ms);
-            end.saturating_sub(entry.started_at).max(0) as u64
-        } else {
-            0
-        };
-        let dur_str = super::draw::format_duration((elapsed_ms / 1000).max(1));
-        let cmd_clean = entry.command.replace(['\r', '\n'], " ↵ ");
-        let cmd_short = ansi::truncate(&ansi::plain(&cmd_clean), cmd_preview_cap);
         let id_ink = if i == selected { TEXT } else { MUTED };
+        let status_padded = ansi::pad(status_text, status_w);
+        let id_padded = ansi::pad(&entry.task_id, id_w);
+        let pid_centered = pad_center(pid_str, pid_w);
 
         body.push(format!(
-            "  {cursor} {status_ink}{status_text:<8}{RESET} {id_ink}{}{RESET}  {FAINT}pid {} · {dur_str}{RESET}  {TEXT}{cmd_short}{RESET}",
-            entry.task_id, entry.pid
+            "  {cursor} {status_ink}{status_padded}{RESET}   {id_ink}{id_padded}{RESET}   {FAINT}{pid_centered}{RESET}   {FAINT}{dur_str}{RESET}"
         ));
 
         if app.shell_open.as_deref() == Some(entry.task_id.as_str()) {
-            let box_w = width.saturating_sub(6).clamp(24, 96);
+            let max_avail = width.saturating_sub(6).max(24);
+            let closed_width = max_avail.min(76);
+            let cmd_clean = entry.command.replace(['\r', '\n'], " ↵ ");
+            let cmd_plain = ansi::plain(&cmd_clean);
+            let prompt_prefix = format!("{} ", entry.prompt);
+            let prompt_w = ansi::width(&prompt_prefix);
+
+            let mut max_content_w = ansi::width(&entry.shell) + 6;
+            max_content_w = max_content_w.max(prompt_w + ansi::width(&cmd_plain));
+            if let Some(note) = &entry.capture_note {
+                for line in note.lines() {
+                    max_content_w = max_content_w.max(ansi::width(&ansi::plain(line)));
+                }
+            }
+            if entry.tail.trim().is_empty() {
+                max_content_w = max_content_w.max("(no output captured yet)".len());
+            } else {
+                for raw_line in entry.tail.lines() {
+                    let tamed = ansi::tame(raw_line.trim_end_matches('\r'));
+                    max_content_w = max_content_w.max(ansi::width(&tamed));
+                }
+            }
+
+            let box_w = (max_content_w + 4).clamp(closed_width, max_avail);
             let box_inner = box_w.saturating_sub(4);
-            let header = ansi::truncate(
-                &format!("{} · {}", entry.task_id, super::draw::home(&entry.out_file)),
-                box_w.saturating_sub(6),
-            );
+            let header = ansi::truncate(&entry.shell, box_w.saturating_sub(6));
             body.push(format!("    {}", super::draw::box_top(&header, box_w)));
             let cmd_lines: Vec<String> =
-                ansi::wrap(&format!("$ {}", ansi::plain(&cmd_clean)), box_inner.max(8));
+                ansi::wrap(&format!("{prompt_prefix}{cmd_plain}"), box_inner.max(8));
             for line in cmd_lines {
                 body.push(format!(
                     "    {}",
@@ -1067,12 +1189,8 @@ fn shells_document(app: &App, width: usize) -> super::panel_view::Document {
             std::mem::take(&mut body),
             |_| super::draw::Hit::Shell(i),
         );
-        if title_row > 0 {
-            doc.sink.copy[range.start].clear();
-        }
         if i == selected {
-            let start = range.start + title_row;
-            doc.focus = Some(start..start + 1);
+            doc.focus = Some(range.start..range.start + 1);
         }
     }
     doc
@@ -1717,43 +1835,99 @@ mod tests {
         app.shells_detail = vec![
             json!({
                 "task_id": "bg_run1",
-                "pid": 4321,
+                "pid": 432,
                 "command": "npm run dev",
                 "out_file": "/tmp/bg_run1.txt",
                 "started_at": runeengine::store::now_ms() - 5000,
                 "finished_at": null,
                 "status": "running",
                 "exit_code": null,
-                "tail": "Listening on port 3000"
+                "tail": "Listening on port 3000",
+                "shell": "Bash",
+                "prompt": "$"
             }),
             json!({
                 "task_id": "bg_done1",
-                "pid": 4320,
+                "pid": 1804320,
                 "command": "cargo check",
                 "out_file": "/tmp/bg_done1.txt",
                 "started_at": 1000,
                 "finished_at": 2500,
                 "status": "completed",
                 "exit_code": 0,
-                "tail": "Finished"
+                "tail": "Finished",
+                "shell": "Bash",
+                "prompt": "$"
+            }),
+            json!({
+                "task_id": "bg_fail1",
+                "pid": 9901,
+                "command": "false",
+                "out_file": "/tmp/bg_fail1.txt",
+                "started_at": 1000,
+                "finished_at": 2000,
+                "status": "completed",
+                "exit_code": 2,
+                "tail": "Error",
+                "shell": "zsh",
+                "prompt": "$"
+            }),
+            json!({
+                "task_id": "bg_kill1",
+                "pid": 9902,
+                "command": "sleep 99",
+                "out_file": "/tmp/bg_kill1.txt",
+                "started_at": 1000,
+                "finished_at": 3000,
+                "status": "killed",
+                "exit_code": null,
+                "tail": "",
+                "shell": "Bash",
+                "prompt": "$"
             }),
         ];
 
         let closed_out = text(render(&app, 100).lines);
         assert!(closed_out.contains("SHELLS"), "{closed_out}");
         assert!(
-            closed_out.contains("1 running · 1 finished"),
+            closed_out.contains("1 running · 1 done · 1 failed · 1 killed"),
             "{closed_out}"
         );
+        assert!(closed_out.contains("STATUS"), "{closed_out}");
+        assert!(closed_out.contains("ID"), "{closed_out}");
+        assert!(closed_out.contains("PID"), "{closed_out}");
+        assert!(closed_out.contains("TIME"), "{closed_out}");
         assert!(closed_out.contains("bg_run1"), "{closed_out}");
-        assert!(closed_out.contains("npm run dev"), "{closed_out}");
+        assert!(closed_out.contains("failed (2)"), "{closed_out}");
+        // Closed row must NOT duplicate the command in the row header
+        assert!(!closed_out.contains("npm run dev"), "{closed_out}");
         assert!(!closed_out.contains("Listening on port 3000"));
+        // Verify PID centering alignment between 3-digit PID (432) and 7-digit PID (1804320)
+        assert_eq!(pad_center("432", 8), "  432   ");
+        assert_eq!(pad_center("1804320", 8), "1804320 ");
 
         // Enter opens live output box for selected shell
         assert!(key(&mut app, &Key::Enter, &mut d));
         assert_eq!(app.shell_open.as_deref(), Some("bg_run1"));
         let open_out = text(render(&app, 100).lines);
+        assert!(open_out.contains("Bash"), "{open_out}");
+        assert!(
+            !open_out.contains("/tmp/bg_run1.txt"),
+            "must not show path in box header: {open_out}"
+        );
+        assert!(open_out.contains("$ npm run dev"), "{open_out}");
         assert!(open_out.contains("Listening on port 3000"), "{open_out}");
+
+        // Verify relative box width expands on wide screen when content is wide
+        app.shells_detail[0]["tail"] = json!("X".repeat(120));
+        let narrow_open = text(render(&app, 90).lines);
+        let wide_open = text(render(&app, 140).lines);
+        let narrow_max_line = narrow_open.lines().map(ansi::width).max().unwrap_or(0);
+        let wide_max_line = wide_open.lines().map(ansi::width).max().unwrap_or(0);
+        assert!(
+            wide_max_line > narrow_max_line && wide_max_line > 100,
+            "box must expand relatively on wider panel (narrow={narrow_max_line}, wide={wide_max_line})"
+        );
 
         // Second Enter closes it again
         assert!(key(&mut app, &Key::Enter, &mut d));

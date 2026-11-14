@@ -11,6 +11,7 @@ npm test</code></pre>
 <li>Once the input starts with <code>!</code>, every line belongs to the same script. A later <code>!</code> is shell syntax, not a second Rune command.</li>
 <li>Pasting never runs anything. <kbd>Enter</kbd> runs the whole current script, including every pasted line.</li>
 <li>A lone <code>!</code> runs nothing. Delete the leading <code>!</code> to turn the input back into a message.</li>
+<li>As you type after <code>!</code>, the palette offers shell builtins, executables on <code>PATH</code>, and workspace, <code>~</code>, or <code>..</code> paths across platforms. Use <kbd>Tab</kbd> to complete a command or folder, and <kbd>Enter</kbd> to browse into a folder or submit the script.</li>
 </ul>
 
 <h2 id="access">What access it has</h2>

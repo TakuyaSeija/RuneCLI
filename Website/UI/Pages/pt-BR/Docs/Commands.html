@@ -22,13 +22,13 @@
 </dl>
 <h2 id="files-and-capabilities">Arquivos e capacidades</h2>
 <dl class="ref">
-<div><dt>/attach path</dt><dd>Adiciona um arquivo à próxima mensagem. Revise os anexos pendentes antes de enviar; o conteúdo compatível é enviado ao provedor selecionado.</dd></div>
+<div><dt>/attach path</dt><dd>Adiciona um arquivo à próxima mensagem, com preenchimento automático de pastas e arquivos ao vivo enquanto você digita. Revise os anexos pendentes antes de enviar; o conteúdo compatível é enviado ao provedor selecionado.</dd></div>
 <div><dt>/detach number|all</dt><dd>Remove um anexo pendente pelo número ou remove todos os anexos pendentes.</dd></div>
 <div><dt>/undo</dt><dd>Pré-visualiza e restaura arquivos elegíveis para o estado anterior à primeira alteração feita nesta sessão. Edições externas recentes podem ser sobrescritas.</dd></div>
 <div><dt>/redo</dt><dd>Pré-visualiza e restaura o que o último undo substituiu. Não é um histórico ilimitado de backups.</dd></div>
-<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gerencia os guias disponíveis. As ações show, enable e disable recebem o ID da skill listada. A opção reload atualiza o catálogo após edições.</dd></div>
+<div><dt>/skills [list|show|enable|disable|reload]</dt><dd>Gerencia os guias disponíveis. As ações show, enable e disable recebem o ID da skill listada; <code>/skills install</code> e <code>/skills update</code> completam caminhos de pastas automaticamente. A opção reload atualiza o catálogo após edições.</dd></div>
 <div><dt>/skill &lt;id&gt;</dt><dd>Ativa um guia para a conversa. A ativação não autoriza automaticamente todas as ações descritas nesse guia.</dd></div>
-<div><dt>/mcp [list|add|connect|status]</dt><dd>Gerencia conexões de ferramentas externas. Revise o servidor, o destino e o acesso antes de adicionar ou conectar; um servidor local pode executar código.</dd></div>
+<div><dt>/mcp [list|add|connect|status]</dt><dd>Gerencia conexões de ferramentas externas; <code>/mcp import</code> e <code>/mcp add</code> completam caminhos locais automaticamente. Revise o servidor, o destino e o acesso antes de adicionar ou conectar; um servidor local pode executar código.</dd></div>
 </dl>
 <h2 id="views-and-application">Visualizações e aplicativo</h2>
 <dl class="ref">

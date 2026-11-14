@@ -1,4 +1,38 @@
 {
+  "0.12.5": {
+    "title": "Shell and slash path autocomplete, tabular /shells view, per-role auxiliary thinking controls, and cleaner helper context",
+    "summary": "Cross-platform ! and / path autocomplete with zero-lag scrolling, tabular /shells status fixes, per-role auxiliary thinking aligned with model options, and cleaner helper prompts",
+    "paragraphs": [
+      "This release adds cross-platform command and path autocomplete across both manual shell (`!`) and slash commands (`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`), backed by modification-aware caching so scrolling through large directories stays instant and reflects filesystem changes immediately. The `/shells` viewer moves to an aligned `STATUS`, `ID`, `PID`, `TIME` layout with centered PIDs, per-task shell titles, and accurate `done`, `killed`, `failed`, and `lost` status tracking; Settings adds per-role auxiliary reasoning choices (`sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`) matching each model's own reasoning options and places `PROCESS CONTROL` directly under `TERMINAL`; and helper subsystems receive cleaner compaction labels, balanced edit-diff excerpts, boundary-aware batching, and resilient OAuth callback handling."
+    ],
+    "points": [
+      {
+        "id": "manual-shell-and-path-autocomplete",
+        "title": "Cross-platform ! and / path autocomplete with native Enter selection and zero-lag scale",
+        "text": "Typing `!` now completes shell builtins, `PATH` executables, and relative, home (`~`), or parent (`..`) paths across Linux, macOS, and Windows, while `/attach`, `/skills install`, `/skills update`, `/mcp import`, and `/mcp add` browse workspace and target folders live. Directory entries use modification-time caching, zero extra stat calls on regular files, zero-allocation sorting, and lazy visible-row rendering so folders with tens of thousands to millions of entries scroll without lag, while `Enter` selects partial paths like a native shell and runs once complete."
+      },
+      {
+        "id": "shells-table-and-status",
+        "title": "Aligned /shells table, per-task shell header, and accurate process states",
+        "text": "The `/shells` panel now renders aligned `STATUS`, `ID`, `PID`, and `TIME` columns with centered PID values, replaces file paths in expanded boxes with the task's actual launching shell title (`Bash`, `zsh`, `PowerShell`, `Cmd`), and expands box width relative to the viewport. Tasks stopped for exceeding log limits are recorded as `killed`, Unix termination signals (`129`, `130`, `137`, `143`) classify as `killed`, other non-zero exits show `failed (code)`, and the summary counts each status separately."
+      },
+      {
+        "id": "auxiliary-thinking-controls",
+        "title": "Per-role auxiliary thinking choices, aligned cycling, and debounced inline saves",
+        "text": "Settings → Generation introduces `sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, and `title.thinking` showing `<effort> · <choices>` without truncation using the exact reasoning options configured for each target model (`off`, `on`, or effort levels, defaulting to `off` unless mandatory). Inline `‹ effort ›` selectors keep fixed centered bracket alignment, wrap around edges on Left/Right, and debounce held-key cycling (along with `Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T`, and `Ctrl+O`) to prevent UI freezes while saving cleanly on pause, exit, or submit; `PROCESS CONTROL` now sits directly beneath `TERMINAL`."
+      },
+      {
+        "id": "manual-shell-transcript-and-metrics",
+        "title": "Single-box ! commands, frozen cross-process timers, and non-zero usage metrics",
+        "text": "Manual `!` shell submissions now render as a single tool step without a duplicate user chat box across live runs, queued steers, and `/resume` history. Replaying finished manual shell steps across separate processes or windows keeps their recorded elapsed duration frozen instead of ticking, and turn summary metrics appear only when a turn reports non-zero API token usage, preventing empty metrics rows on `!` commands or early stops before and after relaunch."
+      },
+      {
+        "id": "auxiliary-clarity-and-oauth",
+        "title": "Cleaner compaction context, boundary-safe batching, and resilient OAuth callback",
+        "text": "History compaction drops internal debug metadata in favor of clean turn and tool labels and balances `old_str` and `new_str` excerpts so edits are not truncated away, long user source batching splits near line or word boundaries, classifier rule-citation descriptions and prompt parallelism wording are clarified, context-overflow detection recognizes token-per-minute rejections, and local MCP OAuth login ignores stray or malformed local requests without aborting the active sign-in."
+      }
+    ]
+  },
   "0.12.4": {
     "title": "A clearer turn line, live /shells monitoring, mid-sentence slash execution, and AI ANSI color support",
     "summary": "Colored turn metrics + /shells live viewer, smart / subcommands, Alt+H-only wizard, AI ANSI SGR colors, and local router Off without a forced level",

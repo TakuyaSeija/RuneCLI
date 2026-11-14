@@ -389,6 +389,9 @@ impl Engine {
                 return;
             }
         };
+        if self.background_settled {
+            s.state.background.settle_unreported();
+        }
         let mode = s.state.mode();
         // Its own statement: a guard taken inside the literal below would be
         // held to its end, and the classifier status takes the same lock.
@@ -941,6 +944,9 @@ impl Engine {
 
             Command::SessionShells { session, .. } => {
                 let s = self.resume(session)?;
+                if self.background_settled {
+                    s.state.background.settle_unreported();
+                }
                 let (running, shells) = s.state.background.shells_detail();
                 Ok(Some(json!({
                     "running": running,

@@ -677,7 +677,7 @@ fn compose(app: &mut App, rows: u16, cols: u16) -> Vec<String> {
     }
 
     if app.searching() {
-        let total = super::keys::palette_items(&app.input, app.cursor).len();
+        let total = app.current_palette_items().len();
         app.adjust_palette_scroll(total);
     }
 
@@ -4978,28 +4978,30 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
     if max_rows == 0 {
         return;
     }
-    let found = super::keys::palette_items(&app.input, app.cursor);
+    let found = app.current_palette_items();
     if found.is_empty() {
         return;
     }
-    let selected = super::keys::palette_selected(&found, app.palette_picked, app.palette_row);
+    let selected = super::keys::palette_selected(&*found, app.palette_picked, app.palette_row);
     let anchor = selected.unwrap_or(0);
     let shown = PALETTE_ROWS.min(max_rows.saturating_sub(1).max(1));
     let first = compute_palette_first(anchor, app.palette_scroll, shown, found.len());
-    let names: Vec<String> = found
-        .iter()
-        .skip(first)
-        .take(shown)
-        .map(super::keys::PaletteItem::display_name)
+    let end = (first + shown).min(found.len());
+    let visible: Vec<(usize, super::keys::PaletteItem, String)> = (first..end)
+        .filter_map(|n| {
+            let item = found.get(n)?;
+            let name = item.display_name();
+            Some((n, item, name))
+        })
         .collect();
-    let name_col_w = names
+    let name_col_w = visible
         .iter()
-        .map(|name| name.len())
+        .map(|(_, _, name)| name.len())
         .max()
         .unwrap_or(22)
         .clamp(20, cols.saturating_sub(35).max(20));
 
-    for ((n, item), name) in found.iter().enumerate().skip(first).take(shown).zip(names) {
+    for (n, item, name) in visible {
         let (mark, name_ink, what_ink) = if selected == Some(n) {
             (
                 format!("{ACCENT}{BOLD}{CARET}{RESET}  "),
@@ -5011,7 +5013,7 @@ fn palette(app: &App, _inner_w: usize, cols: usize, max_rows: usize, out: &mut S
         };
         let padded_name = ansi::pad(&name, name_col_w);
         let avail_desc = cols.saturating_sub(2 + 3 + name_col_w + 2 + 1);
-        let desc = ansi::truncate(item.description, avail_desc);
+        let desc = ansi::truncate(item.description_text(), avail_desc);
         let line = format!("  {mark}{name_ink}{padded_name}{RESET}  {what_ink}{desc}{RESET}");
         out.push_ranges(
             ansi::truncate(&line, cols),
@@ -13790,6 +13792,47 @@ mod tests {
         );
         assert!(
             matches!(app.blocks.last(), Some(Block::User { text, .. }) if text == "dasdas /sett")
+        );
+
+        // Turn 3: ! manual shell step (steps > 0, usage == 0) completes -> NO TurnMetrics emitted
+        app.on_event(runeengine::Event::TurnStart {
+            session: 1,
+            turn: 3,
+            text: Some("!ls".into()),
+            notification: false,
+            media: Vec::new(),
+            at: 3000,
+        });
+        app.on_event(runeengine::Event::ToolCall {
+            session: 1,
+            id: "manual-3-1".into(),
+            name: "terminal_use".into(),
+            action: "Running your manual shell command".into(),
+            args: serde_json::json!({"command": "ls"}),
+            at: 3001,
+        });
+        app.on_event(runeengine::Event::ToolResult {
+            session: 1,
+            id: "manual-3-1".into(),
+            ok: true,
+            summary: "Exit code 0".into(),
+            content: String::new(),
+            detail: Some(serde_json::json!({"manual_shell": true})),
+            at: 3010,
+        });
+        app.on_event(runeengine::Event::Done {
+            session: 1,
+            turn: 3,
+            stop: runeengine::proto::StopReason::End,
+        });
+        let metrics_after_manual = app
+            .blocks
+            .iter()
+            .filter(|b| matches!(b, Block::TurnMetrics { .. }))
+            .count();
+        assert_eq!(
+            metrics_after_manual, 1,
+            "zero-usage manual shell or stopped turn must never emit TurnMetrics"
         );
     }
 

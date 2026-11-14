@@ -74,8 +74,6 @@ pub fn route(
     }
     // Role identity inherits; arbitrary agent stop/sampling controls do not.
     settings.stop.clear();
-    settings.thinking = false;
-    settings.effort = None;
     settings.temperature = None;
     settings.top_p = None;
     settings.frequency_penalty = None;
@@ -84,6 +82,88 @@ pub fn route(
         .providers
         .get(&settings.provider)
         .and_then(|p| p.model(&settings.model));
+
+    let thinking_cfg = config.text(&format!("{role}.thinking"));
+    let thinking_choice = thinking_cfg.trim().to_ascii_lowercase();
+
+    let api_kind = held
+        .providers
+        .get(&settings.provider)
+        .map_or("", |p| p.api_kind());
+
+    if let Some(m) = model {
+        let lowest_effort = || {
+            m.efforts
+                .iter()
+                .min_by_key(|e| crate::settings::providers::effort_rank(e))
+                .cloned()
+        };
+        let offered_choices = m.reasoning_choices(api_kind);
+        let matches_effort = |level: &str| {
+            m.efforts.iter().any(|e| e.eq_ignore_ascii_case(level))
+                || offered_choices
+                    .iter()
+                    .any(|e| e != "off" && e != "on" && e.eq_ignore_ascii_case(level))
+        };
+        if m.thinking_required {
+            settings.thinking = true;
+            settings.effort = if thinking_choice.is_empty()
+                || thinking_choice == "auto"
+                || thinking_choice == "null"
+                || thinking_choice == "default"
+                || thinking_choice == "on"
+            {
+                if role == "title" {
+                    lowest_effort().or_else(|| m.starting_effort(api_kind))
+                } else {
+                    m.starting_effort(api_kind)
+                }
+            } else if matches_effort(&thinking_choice) {
+                Some(thinking_choice)
+            } else if role == "title" {
+                lowest_effort().or_else(|| m.starting_effort(api_kind))
+            } else {
+                m.starting_effort(api_kind)
+            };
+        } else if m.reasoning_support() == Some(false)
+            || thinking_choice.is_empty()
+            || matches!(
+                thinking_choice.as_str(),
+                "off" | "auto" | "null" | "default"
+            )
+        {
+            settings.thinking = false;
+            settings.effort = None;
+        } else if thinking_choice == "on" || thinking_choice == "true" {
+            settings.thinking = true;
+            settings.effort = if m.route_default_level(api_kind) {
+                None
+            } else {
+                m.starting_effort(api_kind)
+            };
+        } else if matches_effort(&thinking_choice) {
+            settings.thinking = true;
+            settings.effort = Some(thinking_choice);
+        } else {
+            settings.thinking = true;
+            settings.effort = m.starting_effort(api_kind);
+        }
+    } else {
+        match thinking_choice.as_str() {
+            "" | "off" | "auto" | "null" | "default" => {
+                settings.thinking = false;
+                settings.effort = None;
+            }
+            "on" | "true" => {
+                settings.thinking = true;
+                settings.effort = None;
+            }
+            level => {
+                settings.thinking = true;
+                settings.effort = Some(level.to_string());
+            }
+        }
+    }
     // Every role's budget is a configured value with its shipped default in
     // the configuration schema, never a number here.
     let output = config.number(&format!("{}.max_output_tokens", role));
@@ -106,40 +186,7 @@ pub fn route(
         settings.max_output =
             Some(model_max.map_or(output + allowance, |limit| (output + allowance).min(limit)));
     }
-    if model.is_some_and(|m| {
-        m.thinking_required
-            || m.thinking
-                && held.providers.get(&settings.provider).is_some_and(|p| {
-                    settings
-                        .suppressed(p)
-                        .iter()
-                        .any(|why| why.key == "thinking" && why.permanent)
-                })
-    }) {
-        settings.thinking = true;
-        // A title needs no thinking at all; when the model insists, the least
-        // of it. Other roles keep the model's own default.
-        settings.effort = model.and_then(|m| {
-            let lowest = || {
-                m.efforts
-                    .iter()
-                    .min_by_key(|e| crate::settings::providers::effort_rank(e))
-                    .cloned()
-            };
-            let api = held
-                .providers
-                .get(&settings.provider)
-                .map_or("", |p| p.api_kind());
-            if role == "title" {
-                lowest()
-            } else if m.route_default_level(api) {
-                m.starting_effort(api)
-            } else {
-                m.default_effort.clone().or_else(lowest)
-            }
-        });
-        // Small answer budgets cannot also contain mandatory reasoning. Use the
-        // auxiliary reasoning allowance, bounded by the model's published ceiling.
+    if settings.thinking {
         let wanted = if role == "title" {
             output + allowance
         } else {
@@ -470,5 +517,82 @@ mod tests {
             .session_usage(session, &Default::default())
             .unwrap();
         assert_eq!((usage.tok_in, usage.tok_out, usage.used), (30, 6, 0));
+    }
+
+    #[test]
+    fn auxiliary_thinking_route_follows_config_model_and_custom_models() {
+        let mut settings = crate::settings::Settings::empty();
+        let mut provider = crate::settings::providers::preset("openrouter")
+            .unwrap()
+            .build("");
+        provider.models.push(crate::settings::providers::ModelInfo {
+            id: "opt-model".into(),
+            thinking: true,
+            reasoning_enabled: Some(true),
+            efforts: vec!["low".into(), "medium".into(), "high".into()],
+            default_effort: Some("medium".into()),
+            ..Default::default()
+        });
+        let mut active = ModelSettings::for_provider(&provider);
+        active.model = "opt-model".into();
+        settings.providers.list.push(provider);
+        let settings = Arc::new(Mutex::new(settings));
+        let db = Arc::new(Mutex::new(crate::store::Db::memory().unwrap()));
+        let limits = Arc::new(crate::limits::Limits::default());
+        let runtime = Runtime {
+            mcp: crate::capabilities::mcp::Runtime::new().unwrap(),
+            db,
+            registry: Arc::new(crate::tools::Registry::read_only(
+                limits.clone(),
+                settings.clone(),
+            )),
+            limits,
+            provider: Arc::new(
+                Scripted::from_value(&json!({"responses":[]}), "opt-model".into()).unwrap(),
+            ),
+            settings,
+            events: crate::session::live::Bus::detached(),
+        };
+
+        let home = std::env::temp_dir().join(format!("rune-aux-think-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::write(
+            home.join("rune.toml"),
+            "[classifier]\nthinking = \"high\"\n[compact]\nthinking = \"off\"\n[sanitizer]\nthinking = \"on\"\n",
+        )
+        .unwrap();
+        let cfg = Configuration::load(&home).unwrap();
+
+        let cls = route(&runtime, &cfg, "classifier", &active, false).unwrap();
+        assert!(cls.settings.thinking);
+        assert_eq!(cls.settings.effort.as_deref(), Some("high"));
+
+        let cmp = route(&runtime, &cfg, "compact", &active, false).unwrap();
+        assert!(!cmp.settings.thinking);
+        assert_eq!(cmp.settings.effort, None);
+
+        let san = route(&runtime, &cfg, "sanitizer", &active, false).unwrap();
+        assert!(san.settings.thinking);
+        assert_eq!(san.settings.effort.as_deref(), Some("medium"));
+
+        // Unset title defaults to off when thinking is optional
+        let ttl = route(&runtime, &cfg, "title", &active, false).unwrap();
+        assert!(!ttl.settings.thinking);
+        assert_eq!(ttl.settings.effort, None);
+
+        // Unlisted custom model (model == None) still respects explicit off / high, and unset -> off
+        let mut custom_active = active.clone();
+        custom_active.model = "unlisted-custom-id".into();
+        let custom_cls = route(&runtime, &cfg, "classifier", &custom_active, false).unwrap();
+        assert!(custom_cls.settings.thinking);
+        assert_eq!(custom_cls.settings.effort.as_deref(), Some("high"));
+        let custom_cmp = route(&runtime, &cfg, "compact", &custom_active, false).unwrap();
+        assert!(!custom_cmp.settings.thinking);
+        assert_eq!(custom_cmp.settings.effort, None);
+        let custom_ttl = route(&runtime, &cfg, "title", &custom_active, false).unwrap();
+        assert!(!custom_ttl.settings.thinking);
+
+        let _ = std::fs::remove_dir_all(&home);
     }
 }

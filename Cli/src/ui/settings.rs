@@ -142,6 +142,22 @@ pub enum ModelFocus {
     List,
 }
 
+const INLINE_SAVE_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(350);
+
+#[derive(Clone, Debug)]
+pub(crate) struct DeferredApply {
+    pub key: String,
+    pub value: String,
+    pub due: Instant,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DeferredConfig {
+    pub key: String,
+    pub value: Value,
+    pub due: Instant,
+}
+
 #[derive(Default)]
 pub struct State {
     /// What a vendor offered when last asked (`service.options`): routes, zones.
@@ -157,10 +173,21 @@ pub struct State {
     health: HashMap<String, Notice>,
     pub(super) pending: Option<u64>,
     pub(crate) serial: u64,
+    pub(crate) deferred_apply: Vec<DeferredApply>,
+    pub(crate) deferred_config: Vec<DeferredConfig>,
     setup: Option<ProviderDraft>,
 }
 
 impl State {
+    #[cfg(test)]
+    pub(crate) fn has_deferred_apply(&self) -> bool {
+        !self.deferred_apply.is_empty()
+    }
+
+    pub(crate) fn has_deferred_config(&self, key: &str) -> bool {
+        self.deferred_config.iter().any(|item| item.key == key)
+    }
+
     pub(super) fn expire_notice(&mut self, now: Instant) -> bool {
         if self.notice.as_ref().is_some_and(|n| {
             n.tone != Tone::Busy
@@ -672,6 +699,150 @@ fn aux_model_spec(app: &App, role: &str) -> (String, String, Option<u64>, Option
         .unwrap_or((None, None));
 
     (p_name, m_id, max_output, context)
+}
+
+fn aux_thinking_choices(app: &App, role: &str) -> Vec<String> {
+    let (p_name, m_id, _, _) = aux_model_spec(app, role);
+    let info = app.lookup_model_info(&p_name, &m_id);
+    let api = provider_api(app, &p_name);
+    let Some(m) = info else {
+        // Custom/unlisted model ID with no published catalog: allow binary on/off.
+        return vec!["off".into(), "on".into()];
+    };
+    let raw_choices = m.reasoning_choices(api);
+    if raw_choices.is_empty() {
+        return Vec::new();
+    }
+    let options: Vec<String> = m
+        .reasoning_options
+        .as_ref()
+        .unwrap_or(&raw_choices)
+        .iter()
+        .filter(|opt| raw_choices.contains(opt))
+        .cloned()
+        .collect();
+    if options.is_empty() {
+        return Vec::new();
+    }
+
+    let mut levels: Vec<String> = options
+        .iter()
+        .filter(|s| {
+            !matches!(
+                s.as_str(),
+                "off" | "on" | "none" | "disabled" | super::ROUTE_DEFAULT
+            )
+        })
+        .cloned()
+        .collect();
+    if !levels.is_empty() {
+        runeengine::settings::providers::sort_efforts(&mut levels);
+        if !m.thinking_required && options.iter().any(|x| x == "off") {
+            levels.insert(0, "off".to_string());
+        }
+        return levels;
+    }
+
+    let mut binary = Vec::new();
+    if !m.thinking_required && options.iter().any(|x| x == "off") {
+        binary.push("off".to_string());
+    }
+    if options.iter().any(|x| x == "on") {
+        binary.push("on".to_string());
+    }
+    if binary.is_empty() && m.thinking_required {
+        binary.push("on".to_string());
+    }
+    binary
+}
+
+fn aux_thinking_default(app: &App, role: &str, choices: &[String]) -> String {
+    if choices.is_empty() {
+        return "Unavailable".to_string();
+    }
+    if choices.iter().any(|c| c == "off") {
+        return "off".to_string();
+    }
+    let (p_name, m_id, _, _) = aux_model_spec(app, role);
+    let info = app.lookup_model_info(&p_name, &m_id);
+    let api = provider_api(app, &p_name);
+    if role == "title" {
+        return choices[0].clone();
+    }
+    if let Some(m) = info {
+        if let Some(found) = m
+            .starting_effort(api)
+            .and_then(|eff| choices.iter().find(|c| c.eq_ignore_ascii_case(&eff)))
+        {
+            return found.clone();
+        }
+    }
+    choices[0].clone()
+}
+
+fn aux_thinking_current(app: &App, role: &str, value: &Value, choices: &[String]) -> String {
+    if value.is_null()
+        || value.as_str() == Some("null")
+        || value.as_str() == Some("auto")
+        || value.as_str() == Some("default")
+        || value.as_str() == Some("")
+    {
+        return aux_thinking_default(app, role, choices);
+    }
+    if let Some(s) = value.as_str() {
+        if let Some(found) = choices.iter().find(|c| c.eq_ignore_ascii_case(s)) {
+            return found.clone();
+        }
+        return s.to_string();
+    }
+    value.to_string()
+}
+
+fn aux_thinking_storage_value(choice: &str) -> String {
+    choice.trim().to_ascii_lowercase()
+}
+
+fn fixed_pill(curr: &str, labels: &[&str]) -> String {
+    let cur_w = curr.chars().count();
+    let max_w = labels
+        .iter()
+        .map(|c| c.chars().count())
+        .max()
+        .unwrap_or(0)
+        .max(cur_w);
+    let diff = max_w.saturating_sub(cur_w);
+    let left = diff / 2;
+    let right = diff - left;
+    format!("‹ {}{curr}{} ›", " ".repeat(left), " ".repeat(right))
+}
+
+fn cycle_aux_thinking(app: &mut App, key: &str, delta: isize) -> bool {
+    let role = key.split('.').next().unwrap_or("");
+    let choices = aux_thinking_choices(app, role);
+    if choices.len() <= 1 {
+        return false;
+    }
+    let value = key
+        .split('.')
+        .fold(&app.settings["configuration"], |v, k| &v[k]);
+    let curr = aux_thinking_current(app, role, value, &choices);
+    let at = choices
+        .iter()
+        .position(|c| c.eq_ignore_ascii_case(&curr))
+        .unwrap_or(0);
+    let len = choices.len();
+    let next = if delta > 0 {
+        (at + 1) % len
+    } else if delta < 0 {
+        (at + len - 1) % len
+    } else {
+        at
+    };
+    if next != at {
+        let storage = aux_thinking_storage_value(&choices[next]);
+        schedule_apply(app, &format!("config.{key}"), &storage);
+    }
+    true
 }
 
 impl Editor {
@@ -1837,7 +2008,7 @@ fn knob_choices(app: &App, key: &str) -> Option<Vec<String>> {
     }
 }
 
-fn cycle_knob(app: &mut App, key: &str, delta: isize, d: &mut Driver) -> bool {
+fn cycle_knob(app: &mut App, key: &str, delta: isize) -> bool {
     let Some(choices) = knob_choices(app, key) else {
         return false;
     };
@@ -1859,16 +2030,25 @@ fn cycle_knob(app: &mut App, key: &str, delta: isize, d: &mut Driver) -> bool {
         .iter()
         .position(|c| c.eq_ignore_ascii_case(&curr))
         .unwrap_or(0);
+    let len = choices.len();
     let next = if delta > 0 {
-        (at + 1).min(choices.len() - 1)
+        (at + 1) % len
     } else if delta < 0 {
-        at.saturating_sub(1)
+        (at + len - 1) % len
     } else {
         at
     };
     if next != at {
-        let new_val = &choices[next];
-        apply(app, key, new_val, d);
+        let new_val = if key == "thinking" {
+            if choices[next].eq_ignore_ascii_case("on") {
+                "true"
+            } else {
+                "false"
+            }
+        } else {
+            choices[next].as_str()
+        };
+        schedule_apply(app, key, new_val);
     }
     true
 }
@@ -1983,8 +2163,18 @@ fn sampling_rows(app: &App) -> Vec<Row> {
                 } else {
                     panels::value_of(&app.settings["settings"], key)
                 };
-                let disp_val = if choices.is_some() {
-                    format!("‹ {} ›", raw_val)
+                let disp_val = if let Some(ref opts) = choices {
+                    let labels: Vec<&str> = opts
+                        .iter()
+                        .map(|c| {
+                            if key == "effort" {
+                                super::effort_label(c)
+                            } else {
+                                c.as_str()
+                            }
+                        })
+                        .collect();
+                    fixed_pill(&raw_val, &labels)
                 } else {
                     raw_val
                 };
@@ -2046,6 +2236,42 @@ fn sampling_rows(app: &App) -> Vec<Row> {
             .split('.')
             .fold(&app.settings["configuration"], |v, k| &v[k]);
         let role = field.key.split('.').next().unwrap_or("");
+        if field.key.ends_with(".thinking") {
+            let (p_name, m_id, _, _) = aux_model_spec(app, role);
+            let info = app.lookup_model_info(&p_name, &m_id);
+            let api = provider_api(app, &p_name);
+            let choices = aux_thinking_choices(app, role);
+            if choices.is_empty() {
+                out.push(
+                    Row::new(Kind::Fact, field.key, "Unavailable".into())
+                        .help(field.help)
+                        .note("Not supported by this model or disabled in Alt+C."),
+                );
+            } else if choices.len() == 1
+                && info.as_ref().is_some_and(|m| {
+                    m.thinking_required && m.efforts.is_empty() && api != "9router"
+                })
+            {
+                out.push(
+                    Row::new(Kind::Fact, field.key, "On (Mandatory)".into())
+                        .help(field.help)
+                        .note("Mandatory for this model."),
+                );
+            } else {
+                let curr = aux_thinking_current(app, role, value, &choices);
+                let disp = if choices.len() > 1 {
+                    let labels: Vec<&str> = choices.iter().map(String::as_str).collect();
+                    format!("{} · {}", fixed_pill(&curr, &labels), choices.join(", "))
+                } else {
+                    curr
+                };
+                out.push(
+                    Row::new(Kind::Edit(Field::Global(field.key.into())), field.key, disp)
+                        .help(field.help),
+                );
+            }
+            continue;
+        }
         let shown = if value.is_null()
             || value.as_str() == Some("auto")
             || value.as_str() == Some("null")
@@ -2991,7 +3217,39 @@ fn tools_rows(app: &App) -> Vec<Row> {
         out.push(r);
     }
 
-    // Group 2: Inspect Files
+    // Group 2: Process control (directly under terminal_use)
+    out.push(Row::new(
+        Kind::Fact,
+        "PROCESS CONTROL (process_control)",
+        String::new(),
+    ));
+    if let Some(r) = tool_config_row(
+        app,
+        "process_control.max_output_chars",
+        "Max output characters",
+        "Notification output budget",
+    ) {
+        out.push(r);
+    }
+
+    for (key, label, note) in [
+        (
+            "process_control.truncate_head_bytes",
+            "Truncate head bytes",
+            "Oversized output preview",
+        ),
+        (
+            "process_control.truncate_tail_bytes",
+            "Truncate tail bytes",
+            "Oversized output preview",
+        ),
+    ] {
+        if let Some(r) = tool_config_row(app, key, label, note) {
+            out.push(r);
+        }
+    }
+
+    // Group 3: Inspect Files
     out.push(Row::new(
         Kind::Fact,
         "INSPECT FILES (inspect_file)",
@@ -3014,7 +3272,7 @@ fn tools_rows(app: &App) -> Vec<Row> {
         out.push(r);
     }
 
-    // Group 3: Find Files
+    // Group 4: Find Files
     out.push(Row::new(
         Kind::Fact,
         "FIND FILES (find_files)",
@@ -3032,7 +3290,7 @@ fn tools_rows(app: &App) -> Vec<Row> {
         out.push(r);
     }
 
-    // Group 4: Search Text
+    // Group 5: Search Text
     out.push(Row::new(
         Kind::Fact,
         "SEARCH TEXT (search_text)",
@@ -3081,38 +3339,6 @@ fn tools_rows(app: &App) -> Vec<Row> {
             "scan.regex_steps",
             "Pattern step fuse",
             "Regex steps per line",
-        ),
-    ] {
-        if let Some(r) = tool_config_row(app, key, label, note) {
-            out.push(r);
-        }
-    }
-
-    // Group 5: Process control
-    out.push(Row::new(
-        Kind::Fact,
-        "PROCESS CONTROL (process_control)",
-        String::new(),
-    ));
-    if let Some(r) = tool_config_row(
-        app,
-        "process_control.max_output_chars",
-        "Max output characters",
-        "Notification output budget",
-    ) {
-        out.push(r);
-    }
-
-    for (key, label, note) in [
-        (
-            "process_control.truncate_head_bytes",
-            "Truncate head bytes",
-            "Oversized output preview",
-        ),
-        (
-            "process_control.truncate_tail_bytes",
-            "Truncate tail bytes",
-            "Oversized output preview",
         ),
     ] {
         if let Some(r) = tool_config_row(app, key, label, note) {
@@ -4514,6 +4740,21 @@ fn draw_row(row: &Row, selected: bool, width: usize, split_override: Option<usiz
         };
         if detail.is_empty() {
             vec![format!("{ACCENT}{mark} {ink}{weight}{label}{RESET}")]
+        } else if matches!(&row.kind, Kind::Edit(Field::Global(k)) if k.ends_with(".thinking")) {
+            let avail = width.saturating_sub(ansi::width(&name_col) + 4).max(16);
+            let wrapped = ansi::wrap(&detail, avail);
+            let mut out = Vec::with_capacity(wrapped.len());
+            for (idx, part) in wrapped.into_iter().enumerate() {
+                if idx == 0 {
+                    out.push(format!(
+                        "{ACCENT}{mark} {ink}{weight}{name_col}{RESET}  {ink}{part}{RESET}"
+                    ));
+                } else {
+                    let indent = " ".repeat(ansi::width(&name_col) + 4);
+                    out.push(format!("{indent}{ink}{part}{RESET}"));
+                }
+            }
+            out
         } else {
             vec![format!(
                 "{ACCENT}{mark} {ink}{weight}{name_col}{RESET}  {ink}{}{RESET}",
@@ -4894,6 +5135,7 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
     if matches!(key, Key::Esc | Key::Ctrl('c') | Key::Ctrl('g')) {
         app.preferences.pending = None;
         if !app.preferences.back() {
+            flush_deferred(app, d, true);
             app.show_panel(Panel::None);
             if matches!(key, Key::Ctrl('c')) {
                 app.quit_armed = true;
@@ -5302,10 +5544,12 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
             } else {
                 app.theme.prev()
             };
-            open(
+            app.set_theme_optimistic(next);
+            schedule_config(app, "ui.theme", Value::String(next.name().to_string()));
+            notice(
                 app,
-                &Row::new(Kind::Theme(next), next.label(), String::new()),
-                d,
+                &format!("{} (pending save…)", next.label()),
+                Tone::Good,
             );
         }
         Key::Left | Key::Right
@@ -5313,7 +5557,9 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
                 .get(app.preferences.location.row)
                 .is_some_and(|r| matches!(r.kind, Kind::Sidebar)) =>
         {
-            app.set_sidebar(*key == Key::Right);
+            let next = *key == Key::Right;
+            app.set_sidebar_optimistic(next);
+            schedule_config(app, "ui.sidebar", Value::Bool(next));
         }
         Key::Left | Key::Right
             if rows(app)
@@ -5323,7 +5569,19 @@ pub fn key(app: &mut App, key: &Key, d: &mut Driver) -> bool {
             if let Some(row) = rows(app).get(app.preferences.location.row) {
                 if let Kind::Edit(Field::Knob(ref k)) = row.kind {
                     let delta = if *key == Key::Right { 1 } else { -1 };
-                    cycle_knob(app, k, delta, d);
+                    cycle_knob(app, k, delta);
+                }
+            }
+        }
+        Key::Left | Key::Right
+            if rows(app).get(app.preferences.location.row).is_some_and(
+                |r| matches!(&r.kind, Kind::Edit(Field::Global(k)) if k.ends_with(".thinking")),
+            ) =>
+        {
+            if let Some(row) = rows(app).get(app.preferences.location.row) {
+                if let Kind::Edit(Field::Global(ref k)) = row.kind {
+                    let delta = if *key == Key::Right { 1 } else { -1 };
+                    cycle_aux_thinking(app, k, delta);
                 }
             }
         }
@@ -5957,7 +6215,18 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
             let is_bool_field = runeengine::settings::configuration::FIELDS.iter().any(|f| {
                 f.key == key && matches!(f.kind, runeengine::settings::configuration::Kind::Bool)
             });
-            if value.is_boolean() || is_bool_field {
+            if key.ends_with(".thinking") {
+                let role = key.split('.').next().unwrap_or("");
+                choices = aux_thinking_choices(app, role);
+                if choices.is_empty() {
+                    notice(
+                        app,
+                        "Reasoning is not supported by this auxiliary model.",
+                        Tone::Good,
+                    );
+                    return;
+                }
+            } else if value.is_boolean() || is_bool_field {
                 choices = vec!["true".into(), "false".into()];
             } else if key.ends_with(".excluded_tools") || key.ends_with(".context_tools") {
                 choices = runeengine::tools::Registry::default()
@@ -5966,7 +6235,10 @@ fn open_editor(app: &mut App, field: Field, row: &Row) {
                     .map(String::from)
                     .collect();
             }
-            if value.is_null() {
+            if key.ends_with(".thinking") {
+                let role = key.split('.').next().unwrap_or("");
+                aux_thinking_current(app, role, value, &choices)
+            } else if value.is_null() {
                 if is_bool_field {
                     runeengine::settings::configuration::FIELDS
                         .iter()
@@ -6650,6 +6922,20 @@ fn save_editor(app: &mut App, d: &mut Driver) {
                 .iter()
                 .find(|f| f.key == key);
             let field_kind = field_def.map(|f| f.kind);
+
+            if key.ends_with(".thinking") {
+                let val = if trimmed.is_empty()
+                    || trimmed.eq_ignore_ascii_case("null")
+                    || trimmed.eq_ignore_ascii_case("auto")
+                    || trimmed.eq_ignore_ascii_case("inherit")
+                {
+                    String::new()
+                } else {
+                    aux_thinking_storage_value(trimmed)
+                };
+                apply(app, &format!("config.{key}"), &val, d);
+                return;
+            }
 
             let val = if trimmed.eq_ignore_ascii_case("auto")
                 || trimmed.eq_ignore_ascii_case("null")
@@ -7496,7 +7782,161 @@ fn send(
     app.request(d, Awaiting::Preferences(request), make);
 }
 
+pub(crate) fn set_local_setting(app: &mut App, key: &str, value: &str) {
+    if let Some(cfg_key) = key.strip_prefix("config.") {
+        if let Some((section, sub)) = cfg_key.split_once('.') {
+            if !app.settings["configuration"].is_object() {
+                app.settings["configuration"] = serde_json::json!({});
+            }
+            if !app.settings["configuration"][section].is_object() {
+                app.settings["configuration"][section] = serde_json::json!({});
+            }
+            app.settings["configuration"][section][sub] = if value.is_empty() {
+                Value::Null
+            } else {
+                Value::String(value.to_string())
+            };
+        }
+        return;
+    }
+    if !app.settings["settings"].is_object() {
+        app.settings["settings"] = serde_json::json!({});
+    }
+    if key == "effort" {
+        if value.eq_ignore_ascii_case("off") {
+            app.settings["settings"]["thinking"] = serde_json::json!(false);
+            app.settings["settings"]["effort"] = Value::Null;
+        } else if value == super::ROUTE_DEFAULT || value.eq_ignore_ascii_case("default") {
+            app.settings["settings"]["thinking"] = serde_json::json!(true);
+            app.settings["settings"]["effort"] = Value::Null;
+        } else {
+            app.settings["settings"]["thinking"] = serde_json::json!(true);
+            app.settings["settings"]["effort"] = Value::String(value.to_string());
+        }
+    } else if key == "thinking" {
+        let on = matches!(value, "true" | "on" | "1");
+        app.settings["settings"]["thinking"] = serde_json::json!(on);
+        if !on {
+            app.settings["settings"]["effort"] = Value::Null;
+        }
+    } else {
+        app.settings["settings"][key] = Value::String(value.to_string());
+    }
+}
+
+pub(crate) fn reapply_deferred(app: &mut App) {
+    let pending: Vec<(String, String)> = app
+        .preferences
+        .deferred_apply
+        .iter()
+        .map(|item| (item.key.clone(), item.value.clone()))
+        .collect();
+    for (k, v) in pending {
+        set_local_setting(app, &k, &v);
+    }
+}
+
+pub(crate) fn schedule_apply(app: &mut App, key: &str, value: &str) {
+    set_local_setting(app, key, value);
+    let due = Instant::now() + INLINE_SAVE_DEBOUNCE;
+    if let Some(existing) = app
+        .preferences
+        .deferred_apply
+        .iter_mut()
+        .find(|item| item.key == key)
+    {
+        existing.value = value.to_string();
+        existing.due = due;
+    } else {
+        app.preferences.deferred_apply.push(DeferredApply {
+            key: key.to_string(),
+            value: value.to_string(),
+            due,
+        });
+    }
+}
+
+pub(crate) fn schedule_config(app: &mut App, key: &str, value: Value) {
+    let due = Instant::now() + INLINE_SAVE_DEBOUNCE;
+    if let Some(existing) = app
+        .preferences
+        .deferred_config
+        .iter_mut()
+        .find(|item| item.key == key)
+    {
+        existing.value = value;
+        existing.due = due;
+    } else {
+        app.preferences.deferred_config.push(DeferredConfig {
+            key: key.to_string(),
+            value,
+            due,
+        });
+    }
+}
+
+pub(crate) fn flush_deferred(app: &mut App, d: &mut Driver, force: bool) -> bool {
+    let now = Instant::now();
+    let mut flushed = false;
+
+    let mut ready_apply = Vec::new();
+    let mut keep_apply = Vec::new();
+    for item in app.preferences.deferred_apply.drain(..) {
+        if force || now >= item.due {
+            ready_apply.push(item);
+        } else {
+            keep_apply.push(item);
+        }
+    }
+    app.preferences.deferred_apply = keep_apply;
+    for item in ready_apply {
+        apply(app, &item.key, &item.value, d);
+        flushed = true;
+    }
+
+    let mut ready_config = Vec::new();
+    let mut keep_config = Vec::new();
+    for item in app.preferences.deferred_config.drain(..) {
+        if force || now >= item.due {
+            ready_config.push(item);
+        } else {
+            keep_config.push(item);
+        }
+    }
+    app.preferences.deferred_config = keep_config;
+    for item in ready_config {
+        flushed = true;
+        #[cfg(not(test))]
+        {
+            let saved = runeengine::store::Db::home_dir().and_then(|home| {
+                runeengine::settings::configuration::Configuration::edit(
+                    &home,
+                    Some(&item.key),
+                    Some(item.value.clone()),
+                    false,
+                    None,
+                )
+            });
+            if saved.is_err() && item.key == "ui.theme" {
+                app.note("Could not save the theme. Check configuration access and try again.");
+            } else if item.key == "ui.theme" && app.panel == Panel::Settings {
+                notice(
+                    app,
+                    &format!("{} saved on this device.", app.theme.label()),
+                    Tone::Good,
+                );
+            }
+        }
+        #[cfg(test)]
+        let _ = item;
+    }
+    flushed
+}
+
 pub fn apply(app: &mut App, key: &str, value: &str, d: &mut Driver) {
+    app.preferences
+        .deferred_apply
+        .retain(|item| item.key != key);
     if let Some(mut draft) = app.composition.draft.clone() {
         draft.composer = app.composer_snapshot();
         let key = key.to_string();
@@ -7610,7 +8050,9 @@ pub fn ack(app: &mut App, request: Request, ok: bool, error: Option<String>, dat
         // again for nothing.
         let _ = super::runtime_configuration().reload_if_changed();
         super::ansi::invalidate_depth();
-        super::theme::reload();
+        if !app.preferences.has_deferred_config("ui.theme") {
+            super::theme::reload();
+        }
         if request.editor.is_some()
             && app.preferences.editor.as_ref().map(|e| e.id) == request.editor
         {
@@ -7620,6 +8062,7 @@ pub fn ack(app: &mut App, request: Request, ok: bool, error: Option<String>, dat
             Operation::Setting(key) => {
                 if request.session == app.session {
                     app.take_settings(data.clone());
+                    reapply_deferred(app);
                     if app.composition.draft.is_some() {
                         app.composition.authoritative.preference_changed = true;
                         if let Some(draft) = app.composition.draft.as_mut() {
@@ -8014,6 +8457,7 @@ mod tests {
         for key in [
             "sanitizer.enabled",
             "sanitizer.model",
+            "sanitizer.thinking",
             "sanitizer.timeout",
             "sanitizer.max_output_tokens",
         ] {
@@ -8784,13 +9228,13 @@ mod tests {
                 .unwrap_or_else(|| panic!("no {key} row"))
         };
         let terminal = group("TERMINAL (terminal_use)");
+        let process_ctrl = group("PROCESS CONTROL (process_control)");
         let inspect = group("INSPECT FILES (inspect_file)");
         let log = row("terminal.max_background_log_size");
-        assert!(terminal < log && log < inspect);
+        assert!(terminal < log && log < process_ctrl && process_ctrl < inspect);
         assert_eq!(rows[log].value, "100MiB");
         let scan = group("FILE SCAN (find_files, search_text)");
         assert!(group("SEARCH TEXT (search_text)") < scan);
-        assert!(scan < group("PROCESS CONTROL (process_control)"));
         for (key, value) in [
             ("scan.max_entries", "200000"),
             ("scan.max_depth", "32"),
@@ -9732,18 +10176,26 @@ mod tests {
             .iter()
             .position(|r| r.kind == Kind::Edit(Field::Knob("effort".into())))
             .unwrap();
-        assert_eq!(s_rows[effort_row_idx].value, "‹ medium ›");
+        assert_eq!(s_rows[effort_row_idx].value, "‹ medium  ›");
         assert_eq!(s_rows[effort_row_idx].note, "←→ switches and saves");
 
-        // 2. Right arrow cycles to next choice ("high") in place without opening editor
+        // 2. Right arrow cycles to next choice ("high") in place optimistically without IPC storm
         app.preferences.location.row = effort_row_idx;
         app.on_key(Key::Right, &mut d);
         assert!(app.preferences.editor.is_none());
+        assert_eq!(app.effort(), Some("high"));
+        assert!(app.preferences.has_deferred_apply());
+        assert!(
+            app.awaiting.is_empty(),
+            "must debounce instead of saving every keypress"
+        );
+        assert!(flush_deferred(&mut app, &mut d, true));
         assert!(!app.awaiting.is_empty());
 
-        // 3. Left arrow cycles back
+        // 3. Left arrow cycles back optimistically
         app.on_key(Key::Left, &mut d);
         assert!(app.preferences.editor.is_none());
+        assert_eq!(app.effort(), Some("medium"));
 
         // 4. When effort is off, value_of returns off
         app.settings["settings"]["thinking"] = json!(false);
@@ -9887,7 +10339,7 @@ mod tests {
         );
         let row = effort_row.unwrap();
         assert_eq!(row.label, "Effort");
-        assert_eq!(row.value, "‹ medium ›");
+        assert_eq!(row.value, "‹ medium  ›");
         assert_eq!(row.note, "←→ switches and saves");
 
         // Redundant boolean thinking row is deduplicated when effort choices exist
@@ -11361,5 +11813,243 @@ mod tests {
             "focused must NOT be truncated: {selected}"
         );
         assert!(selected.contains("Cached read price ($/M tokens)"));
+    }
+
+    #[test]
+    fn tools_rows_places_process_control_directly_under_terminal() {
+        let mut app = app();
+        app.preferences.navigate(Page::Tools);
+        let list = rows(&app);
+        let headers: Vec<&str> = list
+            .iter()
+            .filter(|r| matches!(r.kind, Kind::Fact))
+            .map(|r| r.label.as_str())
+            .collect();
+        let term_pos = headers
+            .iter()
+            .position(|&h| h == "TERMINAL (terminal_use)")
+            .unwrap();
+        let proc_pos = headers
+            .iter()
+            .position(|&h| h == "PROCESS CONTROL (process_control)")
+            .unwrap();
+        let inspect_pos = headers
+            .iter()
+            .position(|&h| h == "INSPECT FILES (inspect_file)")
+            .unwrap();
+        assert_eq!(proc_pos, term_pos + 1);
+        assert_eq!(inspect_pos, proc_pos + 1);
+    }
+
+    #[test]
+    fn auxiliary_thinking_matches_model_options_without_auto_and_cycles_inline() {
+        let mut app = app();
+        let mut d = super::super::test_driver("aux-thinking-parity");
+        app.providers = serde_json::json!({
+            "providers": [
+                {
+                    "name": "9router",
+                    "api": "9router",
+                    "models": [
+                        {
+                            "id": "router-model",
+                            "thinking": true,
+                            "metadata": { "capabilities": { "reasoning": true } },
+                            "reasoning_options": ["off", "low", "high"]
+                        },
+                        {
+                            "id": "no-reason",
+                            "thinking": false,
+                            "known": ["thinking"],
+                            "metadata": { "capabilities": { "reasoning": false } }
+                        }
+                    ]
+                }
+            ]
+        });
+        app.settings = serde_json::json!({
+            "provider": "9router",
+            "models": [
+                {
+                    "id": "router-model",
+                    "thinking": true,
+                    "metadata": { "capabilities": { "reasoning": true } },
+                    "reasoning_options": ["off", "low", "high"]
+                },
+                {
+                    "id": "no-reason",
+                    "thinking": false,
+                    "known": ["thinking"],
+                    "metadata": { "capabilities": { "reasoning": false } }
+                }
+            ],
+            "settings": {
+                "provider": "9router",
+                "model": "router-model"
+            },
+            "configuration": {
+                "classifier": { "thinking": null },
+                "title": { "thinking": null },
+                "compact": { "model": { "provider": "9router", "id": "no-reason" }, "thinking": null }
+            }
+        });
+
+        let choices = aux_thinking_choices(&app, "classifier");
+        assert!(
+            !choices
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case("auto") || c.eq_ignore_ascii_case("default")),
+            "aux thinking must NOT invent auto or default choices: {choices:?}"
+        );
+        assert_eq!(
+            choices,
+            vec!["off", "low", "high"],
+            "must respect Alt+C reasoning_options without default"
+        );
+
+        let gen_rows = sampling_rows(&app);
+        let cls_row = gen_rows
+            .iter()
+            .find(|r| r.label == "classifier.thinking")
+            .unwrap();
+        assert_eq!(cls_row.value, "‹ off  › · off, low, high");
+        assert!(cls_row.note.is_empty(), "must not append nav/default note");
+        let rendered = draw_row(cls_row, false, 60, None).join("\n");
+        assert!(
+            !rendered.contains('…') && rendered.contains("‹ off  › · off, low, high"),
+            "aux thinking row must not truncate options: {rendered}"
+        );
+
+        // Fixed pill alignment: all choices share identical inner width (no jumping ‹ ›)
+        let labels = ["off", "low", "high"];
+        let pills: Vec<String> = labels.iter().map(|c| fixed_pill(c, &labels)).collect();
+        assert_eq!(pills[0], "‹ off  ›");
+        assert_eq!(pills[1], "‹ low  ›");
+        assert_eq!(pills[2], "‹ high ›");
+        assert!(pills
+            .iter()
+            .all(|p| p.chars().count() == pills[2].chars().count()));
+        let odd_even = ["x", "xxxx"];
+        assert_eq!(fixed_pill("x", &odd_even), "‹  x   ›");
+        assert_eq!(fixed_pill("xxxx", &odd_even), "‹ xxxx ›");
+
+        let cmp_row = gen_rows
+            .iter()
+            .find(|r| r.label == "compact.thinking")
+            .unwrap();
+        assert!(matches!(cmp_row.kind, Kind::Fact));
+        assert_eq!(cmp_row.value, "Unavailable");
+
+        // Pressing Enter on Unavailable row must not open editor
+        open_editor(&mut app, Field::Global("compact.thinking".into()), cmp_row);
+        assert!(app.preferences.editor.is_none());
+
+        // Pressing Enter on supported row opens choices matching main model (no "auto" / "default")
+        open_editor(
+            &mut app,
+            Field::Global("classifier.thinking".into()),
+            cls_row,
+        );
+        let ed = app.preferences.editor.as_ref().unwrap();
+        assert_eq!(ed.choices, choices);
+        app.preferences.editor = None;
+
+        // Wrap-around cycling: Left from first ("off") wraps to last ("high"), Right from last wraps to first
+        app.panel = Panel::Settings;
+        app.session = Some(d.engine.open(".").unwrap().id());
+        app.preferences.navigate(Page::Generation);
+        let cls_idx = rows(&app)
+            .iter()
+            .position(|r| r.label == "classifier.thinking")
+            .unwrap();
+        app.preferences.location.row = cls_idx;
+        let models_backup = app.settings["models"].clone();
+        let settings_backup = app.settings["settings"].clone();
+        let flush = |app: &mut App, d: &mut Driver| {
+            assert!(flush_deferred(app, d, true));
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+            while app.preferences.pending.is_some() && std::time::Instant::now() < deadline {
+                if let Ok(ev) = d.events.recv_timeout(std::time::Duration::from_millis(50)) {
+                    app.on_event(ev);
+                }
+            }
+            app.settings["models"] = models_backup.clone();
+            app.settings["settings"] = settings_backup.clone();
+        };
+
+        // Spamming Left/Right 25 times updates UI optimistically with ZERO IPC until debounce expires
+        let serial_before = app.preferences.serial;
+        for _ in 0..25 {
+            app.on_key(Key::Right, &mut d);
+        }
+        assert_eq!(
+            app.preferences.serial, serial_before,
+            "spamming arrows must NOT write/IPC on every keypress"
+        );
+        assert_eq!(app.preferences.deferred_apply.len(), 1);
+        // 25 steps mod 3 choices = index 1 ("low")
+        assert_eq!(
+            app.settings["configuration"]["classifier"]["thinking"],
+            json!("low")
+        );
+        flush(&mut app, &mut d);
+        assert_eq!(
+            app.preferences.serial,
+            serial_before + 1,
+            "must coalesce spam burst into exactly 1 save"
+        );
+        assert_eq!(
+            app.settings["configuration"]["classifier"]["thinking"],
+            json!("low")
+        );
+
+        // Reset back to "off", then verify Left wraps to "high" and Right wraps to "off"
+        app.preferences.location.row = rows(&app)
+            .iter()
+            .position(|r| r.label == "classifier.thinking")
+            .unwrap();
+        app.on_key(Key::Left, &mut d);
+        flush(&mut app, &mut d);
+        assert_eq!(
+            app.settings["configuration"]["classifier"]["thinking"],
+            json!("off")
+        );
+        app.preferences.location.row = rows(&app)
+            .iter()
+            .position(|r| r.label == "classifier.thinking")
+            .unwrap();
+        app.on_key(Key::Left, &mut d);
+        flush(&mut app, &mut d);
+        assert_eq!(
+            app.settings["configuration"]["classifier"]["thinking"],
+            json!("high")
+        );
+        app.preferences.location.row = rows(&app)
+            .iter()
+            .position(|r| r.label == "classifier.thinking")
+            .unwrap();
+        app.on_key(Key::Right, &mut d);
+        flush(&mut app, &mut d);
+        assert_eq!(
+            app.settings["configuration"]["classifier"]["thinking"],
+            json!("off")
+        );
+
+        // Theme/Sidebar spam cycling also debounces config writes
+        app.preferences.navigate(Page::Appearance);
+        let theme_row = rows(&app)
+            .iter()
+            .position(|r| r.kind == Kind::Navigate(Page::Themes))
+            .unwrap();
+        app.preferences.location.row = theme_row;
+        let start_theme = app.theme;
+        app.on_key(Key::Right, &mut d);
+        app.on_key(Key::Right, &mut d);
+        assert_eq!(app.theme, start_theme.next().next());
+        assert_eq!(app.preferences.deferred_config.len(), 1);
+        assert!(flush_deferred(&mut app, &mut d, true));
+        assert!(app.preferences.deferred_config.is_empty());
+
+        d.engine.shutdown();
     }
 }

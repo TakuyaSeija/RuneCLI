@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404: Página não encontrada",
       "lead": "A página solicitada não existe no Atoryn Studio."
+    },
+    "overload": {
+      "title": "503: Tráfego intenso",
+      "lead": "Muitas solicitações simultâneas estão sendo processadas no momento na Atoryn Studio."
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "e"
   },
   "notes": {
+    "0.12.5": {
+      "title": "Autocompletar de caminhos em ! e /, painel /shells em tabela, controles de raciocínio auxiliar e contexto mais limpo",
+      "summary": "Autocompletar multiplataforma em ! e / sem travamentos, tabela e status de /shells corrigidos, raciocínio auxiliar alinhado ao modelo e contexto mais limpo",
+      "paragraphs": [
+        "Esta versão adiciona autocompletar multiplataforma de comandos e caminhos tanto no shell manual (`!`) quanto nos comandos com barra (`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`), com cache guiado por data de modificação para rolar instantaneamente em diretórios grandes e refletir alterações na hora. O painel `/shells` passa a exibir colunas alinhadas `STATUS`, `ID`, `PID` e `TIME` com PIDs centralizados, título do shell por tarefa e classificação fiel de `done`, `killed`, `failed` e `lost`; em Settings → Generation chegam as opções de raciocínio por função auxiliar (`sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`) idênticas às do modelo alvo, e em Settings → Tools o grupo `PROCESS CONTROL` passa a ficar logo abaixo de `TERMINAL`; além de rótulos de compactação mais limpos, trechos equilibrados, divisão de lotes segura e callback OAuth local resiliente."
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "Autocompletar ! e / multiplataforma com Enter nativo e escala sem travamentos",
+          "text": "Digitar `!` completa builtins, executáveis de `PATH` e caminhos relativos, `~` ou `..` em Linux, macOS e Windows, enquanto `/attach`, `/skills install`, `/skills update`, `/mcp import` e `/mcp add` navegam pastas ao vivo. Os diretórios usam cache por `mtime`, zero chamadas stat em arquivos comuns, ordenação sem alocações e renderização preguiçosa de linhas visíveis; `Enter` seleciona caminhos parciais como no terminal nativo e executa quando completos."
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "Tabela /shells alinhada, shell por tarefa e status precisos",
+          "text": "O painel `/shells` exibe colunas alinhadas `STATUS`, `ID`, `PID` e `TIME` com o `PID` centralizado, substitui caminhos longos na caixa expandida pelo título do shell que executou a tarefa (`Bash`, `zsh`, `PowerShell`, `Cmd`) e adapta a largura ao viewport. Tarefas encerradas por limite de log são registradas como `killed`, sinais Unix (`129`, `130`, `137`, `143`) viram `killed`, demais códigos não zero aparecem como `failed (code)` e o resumo contabiliza cada estado."
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "Raciocínio auxiliar por função, alinhamento fixo e gravação com debounce",
+          "text": "Settings → Generation inclui `sanitizer.thinking`, `classifier.thinking`, `compact.thinking` e `title.thinking` no formato `<effort> · <opções>` sem truncar conforme cada modelo (`off`, `on` ou níveis, com `off` padrão salvo obrigatoriedade). O seletor `‹ effort ›` mantém largura centralizada fixa, gira nas extremidades com esquerda/direita e agrupa teclas pressionadas (também em `Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T` e `Ctrl+O`) evitando travamentos; `PROCESS CONTROL` fica logo abaixo de `TERMINAL`."
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "Caixa única para comandos !, temporizador congelado e métricas com uso real",
+          "text": "Comandos manuais `!` agora exibem apenas um bloco de etapa sem duplicar a caixa de mensagem do usuário ao vivo, na fila ou no `/resume`. Ao reabrir sessões em outro processo, etapas `!` já concluídas mantêm o tempo final congelado em vez de continuar contando, e as métricas de turno só aparecem quando há uso real de tokens da API."
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "Contexto de compactação limpo, divisão segura e OAuth local resiliente",
+          "text": "A compactação remove marcações internas de depuração em favor de rótulos claros de turno e ferramenta e equilibra trechos de `old_str` e `new_str`, a divisão de lotes longos respeita quebras de linha ou espaços, o esquema `deny.rule` do classifier e a regra de paralelismo do prompt ficaram mais claros, a detecção de estouro de contexto reconhece rejeições de tokens por minuto e o ouvinte OAuth local ignora requisições malformadas."
+        }
+      ]
+    },
     "0.12.4": {
       "title": "Linha de turno mais nítida, painel /shells ao vivo, barra no meio da frase e suporte a ANSI da IA",
       "summary": "Métricas coloridas + /shells ao vivo, subcomandos inteligentes, assistente só Alt+H, ANSI SGR, Off do 9router sem nível forçado",

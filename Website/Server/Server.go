@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -25,10 +26,25 @@ type server struct {
 	cacheFor *Catalog // the catalog the cached renders were made from
 	cache    map[string][]byte
 	gzipped  map[string][]byte // the same renders compressed, made once beside them
+
+	dlSem chan struct{}
 }
 
+const (
+	maxConcurrentDownloads = 25
+	downloadWaitTimeout    = 25 * time.Second
+	defaultWriteTimeout    = 30 * time.Second
+	downloadIdleTimeout    = 90 * time.Second
+)
+
 func newServer(cfg *Config, st *site, cat *catalogStore, dl *os.Root) *server {
-	return &server{cfg: cfg, site: st, catalog: cat, dl: dl}
+	return &server{
+		cfg:     cfg,
+		site:    st,
+		catalog: cat,
+		dl:      dl,
+		dlSem:   make(chan struct{}, maxConcurrentDownloads),
+	}
 }
 
 // rendered returns a page/installer render and its gzip form, rebuilt only
@@ -36,18 +52,28 @@ func newServer(cfg *Config, st *site, cat *catalogStore, dl *os.Root) *server {
 func (s *server) rendered(key string, build func(*Catalog) ([]byte, error)) ([]byte, []byte, error) {
 	cat := s.catalog.get()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.cacheFor != cat {
 		s.cacheFor, s.cache, s.gzipped = cat, map[string][]byte{}, map[string][]byte{}
 	}
 	if b, ok := s.cache[key]; ok {
-		return b, s.gzipped[key], nil
+		gz := s.gzipped[key]
+		s.mu.Unlock()
+		return b, gz, nil
 	}
+	s.mu.Unlock()
+
 	b, err := build(cat)
-	if err == nil {
-		s.cache[key], s.gzipped[key] = b, gzipOf(b)
+	if err != nil {
+		return nil, nil, err
 	}
-	return b, s.gzipped[key], err
+	gz := gzipOf(b)
+
+	s.mu.Lock()
+	if s.cacheFor == cat {
+		s.cache[key], s.gzipped[key] = b, gz
+	}
+	s.mu.Unlock()
+	return b, gz, nil
 }
 
 // gzipOf is b compressed for clients that accept it, or nil when that would
@@ -159,6 +185,11 @@ func (s *server) changelog(l *locale) http.HandlerFunc {
 			ver = r.URL.Query().Get("v")
 		}
 		ver = strings.TrimPrefix(ver, "v")
+		cat := s.catalog.get()
+		if ver != "" && cat.Find(ver) == nil {
+			s.notFound(w, r)
+			return
+		}
 		key := "changelog:" + l.Code + ":" + ver
 		b, gz, err := s.rendered(key, func(c *Catalog) ([]byte, error) {
 			return s.site.renderChangelog(p, c, ver)
@@ -170,6 +201,29 @@ func (s *server) changelog(l *locale) http.HandlerFunc {
 		}
 		writeBody(w, r, "text/html; charset=utf-8", "no-cache", b, gz)
 	}
+}
+
+func (s *server) overload(w http.ResponseWriter, r *http.Request) {
+	l := english
+	for _, other := range locales[1:] {
+		if strings.HasPrefix(r.URL.Path, s.cfg.BasePath+other.prefix()+"/") {
+			l = other
+		}
+	}
+	w.Header().Set("Retry-After", "10")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	if !strings.Contains(r.Header.Get("Accept"), "text/html") {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		if r.Method != http.MethodHead {
+			w.Write([]byte("503 Service Unavailable: Download queue is full, please retry shortly.\n"))
+		}
+		return
+	}
+	b, gz, _ := s.rendered("overload:"+l.Code, func(c *Catalog) ([]byte, error) {
+		return s.site.renderOverload(l, c), nil
+	})
+	writeBodyStatus(w, r, http.StatusServiceUnavailable, "text/html; charset=utf-8", "no-cache, no-store, must-revalidate", b, gz)
 }
 
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
@@ -299,6 +353,27 @@ func (s *server) download(w http.ResponseWriter, r *http.Request) {
 	case name == sumsFile:
 		ctype = "text/plain; charset=utf-8"
 	}
+
+	rc := http.NewResponseController(w)
+	_ = rc.SetWriteDeadline(time.Now().Add(downloadWaitTimeout + defaultWriteTimeout))
+	timer := time.NewTimer(downloadWaitTimeout)
+	defer timer.Stop()
+	select {
+	case s.dlSem <- struct{}{}:
+		defer func() { <-s.dlSem }()
+	case <-timer.C:
+		_ = rc.SetWriteDeadline(time.Now().Add(defaultWriteTimeout))
+		s.overload(w, r)
+		return
+	case <-r.Context().Done():
+		return
+	}
+
+	if rec, ok := w.(*statusRecorder); ok {
+		rec.idleTimeout = downloadIdleTimeout
+	}
+	_ = rc.SetWriteDeadline(time.Now().Add(downloadIdleTimeout))
+
 	h := w.Header()
 	h.Set("Content-Type", ctype)
 	h.Set("Content-Disposition", `attachment; filename="`+name+`"`)
@@ -318,6 +393,10 @@ func (s *server) static(w http.ResponseWriter, r *http.Request) {
 
 // writeBody sends b, or gz when there is one and the client accepts gzip.
 func writeBody(w http.ResponseWriter, r *http.Request, ctype, cache string, b, gz []byte) {
+	writeBodyStatus(w, r, http.StatusOK, ctype, cache, b, gz)
+}
+
+func writeBodyStatus(w http.ResponseWriter, r *http.Request, code int, ctype, cache string, b, gz []byte) {
 	h := w.Header()
 	h.Set("Content-Type", ctype)
 	h.Set("Cache-Control", cache)
@@ -329,7 +408,7 @@ func writeBody(w http.ResponseWriter, r *http.Request, ctype, cache string, b, g
 		}
 	}
 	h.Set("Content-Length", strconv.Itoa(len(b)))
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(code)
 	if r.Method != http.MethodHead {
 		w.Write(b)
 	}
@@ -350,6 +429,7 @@ func (s *server) guard(next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		_ = http.NewResponseController(w).SetWriteDeadline(start.Add(defaultWriteTimeout))
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			if v := recover(); v != nil {
@@ -399,9 +479,58 @@ func (s *server) guard(next http.Handler) http.Handler {
 
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
-	bytes  int64
-	wrote  bool
+	status      int
+	bytes       int64
+	wrote       bool
+	idleTimeout time.Duration
+}
+
+func (r *statusRecorder) Unwrap() http.ResponseWriter {
+	return r.ResponseWriter
+}
+
+func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
+	if !r.wrote {
+		r.status = http.StatusOK
+		r.wrote = true
+	}
+	if r.idleTimeout > 0 {
+		const chunk = 64 << 10
+		rc := http.NewResponseController(r.ResponseWriter)
+		var total int64
+		for {
+			_ = rc.SetWriteDeadline(time.Now().Add(r.idleTimeout))
+			if rf, ok := r.ResponseWriter.(io.ReaderFrom); ok {
+				n, err := rf.ReadFrom(io.LimitReader(src, chunk))
+				total += n
+				r.bytes += n
+				if err != nil {
+					return total, err
+				}
+				if n == 0 {
+					return total, nil
+				}
+			} else {
+				n, err := io.CopyN(r.ResponseWriter, src, chunk)
+				total += n
+				r.bytes += n
+				if err == io.EOF {
+					return total, nil
+				}
+				if err != nil {
+					return total, err
+				}
+			}
+		}
+	}
+	if rf, ok := r.ResponseWriter.(io.ReaderFrom); ok {
+		n, err := rf.ReadFrom(src)
+		r.bytes += n
+		return n, err
+	}
+	n, err := io.Copy(r.ResponseWriter, src)
+	r.bytes += n
+	return n, err
 }
 
 func (r *statusRecorder) WriteHeader(code int) {

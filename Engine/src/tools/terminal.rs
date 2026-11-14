@@ -738,6 +738,9 @@ fn to_background(
         waiting,
         tree: Some(tree.to_string()),
     });
+    if let Some(shell) = ctx.shell {
+        ctx.background.record_shell_meta(&task_id, shell);
+    }
     if waiting.is_some() {
         match ctx.reader {
             // This call's result says it waits: no wake says it again.

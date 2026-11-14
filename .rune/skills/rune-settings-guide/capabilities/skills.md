@@ -10,8 +10,8 @@ Rune includes this official help skill. No separate download is required. Offici
 - Each package has its own SKILL.md and can include separate Markdown references. Use links relative to its folder; not one combined document.
 - `/skills disable <id>` / enable changes availability for the current project. It does not uninstall the package for every user/project.
 - `/skills reload` refreshes the available catalog after edits. Read a changed skill again before relying on it.
-- `rune -skills install <folder-or-zip>` installs a reviewed source in this project's `.rune/skills/`, so it stays with the project it serves and does not mix into other projects; it is shared with everyone who uses the project's files, a repository included. Add `--scope user` to make it a personal skill offered in every project, which suits only guidance meant for all of them.
-- `rune -skills update <folder-or-zip>` replaces an installed copy, in the scope chosen the same way. It keeps no copy of the previous version: keep your source, or use version control for a project skill. Do not install an unknown package merely because it offers help.
+- `rune -skills install <folder-or-zip>` (or `/skills install <path>` with interactive path autocomplete) installs a reviewed source in this project's `.rune/skills/`, so it stays with the project it serves and does not mix into other projects; it is shared with everyone who uses the project's files, a repository included. Add `--scope user` to make it a personal skill offered in every project, which suits only guidance meant for all of them.
+- `rune -skills update <folder-or-zip>` (or `/skills update <path>`) replaces an installed copy, in the scope chosen the same way. It keeps no copy of the previous version: keep your source, or use version control for a project skill. Do not install an unknown package merely because it offers help.
 
 Names use lowercase letters/digits/hyphens and match the folder. Required metadata includes name and description. Instructions should state when/how to use it, with separate references for detailed topics. Inspect an example's syntax without copying private values.
 

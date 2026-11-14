@@ -8,6 +8,7 @@ Purpose: help the classifier identify the user's original instructions and restr
 | --- | --- | --- |
 | `sanitizer.enabled` |true| Enable this preparation for applicable classifier reviews. |
 | `sanitizer.model` |Inherit active model| Choose the model used for this work. An explicit choice needs an already configured provider/model. |
+| `sanitizer.thinking` |Off by default| Reasoning choice matching the target model's own reasoning options (`off`, `on`, or effort level). |
 | `sanitizer.timeout` |120s| Maximum time for an extraction request. |
 | `sanitizer.max_output_tokens` |4096| Output allowance; allowed setting 256–10000000, still constrained by the selected model. |
 | `sanitizer.max_batch_size` |64KiB| Advanced TOML/CLI choice: maximum quoted source-text bytes per extraction batch, not a model-token estimate. Smaller batches can add requests; larger ones can be refused by the provider. |
@@ -30,6 +31,7 @@ These are factory values, not a claim about the current user's saved choices. In
 | --- | --- | --- |
 | `sanitizer.enabled` | `true` | true / false |
 | `sanitizer.model` | `Inherit / unset` | Configured {provider,id}, or omit to inherit |
+| `sanitizer.thinking` | `Inherit / unset` | `off`, `on`, or effort level (`minimal`..`max`); unset defaults to `off` unless mandatory |
 | `sanitizer.timeout` | `"120s"` | Positive duration up to 24h |
 | `sanitizer.max_output_tokens` | `4096` | Whole number 256–10000000 |
 | `sanitizer.max_batch_size` | `"64KiB"` | Explicit positive byte size; inspect/set/reset through `rune -config` |

@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404: Seite nicht gefunden",
       "lead": "Diese Seite existiert auf Atoryn Studio nicht."
+    },
+    "overload": {
+      "title": "503: Hohe Auslastung",
+      "lead": "Derzeit werden auf Atoryn Studio zu viele gleichzeitige Anfragen verarbeitet."
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "und"
   },
   "notes": {
+    "0.12.5": {
+      "title": "Pfad-Autovervollständigung für ! und /, tabellarisches /shells, Thinking-Regler für Hilfsmodelle und klarerer Kontext",
+      "summary": "Plattformübergreifende !- und /-Vervollständigung ohne Ruckeln, tabellarisches /shells mit Statusfixes, Thinking-Optionen je Hilfsrolle und sauberere Hilfskontexte",
+      "paragraphs": [
+        "Dieses Release ergänzt plattformübergreifende Befehls- und Pfad-Autovervollständigung für die manuelle Shell (`!`) sowie für Slash-Befehle (`/attach`, `/skills install`, `/skills update`, `/mcp import`, `/mcp add`), gestützt durch änderungszeitbasiertes Caching für flüssiges Scrollen in großen Verzeichnissen bei sofortiger Erkennung neuer Dateien. Das `/shells`-Panel nutzt nun ausgerichtete Spalten `STATUS`, `ID`, `PID`, `TIME` mit zentrierten PIDs, Shell-Titel pro Aufgabe und genauer Trennung von `done`, `killed`, `failed` und `lost`; die Einstellungen bieten eigene Thinking-Optionen je Hilfsrolle (`sanitizer.thinking`, `classifier.thinking`, `compact.thinking`, `title.thinking`) analog zum Hauptmodell und platzieren `PROCESS CONTROL` direkt unter `TERMINAL`; Hilfsprozesse erhalten zudem sauberere Compaction-Labels, ausgewogene Diff-Auszüge, zeilentreues Batch-Splitting und robustere lokale OAuth-Callbacks."
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "Plattformübergreifende !- und /-Pfadergänzung mit nativem Enter und flüssiger Skalierung",
+          "text": "`!` ergänzt Shell-Builtins, `PATH`-Programme sowie relative, `~`- und `..`-Pfade unter Linux, macOS und Windows, während `/attach`, `/skills install`, `/skills update`, `/mcp import` und `/mcp add` Ordner live durchsuchen. Verzeichnisse nutzen mtime-Caching ohne stat-Aufrufe für reguläre Dateien, allokationsfreie Sortierung und Lazy-Rendering nur sichtbarer Zeilen bis in den Millionenbereich; `Enter` übernimmt Teilpfade wie in nativen Terminals und führt vollständige Befehle aus."
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "Ausgerichtete /shells-Tabelle, Shell-Titel pro Task und korrekte Status",
+          "text": "Das `/shells`-Panel zeigt nun ausgerichtete Spalten für `STATUS`, `ID`, `PID` und `TIME` mit zentrierten PID-Werten, ersetzt lange Pfade im aufgeklappten Header durch den tatsächlichen Shell-Titel der Aufgabe (`Bash`, `zsh`, `PowerShell`, `Cmd`) und passt die Boxbreite relativ an. Wegen Log-Limit gestoppte Tasks werden als `killed` verbucht, Unix-Abbruchsignale (`129`, `130`, `137`, `143`) gelten als `killed`, andere Fehlercodes erscheinen als `failed (code)`, und die Zusammenfassung zählt jeden Status einzeln."
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "Rollenbezogene Reasoning-Wahl, feste Pill-Ausrichtung und entprelltes Speichern",
+          "text": "Unter Settings → Generation zeigen `sanitizer.thinking`, `classifier.thinking`, `compact.thinking` und `title.thinking` `<effort> · <Optionen>` ungekürzt gemäß Zielmodell (`off`, `on` oder Stufen, standardmäßig `off`, sofern nicht zwingend). Die `‹ effort ›`-Auswahl hält feste zentrierte Breite, springt an den Rändern umlaufend weiter und entprellt gedrückt gehaltene Tasten (samt `Effort`/`Thinking`, `Theme`, `Sidebar`, `Alt+T`, `Ctrl+O`) ohne Einfrieren bei sofortigem Sichern beim Schließen oder Senden; `PROCESS CONTROL` liegt direkt unter `TERMINAL`."
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "Einzelbox für !-Befehle, eingefrorene Prozess-Timer und Nicht-Null-Metriken",
+          "text": "Manuelle `!`-Befehle erscheinen nun ohne doppelte Benutzer-Chatbox sowohl live als auch nach `/resume`. Abgeschlossene `!`-Schritte behalten beim Öffnen aus anderen Prozessen ihre beendete Dauer, statt weiterzulaufen, und Turn-Metriken erscheinen nur bei tatsächlichem API-Tokenverbrauch statt leerer 0-Werte nach `!` oder frühem Abbruch."
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "Klarerer Compaction-Kontext, sauberes Batching und robuster OAuth-Callback",
+          "text": "Die Verlaufs-Compaction ersetzt interne Debug-Labels durch klare Turn- und Tool-Bezeichnungen und teilt `old_str`- und `new_str`-Auszüge ausgewogen auf, langes Quellen-Batching trennt an Zeilen- oder Wortgrenzen, die Regel-Zitatbeschreibung des Classifiers sowie die Parallelitätsangabe im System-Prompt wurden präzisiert, Context-Overflow erkennt Token-pro-Minute-Ablehnungen und der lokale MCP-OAuth-Listener übersteht fehlerhafte lokale Anfragen."
+        }
+      ]
+    },
     "0.12.4": {
       "title": "Klarere Turn-Zeile, Live-Ansicht /shells, Slash-Befehle im Satz und ANSI-Farben der KI",
       "summary": "Farbige Turn-Metriken + Live-/shells, smarte Slash-Unterbefehle, Alt+H-Assistent, KI-ANSI-SGR-Farben, 9router-Off ohne Zwangsstufe",

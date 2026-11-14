@@ -414,7 +414,7 @@ fn decision_tool() -> ToolDecl {
     ToolDecl {name:"submit_decisions".into(),description:"Return exactly one call partitioning every current Action ID into allow or deny exactly once, with no unknown or duplicate IDs and no prose or additional calls.".into(),
         parameters:json!({"type":"object","additionalProperties":false,"properties":{
             "allow":{"type":"array","items":{"type":"string"}},
-            "deny":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string"},"reason":{"type":"string","description":"Concise applicable policy or original user source and its immediate conflicting effect, for the main agent; no hidden reasoning or chain of thought."},"rule":{"type":"string"}},"required":["id","reason"]}}
+            "deny":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"id":{"type":"string"},"reason":{"type":"string","description":"Concise applicable policy or original user source and its immediate conflicting effect, for the main agent; no hidden reasoning or chain of thought."},"rule":{"type":"string","description":"The exact policy rule or user instruction citation that this action violates."}},"required":["id","reason"]}}
         },"required":["allow","deny"]})}
 }
 

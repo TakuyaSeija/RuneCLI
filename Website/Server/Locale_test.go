@@ -163,6 +163,9 @@ var (
 // changes (a release rewrites the manual), its translations fail here until
 // they follow, so an old fact never stays behind in another language.
 func TestTranslatedArticlesKeepTheEnglishFacts(t *testing.T) {
+	if err := loadLocaleTexts(); err != nil {
+		t.Fatal(err)
+	}
 	read := func(p string) string {
 		b, err := fs.ReadFile(ui.Files, p)
 		if err != nil {
@@ -184,7 +187,7 @@ func TestTranslatedArticlesKeepTheEnglishFacts(t *testing.T) {
 		}
 		return strings.Join(out, " ")
 	}
-	files := []string{"Home.html", "Changelog.html", "License.html", "NotFound.html", "Docs.html"}
+	files := []string{"Home.html", "Changelog.html", "License.html", "NotFound.html", "Overload.html", "Docs.html"}
 	for _, p := range pages {
 		if p.Section != "" {
 			files = append(files, p.File+".html")

@@ -119,7 +119,7 @@ type localeText struct {
 }
 
 // localeTextPages are the non-documentation pages a translation titles.
-var localeTextPages = []string{"", "changelog", "license", "notfound"}
+var localeTextPages = []string{"", "changelog", "license", "notfound", "overload"}
 
 // englishNotes is the changelog's source of words: version -> layered change.
 var englishNotes = map[string]releaseNote{}

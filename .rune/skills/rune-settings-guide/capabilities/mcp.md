@@ -3,7 +3,7 @@
 MCP adds tools/resources/prompts from an external server. It has command management (`/mcp` or `rune -mcp`), not a current Settings tab. Connecting/adding a server is separate from approving each task performed with it.
 
 ## Scope and commands
-`rune -mcp list` / status inspect connections; validate checks definitions without claiming connectivity. add takes an ID and an HTTPS URL or absolute executable (with its arguments). connect/test makes an actual connection and can start a local process. disconnect closes the connection. remove/enable/disable affect the selected definition. reload refreshes connections.
+`rune -mcp list` / status inspect connections; validate checks definitions without claiming connectivity. add takes an ID and an HTTPS URL or absolute executable (with its arguments), and `/mcp import` / `/mcp add` autocomplete local filesystem paths interactively. connect/test makes an actual connection and can start a local process. disconnect closes the connection. remove/enable/disable affect the selected definition. reload refreshes connections.
 
 Configuration scopes: user (personal), project (shared `.rune/Mcp.toml`), private-project (personal settings for this project; default MCP scope). Private-project can override the shared project definition, which can override personal definitions of the same ID. Shared project definitions require explicit approval; approve only a reviewed definition. A changed shared definition can need approval again.
 

@@ -66,14 +66,15 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
         } else {
             excerpt(&row.content, message)
         };
+        let mut label_parts = vec![format!("{who} (turn {})", row.turn)];
+        if let Some(tool) = &row.tool_name {
+            label_parts.push(format!("tool {tool}"));
+        }
+        if let Some(call_id) = &row.tool_call_id {
+            label_parts.push(format!("call {call_id}"));
+        }
         out.push(Document {
-            label: format!(
-                "{who}; message {}, work {:?}, call {:?}, tool {:?}",
-                row.id,
-                row.work.map(|w| w.source),
-                row.tool_call_id,
-                row.tool_name
-            ),
+            label: label_parts.join(" · "),
             body,
         });
         for action in row
@@ -102,6 +103,39 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
                 keys.extend(map.keys().map(String::as_str).filter(|key| {
                     !["path", "process_id", "server_id", "tool", "command"].contains(key)
                 }));
+                let both_edits = map.contains_key("old_str") && map.contains_key("new_str");
+                let (old_quota, new_quota) = if both_edits {
+                    let old_c = map["old_str"].as_str().map_or_else(
+                        || map["old_str"].to_string().chars().count(),
+                        |s| s.chars().count(),
+                    );
+                    let new_c = map["new_str"].as_str().map_or_else(
+                        || map["new_str"].to_string().chars().count(),
+                        |s| s.chars().count(),
+                    );
+                    let total_edit_budget = left.saturating_sub(
+                        keys.iter()
+                            .filter(|&&k| !matches!(k, "old_str" | "new_str"))
+                            .map(|&k| {
+                                map[k].as_str().map_or_else(
+                                    || map[k].to_string().chars().count(),
+                                    |s| s.chars().count(),
+                                )
+                            })
+                            .sum(),
+                    );
+                    let half = total_edit_budget / 2;
+                    let (oq, nq) = if old_c <= half {
+                        (old_c, total_edit_budget.saturating_sub(old_c).min(new_c))
+                    } else if new_c <= half {
+                        (total_edit_budget.saturating_sub(new_c).min(old_c), new_c)
+                    } else {
+                        (half, total_edit_budget - half)
+                    };
+                    (oq.max(100), nq.max(100))
+                } else {
+                    (left, left)
+                };
                 for key in keys {
                     let value = &map[key];
                     let text = value
@@ -109,7 +143,13 @@ pub(crate) fn documents(rows: &[&Message], config: &Configuration) -> Vec<Docume
                         .map(str::to_owned)
                         .unwrap_or_else(|| value.to_string());
                     let count = text.chars().count();
-                    let keep = count.min(left);
+                    let keep = if both_edits && key == "old_str" {
+                        count.min(old_quota)
+                    } else if both_edits && key == "new_str" {
+                        count.min(new_quota)
+                    } else {
+                        count.min(left)
+                    };
                     selected.push_str(&format!("{key}: {}\n", excerpt(&text, keep)));
                     left = left.saturating_sub(keep);
                 }
@@ -182,5 +222,33 @@ mod tests {
             .unwrap()
             .body
             .contains("18000 characters omitted"));
+    }
+
+    #[test]
+    fn clean_labels_and_balanced_patch_excerpts() {
+        let config = Configuration::default();
+        let user = row(1, Role::User, "Please update");
+        let mut assistant = row(2, Role::Assistant, "Updating");
+        assistant.tool_calls = Some(serde_json::json!([{
+            "id": "call_1",
+            "name": "patch_file",
+            "args": serde_json::json!({
+                "path": "src/lib.rs",
+                "old_str": "fn old() {}",
+                "new_str": "y".repeat(3000)
+            }).to_string()
+        }]));
+        let docs = documents(&[&user, &assistant], &config);
+        assert_eq!(docs[0].label, "USER original instruction (turn 1)");
+        assert!(!docs[0].label.contains("None"));
+        assert!(!docs[0].label.contains("Some("));
+        // Short old_str + long new_str must give the remaining budget to new_str
+        // instead of wasting half of `compact.tool_chars` (2000).
+        let patch_doc = docs
+            .iter()
+            .find(|d| d.label.contains("patch_file"))
+            .unwrap();
+        assert!(patch_doc.body.contains("fn old() {}"));
+        assert!(patch_doc.body.contains("1900") || patch_doc.body.chars().count() > 1500);
     }
 }

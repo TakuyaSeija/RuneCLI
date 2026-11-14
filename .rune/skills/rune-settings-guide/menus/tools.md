@@ -5,11 +5,11 @@ Tools contains global limits for individual tools and for user questions/permiss
 | Group | Purpose |
 | --- | --- |
 | TERMINAL | Foreground wait, returned output and background log limits. [Guide](../tools/terminal-use.md) |
+| PROCESS CONTROL | Amount of background output a notification carries.  [Guide](../tools/process-control.md) |
 | INSPECT FILES | Largest file to read and text to return. [Guide](../tools/inspect-file.md) |
 | FIND FILES | Maximum returned paths and output length. [Guide](../tools/find-files.md) |
 | SEARCH TEXT | Matching lines, line length and total output. [Guide](../tools/search-text.md) |
 | FILE SCAN | How far file searches go and limits on expensive patterns.  [Guide](../tools/file-scan.md) |
-| PROCESS CONTROL | Amount of background output a notification carries.  [Guide](../tools/process-control.md) |
 | WEB SEARCH / WEB FETCH | Separate providers, timeouts and output limits. Provider subpages own Add/Delete/Select. [Provider guide](../connections/web-providers.md) |
 | DISCOVER CAPABILITIES | Length of skill/MCP discovery results.  [Guide](../tools/discover-capabilities.md) |
 | READ MCP RESOURCE | Length of an MCP resource result.  [Guide](../tools/read-mcp-resource.md) |

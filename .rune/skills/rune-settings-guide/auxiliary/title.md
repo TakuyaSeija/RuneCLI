@@ -5,6 +5,7 @@ Location: Settings → Generation → title rows. Scope: global. Purpose: genera
 | Key | Factory default | Use |
 | --- | --- | --- |
 | `title.model` |Inherit active model| Choose a model for title generation, or inherit. |
+| `title.thinking` |Off by default| Reasoning choice matching the target model's own reasoning options (`off`, `on`, or effort level). |
 | `title.max_output_tokens` |256| Model output allowance, configurable 8–10000000; actual model limits still apply. |
 | `title.max_chars` |60| Maximum title length in characters, range 1–200. |
 
@@ -25,5 +26,6 @@ These are factory values, not a claim about the current user's saved choices. In
 | Global key | Factory value | Accepted value / note |
 | --- | --- | --- |
 | `title.model` | `Inherit / unset` | Configured {provider,id}, or omit to inherit |
+| `title.thinking` | `Inherit / unset` | `off`, `on`, or effort level (`minimal`..`max`); unset defaults to `off` unless mandatory |
 | `title.max_output_tokens` | `256` | Whole number 8–10000000 |
 | `title.max_chars` | `60` | Whole number 1–200 |

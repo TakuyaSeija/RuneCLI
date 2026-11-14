@@ -274,6 +274,9 @@ impl Tool {
         if let Some(dur) = self.duration {
             return dur;
         }
+        if self.state.finished() && self.ended.is_none() {
+            return std::time::Duration::ZERO;
+        }
         self.started
             .map(|started| {
                 self.ended

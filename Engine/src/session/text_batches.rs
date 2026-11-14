@@ -41,6 +41,18 @@ pub(crate) fn split(label: &str, text: &str, max_bytes: usize) -> Result<Vec<Str
                 high = mid - 1;
             }
         }
+        if best > 0 && best < rest.len() {
+            let min_keep = best / 2;
+            if let Some(nl) = rest[..best].rfind('\n') {
+                if nl >= min_keep && nl > 0 && !document(&named, &rest[..nl]).is_empty() {
+                    best = nl;
+                }
+            } else if let Some(sp) = rest[..best].rfind(' ') {
+                if sp >= min_keep && sp > 0 && !document(&named, &rest[..sp]).is_empty() {
+                    best = sp;
+                }
+            }
+        }
         if best == 0 {
             return Err(Error::invalid(
                 "auxiliary model has no room for one source character and its provenance",
@@ -80,5 +92,18 @@ mod tests {
     #[test]
     fn irreducible_small_budget_fails_instead_of_looping() {
         assert!(split("source", "🦀", 10).is_err());
+    }
+
+    #[test]
+    fn boundary_split_avoids_tiny_fragments_on_early_newlines() {
+        let text = format!("head\n{}\n{}", "a".repeat(700), "b".repeat(400));
+        let parts = split("USER original", &text, 900).unwrap();
+        assert_eq!(
+            parts.len(),
+            2,
+            "must not produce tiny 5-byte fragment: {parts:?}"
+        );
+        assert!(parts[0].contains(&"a".repeat(700)));
+        assert!(parts[1].contains(&"b".repeat(400)));
     }
 }

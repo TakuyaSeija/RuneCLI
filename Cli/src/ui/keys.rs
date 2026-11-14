@@ -113,13 +113,18 @@ pub const COMMANDS: [(&str, &str, &str); 26] = [
 
 type SlashEntry = &'static (&'static str, &'static str, &'static str);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaletteItem {
     pub verb: &'static str,
     pub args_hint: &'static str,
     pub description: &'static str,
     pub subcommand: Option<&'static str>,
     pub strong: bool,
+    pub custom_label: Option<String>,
+    pub custom_desc: Option<&'static str>,
+    pub custom_replacement: Option<(usize, usize, String)>,
+    pub is_dir: bool,
+    pub is_shell: bool,
 }
 
 impl PaletteItem {
@@ -130,15 +135,27 @@ impl PaletteItem {
             description: entry.2,
             subcommand: None,
             strong,
+            custom_label: None,
+            custom_desc: None,
+            custom_replacement: None,
+            is_dir: false,
+            is_shell: false,
         }
     }
 
     pub fn display_name(&self) -> String {
+        if let Some(lbl) = &self.custom_label {
+            return lbl.clone();
+        }
         match self.subcommand {
             Some(sub) => format!("/{} {sub}", self.verb),
             None if self.args_hint.is_empty() => format!("/{}", self.verb),
             None => format!("/{} {}", self.verb, self.args_hint),
         }
+    }
+
+    pub fn description_text(&self) -> &'static str {
+        self.custom_desc.unwrap_or(self.description)
     }
 }
 
@@ -210,6 +227,12 @@ fn subcommands_of(verb: &str) -> &'static [(&'static str, &'static str, bool)] {
             ),
             ("prompts", "list prompts on an MCP server", true),
             ("prompt", "invoke an MCP server prompt", true),
+            (
+                "import",
+                "import MCP servers from a configuration file",
+                true,
+            ),
+            ("approve", "approve a shared project MCP server", true),
             ("remove", "remove an MCP server configuration", true),
             ("enable", "enable an MCP server", true),
             ("disable", "disable an MCP server", true),
@@ -227,11 +250,11 @@ pub fn matches(input: &str) -> Vec<SlashEntry> {
 
 #[cfg(test)]
 pub fn matches_at(input: &str, cursor: usize) -> Vec<SlashEntry> {
-    let Some((_, _, items)) = active_slash_query(input, cursor) else {
+    let Some((_, _, items)) = active_slash_query_in(input, cursor, None) else {
         return Vec::new();
     };
     let mut seen: Vec<SlashEntry> = Vec::new();
-    for item in items {
+    for item in items.into_vec() {
         if let Some(entry) = COMMANDS.iter().find(|c| c.0 == item.verb) {
             if !seen.iter().any(|existing| existing.0 == entry.0) {
                 seen.push(entry);
@@ -241,15 +264,1246 @@ pub fn matches_at(input: &str, cursor: usize) -> Vec<SlashEntry> {
     seen
 }
 
-pub fn palette_items(input: &str, cursor: usize) -> Vec<PaletteItem> {
-    active_slash_query(input, cursor).map_or_else(Vec::new, |(_, _, items)| items)
+#[derive(Clone, Debug)]
+struct CachedDirEntry {
+    name: String,
+    is_dir: bool,
+    is_hidden: bool,
 }
 
-pub fn palette_selected(items: &[PaletteItem], picked: bool, row: usize) -> Option<usize> {
-    if items.is_empty() || (!items[0].strong && !picked) {
+#[inline]
+fn cmp_ascii_ci(a: &str, b: &str) -> std::cmp::Ordering {
+    let mut ai = a.as_bytes().iter().map(u8::to_ascii_lowercase);
+    let mut bi = b.as_bytes().iter().map(u8::to_ascii_lowercase);
+    loop {
+        match (ai.next(), bi.next()) {
+            (Some(ac), Some(bc)) => match ac.cmp(&bc) {
+                std::cmp::Ordering::Equal => continue,
+                ord => return ord,
+            },
+            (None, Some(_)) => return std::cmp::Ordering::Less,
+            (Some(_), None) => return std::cmp::Ordering::Greater,
+            (None, None) => return std::cmp::Ordering::Equal,
+        }
+    }
+}
+
+#[inline]
+fn starts_with_ascii_ci(haystack: &str, needle_lower: &str) -> bool {
+    let hb = haystack.as_bytes();
+    let nb = needle_lower.as_bytes();
+    hb.len() >= nb.len() && hb[..nb.len()].eq_ignore_ascii_case(nb)
+}
+
+#[inline]
+fn contains_ascii_ci(haystack: &str, needle_lower: &str) -> bool {
+    let hb = haystack.as_bytes();
+    let nb = needle_lower.as_bytes();
+    if nb.is_empty() {
+        return true;
+    }
+    hb.windows(nb.len()).any(|w| w.eq_ignore_ascii_case(nb))
+}
+
+#[derive(Clone, Debug)]
+enum PathSelection {
+    Range(std::ops::Range<usize>),
+    Indices(Vec<u32>),
+}
+
+#[derive(Clone, Debug)]
+pub struct PathMatchSet {
+    entries: std::sync::Arc<Vec<CachedDirEntry>>,
+    selection: PathSelection,
+    tok_start: usize,
+    tok_end: usize,
+    display_prefix: String,
+    display_dir_prefix: String,
+    verb: &'static str,
+    subcommand: Option<&'static str>,
+    is_shell: bool,
+    strong: bool,
+    sep: char,
+    quote_char: Option<char>,
+    windows: bool,
+}
+
+impl PathMatchSet {
+    pub fn len(&self) -> usize {
+        match &self.selection {
+            PathSelection::Range(r) => r.len(),
+            PathSelection::Indices(v) => v.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn get(&self, idx: usize) -> Option<PaletteItem> {
+        let entry_idx = match &self.selection {
+            PathSelection::Range(r) => {
+                if idx >= r.len() {
+                    return None;
+                }
+                r.start + idx
+            }
+            PathSelection::Indices(v) => *v.get(idx)? as usize,
+        };
+        let entry = self.entries.get(entry_idx)?;
+        let mut raw_path = String::with_capacity(
+            self.display_dir_prefix.len() + entry.name.len() + usize::from(entry.is_dir),
+        );
+        raw_path.push_str(&self.display_dir_prefix);
+        raw_path.push_str(&entry.name);
+        if entry.is_dir {
+            raw_path.push(self.sep);
+        }
+        let mut completed_token = if let Some(q) = self.quote_char {
+            if entry.is_dir {
+                format!("{q}{raw_path}")
+            } else {
+                format!("{q}{raw_path}{q}")
+            }
+        } else if raw_path.contains(' ') {
+            if self.windows {
+                format!("\"{raw_path}\"")
+            } else {
+                raw_path.replace(' ', "\\ ")
+            }
+        } else {
+            raw_path.clone()
+        };
+        if self.is_shell && !entry.is_dir {
+            completed_token.push(' ');
+        }
+        let label = if self.display_prefix.is_empty() {
+            raw_path
+        } else {
+            format!("{}{raw_path}", self.display_prefix)
+        };
+        Some(PaletteItem {
+            verb: self.verb,
+            args_hint: "",
+            description: if entry.is_dir { "folder" } else { "file" },
+            subcommand: self.subcommand,
+            strong: self.strong,
+            custom_label: Some(label),
+            custom_desc: Some(if entry.is_dir { "folder" } else { "file" }),
+            custom_replacement: Some((self.tok_start, self.tok_end, completed_token)),
+            is_dir: entry.is_dir,
+            is_shell: self.is_shell,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum PaletteList {
+    Items(Vec<PaletteItem>),
+    Paths(PathMatchSet),
+}
+
+impl PaletteList {
+    pub fn empty() -> Self {
+        Self::Items(Vec::new())
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Items(v) => v.len(),
+            Self::Paths(p) => p.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn first_strong(&self) -> bool {
+        match self {
+            Self::Items(v) => v.first().is_some_and(|i| i.strong),
+            Self::Paths(p) => !p.is_empty() && p.strong,
+        }
+    }
+
+    pub fn get(&self, idx: usize) -> Option<PaletteItem> {
+        match self {
+            Self::Items(v) => v.get(idx).cloned(),
+            Self::Paths(p) => p.get(idx),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn iter(&self) -> PaletteListIter<'_> {
+        PaletteListIter {
+            list: self,
+            pos: 0,
+            len: self.len(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn into_vec(self) -> Vec<PaletteItem> {
+        match self {
+            Self::Items(v) => v,
+            Self::Paths(p) => (0..p.len()).filter_map(|i| p.get(i)).collect(),
+        }
+    }
+}
+
+#[cfg(test)]
+pub struct PaletteListIter<'a> {
+    list: &'a PaletteList,
+    pos: usize,
+    len: usize,
+}
+
+#[cfg(test)]
+impl Iterator for PaletteListIter<'_> {
+    type Item = PaletteItem;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos >= self.len {
+            return None;
+        }
+        let item = self.list.get(self.pos);
+        self.pos += 1;
+        item
+    }
+}
+
+pub trait PaletteItems {
+    fn palette_len(&self) -> usize;
+    fn first_is_strong(&self) -> bool;
+}
+
+impl PaletteItems for [PaletteItem] {
+    fn palette_len(&self) -> usize {
+        self.len()
+    }
+    fn first_is_strong(&self) -> bool {
+        self.first().is_some_and(|i| i.strong)
+    }
+}
+
+impl PaletteItems for Vec<PaletteItem> {
+    fn palette_len(&self) -> usize {
+        self.len()
+    }
+    fn first_is_strong(&self) -> bool {
+        self.first().is_some_and(|i| i.strong)
+    }
+}
+
+impl PaletteItems for PaletteList {
+    fn palette_len(&self) -> usize {
+        self.len()
+    }
+    fn first_is_strong(&self) -> bool {
+        self.first_strong()
+    }
+}
+
+struct PaletteEval {
+    items: PaletteList,
+    watched_dir: Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+    check_shell_cmds: bool,
+    cmd_stamp: u64,
+}
+
+#[cfg(test)]
+pub fn palette_items(input: &str, cursor: usize) -> Vec<PaletteItem> {
+    palette_items_in(input, cursor, None)
+}
+
+#[cfg(test)]
+pub fn palette_items_in(input: &str, cursor: usize, cwd: Option<&str>) -> Vec<PaletteItem> {
+    palette_eval_in(input, cursor, cwd).items.into_vec()
+}
+
+fn palette_eval_in(input: &str, cursor: usize, cwd: Option<&str>) -> PaletteEval {
+    let base_dir = resolve_base_dir(cwd);
+    if runeengine::session::manual_shell::command(input).is_some() {
+        return evaluate_shell_input(input, cursor, &base_dir).unwrap_or(PaletteEval {
+            items: PaletteList::empty(),
+            watched_dir: None,
+            check_shell_cmds: false,
+            cmd_stamp: 0,
+        });
+    }
+    let mut watched_dir = None;
+    let items = active_slash_query_watched(input, cursor, Some(&base_dir), &mut watched_dir)
+        .map_or_else(PaletteList::empty, |(_, _, items)| items);
+    PaletteEval {
+        items,
+        watched_dir,
+        check_shell_cmds: false,
+        cmd_stamp: 0,
+    }
+}
+
+fn resolve_base_dir(cwd: Option<&str>) -> std::path::PathBuf {
+    if let Some(dir) = cwd.filter(|s| !s.is_empty()) {
+        let p = std::path::Path::new(dir);
+        if p.is_dir() {
+            return p.to_path_buf();
+        }
+    }
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+pub fn palette_selected<T: PaletteItems + ?Sized>(
+    items: &T,
+    picked: bool,
+    row: usize,
+) -> Option<usize> {
+    let len = items.palette_len();
+    if len == 0 || (!items.first_is_strong() && !picked) {
         return None;
     }
-    Some(row.min(items.len() - 1))
+    Some(row.min(len - 1))
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct PaletteCache {
+    pub input: String,
+    pub cursor: usize,
+    pub project: String,
+    pub watched_dir: Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+    pub check_shell_cmds: bool,
+    pub cmd_stamp: u64,
+    pub items: std::sync::Arc<PaletteList>,
+}
+
+fn dir_mtime(dir: &std::path::Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(dir).and_then(|m| m.modified()).ok()
+}
+
+fn mtime_fresh(
+    cached: Option<std::time::SystemTime>,
+    current: Option<std::time::SystemTime>,
+) -> bool {
+    let Some(cur) = current else {
+        return false;
+    };
+    if Some(cur) != cached {
+        return false;
+    }
+    // Linux ext4/xfs uses coarse kernel jiffies (1-4ms) for mtime; avoid freezing
+    // a snapshot taken in the exact same coarse tick right after a directory write.
+    std::time::SystemTime::now()
+        .duration_since(cur)
+        .is_ok_and(|age| age >= std::time::Duration::from_millis(50))
+}
+
+#[derive(Clone, Debug)]
+struct CachedShellCmd {
+    cmd: String,
+    cmd_lower: String,
+    desc: &'static str,
+}
+
+struct PathCmdCache {
+    path_var: std::ffi::OsString,
+    pathext_var: std::ffi::OsString,
+    dir_mtimes: Vec<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+    stamp: u64,
+    list: std::sync::Arc<Vec<CachedShellCmd>>,
+}
+
+static SHELL_CMDS_CACHE: std::sync::Mutex<Option<PathCmdCache>> = std::sync::Mutex::new(None);
+static SHELL_CMDS_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn shell_cmds_current_stamp() -> u64 {
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    let pathext_var = std::env::var_os("PATHEXT").unwrap_or_default();
+    if let Ok(guard) = SHELL_CMDS_CACHE.lock() {
+        if let Some(ref c) = *guard {
+            if c.path_var == path_var
+                && c.pathext_var == pathext_var
+                && c.dir_mtimes
+                    .iter()
+                    .all(|(d, mt)| mtime_fresh(*mt, dir_mtime(d)))
+            {
+                return c.stamp;
+            }
+        }
+    }
+    0
+}
+
+fn cached_shell_commands() -> (u64, std::sync::Arc<Vec<CachedShellCmd>>) {
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    let pathext_var = std::env::var_os("PATHEXT").unwrap_or_default();
+    if let Ok(guard) = SHELL_CMDS_CACHE.lock() {
+        if let Some(ref c) = *guard {
+            if c.path_var == path_var
+                && c.pathext_var == pathext_var
+                && c.dir_mtimes
+                    .iter()
+                    .all(|(d, mt)| mtime_fresh(*mt, dir_mtime(d)))
+            {
+                return (c.stamp, std::sync::Arc::clone(&c.list));
+            }
+        }
+    }
+
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let builtins: &[&str] = if windows {
+        &[
+            "cd",
+            "chdir",
+            "cls",
+            "copy",
+            "del",
+            "dir",
+            "echo",
+            "erase",
+            "exit",
+            "findstr",
+            "md",
+            "mkdir",
+            "mklink",
+            "move",
+            "path",
+            "pause",
+            "popd",
+            "pushd",
+            "pwd",
+            "rd",
+            "ren",
+            "rename",
+            "rmdir",
+            "set",
+            "setlocal",
+            "start",
+            "time",
+            "title",
+            "type",
+            "ver",
+            "vol",
+            "where",
+            "ls",
+            "cat",
+            "grep",
+            "which",
+            "export",
+            "source",
+            "Get-ChildItem",
+            "Get-Content",
+            "Set-Location",
+            "Select-String",
+            "Invoke-WebRequest",
+            "Remove-Item",
+            "Copy-Item",
+            "Move-Item",
+            "New-Item",
+        ]
+    } else {
+        &[
+            "alias",
+            "bg",
+            "bind",
+            "break",
+            "builtin",
+            "cd",
+            "command",
+            "compgen",
+            "complete",
+            "continue",
+            "declare",
+            "dirs",
+            "disown",
+            "echo",
+            "enable",
+            "eval",
+            "exec",
+            "exit",
+            "export",
+            "false",
+            "fc",
+            "fg",
+            "getopts",
+            "hash",
+            "help",
+            "history",
+            "jobs",
+            "kill",
+            "let",
+            "local",
+            "logout",
+            "mapfile",
+            "popd",
+            "printf",
+            "pushd",
+            "pwd",
+            "read",
+            "readarray",
+            "readonly",
+            "return",
+            "set",
+            "shift",
+            "shopt",
+            "source",
+            "suspend",
+            "test",
+            "times",
+            "trap",
+            "true",
+            "type",
+            "typeset",
+            "ulimit",
+            "umask",
+            "unalias",
+            "unset",
+            "wait",
+            "which",
+        ]
+    };
+
+    let mut seen = std::collections::HashSet::new();
+    let mut list: Vec<CachedShellCmd> = Vec::new();
+    for &b in builtins {
+        let lower = b.to_ascii_lowercase();
+        let key = if windows {
+            lower.clone()
+        } else {
+            b.to_string()
+        };
+        if seen.insert(key) {
+            list.push(CachedShellCmd {
+                cmd: b.to_string(),
+                cmd_lower: lower,
+                desc: "shell builtin",
+            });
+        }
+    }
+
+    let exts: Vec<String> = if windows {
+        let raw = pathext_var.to_string_lossy();
+        let source = if raw.is_empty() {
+            ".COM;.EXE;.BAT;.CMD;.PS1"
+        } else {
+            raw.as_ref()
+        };
+        source
+            .split(';')
+            .filter(|s| s.starts_with('.'))
+            .map(|s| s.to_ascii_lowercase())
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let mut dir_mtimes = Vec::new();
+    for dir in std::env::split_paths(&path_var) {
+        let mt = dir_mtime(&dir);
+        dir_mtimes.push((dir.clone(), mt));
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let Ok(name_os) = entry.file_name().into_string() else {
+                continue;
+            };
+            if name_os.starts_with('.') || name_os.is_empty() {
+                continue;
+            }
+            let is_file = entry
+                .file_type()
+                .map(|ft| ft.is_file() || ft.is_symlink())
+                .unwrap_or(false);
+            if !is_file {
+                continue;
+            }
+            let candidate = if windows {
+                let lower = name_os.to_ascii_lowercase();
+                let Some(ext) = exts.iter().find(|ext| lower.ends_with(ext.as_str())) else {
+                    continue;
+                };
+                name_os[..name_os.len() - ext.len()].to_string()
+            } else {
+                name_os
+            };
+            if candidate.is_empty() {
+                continue;
+            }
+            let lower = candidate.to_ascii_lowercase();
+            let key = if windows {
+                lower.clone()
+            } else {
+                candidate.clone()
+            };
+            if seen.insert(key) {
+                list.push(CachedShellCmd {
+                    cmd: candidate,
+                    cmd_lower: lower,
+                    desc: "command in PATH",
+                });
+            }
+        }
+    }
+
+    list.sort_by(|a, b| {
+        a.cmd_lower
+            .cmp(&b.cmd_lower)
+            .then_with(|| a.cmd.cmp(&b.cmd))
+    });
+
+    let stamp = SHELL_CMDS_STAMP.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+    let arc = std::sync::Arc::new(list);
+    if let Ok(mut guard) = SHELL_CMDS_CACHE.lock() {
+        *guard = Some(PathCmdCache {
+            path_var,
+            pathext_var,
+            dir_mtimes,
+            stamp,
+            list: std::sync::Arc::clone(&arc),
+        });
+    }
+    (stamp, arc)
+}
+
+struct DirCacheSlot {
+    path: std::path::PathBuf,
+    modified: Option<std::time::SystemTime>,
+    non_hidden_end: usize,
+    entries: std::sync::Arc<Vec<CachedDirEntry>>,
+}
+
+static DIR_CACHE: std::sync::Mutex<Vec<DirCacheSlot>> = std::sync::Mutex::new(Vec::new());
+
+fn cached_dir_entries(
+    dir: &std::path::Path,
+) -> Option<(
+    Option<std::time::SystemTime>,
+    usize,
+    std::sync::Arc<Vec<CachedDirEntry>>,
+)> {
+    const MAX_SLOTS: usize = 16;
+
+    let current_mtime = dir_mtime(dir);
+    if let Ok(mut guard) = DIR_CACHE.lock() {
+        if let Some(pos) = guard.iter().position(|s| s.path == dir) {
+            if mtime_fresh(guard[pos].modified, current_mtime) {
+                let non_hidden_end = guard[pos].non_hidden_end;
+                let arc = std::sync::Arc::clone(&guard[pos].entries);
+                let slot = guard.remove(pos);
+                guard.push(slot);
+                return Some((current_mtime, non_hidden_end, arc));
+            }
+            guard.remove(pos);
+        }
+    }
+
+    let read_dir = std::fs::read_dir(dir).ok()?;
+    let mut entries = Vec::new();
+    for entry in read_dir.flatten() {
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if name.is_empty() {
+            continue;
+        }
+        let is_hidden = name.starts_with('.');
+        let is_dir = match entry.file_type() {
+            Ok(ft) if ft.is_dir() => true,
+            Ok(ft) if ft.is_symlink() => entry.path().is_dir(),
+            Ok(_) => false,
+            Err(_) => entry.path().is_dir(),
+        };
+        entries.push(CachedDirEntry {
+            name,
+            is_dir,
+            is_hidden,
+        });
+    }
+    entries.sort_unstable_by(|a, b| {
+        a.is_hidden
+            .cmp(&b.is_hidden)
+            .then_with(|| (!a.is_dir).cmp(&(!b.is_dir)))
+            .then_with(|| cmp_ascii_ci(&a.name, &b.name))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    let non_hidden_end = entries.partition_point(|e| !e.is_hidden);
+
+    let arc = std::sync::Arc::new(entries);
+    if let Ok(mut guard) = DIR_CACHE.lock() {
+        if let Some(pos) = guard.iter().position(|s| s.path == dir) {
+            guard.remove(pos);
+        }
+        if guard.len() >= MAX_SLOTS {
+            guard.remove(0);
+        }
+        guard.push(DirCacheSlot {
+            path: dir.to_path_buf(),
+            modified: current_mtime,
+            non_hidden_end,
+            entries: std::sync::Arc::clone(&arc),
+        });
+    }
+    Some((current_mtime, non_hidden_end, arc))
+}
+
+fn unescape_path_arg(raw_token: &str) -> String {
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let trimmed = raw_token.trim();
+    let quote_char = trimmed.chars().next().filter(|&c| c == '"' || c == '\'');
+    let inner = if let Some(q) = quote_char {
+        let rest = &trimmed[q.len_utf8()..];
+        rest.strip_suffix(q).unwrap_or(rest)
+    } else {
+        trimmed
+    };
+    let unescaped = if quote_char.is_none() && !windows {
+        inner.replace("\\ ", " ")
+    } else {
+        inner.to_string()
+    };
+    shellexpand(&unescaped)
+}
+
+fn resolve_path_arg(raw_token: &str, base_dir: &std::path::Path) -> std::path::PathBuf {
+    let expanded = unescape_path_arg(raw_token);
+    let p = std::path::Path::new(&expanded);
+    if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        base_dir.join(p)
+    }
+}
+
+fn resolve_dir_path(dir_slice: &str, base_dir: &std::path::Path) -> std::path::PathBuf {
+    let trimmed = dir_slice.trim_end_matches(['/', '\\']);
+    if trimmed == "~" {
+        return runeengine::platform::home_dir().unwrap_or_else(|| base_dir.to_path_buf());
+    }
+    if let Some(rest) = dir_slice
+        .strip_prefix("~/")
+        .or_else(|| dir_slice.strip_prefix("~\\"))
+    {
+        if let Some(home) = runeengine::platform::home_dir() {
+            return home.join(rest);
+        }
+    }
+    let p = std::path::Path::new(dir_slice);
+    if p.is_absolute() || dir_slice.starts_with('/') || dir_slice.starts_with('\\') {
+        p.to_path_buf()
+    } else {
+        base_dir.join(dir_slice)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn complete_path_items(
+    raw_token: &str,
+    tok_start: usize,
+    tok_end: usize,
+    base_dir: &std::path::Path,
+    display_prefix: &str,
+    verb: &'static str,
+    subcommand: Option<&'static str>,
+    is_shell: bool,
+    watched_dir: &mut Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+) -> Option<PathMatchSet> {
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let quote_char = raw_token.chars().next().filter(|&c| c == '"' || c == '\'');
+    let inner_raw = if let Some(q) = quote_char {
+        let rest = &raw_token[q.len_utf8()..];
+        rest.strip_suffix(q).unwrap_or(rest)
+    } else {
+        raw_token
+    };
+    let clean = if quote_char.is_none() && !windows {
+        inner_raw.replace("\\ ", " ")
+    } else {
+        inner_raw.to_string()
+    };
+
+    let sep = if inner_raw.contains('\\') || (windows && !inner_raw.contains('/')) {
+        '\\'
+    } else {
+        '/'
+    };
+
+    let (dir_to_read, display_dir_prefix, name_prefix) = if clean == "~" {
+        (
+            runeengine::platform::home_dir().unwrap_or_else(|| base_dir.to_path_buf()),
+            format!("~{sep}"),
+            "",
+        )
+    } else if clean == ".."
+        || clean.ends_with("/..")
+        || clean.ends_with("\\..")
+        || clean == "."
+        || clean.ends_with("/.")
+        || clean.ends_with("\\.")
+    {
+        let disp = format!("{clean}{sep}");
+        let dir = resolve_dir_path(&disp, base_dir);
+        (dir, disp, "")
+    } else if let Some(idx) = clean.rfind(['/', '\\']) {
+        let sep_len = clean[idx..].chars().next().map_or(1, char::len_utf8);
+        let dir_slice = &clean[..idx + sep_len];
+        let name_part = &clean[idx + sep_len..];
+        let dir = resolve_dir_path(dir_slice, base_dir);
+        (dir, dir_slice.to_string(), name_part)
+    } else {
+        (base_dir.to_path_buf(), String::new(), clean.as_str())
+    };
+
+    let Some((mt, non_hidden_end, dir_entries)) = cached_dir_entries(&dir_to_read) else {
+        *watched_dir = Some((dir_to_read, None));
+        return None;
+    };
+    *watched_dir = Some((dir_to_read, mt));
+
+    let prefix_lower = name_prefix.to_ascii_lowercase();
+    let wants_hidden = name_prefix.starts_with('.');
+
+    let (selection, exact_match) = if prefix_lower.is_empty() {
+        let end = if wants_hidden {
+            dir_entries.len()
+        } else {
+            non_hidden_end
+        };
+        if end == 0 {
+            return None;
+        }
+        (PathSelection::Range(0..end), false)
+    } else {
+        let slice_end = if wants_hidden {
+            dir_entries.len()
+        } else {
+            non_hidden_end
+        };
+        let mut rank0: Vec<u32> = Vec::new();
+        let mut rank1: Vec<u32> = Vec::new();
+        let mut rank2: Vec<u32> = Vec::new();
+        for (i, entry) in dir_entries[..slice_end].iter().enumerate() {
+            if entry.name.len() == prefix_lower.len()
+                && entry.name.eq_ignore_ascii_case(&prefix_lower)
+            {
+                rank0.push(i as u32);
+            } else if starts_with_ascii_ci(&entry.name, &prefix_lower) {
+                rank1.push(i as u32);
+            } else if contains_ascii_ci(&entry.name, &prefix_lower) {
+                rank2.push(i as u32);
+            }
+        }
+        let exact = !rank0.is_empty();
+        rank0.reserve(rank1.len() + rank2.len());
+        rank0.extend(rank1);
+        rank0.extend(rank2);
+        if rank0.is_empty() {
+            return None;
+        }
+        (PathSelection::Indices(rank0), exact)
+    };
+
+    let strong = if is_shell {
+        !name_prefix.is_empty() && !exact_match
+    } else {
+        !name_prefix.is_empty()
+    };
+
+    Some(PathMatchSet {
+        entries: dir_entries,
+        selection,
+        tok_start,
+        tok_end,
+        display_prefix: display_prefix.to_string(),
+        display_dir_prefix,
+        verb,
+        subcommand,
+        is_shell,
+        strong,
+        sep,
+        quote_char,
+        windows,
+    })
+}
+
+fn evaluate_shell_input(
+    input: &str,
+    cursor: usize,
+    base_dir: &std::path::Path,
+) -> Option<PaletteEval> {
+    let mut watched_dir = None;
+    let mut cursor = cursor.min(input.len());
+    while cursor > 0 && !input.is_char_boundary(cursor) {
+        cursor -= 1;
+    }
+    if !input.starts_with('!') || cursor == 0 {
+        return None;
+    }
+    let after_bang = if input.starts_with("! ") {
+        2.min(cursor)
+    } else {
+        1
+    };
+    if cursor <= after_bang {
+        return None;
+    }
+
+    let windows = runeengine::platform::OS == runeengine::platform::Os::Windows;
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut seg_start = after_bang;
+    let mut after_redirect = false;
+    let mut chars = input[after_bang..cursor].char_indices().peekable();
+
+    while let Some((rel_idx, ch)) = chars.next() {
+        let abs_idx = after_bang + rel_idx;
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' && !windows && quote != Some('\'') {
+            escaped = true;
+            continue;
+        }
+        if let Some(q) = quote {
+            if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            continue;
+        }
+        if matches!(ch, ';' | '\n' | '(' | '`') {
+            seg_start = abs_idx + ch.len_utf8();
+            after_redirect = false;
+            continue;
+        }
+        if ch == '|' {
+            let mut next_end = abs_idx + 1;
+            if chars.peek().is_some_and(|&(_, next_ch)| next_ch == '|') {
+                chars.next();
+                next_end += 1;
+            }
+            seg_start = next_end;
+            after_redirect = false;
+            continue;
+        }
+        if ch == '&' {
+            let mut next_end = abs_idx + 1;
+            if chars.peek().is_some_and(|&(_, next_ch)| next_ch == '&') {
+                chars.next();
+                next_end += 1;
+                seg_start = next_end;
+                after_redirect = false;
+                continue;
+            } else if chars.peek().is_some_and(|&(_, next_ch)| next_ch == '>') {
+                chars.next();
+                after_redirect = true;
+                continue;
+            }
+            seg_start = next_end;
+            after_redirect = false;
+            continue;
+        }
+        if ch == '>' || ch == '<' {
+            if chars
+                .peek()
+                .is_some_and(|&(_, next_ch)| next_ch == '>' || next_ch == '&')
+            {
+                chars.next();
+            }
+            after_redirect = true;
+            continue;
+        }
+        if !ch.is_whitespace() && after_redirect {
+            // Keep `after_redirect = true` while inside the redirect target token;
+            // if whitespace follows that token, we'll reset it during token scanning below.
+        }
+    }
+
+    // Tokenize `&input[seg_start..cursor]` preserving byte offsets in `input`.
+    let mut tokens: Vec<(usize, usize)> = Vec::new();
+    let mut tok_start: Option<usize> = None;
+    let mut t_quote: Option<char> = None;
+    let mut t_escaped = false;
+    let mut redirect_token_seen = false;
+    for (rel_idx, ch) in input[seg_start..cursor].char_indices() {
+        let abs_idx = seg_start + rel_idx;
+        if t_escaped {
+            t_escaped = false;
+            tok_start.get_or_insert(abs_idx);
+            continue;
+        }
+        if ch == '\\' && !windows && t_quote != Some('\'') {
+            t_escaped = true;
+            tok_start.get_or_insert(abs_idx);
+            continue;
+        }
+        if let Some(q) = t_quote {
+            if ch == q {
+                t_quote = None;
+            }
+            tok_start.get_or_insert(abs_idx);
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            t_quote = Some(ch);
+            tok_start.get_or_insert(abs_idx);
+            continue;
+        }
+        if matches!(ch, '>' | '<') {
+            if let Some(s) = tok_start.take() {
+                tokens.push((s, abs_idx));
+            }
+            redirect_token_seen = true;
+            continue;
+        }
+        if ch.is_whitespace() {
+            if let Some(s) = tok_start.take() {
+                tokens.push((s, abs_idx));
+                if redirect_token_seen {
+                    redirect_token_seen = false;
+                    after_redirect = false;
+                }
+            }
+        } else {
+            tok_start.get_or_insert(abs_idx);
+        }
+    }
+
+    let (cur_start, cur_end) = match tok_start {
+        Some(s) => (s, cursor),
+        None => (cursor, cursor),
+    };
+    let raw_tok = &input[cur_start..cur_end];
+
+    if after_redirect || redirect_token_seen {
+        let paths = complete_path_items(
+            raw_tok,
+            cur_start,
+            cur_end,
+            base_dir,
+            "",
+            "",
+            None,
+            true,
+            &mut watched_dir,
+        )?;
+        return Some(PaletteEval {
+            items: PaletteList::Paths(paths),
+            watched_dir,
+            check_shell_cmds: false,
+            cmd_stamp: 0,
+        });
+    }
+
+    // Filter out leading `VAR=val` assignments and transparent command wrappers
+    // from the completed tokens preceding `cur_start`.
+    let is_env_assign = |s: &str| -> Option<usize> {
+        let eq = s.find('=')?;
+        let name = &s[..eq];
+        (!name.is_empty()
+            && name.chars().enumerate().all(|(i, c)| {
+                c == '_'
+                    || (i == 0 && c.is_ascii_alphabetic())
+                    || (i > 0 && c.is_ascii_alphanumeric())
+            }))
+        .then_some(eq)
+    };
+    const WRAPPERS: &[&str] = &[
+        "sudo", "env", "nohup", "time", "nice", "command", "builtin", "exec", "xargs", "doas",
+        "strace",
+    ];
+    let mut idx = 0;
+    while idx < tokens.len() {
+        let word = &input[tokens[idx].0..tokens[idx].1];
+        if is_env_assign(word).is_some() {
+            idx += 1;
+            continue;
+        }
+        if WRAPPERS.contains(&word) {
+            idx += 1;
+            while idx < tokens.len() && input[tokens[idx].0..tokens[idx].1].starts_with('-') {
+                idx += 1;
+            }
+            continue;
+        }
+        break;
+    }
+
+    let in_command_pos = idx >= tokens.len();
+    if in_command_pos {
+        if raw_tok.is_empty() {
+            return None;
+        }
+        if let Some(eq_idx) = is_env_assign(raw_tok) {
+            let val_start = cur_start + eq_idx + 1;
+            let val_tok = &input[val_start..cur_end];
+            let paths = complete_path_items(
+                val_tok,
+                val_start,
+                cur_end,
+                base_dir,
+                "",
+                "",
+                None,
+                true,
+                &mut watched_dir,
+            )?;
+            return Some(PaletteEval {
+                items: PaletteList::Paths(paths),
+                watched_dir,
+                check_shell_cmds: false,
+                cmd_stamp: 0,
+            });
+        }
+        let looks_like_path = raw_tok.starts_with('.')
+            || raw_tok.starts_with('~')
+            || raw_tok.starts_with('/')
+            || raw_tok.starts_with('\\')
+            || raw_tok.contains('/')
+            || raw_tok.contains('\\');
+        if looks_like_path {
+            let paths = complete_path_items(
+                raw_tok,
+                cur_start,
+                cur_end,
+                base_dir,
+                "",
+                "",
+                None,
+                true,
+                &mut watched_dir,
+            )?;
+            return Some(PaletteEval {
+                items: PaletteList::Paths(paths),
+                watched_dir,
+                check_shell_cmds: false,
+                cmd_stamp: 0,
+            });
+        }
+
+        // Match command names (builtins + PATH executables) + local directory entries
+        let needle_lower = raw_tok.to_ascii_lowercase();
+        let (cmd_stamp, all_cmds) = cached_shell_commands();
+        let mut rank0: Vec<&CachedShellCmd> = Vec::new();
+        let mut rank1: Vec<&CachedShellCmd> = Vec::new();
+        let mut rank2: Vec<(usize, &CachedShellCmd)> = Vec::new();
+        for entry in all_cmds.iter() {
+            if entry.cmd_lower == needle_lower {
+                rank0.push(entry);
+            } else if entry.cmd_lower.starts_with(&needle_lower) {
+                rank1.push(entry);
+            } else if let Some(p) = entry.cmd_lower.find(&needle_lower) {
+                rank2.push((p, entry));
+            }
+        }
+        if rank2.len() > 1 {
+            rank2.sort_unstable_by(|a, b| {
+                a.0.cmp(&b.0)
+                    .then_with(|| a.1.cmd.len().cmp(&b.1.cmd.len()))
+                    .then_with(|| a.1.cmd_lower.cmp(&b.1.cmd_lower))
+                    .then_with(|| a.1.cmd.cmp(&b.1.cmd))
+            });
+        }
+
+        let total = rank0.len() + rank1.len() + rank2.len();
+        let mut items: Vec<PaletteItem> = Vec::with_capacity(total);
+        let mut seen_labels = std::collections::HashSet::with_capacity(total);
+        for entry in rank0
+            .into_iter()
+            .chain(rank1)
+            .chain(rank2.into_iter().map(|(_, e)| e))
+        {
+            seen_labels.insert(entry.cmd.clone());
+            items.push(PaletteItem {
+                verb: "",
+                args_hint: "",
+                description: entry.desc,
+                subcommand: None,
+                strong: false,
+                custom_label: Some(entry.cmd.clone()),
+                custom_desc: Some(entry.desc),
+                custom_replacement: Some((cur_start, cur_end, format!("{} ", entry.cmd))),
+                is_dir: false,
+                is_shell: true,
+            });
+        }
+
+        // Also append matching local folders/files in `base_dir`
+        if let Some(local_paths) = complete_path_items(
+            raw_tok,
+            cur_start,
+            cur_end,
+            base_dir,
+            "",
+            "",
+            None,
+            true,
+            &mut watched_dir,
+        ) {
+            let cap = local_paths.len().min(200);
+            for i in 0..cap {
+                if let Some(p_item) = local_paths.get(i) {
+                    if let Some(ref lbl) = p_item.custom_label {
+                        if !seen_labels.contains(lbl) {
+                            items.push(p_item);
+                        }
+                    }
+                }
+            }
+        }
+        return (!items.is_empty()).then_some(PaletteEval {
+            items: PaletteList::Items(items),
+            watched_dir,
+            check_shell_cmds: true,
+            cmd_stamp,
+        });
+    }
+
+    // Argument position (after the command name):
+    if raw_tok.starts_with('-') {
+        if let Some(eq_idx) = raw_tok.find('=') {
+            let val_start = cur_start + eq_idx + 1;
+            let val_tok = &input[val_start..cur_end];
+            let paths = complete_path_items(
+                val_tok,
+                val_start,
+                cur_end,
+                base_dir,
+                "",
+                "",
+                None,
+                true,
+                &mut watched_dir,
+            )?;
+            return Some(PaletteEval {
+                items: PaletteList::Paths(paths),
+                watched_dir,
+                check_shell_cmds: false,
+                cmd_stamp: 0,
+            });
+        }
+        return None;
+    }
+
+    let paths = complete_path_items(
+        raw_tok,
+        cur_start,
+        cur_end,
+        base_dir,
+        "",
+        "",
+        None,
+        true,
+        &mut watched_dir,
+    )?;
+    Some(PaletteEval {
+        items: PaletteList::Paths(paths),
+        watched_dir,
+        check_shell_cmds: false,
+        cmd_stamp: 0,
+    })
 }
 
 fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
@@ -270,6 +1524,14 @@ fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
     let line = &input[line_start..line_end];
     let cur_in_line = cursor - line_start;
 
+    let takes_path_arg = |s: &str| -> bool {
+        let verb = s.split_whitespace().next().unwrap_or("");
+        matches!(
+            verb.to_ascii_lowercase().as_str(),
+            "attach" | "skills" | "mcp"
+        ) && s.contains(char::is_whitespace)
+    };
+
     let mut rel_start = None;
     for (idx, ch) in line[..cur_in_line].char_indices() {
         if ch == '/' {
@@ -278,7 +1540,9 @@ fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
                     .chars()
                     .next_back()
                     .is_some_and(char::is_whitespace);
-            if preceded_by_space {
+            if preceded_by_space
+                && !rel_start.is_some_and(|prev| takes_path_arg(&line[prev + 1..idx]))
+            {
                 rel_start = Some(idx);
             }
         }
@@ -292,6 +1556,7 @@ fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
                 .chars()
                 .next_back()
                 .is_some_and(char::is_whitespace)
+            && !takes_path_arg(&line[rel_start + 1..abs_idx])
         {
             rel_end = abs_idx;
             while rel_end > rel_start + 1
@@ -311,12 +1576,17 @@ fn find_slash_span(input: &str, cursor: usize) -> Option<(usize, usize)> {
     Some((line_start + rel_start, line_start + rel_end))
 }
 
-fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
+fn evaluate_slash_slice(
+    slice: &str,
+    span_start: usize,
+    base_dir: &std::path::Path,
+    watched_dir: &mut Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+) -> Option<PaletteList> {
     if slice == "?" {
         return COMMANDS
             .iter()
             .find(|c| c.0 == "help")
-            .map(|c| vec![PaletteItem::from_entry(c, true)]);
+            .map(|c| PaletteList::Items(vec![PaletteItem::from_entry(c, true)]));
     }
     let rest = slice.strip_prefix('/')?;
     if rest.starts_with('/') || rest.starts_with(char::is_whitespace) {
@@ -330,11 +1600,11 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
         if hits.is_empty() {
             return None;
         }
-        return Some(
+        return Some(PaletteList::Items(
             hits.into_iter()
                 .map(|(r, c)| PaletteItem::from_entry(c, r <= 2))
                 .collect(),
-        );
+        ));
     };
 
     let verb_lower = raw_verb.to_ascii_lowercase();
@@ -357,6 +1627,34 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
     }
 
     let after_trimmed = raw_after.trim();
+    if matched.len() == 1 && matched[0].0 == "attach" && !slice.contains('\n') {
+        let after_verb_offset = 1 + raw_verb.len();
+        let ws_len: usize = slice[after_verb_offset..]
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .map(char::len_utf8)
+            .sum();
+        let arg_start = after_verb_offset + ws_len;
+        let raw_path_arg = &slice[arg_start..];
+        let resolved_target = resolve_path_arg(raw_path_arg, base_dir);
+        let path_exists = (!raw_path_arg.is_empty()) && resolved_target.is_file();
+        if !path_exists {
+            if let Some(path_items) = complete_path_items(
+                raw_path_arg,
+                span_start + arg_start,
+                span_start + slice.len(),
+                base_dir,
+                "/attach ",
+                "attach",
+                None,
+                false,
+                watched_dir,
+            ) {
+                return Some(PaletteList::Paths(path_items));
+            }
+        }
+    }
+
     if after_trimmed.is_empty() {
         // Trailing space after a command (`/settings `, `abc /settings `, `/mode `, `abc /mode `):
         // keep the option list visible! When one command has known subcommands, list them too.
@@ -371,16 +1669,21 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
                     description: desc,
                     subcommand: Some(sub),
                     strong: true,
+                    custom_label: None,
+                    custom_desc: None,
+                    custom_replacement: None,
+                    is_dir: false,
+                    is_shell: false,
                 });
             }
-            return Some(items);
+            return Some(PaletteList::Items(items));
         }
-        return Some(
+        return Some(PaletteList::Items(
             matched
                 .into_iter()
                 .map(|c| PaletteItem::from_entry(c, true))
                 .collect(),
-        );
+        ));
     }
 
     // Non-empty arguments after the command: reject no-argument commands (`/help foo`, `abc /settings xyz`)
@@ -404,6 +1707,145 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
                     continue;
                 }
             }
+
+            // Path completion for subcommands that expect a filesystem path:
+            // `/skills install <path>`, `/skills update <path>`, `/mcp import <path>`, `/mcp add <id> <path>`
+            let is_path_sub = (cmd.0 == "skills"
+                && matches!(first_lower.as_str(), "install" | "update"))
+                || (cmd.0 == "mcp" && matches!(first_lower.as_str(), "import" | "add"));
+            if is_path_sub {
+                let sub_static = subs
+                    .iter()
+                    .find(|&&(s, _, _)| s == first_lower)
+                    .map(|&(s, _, _)| s);
+                if let Some(sub_name) = sub_static {
+                    let after_verb_offset = 1 + raw_verb.len();
+                    let ws1: usize = slice[after_verb_offset..]
+                        .chars()
+                        .take_while(|c| c.is_whitespace())
+                        .map(char::len_utf8)
+                        .sum();
+                    let sub_end = after_verb_offset + ws1 + first.len();
+                    if sub_end < slice.len()
+                        && slice[sub_end..]
+                            .chars()
+                            .next()
+                            .is_some_and(char::is_whitespace)
+                    {
+                        let ws2: usize = slice[sub_end..]
+                            .chars()
+                            .take_while(|c| c.is_whitespace())
+                            .map(char::len_utf8)
+                            .sum();
+                        let mut arg_pos = sub_end + ws2;
+                        // Skip optional `--scope <val>`
+                        while slice[arg_pos..].starts_with("--scope ") {
+                            let rest_s = &slice[arg_pos + "--scope ".len()..];
+                            let ws_a: usize = rest_s
+                                .chars()
+                                .take_while(|c| c.is_whitespace())
+                                .map(char::len_utf8)
+                                .sum();
+                            let scope_word_len: usize = rest_s[ws_a..]
+                                .chars()
+                                .take_while(|c| !c.is_whitespace())
+                                .map(char::len_utf8)
+                                .sum();
+                            let after_scope = arg_pos + "--scope ".len() + ws_a + scope_word_len;
+                            if after_scope < slice.len()
+                                && slice[after_scope..]
+                                    .chars()
+                                    .next()
+                                    .is_some_and(char::is_whitespace)
+                            {
+                                let ws_b: usize = slice[after_scope..]
+                                    .chars()
+                                    .take_while(|c| c.is_whitespace())
+                                    .map(char::len_utf8)
+                                    .sum();
+                                arg_pos = after_scope + ws_b;
+                            } else {
+                                break;
+                            }
+                        }
+                        if cmd.0 == "mcp" && sub_name == "add" {
+                            // `/mcp add <id> <path>` — path is the second argument after `<id>`
+                            let rest_id = &slice[arg_pos..];
+                            let id_len: usize = rest_id
+                                .chars()
+                                .take_while(|c| !c.is_whitespace())
+                                .map(char::len_utf8)
+                                .sum();
+                            let after_id = arg_pos + id_len;
+                            if id_len > 0
+                                && after_id < slice.len()
+                                && slice[after_id..]
+                                    .chars()
+                                    .next()
+                                    .is_some_and(char::is_whitespace)
+                            {
+                                let id_str = &slice[arg_pos..after_id];
+                                let ws_id: usize = slice[after_id..]
+                                    .chars()
+                                    .take_while(|c| c.is_whitespace())
+                                    .map(char::len_utf8)
+                                    .sum();
+                                let path_pos = after_id + ws_id;
+                                let raw_path_arg = &slice[path_pos..];
+                                if !raw_path_arg.starts_with("http://")
+                                    && !raw_path_arg.starts_with("https://")
+                                    && !raw_path_arg.starts_with('{')
+                                {
+                                    let resolved_target = resolve_path_arg(raw_path_arg, base_dir);
+                                    let already_file =
+                                        !raw_path_arg.is_empty() && resolved_target.is_file();
+                                    if !already_file {
+                                        if let Some(path_items) = complete_path_items(
+                                            raw_path_arg,
+                                            span_start + path_pos,
+                                            span_start + slice.len(),
+                                            base_dir,
+                                            &format!("/mcp add {id_str} "),
+                                            "mcp",
+                                            Some("add"),
+                                            false,
+                                            watched_dir,
+                                        ) {
+                                            return Some(PaletteList::Paths(path_items));
+                                        }
+                                    }
+                                }
+                            }
+                        } else if !slice[arg_pos..].starts_with('-') {
+                            let raw_path_arg = &slice[arg_pos..];
+                            let resolved_target = resolve_path_arg(raw_path_arg, base_dir);
+                            let ready_target = !raw_path_arg.is_empty()
+                                && if cmd.0 == "skills" {
+                                    resolved_target.is_file()
+                                        || resolved_target.join("SKILL.md").is_file()
+                                } else {
+                                    resolved_target.is_file()
+                                };
+                            if !ready_target {
+                                if let Some(path_items) = complete_path_items(
+                                    raw_path_arg,
+                                    span_start + arg_pos,
+                                    span_start + slice.len(),
+                                    base_dir,
+                                    &format!("/{} {sub_name} ", cmd.0),
+                                    cmd.0,
+                                    Some(sub_name),
+                                    false,
+                                    watched_dir,
+                                ) {
+                                    return Some(PaletteList::Paths(path_items));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             for &(sub, desc, takes_more) in subs {
                 let exact_sub = sub == first_lower;
                 let prefix_sub = !has_more && sub.starts_with(&first_lower);
@@ -414,6 +1856,11 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
                         description: desc,
                         subcommand: Some(sub),
                         strong: true,
+                        custom_label: None,
+                        custom_desc: None,
+                        custom_replacement: None,
+                        is_dir: false,
+                        is_shell: false,
                     });
                 }
             }
@@ -423,7 +1870,7 @@ fn evaluate_slash_slice(slice: &str) -> Option<Vec<PaletteItem>> {
             items.push(PaletteItem::from_entry(cmd, true));
         }
     }
-    (!items.is_empty()).then_some(items)
+    (!items.is_empty()).then_some(PaletteList::Items(items))
 }
 
 fn freeform_args_valid(verb: &str, after: &str) -> bool {
@@ -466,9 +1913,31 @@ fn freeform_args_valid(verb: &str, after: &str) -> bool {
     }
 }
 
-fn active_slash_query(input: &str, cursor: usize) -> Option<(usize, usize, Vec<PaletteItem>)> {
+fn active_slash_query_in(
+    input: &str,
+    cursor: usize,
+    base_dir: Option<&std::path::Path>,
+) -> Option<(usize, usize, PaletteList)> {
+    let mut watched_dir = None;
+    active_slash_query_watched(input, cursor, base_dir, &mut watched_dir)
+}
+
+fn active_slash_query_watched(
+    input: &str,
+    cursor: usize,
+    base_dir: Option<&std::path::Path>,
+    watched_dir: &mut Option<(std::path::PathBuf, Option<std::time::SystemTime>)>,
+) -> Option<(usize, usize, PaletteList)> {
     let (start, end) = find_slash_span(input, cursor)?;
-    let items = evaluate_slash_slice(&input[start..end])?;
+    let fallback;
+    let dir = match base_dir {
+        Some(d) => d,
+        None => {
+            fallback = resolve_base_dir(None);
+            &fallback
+        }
+    };
+    let items = evaluate_slash_slice(&input[start..end], start, dir, watched_dir)?;
     Some((start, end, items))
 }
 
@@ -512,6 +1981,10 @@ fn rank(command: &(&str, &str, &str), needle: &str) -> Option<u8> {
 /// URI on some desktops, single quotes on others, and a backslash before every
 /// space on most.
 fn paths_in(text: &str) -> Option<Vec<std::path::PathBuf>> {
+    paths_in_in(text, None)
+}
+
+fn paths_in_in(text: &str, base_dir: Option<&std::path::Path>) -> Option<Vec<std::path::PathBuf>> {
     let lines: Vec<&str> = text
         .lines()
         .map(str::trim)
@@ -551,9 +2024,15 @@ fn paths_in(text: &str) -> Option<Vec<std::path::PathBuf>> {
                 })
                 .unwrap_or(token)
                 .replace("%20", " ");
-            let path = std::path::PathBuf::from(shellexpand(&bare));
+            let mut path = std::path::PathBuf::from(shellexpand(&bare));
             if !path.is_file() {
-                return None;
+                let base = base_dir.filter(|_| !path.is_absolute())?;
+                let joined = base.join(&path);
+                if joined.is_file() {
+                    path = joined;
+                } else {
+                    return None;
+                }
             }
             out.push(path);
         }
@@ -750,6 +2229,9 @@ impl App {
         // Global shortcuts are available from any screen, including modals and prompts.
         match key {
             Key::Ctrl('g') => {
+                if self.panel == Panel::Settings {
+                    settings::flush_deferred(self, d, true);
+                }
                 self.toggle(Panel::Settings);
                 return;
             }
@@ -758,7 +2240,9 @@ impl App {
                 return;
             }
             Key::Ctrl('o') => {
-                self.set_sidebar(!self.sidebar);
+                let next = !self.sidebar;
+                self.set_sidebar_optimistic(next);
+                settings::schedule_config(self, "ui.sidebar", serde_json::Value::Bool(next));
                 return;
             }
             Key::Ctrl('l') => {
@@ -1229,6 +2713,23 @@ impl App {
             super::draw::Hit::Palette(n) => {
                 self.palette_row = n;
                 self.palette_picked = true;
+                let items = self.current_palette_items();
+                if let Some(item) = items.get(n) {
+                    if let Some((tok_start, tok_end, ref replacement)) = item.custom_replacement {
+                        let mut out = String::with_capacity(self.input.len() + replacement.len());
+                        out.push_str(&self.input[..tok_start]);
+                        out.push_str(replacement);
+                        out.push_str(&self.input[tok_end..]);
+                        let new_cursor = tok_start + replacement.len();
+                        self.input = out;
+                        self.cursor = new_cursor;
+                        self.input_editor.observe(&self.input, self.cursor);
+                        self.palette_row = 0;
+                        self.palette_picked = false;
+                        self.palette_scroll = 0;
+                        return;
+                    }
+                }
                 if let Some((completed, new_cursor)) = self.chosen_completion(true) {
                     self.input = completed;
                     self.cursor = new_cursor;
@@ -1581,16 +3082,16 @@ impl App {
             // list. There is nothing to scroll to that matters more than the
             // thing being chosen two rows below.
             Key::Up if self.searching() => {
-                let count = palette_items(&self.input, self.cursor).len();
+                let count = self.current_palette_items().len();
                 self.palette_picked = true;
                 self.palette_row = self.palette_row.saturating_sub(1);
                 self.adjust_palette_scroll(count);
             }
             Key::Down if self.searching() => {
-                let items = palette_items(&self.input, self.cursor);
+                let items = self.current_palette_items();
                 let count = items.len();
                 if count > 0 {
-                    if !items[0].strong && !self.palette_picked {
+                    if !items.first_strong() && !self.palette_picked {
                         self.palette_row = 0;
                     } else {
                         self.palette_row = (self.palette_row + 1).min(count - 1);
@@ -1644,7 +3145,7 @@ impl App {
                     self.palette_picked = true;
                     if let Some((chosen, new_cursor)) = self.chosen_completion(false) {
                         if self.input == chosen {
-                            let count = palette_items(&self.input, self.cursor).len();
+                            let count = self.current_palette_items().len();
                             if count > 1 {
                                 self.palette_row = (self.palette_row + 1) % count;
                                 self.adjust_palette_scroll(count);
@@ -1665,11 +3166,36 @@ impl App {
                 }
             }
             Key::Enter => {
-                if let Some((start, end, items)) = active_slash_query(&self.input, self.cursor) {
-                    if let Some(sel) =
-                        palette_selected(&items, self.palette_picked, self.palette_row)
-                    {
-                        let item = items[sel];
+                let items = self.current_palette_items();
+                if let Some(sel) = palette_selected(&*items, self.palette_picked, self.palette_row)
+                {
+                    let item = items.get(sel).expect("selected palette item in bounds");
+                    if let Some((tok_start, tok_end, ref replacement)) = item.custom_replacement {
+                        let mut out = String::with_capacity(self.input.len() + replacement.len());
+                        out.push_str(&self.input[..tok_start]);
+                        out.push_str(replacement);
+                        out.push_str(&self.input[tok_end..]);
+                        let new_cursor = tok_start + replacement.len();
+                        self.input = out;
+                        self.cursor = new_cursor;
+                        self.input_editor.observe(&self.input, self.cursor);
+                        self.palette_row = 0;
+                        self.palette_picked = false;
+                        self.palette_scroll = 0;
+                        if item.is_dir {
+                            return;
+                        }
+                        if item.is_shell {
+                            return;
+                        }
+                        return;
+                    }
+
+                    if let Some((start, end, _)) = active_slash_query_in(
+                        &self.input,
+                        self.cursor,
+                        Some(std::path::Path::new(&self.project)),
+                    ) {
                         let slice = &self.input[start..end];
                         let typed = slice
                             .strip_prefix('/')
@@ -1807,11 +3333,73 @@ impl App {
         self.palette_scroll = 0;
     }
 
+    pub fn palette_cache_stale(&self) -> bool {
+        let Ok(guard) = self.palette_cache.lock() else {
+            return false;
+        };
+        let Some(ref cached) = *guard else {
+            return false;
+        };
+        if cached.cursor != self.cursor
+            || cached.input != self.input
+            || cached.project != self.project
+        {
+            return true;
+        }
+        if let Some((ref dir, mt)) = cached.watched_dir {
+            if !mtime_fresh(mt, dir_mtime(dir)) {
+                return true;
+            }
+        }
+        if cached.check_shell_cmds && shell_cmds_current_stamp() != cached.cmd_stamp {
+            return true;
+        }
+        false
+    }
+
+    pub fn current_palette_items(&self) -> std::sync::Arc<PaletteList> {
+        if let Ok(guard) = self.palette_cache.lock() {
+            if let Some(ref cached) = *guard {
+                if cached.cursor == self.cursor
+                    && cached.input == self.input
+                    && cached.project == self.project
+                {
+                    let dir_ok = cached
+                        .watched_dir
+                        .as_ref()
+                        .is_none_or(|(dir, mt)| mtime_fresh(*mt, dir_mtime(dir)));
+                    let cmds_ok =
+                        !cached.check_shell_cmds || shell_cmds_current_stamp() == cached.cmd_stamp;
+                    if dir_ok && cmds_ok {
+                        return std::sync::Arc::clone(&cached.items);
+                    }
+                }
+            }
+        }
+        let base = if self.project.is_empty() {
+            None
+        } else {
+            Some(self.project.as_str())
+        };
+        let eval = palette_eval_in(&self.input, self.cursor, base);
+        let items = std::sync::Arc::new(eval.items);
+        if let Ok(mut guard) = self.palette_cache.lock() {
+            *guard = Some(PaletteCache {
+                input: self.input.clone(),
+                cursor: self.cursor,
+                project: self.project.clone(),
+                watched_dir: eval.watched_dir,
+                check_shell_cmds: eval.check_shell_cmds,
+                cmd_stamp: eval.cmd_stamp,
+                items: std::sync::Arc::clone(&items),
+            });
+        }
+        items
+    }
+
     /// Whether the composer is searching for a command right now.
     pub fn searching(&self) -> bool {
-        self.composer_visible()
-            && runeengine::session::manual_shell::command(&self.input).is_none()
-            && !palette_items(&self.input, self.cursor).is_empty()
+        self.composer_visible() && !self.current_palette_items().is_empty()
     }
 
     /// The command the palette has under its cursor, written out in full.
@@ -1821,7 +3409,23 @@ impl App {
     }
 
     fn chosen_completion(&self, trailing_space: bool) -> Option<(String, usize)> {
-        let (start, end, items) = active_slash_query(&self.input, self.cursor)?;
+        let items = self.current_palette_items();
+        let item = items.get(self.palette_row.min(items.len().saturating_sub(1)))?;
+        if let Some((tok_start, tok_end, ref replacement)) = item.custom_replacement {
+            let mut out = String::with_capacity(self.input.len() + replacement.len());
+            out.push_str(&self.input[..tok_start]);
+            out.push_str(replacement);
+            out.push_str(&self.input[tok_end..]);
+            let new_cursor = tok_start + replacement.len();
+            return Some((out, new_cursor));
+        }
+
+        let base = if self.project.is_empty() {
+            None
+        } else {
+            Some(std::path::Path::new(&self.project))
+        };
+        let (start, end, items) = active_slash_query_in(&self.input, self.cursor, base)?;
         let item = items.get(self.palette_row.min(items.len().saturating_sub(1)))?;
         let slice = &self.input[start..end];
         let replacement = if let Some(sub) = item.subcommand {
@@ -1908,6 +3512,7 @@ impl App {
     }
 
     pub(super) fn submit(&mut self, d: &mut Driver) {
+        settings::flush_deferred(self, d, true);
         let manual_shell = runeengine::session::manual_shell::command(&self.input).is_some();
         if manual_shell {
             if let Err(error) = runeengine::session::manual_shell::validate(&self.input) {
@@ -2070,29 +3675,31 @@ impl App {
         };
         self.composition.submitted = Some(composer);
         let attach: Vec<String> = media.iter().map(|a| a.path.clone()).collect();
-        let user_idx = self.blocks.len();
-        self.blocks.push(Block::user_timed(
-            text.clone(),
-            Some(super::term::now_hm()),
-            media.clone(),
-        ));
-        self.transcript_dirty = true;
-        // Every message goes the one way: the engine admits it — a turn of its
-        // own, or a wait for the work in progress — so it is drawn as waiting
-        // until the engine says it has taken it, whatever this window believes
-        // about the session being busy.
-        let steer = super::QueuedSteer {
-            text: text.clone(),
-            remote: false,
-            pending_id: None,
-        };
-        match &mut self.queued_prompt {
-            Some(queued) => queued.steers.push(steer),
-            None => {
-                self.queued_prompt = Some(super::QueuedPrompt {
-                    steers: vec![steer],
-                    first_user_block: user_idx,
-                })
+        if !manual_shell {
+            let user_idx = self.blocks.len();
+            self.blocks.push(Block::user_timed(
+                text.clone(),
+                Some(super::term::now_hm()),
+                media.clone(),
+            ));
+            self.transcript_dirty = true;
+            // Every message goes the one way: the engine admits it — a turn of its
+            // own, or a wait for the work in progress — so it is drawn as waiting
+            // until the engine says it has taken it, whatever this window believes
+            // about the session being busy.
+            let steer = super::QueuedSteer {
+                text: text.clone(),
+                remote: false,
+                pending_id: None,
+            };
+            match &mut self.queued_prompt {
+                Some(queued) => queued.steers.push(steer),
+                None => {
+                    self.queued_prompt = Some(super::QueuedPrompt {
+                        steers: vec![steer],
+                        first_user_block: user_idx,
+                    })
+                }
             }
         }
         self.request(
@@ -2371,8 +3978,11 @@ impl App {
                         .split_once(char::is_whitespace)
                         .map(|(_, p)| p.trim())
                         .unwrap_or("");
-                    let paths = paths_in(raw)
-                        .unwrap_or_else(|| vec![std::path::PathBuf::from(shellexpand(raw))]);
+                    let base_dir = resolve_base_dir(
+                        (!self.project.is_empty()).then_some(self.project.as_str()),
+                    );
+                    let paths = paths_in_in(raw, Some(&base_dir))
+                        .unwrap_or_else(|| vec![resolve_path_arg(raw, &base_dir)]);
                     self.attach(&paths, d);
                 }
             },
@@ -2577,7 +4187,7 @@ impl App {
     }
 
     /// Cycle thinking state across all supported effort levels or toggle if effort not supported.
-    pub fn cycle_thinking(&mut self, d: &mut Driver) {
+    pub fn cycle_thinking(&mut self, _d: &mut Driver) {
         if self.is_suppressed("thinking") && self.is_suppressed("effort") {
             self.note("Thinking is not supported by the active model or provider.");
             return;
@@ -2620,12 +4230,9 @@ impl App {
                     self.note("Thinking is mandatory for this model and cannot be turned off.");
                     return;
                 }
-                settings::apply(self, "thinking", "false", d);
-                self.settings["settings"]["thinking"] = serde_json::json!(false);
-                self.settings["settings"]["effort"] = serde_json::Value::Null;
+                settings::schedule_apply(self, "thinking", "false");
             } else {
-                settings::apply(self, "thinking", "true", d);
-                self.settings["settings"]["thinking"] = serde_json::json!(true);
+                settings::schedule_apply(self, "thinking", "true");
             }
             return;
         }
@@ -2641,19 +4248,12 @@ impl App {
         let next_idx = (at + 1) % choices.len();
         let next_val = &choices[next_idx];
 
-        if next_val.eq_ignore_ascii_case("off") {
-            settings::apply(self, "effort", "off", d);
-            self.settings["settings"]["thinking"] = serde_json::json!(false);
-            self.settings["settings"]["effort"] = serde_json::Value::Null;
-        } else if next_val == super::ROUTE_DEFAULT {
-            settings::apply(self, "effort", next_val, d);
-            self.settings["settings"]["thinking"] = serde_json::json!(true);
-            self.settings["settings"]["effort"] = serde_json::Value::Null;
+        let val = if next_val.eq_ignore_ascii_case("off") {
+            "off"
         } else {
-            settings::apply(self, "effort", next_val, d);
-            self.settings["settings"]["thinking"] = serde_json::json!(true);
-            self.settings["settings"]["effort"] = serde_json::json!(next_val);
-        }
+            next_val.as_str()
+        };
+        settings::schedule_apply(self, "effort", val);
     }
 }
 
@@ -5509,6 +7109,110 @@ mod tests {
     }
 
     #[test]
+    fn large_directory_autocomplete_keeps_all_options_scrolls_fast_and_updates_live() {
+        let dir = std::env::temp_dir().join(format!("rune-perf-palette-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("skill_pkg")).unwrap();
+        std::fs::write(
+            dir.join("skill_pkg/SKILL.md"),
+            "---\nname: skill_pkg\ndescription: test\n---\nhi\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("my spaced file.txt"), "spaced").unwrap();
+        for i in 0..1500 {
+            std::fs::write(dir.join(format!("item_{i:04}.txt")), "x").unwrap();
+        }
+
+        let mut d = test_driver("perf-palette");
+        let mut app = App::for_test();
+        app.project = dir.display().to_string();
+
+        // 1. All 1500+ options remain present (no 200-item truncation)
+        app.input = "/attach ".into();
+        app.cursor = app.input.len();
+        let items = app.current_palette_items();
+        assert!(
+            items.len() >= 1502,
+            "expected all options (>=1502), got {}",
+            items.len()
+        );
+
+        // 2. Spamming 250 Key::Down scroll events hits cache cleanly with minimal latency
+        let started = Instant::now();
+        for _ in 0..250 {
+            press(&mut app, &mut d, &[Key::Down]);
+        }
+        let elapsed = started.elapsed();
+        assert_eq!(app.palette_row, 249);
+        assert!(
+            elapsed < std::time::Duration::from_millis(500),
+            "scrolling 250 steps over 1500+ options took too long: {elapsed:?}"
+        );
+
+        // 3. Also verify `! ls ` mode keeps all options and scrolls cleanly
+        app.input = "! ls ".into();
+        app.cursor = app.input.len();
+        app.palette_row = 0;
+        app.palette_picked = false;
+        let shell_items = app.current_palette_items();
+        assert!(shell_items.len() >= 1502);
+        let shell_started = Instant::now();
+        for _ in 0..250 {
+            press(&mut app, &mut d, &[Key::Down]);
+        }
+        assert_eq!(app.palette_row, 249);
+        assert!(
+            shell_started.elapsed() < std::time::Duration::from_millis(500),
+            "! ls scrolling took too long"
+        );
+
+        // 4. Creating a new file while palette is open updates options immediately
+        app.input = "/attach ".into();
+        app.cursor = app.input.len();
+        app.palette_row = 0;
+        let _ = app.current_palette_items();
+        std::fs::write(dir.join("zzz_created_live.txt"), "new").unwrap();
+        let refreshed = app.current_palette_items();
+        assert!(
+            refreshed
+                .iter()
+                .any(|i| i.custom_label.as_deref() == Some("/attach zzz_created_live.txt")),
+            "newly created file must appear immediately"
+        );
+
+        // 5. `/attach my\ spaced\ file.txt` executes on Enter relative to app.project
+        app.input = "/attach my\\ spaced\\ file.txt".into();
+        app.cursor = app.input.len();
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(
+            app.attached.len(),
+            1,
+            "space-escaped /attach must attach the file on Enter (input={:?}, status={:?})",
+            app.input,
+            app.status
+        );
+        assert_eq!(app.attached[0].name, "my spaced file.txt");
+
+        // 6. `/skills install skill_pkg/` lets Enter execute instead of trapping inside SKILL.md
+        app.input = "/skills install skill_pkg/".into();
+        app.cursor = app.input.len();
+        let skill_items = app.current_palette_items();
+        assert!(
+            !skill_items
+                .iter()
+                .any(|i| i.custom_label.as_deref() == Some("/skills install skill_pkg/SKILL.md")),
+            "valid skill folder must not trap Enter inside SKILL.md: {:?}",
+            skill_items
+                .iter()
+                .map(|i| i.custom_label.clone())
+                .collect::<Vec<_>>()
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        d.engine.shutdown();
+    }
+
+    #[test]
     fn command_palette_trigger_requires_valid_command_intent() {
         // 1. Valid command prefix: matches command
         assert!(!matches("/attach").is_empty());
@@ -5689,12 +7393,118 @@ mod tests {
             palette_selected(&picked_items, app.palette_picked, app.palette_row),
             Some(0)
         );
-        let expected_verb = picked_items[0].verb;
+        let _expected_verb = picked_items[0].verb;
         press(&mut app, &mut d, &[Key::Enter]);
-        if expected_verb == "help" {
-            assert_eq!(app.panel, Panel::Help);
-        }
+        assert_eq!(app.panel, Panel::Help);
         assert_eq!(app.input, "abc ");
+    }
+
+    #[test]
+    fn shell_and_slash_path_autocomplete_scenarios() {
+        let dir = std::env::temp_dir().join(format!("rune-autocomplete-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("subfolder/inner")).unwrap();
+        std::fs::write(dir.join("subfolder/file1.txt"), "hello").unwrap();
+        std::fs::write(dir.join("root_file.rs"), "fn main() {}").unwrap();
+        std::fs::write(dir.join(".hidden_file"), "secret").unwrap();
+
+        let mut d = test_driver("shell-slash-autocomplete");
+        let mut app = App::for_test();
+        app.project = dir.display().to_string();
+
+        // 1. In shell mode (! ), typing "! " or "! ls " opens path autocomplete for current dir
+        app.input = "! ls ".into();
+        app.cursor = app.input.len();
+        assert!(app.searching());
+        let items = app.current_palette_items();
+        assert!(items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("subfolder/")));
+        assert!(items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("root_file.rs")));
+        assert!(
+            !items
+                .iter()
+                .any(|i| i.custom_label.as_deref() == Some(".hidden_file")),
+            "hidden excluded unless prefix has dot"
+        );
+
+        // 2. Typing subfolder/ navigates into directory
+        app.input = "! ls subfolder/".into();
+        app.cursor = app.input.len();
+        assert!(app.searching());
+        let sub_items = app.current_palette_items();
+        assert!(sub_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("subfolder/inner/")));
+        assert!(sub_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("subfolder/file1.txt")));
+
+        // 3. Tab on folder completes with trailing slash so next level is immediately browsable
+        app.input = "! ls sub".into();
+        app.cursor = app.input.len();
+        press(&mut app, &mut d, &[Key::Tab]);
+        assert_eq!(app.input, "! ls subfolder/");
+        assert!(app.searching());
+
+        // 4. In shell mode, typing command name prefix (! ech or ! c) matches shell commands
+        app.input = "! ech".into();
+        app.cursor = app.input.len();
+        assert!(app.searching());
+        let cmd_items = app.current_palette_items();
+        assert!(cmd_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("echo")));
+
+        // Tab on command completes the command name with a trailing space
+        press(&mut app, &mut d, &[Key::Tab]);
+        assert_eq!(app.input, "! echo ");
+
+        // Native Enter behavior on partial path: selects folder instead of submitting `!/...`
+        app.input = "! sub".into();
+        app.cursor = app.input.len();
+        // Command position without path stays non-strong (Enter executes); with path prefix (`! ls sub`) Enter selects!
+        app.input = "! ls sub".into();
+        app.cursor = app.input.len();
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(app.input, "! ls subfolder/");
+
+        // Manual shell submission does NOT push a duplicate Block::User chat box
+        app.input = "! echo hello".into();
+        app.cursor = app.input.len();
+        let blocks_before = app.blocks.len();
+        press(&mut app, &mut d, &[Key::Enter]);
+        assert_eq!(
+            app.blocks.len(),
+            blocks_before,
+            "manual shell must not draw a duplicate user chat box"
+        );
+
+        // 5. Slash command /attach with path autocomplete
+        app.input = "/attach ".into();
+        app.cursor = app.input.len();
+        assert!(app.searching());
+        let attach_items = app.current_palette_items();
+        assert!(attach_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("/attach subfolder/")));
+        assert!(attach_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("/attach root_file.rs")));
+
+        // 6. Subcommands expecting path (/skills install, /mcp import)
+        app.input = "/skills install ".into();
+        app.cursor = app.input.len();
+        assert!(app.searching());
+        let skill_items = app.current_palette_items();
+        assert!(skill_items
+            .iter()
+            .any(|i| i.custom_label.as_deref() == Some("/skills install subfolder/")));
+
+        let _ = std::fs::remove_dir_all(&dir);
+        d.engine.shutdown();
     }
 
     #[test]
@@ -5960,18 +7770,19 @@ mod tests {
 
         assert_eq!(app.effort(), Some("low"));
 
-        // Alt+T once -> medium
+        // Alt+T once -> medium (debounced, 0 IPC yet)
         app.on_key(Key::Alt('t'), &mut d);
         assert_eq!(app.effort(), Some("medium"));
+        assert!(app.preferences.has_deferred_apply());
+        assert!(settings::flush_deferred(&mut app, &mut d, true));
         let first_token = app.preferences.serial;
 
-        // Alt+T immediately again -> high
+        // Alt+T immediately again -> high (optimistic while request 1 is in flight)
         app.on_key(Key::Alt('t'), &mut d);
         assert_eq!(app.effort(), Some("high"));
-        let second_token = app.preferences.serial;
-        assert!(second_token > first_token);
+        assert!(app.preferences.has_deferred_apply());
 
-        // Stale Ack from request 1 arrives carrying older "medium" state
+        // Stale Ack from request 1 arrives carrying older "medium" state -> must NOT revert optimistic "high"
         let session = app.session.unwrap();
         let stale_ack_data = serde_json::json!({
             "settings": { "provider": "openrouter", "model": "test-effort-model", "thinking": true, "effort": "medium" }
@@ -5990,6 +7801,14 @@ mod tests {
             None,
             Some(stale_ack_data),
         );
+        assert_eq!(
+            app.effort(),
+            Some("high"),
+            "stale Ack from earlier request must not overwrite pending optimistic effort"
+        );
+        assert!(settings::flush_deferred(&mut app, &mut d, true));
+        let second_token = app.preferences.serial;
+        assert!(second_token > first_token);
 
         // Effort MUST remain "high", never bouncing back to "medium"
         assert_eq!(app.effort(), Some("high"));

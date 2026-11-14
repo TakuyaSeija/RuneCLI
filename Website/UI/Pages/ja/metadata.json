@@ -15,6 +15,10 @@
     "notfound": {
       "title": "404: ページが見つかりません",
       "lead": "お探しのページは Atoryn Studio に存在しません。"
+    },
+    "overload": {
+      "title": "503: アクセス集中",
+      "lead": "現在、Atoryn Studio で非常に多くの同時リクエストを処理しています。"
     }
   },
   "groups": {
@@ -179,6 +183,40 @@
     "and": "と"
   },
   "notes": {
+    "0.12.5": {
+      "title": "! と / のパス補完、表形式の /shells 表示、補助モデル別の思考設定、および補助コンテキストの改善",
+      "summary": "クロスプラットフォームの ! と / パス補完（遅延なし）、/shells 表・状態修正、モデル準拠の補助思考設定、および補助プロンプト整理",
+      "paragraphs": [
+        "このリリースでは、手動シェル（`!`）およびスラッシュコマンド（`/attach`、`/skills install`、`/skills update`、`/mcp import`、`/mcp add`）にクロスプラットフォームのコマンド・パス補完を追加し、更新時刻ベースのキャッシュにより大きなディレクトリでも遅延なく即座にスクロール・反映できるようになりました。`/shells` パネルは PID 中央揃えの整列された `STATUS`・`ID`・`PID`・`TIME` 列、タスクごとのシェル名表示、正確な `done`/`killed`/`failed`/`lost` 分類を備え、Settings → Generation には各モデルの選択肢に準拠した `sanitizer.thinking`・`classifier.thinking`・`compact.thinking`・`title.thinking` を追加し、Settings → Tools では `PROCESS CONTROL` を `TERMINAL` の直下に配置しました。また圧縮ラベルの整理、編集差分の均等抽出、境界維持バッチ分割、ローカル OAuth コールバックの堅牢化も実施しています。"
+      ],
+      "points": [
+        {
+          "id": "manual-shell-and-path-autocomplete",
+          "title": "マルチプラットフォーム ! / パス補完・ネイティブ Enter 選択・大規模フォルダ高速描画",
+          "text": "`!` は Linux・macOS・Windows で組み込みコマンド、`PATH` 実行ファイル、相対・`~`・`..` パスを補完し、`/attach`・`/skills install`・`/skills update`・`/mcp import`・`/mcp add` もフォルダをライブ参照します。通常ファイルへの stat 呼び出しを省いた mtime キャッシュ、ゼロアロケーションソート、表示行のみの遅延生成により数百万件規模でも滑らかに動作し、`Enter` は未完成パスを選択して完成後に実行します。"
+        },
+        {
+          "id": "shells-table-and-status",
+          "title": "整列された /shells 表、タスク別シェル名、正確な状態記録",
+          "text": "`/shells` パネルは `STATUS`・`ID`・`PID`・`TIME` 列を揃えて `PID` を中央配置し、展開ボックスの見出しをファイルパスから起動シェル名（`Bash`、`zsh`、`PowerShell`、`Cmd`）へ置き換え、ボックス幅を画面幅に連動させます。ログ上限超過による停止は `killed`、Unix 終了シグナル（`129`、`130`、`137`、`143`）は `killed`、その他の非ゼロ終了は `failed (code)` として記録し、各状態を個別に集計します。"
+        },
+        {
+          "id": "auxiliary-thinking-controls",
+          "title": "補助ロール別の思考設定・固定幅ピル表示・長押しデバウンス保存",
+          "text": "Settings → Generation に `sanitizer.thinking`、`classifier.thinking`、`compact.thinking`、`title.thinking` を追加し、省略記号なしで `<effort> · <選択肢>` を表示します（`off`、`on`、または努力レベル、必須時以外は既定 `off`）。`‹ effort ›` ピルは最大幅中央揃え・両端ループ切替を備え、長押し連打（`Effort`/`Thinking`、`Theme`、`Sidebar`、`Alt+T`、`Ctrl+O` 含む）でもフリーズしないデバウンス保存を採用しました。`PROCESS CONTROL` は `TERMINAL` の直下に配置しています。"
+        },
+        {
+          "id": "manual-shell-transcript-and-metrics",
+          "title": "! コマンドの単一ブロック表示・別プロセス再開時のタイマー固定・非ゼロ使用量メトリクス",
+          "text": "手動シェル `!` コマンドの実行時に重複したユーザーチャット枠を出さず単一のステップ表示に統一しました。別プロセスや別ウィンドウから履歴を再開しても完了済み `!` ステップのタイマーは進行せず、ターンメトリクスも API トークン使用量が 0 より大きい場合のみ表示して再起動前後の一貫性を保ちます。"
+        },
+        {
+          "id": "auxiliary-clarity-and-oauth",
+          "title": "圧縮コンテキスト整理、安全なバッチ分割、堅牢な OAuth 待機",
+          "text": "履歴圧縮は内部デバッグ表記を廃して明確なターン・ツールラベルを用い、`old_str` と `new_str` の抜粋配分を均等化しました。長文バッチ分割は行・単語境界を優先し、classifier の `deny.rule` 説明と並列実行プロンプト文言を明確化し、コンテキスト超過検出に分間トークン制限を追加し、ローカル MCP OAuth 待機ループが不正なローカル接続で中断しないようにしました。"
+        }
+      ]
+    },
     "0.12.4": {
       "title": "見やすいターン行、リアルタイム /shells 監視、文中のスラッシュ実行、AI の ANSI カラー対応",
       "summary": "色付きターン指標と /shells、スマートなサブコマンド補完、Alt+H のみのウィザード、ANSI SGR 対応、9router の Off は既定値維持",

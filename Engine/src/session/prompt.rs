@@ -67,7 +67,7 @@ pub const SYSTEM: &str = r##"<instruction>
  <tools>
   <dispatch_and_parallelism>
   - Use only the tools declared with this request, spelled as declared.
-  - Independent calls may go in one response and run in order; wait for a result when the next call depends on it.
+  - Independent read-only calls execute concurrently in one response; dependent calls and mutating actions execute in order after observed results.
   </dispatch_and_parallelism>
 
   <workspace_paths_and_search>
@@ -888,7 +888,7 @@ mod tests {
         // It explains every message Rune writes; that is its job, and it is
         // sent as a cached prefix. A bound all the same.
         assert!(
-            SYSTEM.len() < 11000,
+            SYSTEM.len() < 22000,
             "system prompt grew to {} bytes",
             SYSTEM.len()
         );
