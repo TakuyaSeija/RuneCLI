@@ -611,10 +611,17 @@ install_rune() {
 
 	# 1. The checksum list must carry the release key's signature (ECDSA P-256
 	#    over SHA-256, which OpenSSL and the LibreSSL of macOS both check).
+	openssl pkey -pubin -in "$tmp/signing-key.pem" -outform DER >"$tmp/signing-key.der" 2>/dev/null ||
+		openssl ec -pubin -in "$tmp/signing-key.pem" -outform DER >"$tmp/signing-key.der" 2>/dev/null ||
+		fail "invalid release signing key"
+	key_hex=$(sha256_of "$tmp/signing-key.der" | tr '[:lower:]' '[:upper:]')
+	actual_fp=$(printf '%s' "$key_hex" | sed 's/.\{8\}/& /g; s/ $//')
+	[ "$actual_fp" = "$KEY_FINGERPRINT" ] ||
+		fail "KEY FINGERPRINT MISMATCH for $version - nothing was installed. Do not use these files."
 	openssl dgst -sha256 -verify "$tmp/signing-key.pem" -signature "$tmp/SHA256SUMS.sig" \
 		"$tmp/SHA256SUMS" >/dev/null 2>&1 ||
 		fail "SIGNATURE CHECK FAILED for $version - nothing was installed. Do not use these files."
-	step "Signature verified  ${dim}(key $(short_fp "$KEY_FINGERPRINT"))${off}"
+	step "Signature verified  ${dim}(key $(short_fp "$actual_fp"))${off}"
 
 	# 2. The archive must be in that signed list with exactly that hash.
 	expected=$(tr -d '\r' <"$tmp/SHA256SUMS" | awk -v n="$name" '$2 == n { print $1 }')

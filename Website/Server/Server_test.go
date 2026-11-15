@@ -266,9 +266,13 @@ func TestProdAddsHSTSAndIndexingOnlyWhenAsked(t *testing.T) {
 	cfg.Listen = []string{"127.0.0.1:3200"}
 	h := newTestServer(t, cfg).routes()
 	w := get(t, h, "GET", "/Studio/")
-	if w.Header().Get("Strict-Transport-Security") == "" || w.Header().Get("X-Robots-Tag") != "" ||
+	if !strings.Contains(w.Header().Get("Strict-Transport-Security"), "includeSubDomains") || w.Header().Get("X-Robots-Tag") != "" ||
 		strings.Contains(w.Body.String(), "noindex") || strings.Contains(w.Body.String(), "Development build") {
 		t.Fatal("prod headers or body wrong")
+	}
+	if r := get(t, h, "GET", "/Studio/install"); r.Code != 301 || r.Header().Get("Cache-Control") != "no-cache" ||
+		!strings.Contains(r.Header().Get("Strict-Transport-Security"), "includeSubDomains") {
+		t.Fatalf("prod redirect headers wrong: %d cc=%q hsts=%q", r.Code, r.Header().Get("Cache-Control"), r.Header().Get("Strict-Transport-Security"))
 	}
 	if w := get(t, h, "GET", "/Studio/sitemap.xml"); w.Code != 200 || !strings.Contains(w.Body.String(), "https://atoryn.com/Studio/docs/security") || strings.Contains(w.Body.String(), "<loc>https://atoryn.com/Studio/security</loc>") {
 		t.Fatalf("sitemap: %d", w.Code)
@@ -637,6 +641,23 @@ func TestInstallerEndToEnd(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(dir, "rune")); !strings.Contains(string(b), "rune 0.9.0") {
 		t.Fatalf("not installed from a CRLF list:\n%s", out)
 	}
+
+	// Mismatched fingerprint constant in install.sh must fail closed before verifying.
+	script := get(t, ts.Config.Handler, "GET", "/Studio/install.sh", func(r *http.Request) { r.Host = host }).Body.String()
+	badFP := strings.Replace(script, "KEY_FINGERPRINT='", "KEY_FINGERPRINT='00000000 ", 1)
+	if badFP == script {
+		t.Fatal("KEY_FINGERPRINT assignment missing from install.sh")
+	}
+	badHome := t.TempDir()
+	cmd := exec.Command("sh")
+	cmd.Stdin = strings.NewReader(badFP)
+	cmd.Env = []string{"HOME=" + badHome, "PATH=/usr/bin:/bin", "RUNE_INSTALL_DIR=" + filepath.Join(badHome, "bin")}
+	if runtime.GOOS == "linux" {
+		cmd.Env = append(cmd.Env, "RUNE_LIBC=gnu")
+	}
+	if bout, berr := cmd.CombinedOutput(); berr == nil || !strings.Contains(string(bout), "KEY FINGERPRINT MISMATCH") {
+		t.Fatalf("mismatched fingerprint did not fail closed: %v\n%s", berr, bout)
+	}
 }
 
 // The Windows installer against a real server, in Windows PowerShell 5.1 and
@@ -751,13 +772,28 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 	g := newDownloads(t)
 	g.publishArchives(t, "0.9.0", map[string][]byte{"rune-0.9.0-windows-x86_64.zip": good, "rune-0.9.0-windows-aarch64.zip": good})
 	g.crlf(t, "0.9.0")
-	ts, _ = installerServer(t, g.dir)
+	ts, host := installerServer(t, g.dir)
 	for _, shell := range shells {
 		if out, dir, err := run(shell); err != nil || !strings.Contains(strings.ToLower(out), "signature verified") {
 			t.Fatalf("%s: CRLF checksum list refused: %v\n%s", shell, err, out)
 		} else if got, err := exec.Command(filepath.Join(dir, "rune.exe"), "--version").Output(); err != nil || strings.TrimSpace(string(got)) != "rune 0.9.0" {
 			t.Fatalf("%s: program from a CRLF list says %q (%v)", shell, got, err)
 		}
+	}
+
+	// Mismatched fingerprint constant in install.ps1 must fail closed before verifying.
+	psScript := get(t, ts.Config.Handler, "GET", "/Studio/install.ps1", func(r *http.Request) { r.Host = host }).Body.String()
+	badPS := strings.Replace(psScript, "$KeyFingerprint = '", "$KeyFingerprint = '00000000 ", 1)
+	if badPS == psScript {
+		t.Fatal("$KeyFingerprint assignment missing from install.ps1")
+	}
+	badPSFile := filepath.Join(t.TempDir(), "install-badfp.ps1")
+	os.WriteFile(badPSFile, []byte(badPS), 0o644)
+	badHome := t.TempDir()
+	cmd := exec.Command(shells[0], "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", badPSFile)
+	cmd.Env = append(os.Environ(), "RUNE_INSTALL_DIR="+filepath.Join(badHome, "bin"), "LOCALAPPDATA="+filepath.Join(badHome, "local"))
+	if bout, berr := cmd.CombinedOutput(); berr == nil || !strings.Contains(string(bout), "KEY FINGERPRINT MISMATCH") {
+		t.Fatalf("mismatched fingerprint in install.ps1 did not fail closed: %v\n%s", berr, bout)
 	}
 }
 

@@ -146,6 +146,19 @@ function ConvertFrom-DerSignature([byte[]]$Der) {
     return ,$raw
 }
 
+function Get-ReleaseKeyFingerprint {
+    # SubjectPublicKeyInfo DER for ECDSA P-256 (27-byte ASN.1 header + 64-byte X||Y).
+    $spkiPrefix = ConvertFrom-Hex '3059301306072a8648ce3d020106082a8648ce3d03010703420004'
+    $spki = [byte[]]($spkiPrefix + (ConvertFrom-Hex $KeyX) + (ConvertFrom-Hex $KeyY))
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hex = ([BitConverter]::ToString($sha.ComputeHash($spki)) -replace '-', '').ToUpperInvariant()
+    } finally {
+        $sha.Dispose()
+    }
+    return (($hex -replace '(.{8})', '$1 ').TrimEnd())
+}
+
 function Test-ReleaseSignature([byte[]]$Data, [byte[]]$Der) {
     $raw = ConvertFrom-DerSignature $Der
     if ($null -eq $raw) { return $false }
@@ -259,6 +272,10 @@ function Install-Rune {
         Get-Download "$url/SHA256SUMS.sig" (Join-Path $tmp 'SHA256SUMS.sig')
 
         # 1. The checksum list must carry the release key's signature.
+        $actualFingerprint = Get-ReleaseKeyFingerprint
+        if ($actualFingerprint -ne $KeyFingerprint) {
+            Fail "KEY FINGERPRINT MISMATCH for $version - nothing was installed. Do not use these files."
+        }
         $sums = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'SHA256SUMS'))
         $signature = [System.IO.File]::ReadAllBytes((Join-Path $tmp 'SHA256SUMS.sig'))
         $verified = $false
@@ -266,7 +283,7 @@ function Install-Rune {
         if (-not $verified) {
             Fail "SIGNATURE CHECK FAILED for $version - nothing was installed. Do not use these files."
         }
-        Step "Signature verified  (key $KeyFingerprint)"
+        Step "Signature verified  (key $actualFingerprint)"
 
         # 2. The archive must be in that signed list with exactly that hash.
         $expected = $null

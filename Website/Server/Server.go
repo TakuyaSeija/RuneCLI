@@ -160,6 +160,7 @@ func (s *server) routes() http.Handler {
 
 func redirectTo(target string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
 		http.Redirect(w, r, target, http.StatusMovedPermanently)
 	}
 }
@@ -457,7 +458,7 @@ func (s *server) guard(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "accelerometer=(), browsing-topics=(), camera=(), display-capture=(), geolocation=(), "+
 			"gyroscope=(), hid=(), magnetometer=(), microphone=(), payment=(), serial=(), usb=()")
 		if s.cfg.Env == "Prod" {
-			h.Set("Strict-Transport-Security", "max-age=31536000")
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
 		if !s.cfg.Indexing {
 			h.Set("X-Robots-Tag", "noindex, nofollow")
