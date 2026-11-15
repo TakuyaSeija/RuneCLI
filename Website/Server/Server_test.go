@@ -790,10 +790,14 @@ func TestWindowsInstallerEndToEnd(t *testing.T) {
 	badPSFile := filepath.Join(t.TempDir(), "install-badfp.ps1")
 	os.WriteFile(badPSFile, []byte(badPS), 0o644)
 	badHome := t.TempDir()
-	cmd := exec.Command(shells[0], "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", badPSFile)
+	cmd := exec.Command(shells[0], "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+		"& "+powershellQuote(badPSFile)+"; exit $LASTEXITCODE")
 	cmd.Env = append(os.Environ(), "RUNE_INSTALL_DIR="+filepath.Join(badHome, "bin"), "LOCALAPPDATA="+filepath.Join(badHome, "local"))
 	if bout, berr := cmd.CombinedOutput(); berr == nil || !strings.Contains(string(bout), "KEY FINGERPRINT MISMATCH") {
 		t.Fatalf("mismatched fingerprint in install.ps1 did not fail closed: %v\n%s", berr, bout)
+	}
+	if _, serr := os.Stat(filepath.Join(badHome, "bin", "rune.exe")); serr == nil {
+		t.Fatal("rune.exe was installed despite KEY FINGERPRINT MISMATCH")
 	}
 }
 
